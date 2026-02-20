@@ -1,26 +1,71 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Primary Palette */
+  --color-ivory: #faf6f1;
+  --color-warm-cream: #f3ece4;
+  --color-deep-espresso: #2c2420;
+  --color-warm-stone: #6b5d52;
+  --color-studio-blush: #c4907a;
+  --color-accent-text: #96604a;
+
+  /* Interactive */
+  --color-btn-primary: #2c2420;
+  --color-btn-text: #faf6f1;
+  --color-btn-secondary: #7a6558;
+  --color-hover: #f0e0d6;
+  --color-focus-ring: #8c5b44;
+
+  /* System */
+  --color-success: #4e6b51;
+  --color-warning: #7a5c10;
+  --color-error: #9b4040;
+  --color-disabled: #918680;
+
+  /* Scene Materials */
+  --color-floor: #e8e0d8;
+  --color-light-shaft: #f5e6d3;
+  --color-accent-geo: #e8c4b8;
+
+  /* Layout */
+  --section-padding: clamp(4rem, 10vh, 8rem);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-background: #faf6f1;
+  --color-foreground: #2c2420;
+  --color-surface: #f3ece4;
+  --color-muted: #6b5d52;
+  --color-accent: #96604a;
+  --color-accent-decorative: #c4907a;
+  --color-accent-geo: #e8c4b8;
+  --color-hover: #f0e0d6;
+  --color-focus: #8c5b44;
+  --color-btn-primary: #2c2420;
+  --color-btn-text: #faf6f1;
+  --color-btn-secondary: #7a6558;
+  --color-warm-cream: #f3ece4;
+  --color-floor: #e8e0d8;
+  --color-blush: #c4907a;
   --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  scroll-behavior: smooth;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-ivory);
+  color: var(--color-deep-espresso);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

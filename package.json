@@ -11,7 +11,11 @@
     "format:check": "prettier --check .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "prepare": "husky"
+    "prepare": "husky",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio"
   },
   "lint-staged": {
     "*.{ts,tsx}": [
@@ -28,8 +32,10 @@
     "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.97.0",
     "@tanstack/react-form": "^1.28.3",
+    "drizzle-orm": "^0.45.1",
     "framer-motion": "^12.34.2",
     "next": "16.1.6",
+    "postgres": "^3.4.8",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-icons": "^5.5.0",
@@ -46,6 +52,7 @@
     "@types/react-dom": "^19",
     "@types/three": "^0.183.0",
     "@vitejs/plugin-react": "^5.1.4",
+    "drizzle-kit": "^0.31.9",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
     "eslint-config-prettier": "^10.1.8",

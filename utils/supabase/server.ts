@@ -1,5 +1,10 @@
-import { createServerClient } from "@supabase/ssr";
+/**
+ * Supabase server client — creates a server-side Supabase instance.
+ *
+ * Used in Server Components and Route Handlers for authenticated data access.
+ */
 import { cookies } from "next/headers";
+import { createServerClient } from "@supabase/ssr";
 
 export async function createClient() {
   const cookieStore = await cookies();
@@ -16,7 +21,7 @@ export async function createClient() {
         setAll(cookiesToSet) {
           try {
             cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
+              cookieStore.set(name, value, options),
             );
           } catch {
             // The `setAll` method was called from a Server Component.
@@ -25,6 +30,6 @@ export async function createClient() {
           }
         },
       },
-    }
+    },
   );
 }

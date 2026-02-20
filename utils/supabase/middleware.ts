@@ -1,5 +1,12 @@
-import { createServerClient } from "@supabase/ssr";
+/**
+ * Supabase middleware — session refresh and auth redirect logic.
+ *
+ * NOT ACTIVE: No root middleware.ts imports this. Kept as reference
+ * for when auth is wired up. The redirect-to-/login logic will need
+ * updating once auth routes exist.
+ */
 import { NextResponse, type NextRequest } from "next/server";
+import { createServerClient } from "@supabase/ssr";
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
@@ -15,18 +22,16 @@ export async function updateSession(request: NextRequest) {
           return request.cookies.getAll();
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) =>
-            request.cookies.set(name, value)
-          );
+          cookiesToSet.forEach(({ name, value, options }) => request.cookies.set(name, value));
           supabaseResponse = NextResponse.next({
             request,
           });
           cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options)
+            supabaseResponse.cookies.set(name, value, options),
           );
         },
       },
-    }
+    },
   );
 
   // Do not run code between createServerClient and

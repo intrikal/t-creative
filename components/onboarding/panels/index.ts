@@ -16,3 +16,7 @@ export { PanelAllergies } from "./PanelAllergies";
 export { PanelContact } from "./PanelContact";
 export { PanelWaiver } from "./PanelWaiver";
 export { PanelPhotoConsent } from "./PanelPhotoConsent";
+export { PanelRoleSkills } from "./PanelRoleSkills";
+export { PanelShiftAvailability } from "./PanelShiftAvailability";
+export { PanelEmergencyContact } from "./PanelEmergencyContact";
+export { PanelContactPrefs } from "./PanelContactPrefs";

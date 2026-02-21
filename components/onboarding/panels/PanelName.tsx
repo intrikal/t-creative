@@ -13,6 +13,7 @@
  */
 import { motion } from "framer-motion";
 import { LuShieldCheck, LuSparkles, LuClock } from "react-icons/lu";
+import { TCLogo } from "@/components/TCLogo";
 
 export function PanelName() {
   return (
@@ -30,7 +31,7 @@ export function PanelName() {
           transition={{ duration: 0.5, delay: 0.1 }}
           className="mx-auto mb-8 w-20 h-20 rounded-2xl bg-accent/8 flex items-center justify-center"
         >
-          <span className="text-3xl font-light text-accent tracking-tight">T</span>
+          <TCLogo size={44} className="text-accent" />
         </motion.div>
 
         <h2 className="text-xl font-medium text-foreground mb-2">T Creative Studio</h2>

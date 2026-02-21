@@ -11,7 +11,7 @@
 
 import { Geist } from "next/font/google";
 import type { Metadata } from "next";
-import { Navbar } from "@/components/Navbar";
+import { NavbarWrapper } from "@/components/NavbarWrapper";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -89,7 +89,7 @@ export default function RootLayout({
         >
           Skip to main content
         </a>
-        <Navbar />
+        <NavbarWrapper />
         {children}
       </body>
     </html>

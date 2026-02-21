@@ -13,7 +13,16 @@
  * (configured in the seed migration).
  */
 import { relations } from "drizzle-orm";
-import { boolean, index, pgTable, text, timestamp, uuid, varchar } from "drizzle-orm/pg-core";
+import {
+  boolean,
+  index,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
+  uuid,
+  varchar,
+} from "drizzle-orm/pg-core";
 import { pgEnum } from "drizzle-orm/pg-core";
 import { assistantProfiles, shifts } from "./assistants";
 import { bookings } from "./bookings";
@@ -123,6 +132,12 @@ export const profiles = pgTable(
 
     /** Zoho CRM contact ID — set when synced to Zoho for CRM tracking. */
     zohoContactId: varchar("zoho_contact_id", { length: 100 }),
+
+    /**
+     * JSONB bucket for onboarding fields that don't have dedicated columns
+     * (allergies, availability, interests, waiver, photo consent, birthday, etc.).
+     */
+    onboardingData: jsonb("onboarding_data"),
 
     isActive: boolean("is_active").notNull().default(true),
 

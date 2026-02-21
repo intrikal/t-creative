@@ -11,6 +11,7 @@
 
 import { Geist } from "next/font/google";
 import type { Metadata } from "next";
+import { ConditionalNavbar } from "@/components/ConditionalNavbar";
 import { NavbarWrapper } from "@/components/NavbarWrapper";
 import "./globals.css";
 
@@ -89,7 +90,9 @@ export default function RootLayout({
         >
           Skip to main content
         </a>
-        <NavbarWrapper />
+        <ConditionalNavbar>
+          <NavbarWrapper />
+        </ConditionalNavbar>
         {children}
       </body>
     </html>

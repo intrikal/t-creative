@@ -1,26 +1,8 @@
 "use client";
 
 import type React from "react";
-
-/**
- * DashboardPage — Trini's admin overview.
- *
- * All data is hardcoded for now. When server actions / API routes are wired
- * up, replace each `MOCK_*` constant with the appropriate `fetch` / server
- * action call in the parent `page.tsx` (which can remain a Server Component).
- *
- * Layout (desktop):
- *   ┌─────────────────────────────────────────────┐
- *   │  4 stat cards (grid)                        │
- *   ├─────────────────────┬───────────────────────┤
- *   │  Today's Schedule   │  Pending Inquiries    │
- *   ├─────────────────────┴───────────────────────┤
- *   │  Revenue — last 7 days (D3 bar chart)       │
- *   ├─────────────────────────────────────────────┤
- *   │  Recent Clients                             │
- *   └─────────────────────────────────────────────┘
- */
-
+import { useState } from "react";
+import Link from "next/link";
 import {
   TrendingUp,
   TrendingDown,
@@ -31,6 +13,16 @@ import {
   MapPin,
   Star,
   ChevronRight,
+  CalendarPlus,
+  FileText,
+  AlertTriangle,
+  AlertCircle,
+  Info,
+  X,
+  Package,
+  Image,
+  ListOrdered,
+  DollarSign,
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -39,7 +31,7 @@ import { cn } from "@/lib/utils";
 import { RevenueChart } from "./RevenueChart";
 
 /* ------------------------------------------------------------------ */
-/*  Hardcoded mock data — replace with real queries later              */
+/*  Types & mock data                                                  */
 /* ------------------------------------------------------------------ */
 
 type Trend = "up" | "down" | "neutral";
@@ -81,13 +73,95 @@ const MOCK_STATS: {
     iconBg: "bg-accent/10",
   },
   {
+    label: "Waitlist",
+    value: "5",
+    sub: "3 still waiting",
+    trend: "neutral",
+    icon: ListOrdered,
+    iconColor: "text-[#7a5c10]",
+    iconBg: "bg-[#7a5c10]/10",
+  },
+  {
+    label: "Outstanding",
+    value: "$350",
+    sub: "2 unpaid invoices",
+    trend: "neutral",
+    icon: DollarSign,
+    iconColor: "text-destructive",
+    iconBg: "bg-destructive/10",
+  },
+  {
     label: "Open Inquiries",
     value: "3",
     sub: "1 new today",
     trend: "neutral",
     icon: MessageSquare,
-    iconColor: "text-[#7a5c10]",
-    iconBg: "bg-[#7a5c10]/10",
+    iconColor: "text-[#5b8a8a]",
+    iconBg: "bg-[#5b8a8a]/10",
+  },
+];
+
+const QUICK_ACTIONS = [
+  { label: "New Booking", icon: CalendarPlus, href: "/dashboard/bookings" },
+  { label: "New Invoice", icon: FileText, href: "/dashboard/financial" },
+  { label: "View Calendar", icon: CalendarDays, href: "/dashboard/calendar" },
+  { label: "Messages", icon: MessageSquare, href: "/dashboard/messages" },
+  { label: "Upload Media", icon: Image, href: "/dashboard/media" },
+  { label: "Inventory", icon: Package, href: "/dashboard/marketplace" },
+];
+
+const MOCK_ALERTS = [
+  {
+    id: "stock",
+    type: "warning" as const,
+    message: "3 products are low on stock or out of stock",
+    href: "/dashboard/marketplace",
+    cta: "View Inventory",
+  },
+  {
+    id: "invoice",
+    type: "error" as const,
+    message: "INV-004 is overdue — $200 owed by Keisha Williams (was due Feb 21)",
+    href: "/dashboard/financial",
+    cta: "View Invoice",
+  },
+  {
+    id: "waitlist",
+    type: "info" as const,
+    message: "5 clients on the waitlist — 3 have not been contacted yet",
+    href: "/dashboard/bookings",
+    cta: "View Waitlist",
+  },
+];
+
+const STAFF_TODAY = [
+  {
+    initials: "JC",
+    name: "Jasmine Carter",
+    role: "Lead Lash Tech",
+    hours: "10am – 6pm",
+    status: "active" as const,
+  },
+  {
+    initials: "BM",
+    name: "Brianna Moss",
+    role: "Jewelry & Crochet",
+    hours: "11am – 5pm",
+    status: "active" as const,
+  },
+  {
+    initials: "SO",
+    name: "Simone Owens",
+    role: "Admin & Relations",
+    hours: "9am – 3pm",
+    status: "active" as const,
+  },
+  {
+    initials: "KT",
+    name: "Kezia Thompson",
+    role: "Lash Tech — Jr",
+    hours: "—",
+    status: "on_leave" as const,
   },
 ];
 
@@ -371,20 +445,20 @@ function StatCard({
   iconBg,
 }: (typeof MOCK_STATS)[number]) {
   return (
-    <Card className="gap-0 py-5">
-      <CardContent className="px-5">
-        <div className="flex items-start justify-between gap-3">
-          <div className="space-y-1.5">
-            <p className="text-xs font-medium text-muted uppercase tracking-wide">{label}</p>
-            <p className="text-3xl font-semibold text-foreground tracking-tight">{value}</p>
+    <Card className="gap-0 py-4">
+      <CardContent className="px-4">
+        <div className="flex items-start justify-between gap-2">
+          <div className="space-y-1">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">{label}</p>
+            <p className="text-2xl font-semibold text-foreground tracking-tight">{value}</p>
             <div className="flex items-center gap-1 text-xs text-muted">
               {trend === "up" && <TrendingUp className="w-3 h-3 text-[#4e6b51]" />}
               {trend === "down" && <TrendingDown className="w-3 h-3 text-destructive" />}
               <span>{sub}</span>
             </div>
           </div>
-          <div className={cn("rounded-xl p-2.5 shrink-0", iconBg)}>
-            <Icon className={cn("w-5 h-5", iconColor)} />
+          <div className={cn("rounded-xl p-2 shrink-0", iconBg)}>
+            <Icon className={cn("w-4 h-4", iconColor)} />
           </div>
         </div>
       </CardContent>
@@ -396,20 +470,15 @@ function BookingRow({ booking }: { booking: Booking }) {
   const status = bookingStatusConfig(booking.status);
   return (
     <div className="flex items-center gap-3 py-3 border-b border-border/50 last:border-0">
-      {/* Category dot + time */}
       <div className="flex flex-col items-center gap-1.5 shrink-0 w-16">
         <span className={cn("w-1.5 h-1.5 rounded-full", categoryDot(booking.category))} />
         <span className="text-xs text-muted font-medium tabular-nums">{booking.time}</span>
       </div>
-
-      {/* Client avatar */}
       <Avatar size="sm">
         <AvatarFallback className="text-[10px] bg-surface text-muted font-semibold">
           {booking.clientInitials}
         </AvatarFallback>
       </Avatar>
-
-      {/* Service + client */}
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-foreground truncate">{booking.service}</p>
         <p className="text-xs text-muted mt-0.5">
@@ -422,8 +491,6 @@ function BookingRow({ booking }: { booking: Booking }) {
           )}
         </p>
       </div>
-
-      {/* Staff + duration — hidden on small mobile */}
       <div className="hidden sm:flex flex-col items-end gap-1 shrink-0">
         <span className="text-xs text-muted">{booking.staff}</span>
         <span className="text-[10px] text-muted/60 flex items-center gap-0.5">
@@ -431,8 +498,6 @@ function BookingRow({ booking }: { booking: Booking }) {
           {booking.durationMin}m
         </span>
       </div>
-
-      {/* Status badge */}
       <Badge className={cn("border text-[10px] px-1.5 py-0.5 shrink-0", status.className)}>
         {status.label}
       </Badge>
@@ -449,19 +514,13 @@ function InquiryRow({ inquiry }: { inquiry: Inquiry }) {
           {inquiry.initials}
         </AvatarFallback>
       </Avatar>
-
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-sm font-medium text-foreground">{inquiry.name}</span>
           <Badge className={cn("border text-[10px] px-1.5 py-0.5", status.className)}>
             {status.label}
           </Badge>
-          <span
-            className={cn(
-              "inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full border",
-              "bg-foreground/5 text-muted border-foreground/8",
-            )}
-          >
+          <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full border bg-foreground/5 text-muted border-foreground/8">
             {categoryLabel(inquiry.interest)}
           </span>
         </div>
@@ -481,7 +540,6 @@ function ClientRow({ client }: { client: RecentClient }) {
           {client.initials}
         </AvatarFallback>
       </Avatar>
-
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5">
           <span className="text-sm font-medium text-foreground">{client.name}</span>
@@ -502,7 +560,6 @@ function ClientRow({ client }: { client: RecentClient }) {
           ))}
         </div>
       </div>
-
       <span className="text-[10px] text-muted/70 shrink-0 hidden sm:block">{client.joinedAgo}</span>
     </div>
   );
@@ -513,15 +570,19 @@ function ClientRow({ client }: { client: RecentClient }) {
 /* ------------------------------------------------------------------ */
 
 export function DashboardPage() {
+  const [dismissedAlerts, setDismissedAlerts] = useState<string[]>([]);
+
   const today = new Date().toLocaleDateString("en-US", {
     weekday: "long",
     month: "long",
     day: "numeric",
   });
 
+  const visibleAlerts = MOCK_ALERTS.filter((a) => !dismissedAlerts.includes(a.id));
+
   return (
     <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
-      {/* Page header */}
+      {/* ── Header ─────────────────────────────────────────────────── */}
       <div>
         <h1 className="text-xl font-semibold text-foreground tracking-tight">
           Good morning, Trini ✦
@@ -529,23 +590,93 @@ export function DashboardPage() {
         <p className="text-sm text-muted mt-0.5">{today}</p>
       </div>
 
-      {/* ── Stats row ──────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
+      {/* ── Quick actions ───────────────────────────────────────────── */}
+      <div className="flex gap-2 flex-wrap">
+        {QUICK_ACTIONS.map(({ label, icon: Icon, href }) => (
+          <Link
+            key={label}
+            href={href}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-surface border border-border text-sm font-medium text-foreground hover:bg-foreground/5 hover:border-foreground/20 transition-colors"
+          >
+            <Icon className="w-3.5 h-3.5 text-muted" />
+            {label}
+          </Link>
+        ))}
+      </div>
+
+      {/* ── Stats ───────────────────────────────────────────────────── */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         {MOCK_STATS.map((stat) => (
           <StatCard key={stat.label} {...stat} />
         ))}
       </div>
 
-      {/* ── Schedule + Inquiries ───────────────────────────────────── */}
+      {/* ── Alerts ──────────────────────────────────────────────────── */}
+      {visibleAlerts.length > 0 && (
+        <div className="space-y-2">
+          {visibleAlerts.map((alert) => {
+            const styles = {
+              warning: {
+                bar: "bg-[#7a5c10]",
+                bg: "bg-[#7a5c10]/5 border-[#7a5c10]/20",
+                text: "text-[#7a5c10]",
+                Icon: AlertTriangle,
+              },
+              error: {
+                bar: "bg-destructive",
+                bg: "bg-destructive/5 border-destructive/20",
+                text: "text-destructive",
+                Icon: AlertCircle,
+              },
+              info: {
+                bar: "bg-accent",
+                bg: "bg-accent/5 border-accent/20",
+                text: "text-accent",
+                Icon: Info,
+              },
+            }[alert.type];
+
+            return (
+              <div
+                key={alert.id}
+                className={cn(
+                  "flex items-center gap-3 px-4 py-3 rounded-xl border text-sm",
+                  styles.bg,
+                )}
+              >
+                <div className={cn("w-1 self-stretch rounded-full shrink-0", styles.bar)} />
+                <styles.Icon className={cn("w-4 h-4 shrink-0", styles.text)} />
+                <p className="flex-1 text-foreground text-sm">{alert.message}</p>
+                <Link
+                  href={alert.href}
+                  className={cn("text-xs font-medium shrink-0 hover:underline", styles.text)}
+                >
+                  {alert.cta}
+                </Link>
+                <button
+                  onClick={() => setDismissedAlerts((prev) => [...prev, alert.id])}
+                  className="p-1 rounded-md hover:bg-foreground/8 text-muted hover:text-foreground transition-colors shrink-0"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── Schedule + Inquiries ────────────────────────────────────── */}
       <div className="grid grid-cols-1 xl:grid-cols-5 gap-4">
-        {/* Today's schedule — wider column */}
         <Card className="xl:col-span-3 gap-0">
           <CardHeader className="pb-0 pt-5">
             <div className="flex items-center justify-between">
               <CardTitle className="text-sm font-semibold">Today&apos;s Schedule</CardTitle>
-              <button className="text-xs text-accent hover:underline flex items-center gap-0.5">
+              <Link
+                href="/dashboard/bookings"
+                className="text-xs text-accent hover:underline flex items-center gap-0.5"
+              >
                 View all <ChevronRight className="w-3 h-3" />
-              </button>
+              </Link>
             </div>
           </CardHeader>
           <CardContent className="px-5 pb-4 pt-2">
@@ -555,14 +686,16 @@ export function DashboardPage() {
           </CardContent>
         </Card>
 
-        {/* Pending inquiries — narrower column */}
         <Card className="xl:col-span-2 gap-0">
           <CardHeader className="pb-0 pt-5">
             <div className="flex items-center justify-between">
               <CardTitle className="text-sm font-semibold">Inquiries</CardTitle>
-              <button className="text-xs text-accent hover:underline flex items-center gap-0.5">
+              <Link
+                href="/dashboard/inquiries"
+                className="text-xs text-accent hover:underline flex items-center gap-0.5"
+              >
                 View all <ChevronRight className="w-3 h-3" />
-              </button>
+              </Link>
             </div>
           </CardHeader>
           <CardContent className="px-5 pb-4 pt-2">
@@ -573,7 +706,7 @@ export function DashboardPage() {
         </Card>
       </div>
 
-      {/* ── Revenue chart ──────────────────────────────────────────── */}
+      {/* ── Revenue chart ───────────────────────────────────────────── */}
       <Card className="gap-0">
         <CardHeader className="pb-0 pt-5">
           <div className="flex items-center justify-between flex-wrap gap-2">
@@ -584,7 +717,6 @@ export function DashboardPage() {
                 <span className="ml-2 text-[#4e6b51]">↑ 8% vs prior week</span>
               </p>
             </div>
-            {/* Legend */}
             <div className="flex items-center gap-3 text-[11px] text-muted">
               <span className="flex items-center gap-1.5">
                 <span className="w-3 h-3 rounded-sm bg-[#c4907a] inline-block" /> Today
@@ -600,22 +732,78 @@ export function DashboardPage() {
         </CardContent>
       </Card>
 
-      {/* ── Recent clients ─────────────────────────────────────────── */}
-      <Card className="gap-0">
-        <CardHeader className="pb-0 pt-5">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-sm font-semibold">Recent Clients</CardTitle>
-            <button className="text-xs text-accent hover:underline flex items-center gap-0.5">
-              View all <ChevronRight className="w-3 h-3" />
-            </button>
-          </div>
-        </CardHeader>
-        <CardContent className="px-5 pb-4 pt-2">
-          {MOCK_RECENT_CLIENTS.map((client) => (
-            <ClientRow key={client.id} client={client} />
-          ))}
-        </CardContent>
-      </Card>
+      {/* ── Staff today + Recent clients ────────────────────────────── */}
+      <div className="grid grid-cols-1 xl:grid-cols-5 gap-4">
+        {/* Staff on today */}
+        <Card className="xl:col-span-2 gap-0">
+          <CardHeader className="pb-0 pt-5">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-semibold">Team Today</CardTitle>
+              <Link
+                href="/dashboard/assistants"
+                className="text-xs text-accent hover:underline flex items-center gap-0.5"
+              >
+                Full roster <ChevronRight className="w-3 h-3" />
+              </Link>
+            </div>
+          </CardHeader>
+          <CardContent className="px-5 pb-4 pt-2">
+            {STAFF_TODAY.map((s) => (
+              <div
+                key={s.name}
+                className="flex items-center gap-3 py-3 border-b border-border/50 last:border-0"
+              >
+                <Avatar size="sm">
+                  <AvatarFallback className="text-[10px] bg-surface text-muted font-semibold">
+                    {s.initials}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1 min-w-0">
+                  <p
+                    className={cn(
+                      "text-sm font-medium",
+                      s.status === "on_leave" ? "text-muted" : "text-foreground",
+                    )}
+                  >
+                    {s.name}
+                  </p>
+                  <p className="text-xs text-muted mt-0.5">{s.role}</p>
+                </div>
+                {s.status === "on_leave" ? (
+                  <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full border bg-[#7a5c10]/10 text-[#7a5c10] border-[#7a5c10]/20 shrink-0">
+                    On Leave
+                  </span>
+                ) : (
+                  <span className="text-[10px] text-muted shrink-0 flex items-center gap-0.5">
+                    <Clock className="w-3 h-3" />
+                    {s.hours}
+                  </span>
+                )}
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+
+        {/* Recent clients */}
+        <Card className="xl:col-span-3 gap-0">
+          <CardHeader className="pb-0 pt-5">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-semibold">Recent Clients</CardTitle>
+              <Link
+                href="/dashboard/clients"
+                className="text-xs text-accent hover:underline flex items-center gap-0.5"
+              >
+                View all <ChevronRight className="w-3 h-3" />
+              </Link>
+            </div>
+          </CardHeader>
+          <CardContent className="px-5 pb-4 pt-2">
+            {MOCK_RECENT_CLIENTS.map((client) => (
+              <ClientRow key={client.id} client={client} />
+            ))}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

@@ -24,16 +24,8 @@
  * - components/onboarding/steps/StepComplete.tsx — the left-side completion view
  */
 import { motion } from "framer-motion";
-import {
-  LuUser,
-  LuMail,
-  LuPhone,
-  LuBell,
-  LuHeart,
-  LuShieldCheck,
-  LuClock,
-  LuUsers,
-} from "react-icons/lu";
+import { LuMail, LuPhone, LuBell, LuHeart, LuShieldCheck, LuClock, LuUsers } from "react-icons/lu";
+import { TCLogo } from "@/components/TCLogo";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import type { OnboardingForm } from "./OnboardingFlow";
@@ -101,8 +93,8 @@ export function PanelSummary({ form }: Props) {
           <CardContent className="p-0">
             {/* ── Header: avatar + name ── */}
             <div className="bg-accent/5 px-6 py-5 flex items-center gap-4">
-              <div className="w-12 h-12 rounded-full bg-accent-geo flex items-center justify-center shrink-0">
-                <LuUser className="w-5 h-5 text-accent" />
+              <div className="w-12 h-12 rounded-full bg-accent/10 flex items-center justify-center shrink-0">
+                <TCLogo size={26} className="text-accent" />
               </div>
               <div className="min-w-0">
                 <p className="text-base font-medium text-foreground">{firstName}</p>

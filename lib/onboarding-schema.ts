@@ -102,8 +102,6 @@ export const onboardingSchema = z.object({
     .or(z.literal("")),
 });
 
-// `z.infer<typeof onboardingSchema>` automatically generates a TypeScript type from the schema.
-// This keeps the type and the validation rules perfectly in sync — change the schema and the type updates too.
 export type OnboardingData = z.infer<typeof onboardingSchema>;
 
 export const STEPS = [
@@ -113,10 +111,65 @@ export const STEPS = [
   { id: "contact", title: "How can we reach you?" },
   { id: "policies", title: "Our policies" },
   { id: "final_prefs", title: "Almost done!" },
-  // `as const` makes this array readonly and narrows each element's type to its exact literal value.
-  // Without it, TypeScript would widen "name" to just `string`. With it, it stays literally "name".
 ] as const;
 
-// `(typeof STEPS)[number]["id"]` is TypeScript indexed access — it extracts the union of all `id`
-// values from the STEPS array. Result: "name" | "interests" | "allergies" | "experience" | ... etc.
 export type StepId = (typeof STEPS)[number]["id"];
+
+/* ------------------------------------------------------------------ */
+/*  Assistant onboarding schema                                        */
+/* ------------------------------------------------------------------ */
+
+export const assistantOnboardingSchema = z.object({
+  firstName: z.string().min(1, "Please enter your name"),
+  preferredTitle: z.string().optional().or(z.literal("")),
+  skills: z
+    .array(z.enum(["lash", "jewelry", "crochet", "consulting"]))
+    .min(1, "Pick at least one skill"),
+  experienceLevel: z.enum(["junior", "mid", "senior"]),
+  bio: z.string().optional().or(z.literal("")),
+
+  shiftAvailability: z.object({
+    monday: z.boolean(),
+    tuesday: z.boolean(),
+    wednesday: z.boolean(),
+    thursday: z.boolean(),
+    friday: z.boolean(),
+    saturday: z.boolean(),
+    sunday: z.boolean(),
+  }),
+  preferredShiftTime: z.enum(["morning", "afternoon", "evening", "flexible"]),
+  maxHoursPerWeek: z.number().min(1).max(60).optional(),
+
+  emergencyContactName: z.string().min(1, "Required"),
+  emergencyContactPhone: z.string().min(1, "Required"),
+  emergencyContactRelation: z.string().optional().or(z.literal("")),
+
+  /** Certifications held by the assistant. */
+  certifications: z
+    .array(z.enum(["tcreative_lash", "tcreative_jewelry", "external_lash", "external_jewelry"]))
+    .optional(),
+
+  /** Preferred work style — client-facing, support, or both. */
+  workStyle: z.enum(["client_facing", "back_of_house", "both"]),
+
+  email: z.string().email("Enter a valid email"),
+  phone: z.string().optional().or(z.literal("")),
+  instagramHandle: z.string().optional().or(z.literal("")),
+  notifications: z.object({
+    sms: z.boolean(),
+    email: z.boolean(),
+    marketing: z.boolean(),
+  }),
+});
+
+export type AssistantOnboardingData = z.infer<typeof assistantOnboardingSchema>;
+
+export const ASSISTANT_STEPS = [
+  { id: "name", title: "What should we call you?" },
+  { id: "role_skills", title: "Your role & skills" },
+  { id: "shift_availability", title: "Your availability" },
+  { id: "emergency_contact", title: "Emergency contact" },
+  { id: "contact_prefs", title: "Contact preferences" },
+] as const;
+
+export type AssistantStepId = (typeof ASSISTANT_STEPS)[number]["id"];

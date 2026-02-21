@@ -1,40 +1,15 @@
 "use client";
 
-/**
- * StepComplete.tsx — Onboarding completion screen
- *
- * What: The final screen shown after all onboarding steps are done. Displays
- *       a success message with the user's name and provides navigation buttons
- *       to book a session or explore the studio.
- * Why: Provides a clear endpoint to the onboarding flow with a sense of
- *      accomplishment, and guides the user toward their next action.
- * How: Reads the user's first name from the form to personalize the message.
- *      Uses Framer Motion for a celebratory animated checkmark on entry.
- *      Two call-to-action buttons link to /services and / respectively.
- *
- * Key concepts:
- * - No onNext prop: This is the terminal step — there's nowhere to advance.
- *   It only receives `form` (to read the name), not navigation callbacks.
- * - Animated SVG checkmark: Uses Framer Motion's `pathLength` animation to
- *   draw the checkmark stroke progressively, creating a satisfying reveal.
- * - The PanelSummary component (shown on the right) complements this with
- *   a data summary card.
- *
- * Related files:
- * - components/onboarding/OnboardingFlow.tsx — renders this when step >= totalSteps
- * - components/onboarding/PanelSummary.tsx — the paired right panel showing data summary
- */
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/Button";
 import type { OnboardingForm } from "../OnboardingFlow";
 
-// interface: TypeScript type contract — StepProps must have a `form` property.
 interface StepProps {
   form: OnboardingForm;
+  role?: "client" | "assistant";
 }
 
-export function StepComplete({ form }: StepProps) {
-  // form.getFieldValue() reads a value from the TanStack Form state.
+export function StepComplete({ form, role = "client" }: StepProps) {
   const firstName = form.getFieldValue("firstName");
 
   return (
@@ -55,8 +30,6 @@ export function StepComplete({ form }: StepProps) {
           animate={{ pathLength: 1 }}
           transition={{ delay: 0.3, duration: 0.5 }}
         >
-          {/* motion.path with pathLength: Framer Motion animates the SVG stroke from
-              0 (invisible) to 1 (fully drawn), creating a progressive drawing effect. */}
           <motion.path
             d="M8 16.5L13.5 22L24 11"
             stroke="currentColor"
@@ -81,8 +54,9 @@ export function StepComplete({ form }: StepProps) {
           You&apos;re all set{firstName ? `, ${firstName}` : ""}
         </h1>
         <p className="text-muted text-base max-w-sm mx-auto">
-          Welcome to T Creative Studio. We&apos;ve saved your preferences — when you&apos;re ready,
-          we&apos;re here.
+          {role === "assistant"
+            ? "Welcome to the team! We\u2019ve saved your info \u2014 your schedule will be ready soon."
+            : "Welcome to T Creative Studio. We\u2019ve saved your preferences \u2014 when you\u2019re ready, we\u2019re here."}
         </p>
       </motion.div>
 
@@ -92,12 +66,25 @@ export function StepComplete({ form }: StepProps) {
         transition={{ delay: 0.6, duration: 0.4 }}
         className="flex flex-col sm:flex-row gap-3 justify-center"
       >
-        <Button href="/services" variant="primary">
-          Book a Session
-        </Button>
-        <Button href="/" variant="secondary">
-          Explore the Studio
-        </Button>
+        {role === "assistant" ? (
+          <>
+            <Button href="/" variant="primary">
+              View your schedule
+            </Button>
+            <Button href="/" variant="secondary">
+              Go to Dashboard
+            </Button>
+          </>
+        ) : (
+          <>
+            <Button href="/services" variant="primary">
+              Book a Session
+            </Button>
+            <Button href="/" variant="secondary">
+              Explore the Studio
+            </Button>
+          </>
+        )}
       </motion.div>
     </div>
   );

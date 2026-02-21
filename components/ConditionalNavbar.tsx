@@ -9,6 +9,6 @@ import { usePathname } from "next/navigation";
  */
 export function ConditionalNavbar({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  if (pathname.startsWith("/dashboard")) return null;
+  if (pathname.startsWith("/dashboard") || pathname.startsWith("/assistant")) return null;
   return <>{children}</>;
 }

@@ -34,6 +34,7 @@ import { motion, AnimatePresence } from "framer-motion";
 const navLinks = [
   { label: "Services", href: "/services" },
   { label: "Portfolio", href: "/portfolio" },
+  { label: "Shop", href: "/shop" },
   { label: "Training", href: "/training" },
   { label: "Consulting", href: "/consulting" },
   { label: "About", href: "/about" },
@@ -104,9 +105,9 @@ export function Navbar({ user = null }: NavbarProps) {
               </form>
             </>
           ) : (
-            // Logged-out state: show a "Sign In" link
+            // Logged-out state: show a "Client Portal" link
             <Link
-              href="/login"
+              href="/client"
               className="text-xs tracking-wide text-muted hover:text-foreground transition-colors duration-200"
             >
               Sign In
@@ -196,7 +197,7 @@ export function Navbar({ user = null }: NavbarProps) {
                   </form>
                 ) : (
                   <Link
-                    href="/login"
+                    href="/client"
                     className="text-sm text-muted hover:text-foreground transition-colors"
                     onClick={() => setMobileOpen(false)}
                   >

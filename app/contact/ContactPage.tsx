@@ -24,10 +24,12 @@ type ContactFormData = z.infer<typeof contactSchema>;
 const interests = [
   "Lash Extensions",
   "Permanent Jewelry",
-  "Custom Crochet",
-  "Business Consulting",
+  "Crochet Hair Install",
+  "Custom Crochet Crafts",
+  "Beauty Business Consulting",
+  "HR Consulting",
   "Training Programs",
-  "Private Events",
+  "Shop Products",
   "Other",
 ];
 

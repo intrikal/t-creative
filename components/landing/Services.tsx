@@ -29,16 +29,16 @@ const services: {
     zoneId: "jewelry",
     title: "Permanent Jewelry",
     description:
-      "14k gold-filled and sterling silver chains, custom-fit and welded on. Bracelets, anklets, and necklaces.",
-    price: "Starting at $65",
+      "14k gold-filled and sterling silver chains, custom-fit and welded on. Bracelets, anklets, and necklaces — clasp-free and waterproof.",
+    price: "Starting at $55",
     cta: "Link a Memory",
   },
   {
     zoneId: "crochet",
-    title: "Custom Crochet",
+    title: "Crochet Hair & Crafts",
     description:
-      "Handcrafted pieces made to order. Blankets, bags, accessories, and gifts with personality.",
-    price: "Contact for Quote",
+      "Custom crochet hair installs — box braids, goddess locs, knotless braids, and more. Also handcrafted accessories, bags, and commissioned pieces.",
+    price: "Starting at $80",
     cta: "Commission a Piece",
   },
   {

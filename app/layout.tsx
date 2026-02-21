@@ -3,21 +3,37 @@
  *
  * Responsibilities:
  * - Global metadata and OpenGraph defaults
- * - Font loading (Geist Sans via next/font)
+ * - Font loading: Geist Sans (body) + Cormorant Garamond (display)
+ * - Smooth scroll provider (Lenis)
+ * - Custom cursor
  * - Skip link for keyboard accessibility (WCAG 2.4.1)
  * - Global navigation bar
  * - Server Component — no "use client" directive
  */
 
-import { Geist } from "next/font/google";
+import { Geist, Cormorant_Garamond } from "next/font/google";
 import type { Metadata } from "next";
 import { ConditionalNavbar } from "@/components/ConditionalNavbar";
 import { NavbarWrapper } from "@/components/NavbarWrapper";
+import { SmoothScroll } from "@/components/providers/SmoothScroll";
+import { Cursor } from "@/components/ui/Cursor";
 import "./globals.css";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
+});
+
+/**
+ * Cormorant Garamond — editorial display serif for headlines, quotes,
+ * and large-format type. Used via the `font-display` Tailwind utility.
+ */
+const cormorant = Cormorant_Garamond({
+  variable: "--font-cormorant",
+  subsets: ["latin"],
+  weight: ["300", "400", "500"],
+  style: ["normal", "italic"],
+  display: "swap",
 });
 
 const BASE_URL = "https://tcreativestudio.com";
@@ -77,7 +93,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={geistSans.variable}>
+    <html lang="en" className={`${geistSans.variable} ${cormorant.variable}`}>
       <body className="bg-background text-foreground font-sans antialiased">
         <script
           type="application/ld+json"
@@ -93,7 +109,9 @@ export default function RootLayout({
         <ConditionalNavbar>
           <NavbarWrapper />
         </ConditionalNavbar>
-        {children}
+        <SmoothScroll>{children}</SmoothScroll>
+        {/* Custom cursor — renders null on touch/mobile automatically */}
+        <Cursor />
       </body>
     </html>
   );

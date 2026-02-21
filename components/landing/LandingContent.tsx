@@ -8,6 +8,7 @@
 import { motion } from "framer-motion";
 import { useStudioStore } from "@/stores/useStudioStore";
 import { CallToAction } from "./CallToAction";
+import { FeaturedProducts } from "./FeaturedProducts";
 import { Footer } from "./Footer";
 import { Portfolio } from "./Portfolio";
 import { Services } from "./Services";
@@ -31,6 +32,7 @@ export function LandingContent() {
       <TrustBar />
       <Services />
       <Portfolio />
+      <FeaturedProducts />
       <Testimonials />
       <Training />
       <CallToAction />

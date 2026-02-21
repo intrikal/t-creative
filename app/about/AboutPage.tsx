@@ -93,15 +93,15 @@ export function AboutPage() {
                   color: "#D4A574",
                 },
                 {
-                  title: "Custom Crochet",
+                  title: "Crochet Hair & Crafts",
                   description:
-                    "Handcrafted pieces made to order — bags, accessories, home goods, and custom commissions.",
+                    "Custom crochet hair installs — box braids, goddess locs, knotless braids — plus handcrafted accessories, bags, and commissioned pieces.",
                   color: "#7BA3A3",
                 },
                 {
                   title: "Business Consulting",
                   description:
-                    "HR strategy, operational infrastructure, and consulting for entrepreneurs ready to grow.",
+                    "HR strategy and beauty business consulting — operational infrastructure, pricing, and systems for entrepreneurs ready to grow.",
                   color: "#5B8A8A",
                 },
               ].map((item, i) => (

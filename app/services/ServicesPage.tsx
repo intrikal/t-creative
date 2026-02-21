@@ -1,7 +1,5 @@
 /**
- * ServicesPage — Client Component rendering the full service catalog with pricing.
- *
- * Displays services grouped by category with scroll-triggered animations.
+ * ServicesPage — Full service catalog with corrected pricing and crochet hair installs.
  */
 "use client";
 
@@ -16,55 +14,59 @@ const categories = [
     services: [
       {
         name: "Classic Lash Set",
-        description: "Natural, elegant lash extensions for everyday wear",
+        description:
+          "Natural, elegant one-to-one lash extensions for everyday wear. Open-eye or cat-eye mapping available.",
         price: "$150",
         duration: "120 min",
       },
       {
         name: "Hybrid Lash Set",
-        description: "The perfect balance between classic and volume",
+        description:
+          "The perfect balance between classic and volume — added texture with a natural base.",
         price: "$175",
         duration: "150 min",
       },
       {
         name: "Volume Lash Set",
-        description: "Dramatic, full lashes for maximum impact",
+        description: "Dramatic, full lashes using 2D–4D handmade fans for maximum impact.",
         price: "$200",
         duration: "180 min",
       },
       {
         name: "Mega Volume Lash Set",
-        description: "Ultra-dramatic mega volume with 6-8 extensions per natural lash",
+        description:
+          "Ultra-dramatic mega volume with 6–8 extensions per natural lash. For the boldest look.",
         price: "$250",
         duration: "240 min",
       },
       {
         name: "Wispy Lash Set",
-        description: "Natural, fluttery lashes with texture and movement",
+        description: "Spiky, fluttery texture layered over a classic base — effortlessly undone.",
         price: "$180",
         duration: "150 min",
       },
       {
         name: "Cat Eye Lash Set",
-        description: "Dramatic cat eye effect with longer lashes at the outer corners",
+        description: "Dramatic lifted outer corners for an elongated, sultry effect.",
         price: "$200",
         duration: "180 min",
       },
       {
         name: "Doll Eye Lash Set",
-        description: "Round, wide-eyed look with longer lashes in the center",
+        description: "Round, wide-eyed look with length concentrated in the center.",
         price: "$200",
         duration: "180 min",
       },
       {
         name: "Lash Fill",
-        description: "Maintain your lash extensions with a fill",
-        price: "$75",
-        duration: "60 min",
+        description: "Maintain your extensions with a fill. Recommended every 2–3 weeks.",
+        price: "$65",
+        duration: "75 min",
       },
       {
         name: "Lash Extension Removal",
-        description: "Professional, safe removal of lash extensions",
+        description:
+          "Professional, safe removal using a dissolving agent — no damage to natural lashes.",
         price: "$40",
         duration: "45 min",
       },
@@ -73,100 +75,152 @@ const categories = [
   {
     name: "Permanent Jewelry",
     color: "#D4A574",
+    note: "All chains are 14k gold-filled, nickel-free, and waterproof. No clasp — welded on-site.",
     services: [
       {
         name: "Permanent Bracelet",
-        description: "A beautiful bracelet that becomes part of your story",
-        price: "$75",
+        description:
+          "A bracelet that becomes part of your story. Choose your chain style and length.",
+        price: "From $55",
         duration: "30 min",
       },
       {
         name: "Permanent Necklace",
-        description: "Elegant permanent necklace to mark special moments",
-        price: "$85",
+        description: "Elegant permanent necklace in box or rope chain — mark a moment that stays.",
+        price: "From $75",
         duration: "30 min",
       },
       {
         name: "Permanent Anklet",
-        description: "Delicate permanent anklet for a subtle touch",
-        price: "$70",
+        description: "Delicate permanent anklet, custom-fit to your ankle.",
+        price: "From $60",
         duration: "25 min",
       },
       {
         name: "Permanent Ring",
-        description: "Delicate permanent ring for minimalist elegance",
-        price: "$65",
+        description: "Delicate layering ring — minimalist and waterproof.",
+        price: "From $55",
         duration: "25 min",
       },
       {
-        name: "Permanent Bracelet Stack",
-        description: "Multiple permanent bracelets layered together",
-        price: "$200",
-        duration: "60 min",
+        name: "Matching Set (Bracelet + Anklet)",
+        description: "Coordinating bracelet and anklet in the same chain — welded in one session.",
+        price: "From $110",
+        duration: "50 min",
       },
       {
         name: "Bracelet with Charm",
-        description: "Permanent bracelet featuring a custom charm",
-        price: "$95",
+        description: "Permanent bracelet featuring a custom charm — add a meaningful detail.",
+        price: "From $85",
         duration: "35 min",
       },
     ],
   },
   {
-    name: "Custom Crochet",
+    name: "Crochet Hair",
     color: "#7BA3A3",
+    note: "All installs use high-quality crochet hair. Price depends on style, length, and density. Book a consultation to confirm.",
+    services: [
+      {
+        name: "Box Braids Install",
+        description:
+          "Classic box braids in any size — small, medium, or jumbo. Shoulder to waist length.",
+        price: "$80–$180",
+        duration: "",
+      },
+      {
+        name: "Knotless Box Braids",
+        description:
+          "Feed-in style for a lighter, more natural-looking root. Less tension, longer wear.",
+        price: "$100–$200",
+        duration: "",
+      },
+      {
+        name: "Goddess Locs",
+        description: "Wavy bohemian locs with soft, flowing ends. Customizable length and density.",
+        price: "$100–$220",
+        duration: "",
+      },
+      {
+        name: "Havana Twists",
+        description: "Full, chunky twists with a natural matte texture. Bold and long-lasting.",
+        price: "$80–$160",
+        duration: "",
+      },
+      {
+        name: "Faux Locs",
+        description:
+          "Distressed or smooth faux locs in various lengths. Can be styled up or worn down.",
+        price: "$100–$200",
+        duration: "",
+      },
+      {
+        name: "Spring Twists / Passion Twists",
+        description: "Lightweight, springy twists with a bohemian feel. Great for summer.",
+        price: "$80–$160",
+        duration: "",
+      },
+    ],
+  },
+  {
+    name: "Custom Crochet Crafts",
+    color: "#9BB8B8",
     services: [
       {
         name: "Custom Crochet Piece",
-        description: "Handcrafted crochet pieces made just for you",
+        description:
+          "Handcrafted crochet pieces made just for you — describe your vision and we'll quote it.",
         price: "Quote",
         duration: "",
       },
       {
         name: "Custom Crochet Cardigan",
-        description: "Handcrafted crochet cardigan made to your measurements",
+        description: "Handcrafted cardigan made to your measurements and color preferences.",
         price: "Quote",
         duration: "",
       },
       {
         name: "Crochet Amigurumi",
-        description: "Adorable handcrafted crochet characters and animals",
+        description: "Adorable handcrafted characters and animals — great for gifts.",
         price: "$35–$150",
         duration: "",
       },
       {
         name: "Crochet Plant Hangers",
-        description: "Boho-style crochet plant hangers in various sizes",
+        description: "Boho-style plant hangers in various sizes and colors.",
         price: "$25–$60",
         duration: "",
       },
       {
         name: "Custom Crochet Scarf",
-        description: "Textured crochet scarves in various patterns and colors",
+        description: "Textured scarves in various patterns and fibers.",
         price: "$45–$120",
         duration: "",
       },
       {
         name: "Custom Crochet Hat",
-        description: "Handcrafted crochet hats and beanies",
+        description: "Handcrafted hats and beanies — fitted to your head size.",
         price: "$35–$85",
         duration: "",
       },
     ],
   },
   {
-    name: "Consulting",
+    name: "Business Consulting",
     color: "#5B8A8A",
+    note: "All consulting services are available remotely. Contact for scheduling and quote.",
     services: [
       {
         name: "HR Strategy & Consulting",
-        description: "Strategic HR consulting to help build better teams and processes",
+        description:
+          "Team building, hiring processes, performance frameworks, and HR infrastructure for growing businesses.",
         price: "Quote",
         duration: "",
       },
       {
-        name: "Business Growth Consulting",
-        description: "Strategic business consulting to help your company scale",
+        name: "Beauty Business Consulting",
+        description:
+          "Pricing strategy, client systems, service menu design, and scaling your studio — built on real experience.",
         price: "Quote",
         duration: "",
       },
@@ -203,8 +257,8 @@ export function ServicesPage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.2 }}
             >
-              From lash extensions to permanent jewelry, crochet commissions, and business
-              consulting — every service is crafted with intention and care.
+              From lash extensions to permanent jewelry, crochet hair installs, handcrafted pieces,
+              and business consulting — every service is crafted with intention and care.
             </motion.p>
           </div>
         </section>
@@ -217,20 +271,30 @@ export function ServicesPage() {
           >
             <div className="mx-auto max-w-5xl">
               <motion.div
-                className="flex items-center gap-4 mb-12"
+                className="flex items-start gap-4 mb-4"
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.6 }}
               >
-                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: category.color }} />
-                <h2 className="text-2xl md:text-3xl font-light tracking-tight text-foreground">
-                  {category.name}
-                </h2>
-                <span className="text-xs text-muted ml-auto">
-                  {category.services.length} services
-                </span>
+                <div
+                  className="w-3 h-3 rounded-full mt-2 flex-shrink-0"
+                  style={{ backgroundColor: category.color }}
+                />
+                <div className="flex-1">
+                  <div className="flex items-baseline justify-between flex-wrap gap-2 mb-2">
+                    <h2 className="text-2xl md:text-3xl font-light tracking-tight text-foreground">
+                      {category.name}
+                    </h2>
+                    <span className="text-xs text-muted">{category.services.length} services</span>
+                  </div>
+                  {"note" in category && category.note && (
+                    <p className="text-xs text-muted mb-8 max-w-xl">{category.note}</p>
+                  )}
+                </div>
               </motion.div>
+
+              {!("note" in category && category.note) && <div className="mb-12" />}
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {category.services.map((service, i) => (
@@ -270,14 +334,23 @@ export function ServicesPage() {
           >
             <h2 className="text-3xl md:text-4xl font-light tracking-tight mb-6">Ready to book?</h2>
             <p className="text-background/60 mb-8">
-              Book your appointment today and experience the artistry.
+              Existing clients can book directly through the client portal. New clients, reach out
+              through the contact form.
             </p>
-            <Link
-              href="/contact"
-              className="inline-flex items-center justify-center px-8 py-3.5 text-xs tracking-wide uppercase bg-accent text-background hover:bg-accent/80 transition-colors"
-            >
-              Book Appointment
-            </Link>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <Link
+                href="/client/book"
+                className="inline-flex items-center justify-center px-8 py-3.5 text-xs tracking-wide uppercase bg-accent text-background hover:bg-accent/80 transition-colors"
+              >
+                Book via Client Portal
+              </Link>
+              <Link
+                href="/contact"
+                className="inline-flex items-center justify-center px-8 py-3.5 text-xs tracking-wide uppercase border border-background/20 text-background hover:border-background/40 transition-colors"
+              >
+                New Client Inquiry
+              </Link>
+            </div>
           </motion.div>
         </section>
       </main>

@@ -1,7 +1,5 @@
 /**
- * ConsultingPage — Client Component rendering the Consulting page content.
- *
- * Displays HR and business consulting services with remote availability emphasis.
+ * ConsultingPage — HR & Beauty Business consulting with specific outcomes and credentials.
  */
 "use client";
 
@@ -12,21 +10,43 @@ import { Footer } from "@/components/landing/Footer";
 const services = [
   {
     title: "HR Strategy & Consulting",
+    tag: "Remote · All Industries",
     description:
-      "Get expert guidance on HR strategy, team building, and process optimization. All consulting services are available remotely, making it easy to work together no matter where your business is located.",
+      "Strategic HR consulting grounded in real corporate experience. Whether you're a startup building your first team or an established company refining your people processes, this engagement covers what actually moves the needle.",
+    outcomes: [
+      "Hiring process design and job description development",
+      "Onboarding workflows and 90-day frameworks",
+      "Performance review systems and feedback structures",
+      "Team structure and reporting line clarity",
+      "HR compliance fundamentals for small businesses",
+      "Manager coaching and team communication systems",
+    ],
+    ideal:
+      "Founders, operations leads, and small business owners who are scaling their team and need real HR infrastructure — not generic advice.",
   },
   {
-    title: "Business Growth Consulting",
+    title: "Beauty Business Consulting",
+    tag: "Remote · Beauty & Wellness",
     description:
-      "Strategic business consulting focused on growth, efficiency, and scaling. Remote consulting available to work around your schedule. Get expert advice on process optimization, team structure, and business strategy.",
+      "Built specifically for beauty professionals ready to run their business with intention. This isn't theory — it's the exact systems, pricing strategies, and client frameworks used to build T Creative Studio from the ground up.",
+    outcomes: [
+      "Service menu design and pricing strategy",
+      "Client retention and rebooking systems",
+      "Deposit and cancellation policy setup",
+      "Social media and content strategy for beauty pros",
+      "Transitioning from booth rental to studio ownership",
+      "Building a referral-based clientele from scratch",
+    ],
+    ideal:
+      "Lash techs, permanent jewelry artists, estheticians, and salon owners who are ready to grow sustainably — not just hustle harder.",
   },
 ];
 
 const benefits = [
-  "Flexible scheduling that works around your business hours",
-  "No travel time or costs — we meet virtually",
-  "Access to expert guidance from anywhere",
-  "Recorded sessions for your team to reference",
+  "Flexible scheduling around your business hours — no commute",
+  "Recorded sessions your team can reference and revisit",
+  "Deliverables in writing after every session",
+  "Access to templates, frameworks, and tools used in-practice",
 ];
 
 export function ConsultingPage() {
@@ -53,13 +73,14 @@ export function ConsultingPage() {
               HR & Business Consulting
             </motion.h1>
             <motion.p
-              className="text-base md:text-lg text-background/60 max-w-xl mx-auto"
+              className="text-base md:text-lg text-background/60 max-w-2xl mx-auto"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.2 }}
             >
-              Strategic HR and business consulting to help your company grow. All consulting
-              services are available remotely.
+              Two practices, one philosophy: build things that actually work. Whether you need HR
+              infrastructure for a growing team or a business strategy for your beauty studio — this
+              is operational expertise from someone who lives it.
             </motion.p>
           </div>
         </section>
@@ -80,13 +101,36 @@ export function ConsultingPage() {
                   <h2 className="text-xl md:text-2xl font-light tracking-tight text-foreground">
                     {service.title}
                   </h2>
-                  <span className="text-xs tracking-wide uppercase px-3 py-1 bg-surface text-muted self-start">
-                    Remote
+                  <span className="text-xs tracking-wide uppercase px-3 py-1 bg-surface text-muted self-start shrink-0">
+                    {service.tag}
                   </span>
                 </div>
+
                 <p className="text-sm text-muted leading-relaxed mb-6">{service.description}</p>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-accent">Contact for quote</span>
+
+                <div className="mb-6">
+                  <h3 className="text-xs tracking-widest uppercase text-foreground mb-4">
+                    What We Cover
+                  </h3>
+                  <ul className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    {service.outcomes.map((item) => (
+                      <li key={item} className="text-sm text-muted flex items-start gap-2">
+                        <span className="text-accent mt-0.5">+</span>
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                <p className="text-xs text-muted mb-6 border-l-2 border-accent/40 pl-3 leading-relaxed">
+                  <span className="font-medium text-foreground">Ideal for: </span>
+                  {service.ideal}
+                </p>
+
+                <div className="flex items-center justify-between flex-wrap gap-3">
+                  <span className="text-sm text-accent">
+                    Contact for quote — engagements vary by scope
+                  </span>
                   <Link
                     href="/contact"
                     className="text-xs tracking-widest uppercase text-foreground hover:text-accent transition-colors duration-200 border border-foreground/20 hover:border-accent/40 px-5 py-2.5"

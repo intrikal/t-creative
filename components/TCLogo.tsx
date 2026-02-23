@@ -1,15 +1,16 @@
 /**
  * TCLogo — Branded SVG mark for T Creative Studio.
  *
- * Design concept:
- * - The T letterform is the foundation (brand initial)
- * - The crossbar doubles as a lash line, with five curved strokes
- *   extending upward — representing lash extensions
- * - A small 4-pointed gem sparkle in the upper-right represents
- *   permanent jewelry and the creative/beauty aesthetic
- * - Clean, minimal, luxury — matches the studio's visual identity
+ * Design concept: "TC Flow"
+ * - Flowing 'TC' letters that merge into each other
+ * - Lash accent near the T top
+ * - Gem at the join where T meets C
+ * - Hook curl at the T tail (crochet)
+ * - Earring dot at the C end
+ * - Warm, classy, represents Trini and all her services
  *
- * Used in: PanelName (welcome panel), PanelSummary, PanelAssistantSummary
+ * Used in: Navbar, AuthBrandingPanel, PanelName, PanelAdminWelcome,
+ *          PanelAdminStudio, PanelSummary, PanelAssistantSummary, opengraph-image
  */
 
 interface TCLogoProps {
@@ -23,66 +24,64 @@ export function TCLogo({ className, size = 48 }: TCLogoProps) {
     <svg
       width={size}
       height={size}
-      viewBox="0 0 48 48"
+      viewBox="0 0 64 64"
       fill="none"
       aria-label="T Creative Studio"
       className={className}
     >
-      {/* ── Lash strokes extending upward from the crossbar ── */}
-      {/* Far-left lash */}
+      {/* T — flowing crossbar */}
       <path
-        d="M13 20 Q11 14 10 8"
+        d="M6 14 Q14 8 30 12 Q36 14 40 18"
         stroke="currentColor"
-        strokeWidth="1.6"
+        strokeWidth="2.8"
         strokeLinecap="round"
-        opacity="0.45"
+        fill="none"
       />
-      {/* Left-center lash */}
+      {/* T — flowing stem */}
       <path
-        d="M18 18 Q17 12 16 6"
+        d="M22 12 Q18 28 16 42 Q14 52 10 56"
         stroke="currentColor"
-        strokeWidth="1.6"
+        strokeWidth="2.8"
         strokeLinecap="round"
+        fill="none"
+      />
+      {/* C — flowing into it */}
+      <path
+        d="M56 16 Q46 10 40 18 Q34 28 36 40 Q38 50 46 54 Q52 56 58 52"
+        stroke="currentColor"
+        strokeWidth="2.2"
+        strokeLinecap="round"
+        fill="none"
         opacity="0.65"
       />
-      {/* Center lash — tallest */}
-      <path
-        d="M24 17 L24 4"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        opacity="0.85"
-      />
-      {/* Right-center lash */}
-      <path
-        d="M30 18 Q31 12 32 6"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-        opacity="0.65"
-      />
-      {/* Far-right lash */}
-      <path
-        d="M35 20 Q37 14 38 8"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-        opacity="0.45"
-      />
 
-      {/* ── T letterform ── */}
-      {/* Crossbar — also the lash line */}
-      <path d="M9 21 H39" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
-      {/* Stem */}
-      <path d="M24 21 V43" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
-
-      {/* ── Gem sparkle — permanent jewelry accent ── */}
-      {/* 4-pointed star, upper right */}
+      {/* ── Product accents ── */}
+      {/* Lash near T top */}
       <path
-        d="M41 10 L42.2 7.5 L43.4 10 L46 11.2 L43.4 12.4 L42.2 14.8 L41 12.4 L38.4 11.2 Z"
-        fill="currentColor"
-        opacity="0.55"
+        d="M28 8 Q30 4 32 8"
+        stroke="currentColor"
+        strokeWidth="0.9"
+        fill="none"
+        opacity="0.35"
       />
+      {/* Gem at the join */}
+      <path
+        d="M38 20 L40 16 L42 20 L40 24 Z"
+        stroke="currentColor"
+        strokeWidth="0.8"
+        fill="none"
+        opacity="0.35"
+      />
+      {/* Hook curl at T bottom (crochet) */}
+      <path
+        d="M10 56 Q6 58 6 54 Q6 50 10 50"
+        stroke="currentColor"
+        strokeWidth="1"
+        fill="none"
+        opacity="0.3"
+      />
+      {/* Earring dot at C end */}
+      <circle cx="58" cy="52" r="2" fill="currentColor" opacity="0.3" />
     </svg>
   );
 }

@@ -93,7 +93,7 @@ export async function proxy(request: NextRequest) {
   if (user) {
     const { data: profile } = await supabase
       .from("profiles")
-      .select("is_active")
+      .select("is_active, role")
       .eq("id", user.id)
       .single();
 
@@ -104,6 +104,45 @@ export async function proxy(request: NextRequest) {
       url.search = ""; // strip any query params so error details aren't leaked
       return NextResponse.redirect(url);
     }
+
+    // Protect /admin routes — only admins may access them.
+    //
+    // Note: we only redirect when we can CONFIRM the role is not "admin"
+    // (i.e. when profile is non-null and role is wrong). If profile is null —
+    // which can happen when RLS blocks the Supabase REST read, e.g. right after
+    // the onboarding upsert before the session's auth context refreshes — we
+    // pass the request through and let AdminLayout's Drizzle-based check (which
+    // bypasses RLS entirely) do the final guard. This prevents a race where
+    // a freshly-saved admin profile can't be read via REST yet.
+    if (request.nextUrl.pathname.startsWith("/admin") && profile && profile.role !== "admin") {
+      const url = request.nextUrl.clone();
+      url.pathname = "/";
+      url.search = "";
+      return NextResponse.redirect(url);
+    }
+
+    // Protect /assistant routes — only assistants (and admins) may access them.
+    // Same null-profile rationale as the /admin guard above.
+    if (
+      request.nextUrl.pathname.startsWith("/assistant") &&
+      profile &&
+      profile.role !== "assistant" &&
+      profile.role !== "admin"
+    ) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/";
+      url.search = "";
+      return NextResponse.redirect(url);
+    }
+  } else if (
+    request.nextUrl.pathname.startsWith("/admin") ||
+    request.nextUrl.pathname.startsWith("/assistant")
+  ) {
+    // Unauthenticated users hitting protected routes go to the home page
+    const url = request.nextUrl.clone();
+    url.pathname = "/";
+    url.search = "";
+    return NextResponse.redirect(url);
   }
 
   // All checks passed — return the (possibly cookie-updated) response

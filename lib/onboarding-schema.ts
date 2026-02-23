@@ -173,3 +173,137 @@ export const ASSISTANT_STEPS = [
 ] as const;
 
 export type AssistantStepId = (typeof ASSISTANT_STEPS)[number]["id"];
+
+/* ------------------------------------------------------------------ */
+/*  Admin onboarding schema                                            */
+/* ------------------------------------------------------------------ */
+
+const serviceSlotSchema = z.object({
+  enabled: z.boolean(),
+  price: z.string(),
+  duration: z.string(),
+  deposit: z.string(),
+});
+
+export const adminOnboardingSchema = z.object({
+  firstName: z.string().min(1, "Please enter your name"),
+  lastName: z.string(),
+  email: z.string().email("Enter a valid email"),
+  phone: z.string(),
+  notifySms: z.boolean(),
+  notifyEmail: z.boolean(),
+  studioName: z.string(),
+  bio: z.string(),
+  locationType: z.enum(["home_studio", "salon_suite", "mobile"]),
+  locationArea: z.string(),
+  bookingNotice: z.string(),
+
+  socials: z.object({
+    instagram: z.string(),
+    instagram2: z.string(),
+    instagram3: z.string(),
+    instagram4: z.string(),
+    tiktok: z.string(),
+    facebook: z.string(),
+    youtube: z.string(),
+    pinterest: z.string(),
+    linkedin: z.string(),
+    google: z.string(),
+    website: z.string(),
+  }),
+
+  services: z.object({
+    lash: serviceSlotSchema,
+    jewelry: serviceSlotSchema,
+    crochet: serviceSlotSchema,
+    consulting: serviceSlotSchema,
+  }),
+
+  waitlist: z.object({
+    lash: z.boolean(),
+    jewelry: z.boolean(),
+    crochet: z.boolean(),
+    consulting: z.enum(["off", "request", "waitlist"]),
+  }),
+
+  intake: z.object({
+    lash: z.object({
+      prep: z.string(),
+      adhesiveAllergy: z.boolean(),
+      contactLenses: z.boolean(),
+      previousLashes: z.boolean(),
+      desiredLook: z.boolean(),
+    }),
+    jewelry: z.object({
+      prep: z.string(),
+      metalAllergy: z.boolean(),
+      designPreference: z.boolean(),
+    }),
+    crochet: z.object({
+      prep: z.string(),
+      hairType: z.boolean(),
+      desiredStyle: z.boolean(),
+      scalpSensitivity: z.boolean(),
+    }),
+    consulting: z.object({
+      prep: z.string(),
+      serviceInterest: z.boolean(),
+      previousExperience: z.boolean(),
+      goal: z.boolean(),
+    }),
+  }),
+
+  workingHours: z.object({
+    defaultStartTime: z.string(),
+    defaultEndTime: z.string(),
+    appointmentGap: z.string(),
+    lunchBreak: z.boolean(),
+    lunchStart: z.string(),
+    lunchDuration: z.string(),
+    selectedDates: z.string(), // JSON-encoded string[]
+    dayOverrides: z.string(), // JSON-encoded Record<string, {startTime, endTime}>
+  }),
+
+  bookingConfirmation: z.enum(["instant", "manual"]),
+  cancellationFee: z.string(),
+  cancellationWindow: z.string(),
+  noShowFee: z.string(),
+
+  rewards: z.object({
+    enabled: z.boolean(),
+    pointsPerDollar: z.string(),
+    pointsToRedeem: z.string(),
+    firstBookingBonus: z.string(),
+    birthdayBonus: z.string(),
+    referralBonus: z.string(),
+    refereeBonus: z.string(),
+    reviewBonus: z.string(),
+    rebookBonus: z.string(),
+    milestoneBonus: z.string(),
+    milestone10thBonus: z.string(),
+    socialShareBonus: z.string(),
+    productPurchaseBonus: z.string(),
+    profileCompleteBonus: z.string(),
+    anniversaryBonus: z.string(),
+    newServiceBonus: z.string(),
+    classAttendanceBonus: z.string(),
+    packagePurchaseBonus: z.string(),
+    programCompleteBonus: z.string(),
+    certificationBonus: z.string(),
+    tier1Name: z.string(),
+    tier1Threshold: z.string(),
+    tier1Multiplier: z.string(),
+    tier2Name: z.string(),
+    tier2Threshold: z.string(),
+    tier2Multiplier: z.string(),
+    tier3Name: z.string(),
+    tier3Threshold: z.string(),
+    tier3Multiplier: z.string(),
+    tier4Name: z.string(),
+    tier4Threshold: z.string(),
+    tier4Multiplier: z.string(),
+    pointsExpiry: z.string(),
+  }),
+});
+
+export type AdminOnboardingData = z.infer<typeof adminOnboardingSchema>;

@@ -36,6 +36,12 @@ import { isOnboardingComplete } from "@/lib/auth";
 import { verifyInviteToken } from "@/lib/invite";
 import { createClient } from "@/utils/supabase/server";
 
+/**
+ * Known admin email addresses. Add Trini's email here when she joins.
+ * On first sign-in, these users are automatically promoted to the "admin" role.
+ */
+const ADMIN_EMAILS = ["alvinwquach@gmail.com"];
+
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   // `code` is the one-time authorization code from the OAuth provider
@@ -100,8 +106,21 @@ export async function GET(request: Request) {
    * onboarding redirect below can use the correct role even before
    * the database update is reflected back in the `profile` variable.
    */
+  /**
+   * Admin promotion — if the signing-in user's email is in the ADMIN_EMAILS
+   * allowlist, ensure their role is set to "admin". This runs on every sign-in
+   * so adding a new email to the list takes effect automatically.
+   */
+  let assignedAdmin = false;
+  if (user.email && ADMIN_EMAILS.includes(user.email)) {
+    if (profile && profile.role !== "admin") {
+      await db.update(profiles).set({ role: "admin" }).where(eq(profiles.id, user.id));
+    }
+    assignedAdmin = true;
+  }
+
   let assignedAssistant = false;
-  if (invite) {
+  if (!assignedAdmin && invite) {
     const payload = await verifyInviteToken(invite);
     if (payload && profile) {
       await db.update(profiles).set({ role: "assistant" }).where(eq(profiles.id, user.id));
@@ -117,6 +136,14 @@ export async function GET(request: Request) {
   if (profile && !profile.isActive) {
     await supabase.auth.signOut();
     return NextResponse.redirect(`${origin}/suspended`);
+  }
+
+  // Admins need minimal onboarding (just name) before accessing the dashboard
+  if (assignedAdmin || profile?.role === "admin") {
+    if (!isOnboardingComplete(profile ?? null)) {
+      return NextResponse.redirect(`${origin}/onboarding?role=admin`);
+    }
+    return NextResponse.redirect(`${origin}/admin`);
   }
 
   /**
@@ -138,6 +165,10 @@ export async function GET(request: Request) {
     return NextResponse.redirect(`${origin}/onboarding?role=${role}`);
   }
 
-  // All checks passed — send the user to the home page
+  // Route each role to their home base after sign-in
+  if (assignedAssistant || profile?.role === "assistant") {
+    return NextResponse.redirect(`${origin}/assistant`);
+  }
+
   return NextResponse.redirect(`${origin}/`);
 }

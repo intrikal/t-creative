@@ -1,5 +1,42 @@
 "use client";
 
+/**
+ * ClientsPage — Admin client roster and loyalty program management.
+ *
+ * ## What
+ * A two-tab view available to admin users:
+ * - "Clients" tab — a searchable, filterable card grid of all studio clients with
+ *   inline add/edit/delete dialogs.
+ * - "Loyalty" tab — a leaderboard table showing each client's points balance, tier
+ *   progress bar, and a per-client "Issue Reward" dialog.
+ *
+ * ## Why it is client-side only (no server data)
+ * This page currently uses hardcoded `INITIAL_CLIENTS` mock data. It is a UI
+ * prototype for the admin CRM view — the live version will replace the static
+ * array with server-fetched data from `profiles` and `loyalty_transactions`.
+ * All mutations (add, edit, delete, issue reward) update local React state only
+ * and are not persisted to the database yet.
+ *
+ * ## Component breakdown
+ * - `ClientCard`         — single client tile with hover-reveal edit/delete actions
+ * - `ClientFormDialog`   — shared modal for both "Add Client" and "Edit Client" flows
+ * - `LoyaltyTab`         — full loyalty leaderboard; contains `IssueRewardDialog`
+ * - `IssueRewardDialog`  — reward issuance modal; shows a tier-up celebration when
+ *                          adding bonus points pushes a client to the next tier
+ * - `ClientsPage`        — root component; owns all state and wires the above together
+ *
+ * ## Tier configuration
+ * `TIER_CONFIG` mirrors the four-tier structure (Bronze → Silver → Gold → Platinum)
+ * defined in `ClientHomePage.tsx`. Points thresholds are duplicated here because
+ * this file drives the admin-side view independently of the client-side view.
+ * A future refactor should extract the shared config to a single constants file.
+ *
+ * ## Related files
+ * - app/dashboard/clients/page.tsx  — Server Component wrapper that renders this
+ * - app/client/ClientHomePage.tsx   — Client-side loyalty display (same tier logic)
+ * - db/schema/users.ts              — profiles table (eventual data source)
+ * - db/schema/loyalty.ts            — loyalty_transactions table
+ */
 import { useState } from "react";
 import {
   Search,
@@ -34,7 +71,14 @@ import { cn } from "@/lib/utils";
 /*  Types & mock data                                                  */
 /* ------------------------------------------------------------------ */
 
-type ClientSource = "instagram" | "word_of_mouth" | "google_search" | "referral" | "website_direct";
+type ClientSource =
+  | "instagram"
+  | "tiktok"
+  | "pinterest"
+  | "word_of_mouth"
+  | "google_search"
+  | "referral"
+  | "website_direct";
 type ServiceCategory = "lash" | "jewelry" | "crochet" | "consulting";
 
 interface Client {
@@ -274,6 +318,8 @@ const INITIAL_CLIENTS: Client[] = [
 const SOURCE_FILTERS = [
   "All",
   "Instagram",
+  "TikTok",
+  "Pinterest",
   "Referral",
   "Word of Mouth",
   "Google",
@@ -288,6 +334,10 @@ function sourceBadge(source: ClientSource) {
   switch (source) {
     case "instagram":
       return { label: "Instagram", className: "bg-pink-50 text-pink-700 border-pink-100" };
+    case "tiktok":
+      return { label: "TikTok", className: "bg-slate-50 text-slate-700 border-slate-100" };
+    case "pinterest":
+      return { label: "Pinterest", className: "bg-red-50 text-red-700 border-red-100" };
     case "word_of_mouth":
       return { label: "Word of Mouth", className: "bg-teal-50 text-teal-700 border-teal-100" };
     case "google_search":

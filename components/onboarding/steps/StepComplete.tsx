@@ -41,6 +41,11 @@
  * @prop isSaving - set to true while the server action is in-flight
  * @prop onRetry - callback to re-attempt the save (shown when saveError is true)
  * @prop studioName - admin studio name used to derive the booking slug
+ *
+ * ## Related files
+ * - components/onboarding/PanelSummary.tsx         — client right-panel on this screen
+ * - components/onboarding/OnboardingFlow.tsx        — triggers save + passes these props
+ * - app/onboarding/actions.ts                       — the server action being awaited
  */
 import { useState } from "react";
 import { motion } from "framer-motion";
@@ -232,12 +237,35 @@ export function StepComplete({
               </div>
             </div>
           </div>
-        ) : (
+        ) : role === "assistant" ? (
           <p className="text-muted text-base max-w-sm mx-auto">
-            {role === "assistant"
-              ? "Welcome to the team! We\u2019ve saved your info \u2014 your schedule will be ready soon."
-              : "Welcome to T Creative Studio. We\u2019ve saved your preferences \u2014 when you\u2019re ready, we\u2019re here."}
+            Welcome to the team! We&apos;ve saved your info &mdash; your schedule will be ready
+            soon.
           </p>
+        ) : (
+          <div className="text-left max-w-sm mx-auto space-y-2">
+            <p className="text-muted text-sm">You&apos;re in! Here&apos;s what happens next:</p>
+            <ul className="space-y-1.5 text-sm text-muted/80">
+              <li className="flex items-start gap-2">
+                <span className="text-accent mt-0.5 shrink-0">✦</span>
+                <span>
+                  Your booking request is pending artist approval &mdash; you&apos;ll hear back
+                  within 24 hours.
+                </span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-accent mt-0.5 shrink-0">✦</span>
+                <span>
+                  You&apos;re enrolled in our loyalty program &mdash; points start on your first
+                  visit.
+                </span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-accent mt-0.5 shrink-0">✦</span>
+                <span>We&apos;ve saved your preferences so every booking feels personal.</span>
+              </li>
+            </ul>
+          </div>
         )}
       </motion.div>
 
@@ -324,11 +352,44 @@ export function StepComplete({
           </>
         ) : (
           <>
-            <Button href="/services" variant="primary">
-              Book a Session
-            </Button>
-            <Button href="/" variant="secondary">
-              Explore the Studio
+            {onBack && (
+              <button
+                type="button"
+                onClick={onBack}
+                className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-medium rounded-md border border-foreground/15 text-foreground/60 hover:text-foreground hover:border-foreground/25 transition-all duration-200 cursor-pointer"
+              >
+                ← Edit my info
+              </button>
+            )}
+            <Button
+              onClick={
+                isSaving || saveError
+                  ? undefined
+                  : () => {
+                      window.location.href = "/client";
+                    }
+              }
+              variant="primary"
+              className={isSaving || saveError ? "opacity-50 pointer-events-none" : ""}
+            >
+              {isSaving ? (
+                <span className="flex items-center gap-2">
+                  <svg className="animate-spin w-3.5 h-3.5" viewBox="0 0 24 24" fill="none">
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                  </svg>
+                  Saving…
+                </span>
+              ) : (
+                "Explore the Studio"
+              )}
             </Button>
           </>
         )}

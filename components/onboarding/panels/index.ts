@@ -1,14 +1,27 @@
 /**
- * panels/index.ts — Barrel export for all onboarding panel components
+ * panels/index.ts — Barrel export for all onboarding right-side panel components.
  *
- * What: Re-exports every panel from its own file so other files can import
- *       them all from one path: `import { PanelName, PanelInterests } from "./panels"`.
- * Why: Keeps imports clean in OnboardingFlow.tsx. Without this, you'd need
- *      separate import lines — one per panel file.
+ * Each panel is the decorative right-side (desktop) / top (mobile) companion that
+ * displays alongside its corresponding left-side step form inside OnboardingShell.
+ * Panels are purely presentational — they receive live form values via
+ * `form.Subscribe` in OnboardingFlow.tsx and re-render only when those values change.
  *
- * Key concept:
- * - `export { PanelName } from "./PanelName"` re-exports the named export
- *   directly. The importing file never needs to know the internal file structure.
+ * Panels are grouped by flow:
+ * - Client flow:   PanelName, PanelInterests, PanelAllergies, PanelContact,
+ *                  PanelWaiver, PanelRewards, PanelPreferences, PanelPhotoConsent
+ * - Assistant flow: PanelRoleSkills, PanelShiftAvailability, PanelEmergencyContact,
+ *                   PanelContactPrefs, PanelAssistantPortfolio, PanelAssistantPolicies
+ * - Admin flow:    PanelAdminWelcome, PanelAdminContact, PanelAdminSocials,
+ *                  PanelAdminStudio, PanelAdminServices, PanelAdminHours,
+ *                  PanelAdminIntake, PanelAdminPolicies, PanelAdminRewards,
+ *                  PanelAdminComplete
+ *
+ * This barrel keeps OnboardingFlow.tsx's import section to a single line instead
+ * of one import per panel file.
+ *
+ * Related files:
+ * - components/onboarding/OnboardingFlow.tsx — sole consumer of these exports
+ * - components/onboarding/OnboardingShell.tsx — renders the panel slot
  */
 export { PanelName } from "./PanelName";
 export { PanelInterests } from "./PanelInterests";
@@ -32,3 +45,5 @@ export { PanelAdminPolicies } from "./PanelAdminPolicies";
 export { PanelAdminRewards } from "./PanelAdminRewards";
 export { PanelAssistantPortfolio } from "./PanelAssistantPortfolio";
 export { PanelAssistantPolicies } from "./PanelAssistantPolicies";
+export { PanelRewards } from "./PanelRewards";
+export { PanelPreferences } from "./PanelPreferences";

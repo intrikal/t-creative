@@ -1,28 +1,36 @@
 "use client";
 
 /**
- * StepInterests.tsx — Service interest selection step
+ * StepInterests.tsx — Service interest selection step.
  *
- * What: Lets the user pick which T Creative services interest them (lash
- *       extensions, permanent jewelry, custom crochet, business consulting).
- * Why: Determines what content the user sees later and which services to
- *      recommend. Also controls whether the allergies step appears — if the
- *      user picks lash or jewelry, allergies becomes relevant.
- * How: Maintains a local `selected` array synced to the form for interests
- *      (multi-select). Keyboard shortcuts: A-D toggle interests,
- *      Enter advances. A "select all" toggle is provided.
+ * What: Multi-select list of the four T Creative service categories (lash,
+ *       jewelry, crochet, consulting). Each option shows a keyboard-shortcut
+ *       badge (A–D), a checkmark when selected, and a zone-color dot from
+ *       `lib/zones.ts`. A "Select all / Deselect all" toggle is provided.
  *
- * Key concepts:
- * - Keyboard shortcuts: Each interest has a letter (A-D) for toggling.
- * - Local state + form sync: `selected` is kept in local state for fast UI
- *   updates, then pushed to the form via `form.setFieldValue`. This avoids
- *   re-rendering the entire form on each toggle.
- * - ZONES import: Used to display a color dot for each service zone.
+ * Why: Interest selection drives two downstream decisions:
+ *       1. Whether the allergies step appears — OnboardingFlow.tsx inserts it
+ *          only when `interests` includes "lash" or "jewelry".
+ *       2. Which services are recommended on the client dashboard and used as
+ *          auto-tags on the profile (set by `saveOnboardingData` in actions.ts).
+ *
+ * Local state + form sync pattern:
+ *       `selected` is kept in component-local state for instant UI feedback;
+ *       changes are pushed to the TanStack Form via `form.setFieldValue` in
+ *       the same handler. A `selectedRef` keeps the latest value accessible
+ *       in `useCallback` without stale-closure issues and without adding
+ *       `selected` to the dependency array (which would recreate `toggle` and
+ *       the keyboard listener on every render).
+ *
+ * Keyboard shortcuts:
+ * - A–D toggle the four services (suppressed when an input has focus)
+ * - Enter advances when at least one service is selected
  *
  * Related files:
- * - components/onboarding/OnboardingFlow.tsx — uses interests to conditionally show allergies step
- * - components/onboarding/StepPanels.tsx — PanelInterests is the paired right panel
- * - lib/zones.ts — defines service zone colors and metadata
+ * - components/onboarding/panels/PanelInterests.tsx — paired right panel (live visual)
+ * - components/onboarding/OnboardingFlow.tsx         — reads interests to gate allergies step
+ * - lib/zones.ts                                     — service zone color constants
+ * - app/onboarding/actions.ts                        — converts interests to profile tags
  */
 // useState: holds component-local state. useEffect: runs side effects (like event listeners).
 // useCallback: wraps a function so it's only recreated when its dependencies change.
@@ -55,42 +63,26 @@ export function StepInterests({ form, onNext, stepNum }: StepProps) {
   // The () => ... is a lazy initializer: only runs on first render to read the form's initial value.
   const [selected, setSelected] = useState<ZoneId[]>(() => form.getFieldValue("interests") ?? []);
 
-  // Gate continue on at least 1 interest selected.
-  // Experience always has a default ("first_time"), so it's always valid.
-  const canContinue = selected.length > 0;
+  const canContinue = true;
 
-  // .map() transforms each option into just its id, producing an array like ["lash", "jewelry", ...].
-  const allIds = INTEREST_OPTIONS.map((o) => o.id);
-  // .every() returns true only if the condition holds for ALL elements in the array.
-  // .includes() checks whether the array contains a specific value.
-  const allSelected = allIds.every((id) => selected.includes(id));
+  const allSelected = INTEREST_OPTIONS.every((o) => selected.includes(o.id));
 
-  // useCallback wraps the function so React reuses the same reference between renders.
-  // It only creates a new function when [form] changes (the dependency array).
   const toggle = useCallback(
     (id: ZoneId) => {
-      // Passing a function to setSelected gives you `prev` (the current state).
-      setSelected((prev) => {
-        // .includes() checks if the id is already selected.
-        // .filter() creates a new array with only the elements that pass the test (removing id).
-        // [...prev, id] is the spread operator on arrays: copy all items from prev, then add id.
-        const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
-        form.setFieldValue("interests", next);
-        return next;
-      });
+      const next = selected.includes(id) ? selected.filter((x) => x !== id) : [...selected, id];
+      setSelected(next);
+      form.setFieldValue("interests", next);
     },
-    [form],
+    [form, selected],
   );
 
   const toggleAll = useCallback(() => {
-    setSelected((prev) => {
-      // If all are selected, deselect all (empty array); otherwise select all.
-      // [...allIds] creates a copy of the array (spreading it into a new one).
-      const next = allIds.every((id) => prev.includes(id)) ? [] : [...allIds];
-      form.setFieldValue("interests", next);
-      return next;
-    });
-  }, [form, allIds]);
+    const next = INTEREST_OPTIONS.every((o) => selected.includes(o.id))
+      ? []
+      : INTEREST_OPTIONS.map((o) => o.id);
+    setSelected(next);
+    form.setFieldValue("interests", next);
+  }, [form, selected]);
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {

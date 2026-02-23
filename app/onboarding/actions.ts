@@ -41,9 +41,9 @@
  * form entirely. Zod schemas (onboardingSchema / assistantOnboardingSchema) verify
  * the shape and types before anything touches the database.
  */
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { profiles } from "@/db/schema";
+import { profiles, loyaltyTransactions } from "@/db/schema";
 import { assistantProfiles } from "@/db/schema/assistants";
 import { services as servicesTable } from "@/db/schema/services";
 import {
@@ -484,6 +484,7 @@ export async function saveOnboardingData(
 
     const {
       firstName,
+      lastName,
       email,
       phone,
       source,
@@ -526,18 +527,115 @@ export async function saveOnboardingData(
       birthday,
     };
 
-    await db
-      .update(profiles)
-      .set({
+    // Generate a unique referral code for this client (e.g. "SARAH-A1B2C3").
+    // Uses the first 5 letters of their first name + last 6 hex chars of their user ID.
+    const referralCode = `${firstName.slice(0, 5).toUpperCase()}-${user.id.replace(/-/g, "").slice(-6).toUpperCase()}`;
+
+    // Auto-tag the client based on their selected interests.
+    const INTEREST_TAGS: Record<string, string> = {
+      lash: "Lashes",
+      jewelry: "Jewelry",
+      crochet: "Crochet",
+      consulting: "Consulting",
+    };
+    const tags = interests
+      .map((id) => INTEREST_TAGS[id])
+      .filter(Boolean)
+      .join(", ");
+
+    // Look up the referrer's profile ID if the client provided a referrer email.
+    let referredBy: string | null = null;
+    if (referral.referrerEmail?.trim()) {
+      const [referrer] = await db
+        .select({ id: profiles.id })
+        .from(profiles)
+        .where(eq(profiles.email, referral.referrerEmail.trim()))
+        .limit(1);
+      if (referrer) referredBy = referrer.id;
+    }
+
+    // Run profile update + all loyalty point credits in one transaction so
+    // they either all succeed or all roll back together.
+    await db.transaction(async (tx) => {
+      const profileData = {
+        role: "client" as const,
         firstName,
+        lastName: lastName || "",
         email,
         phone: phone || null,
-        source, // how they discovered T Creative — stored as an enum
+        source,
         notifySms: notifications.sms,
         notifyEmail: notifications.email,
         notifyMarketing: notifications.marketing,
         onboardingData,
-      })
-      .where(eq(profiles.id, user.id));
+        referralCode,
+        tags: tags || null,
+        ...(referredBy ? { referredBy } : {}),
+      };
+
+      await tx
+        .insert(profiles)
+        .values({ id: user.id, ...profileData })
+        .onConflictDoUpdate({ target: profiles.id, set: profileData });
+
+      // ── Loyalty points ────────────────────────────────────────────
+      // Guard: only award onboarding points once. If a profile_complete row
+      // already exists this client has been through onboarding before — skip
+      // the insert entirely so re-submitting doesn't duplicate points.
+      const [alreadyAwarded] = await tx
+        .select({ id: loyaltyTransactions.id })
+        .from(loyaltyTransactions)
+        .where(
+          and(
+            eq(loyaltyTransactions.profileId, user.id),
+            eq(loyaltyTransactions.type, "profile_complete"),
+          ),
+        )
+        .limit(1);
+
+      if (alreadyAwarded) return;
+
+      const pointsRows: (typeof loyaltyTransactions.$inferInsert)[] = [];
+
+      // Every client earns sign-up points for completing their profile.
+      pointsRows.push({
+        profileId: user.id,
+        points: 25,
+        type: "profile_complete",
+        description: "Completed onboarding",
+      });
+
+      // Birthday bonus — awarded when a birthday is provided at sign-up.
+      if (birthday?.trim()) {
+        pointsRows.push({
+          profileId: user.id,
+          points: 50,
+          type: "birthday_added",
+          description: "Added birthday",
+        });
+      }
+
+      if (referredBy) {
+        // Referee (new client) earns a bonus for being referred.
+        pointsRows.push({
+          profileId: user.id,
+          points: 100,
+          type: "referral_referee",
+          description: `Referred by ${referral.referrerName || "a friend"}`,
+          referenceId: referredBy,
+        });
+
+        // Referrer earns their bonus for bringing in a new client.
+        pointsRows.push({
+          profileId: referredBy,
+          points: 100,
+          type: "referral_referrer",
+          description: `Referred ${firstName}${lastName ? ` ${lastName}` : ""}`,
+          referenceId: user.id,
+        });
+      }
+
+      await tx.insert(loyaltyTransactions).values(pointsRows);
+    });
   }
 }

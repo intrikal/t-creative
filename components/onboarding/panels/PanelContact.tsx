@@ -1,15 +1,26 @@
 "use client";
 
 /**
- * PanelContact.tsx — Contact, scheduling & notifications preview panel
+ * PanelContact.tsx — Live contact preview panel for the contact step.
  *
- * What: Shows three visual previews motivating the user to share their
- *       contact info, availability, and notification preferences:
- *       1. A mock booking confirmation email
- *       2. A mock SMS reminder text bubble
- *       3. A scheduling note about availability
- * Why: Visualizes the benefit of each piece of info the user provides —
- *      confirmations, reminders, and flexible scheduling.
+ * What: Shows two mock communication artifacts side-by-side:
+ *       1. A mock booking confirmation email card tagged "Pending approval",
+ *          setting the correct expectation that bookings require artist
+ *          confirmation before they're finalised.
+ *       2. An SMS reminder bubble whose "To:" line updates live as the client
+ *          types their phone number on the left-side form.
+ *
+ * Why: Making the notification experience tangible increases willingness to
+ *      share a phone number. The "pending approval" framing also pre-empts
+ *      the common confusion of expecting an instant confirmation.
+ *
+ * How: The `phone` prop arrives from `form.Subscribe` in OnboardingFlow.tsx.
+ *      `formatPhone()` converts raw digit strings (stored in the form) to
+ *      display-formatted "(555) 123-4567" strings. A `motion.span` with a
+ *      unique key on `displayPhone` causes a small slide-in animation each
+ *      time the formatted number changes.
+ *
+ * @prop phone - Raw digit string from form state (not yet formatted)
  *
  * Related files:
  * - components/onboarding/steps/StepContact.tsx — the paired left-side form
@@ -19,7 +30,20 @@ import { LuCalendarDays, LuClock, LuShieldCheck, LuMessageSquare } from "react-i
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 
-export function PanelContact() {
+function formatPhone(digits: string): string {
+  if (!digits) return "";
+  if (digits.length <= 3) return `(${digits}`;
+  if (digits.length <= 6) return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
+  return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6, 10)}`;
+}
+
+interface Props {
+  phone?: string;
+}
+
+export function PanelContact({ phone = "" }: Props) {
+  const displayPhone = formatPhone(phone);
+
   return (
     <div className="flex flex-col items-center justify-center h-full px-6">
       <motion.div
@@ -29,10 +53,10 @@ export function PanelContact() {
         className="w-full max-w-[340px] space-y-4"
       >
         <p className="text-[10px] font-medium text-muted uppercase tracking-widest">
-          What you&apos;ll receive
+          What to expect
         </p>
 
-        {/* Mock email confirmation */}
+        {/* Mock booking request email */}
         <Card className="border-foreground/5 overflow-hidden">
           <div className="px-4 py-2.5 border-b border-foreground/5 flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -43,30 +67,30 @@ export function PanelContact() {
             </div>
             <Badge
               variant="secondary"
-              className="text-[9px] px-1.5 py-0 bg-accent/8 text-accent border-0"
+              className="text-[9px] px-1.5 py-0 bg-foreground/6 text-muted border-0"
             >
-              Confirmed
+              Pending approval
             </Badge>
           </div>
           <CardContent className="p-4">
-            <p className="text-sm font-medium text-foreground mb-0.5">Your booking is confirmed</p>
+            <p className="text-sm font-medium text-foreground mb-0.5">Booking request received</p>
             <p className="text-xs text-muted leading-relaxed mb-3">
               Classic Lash Set — Saturday, Mar 15 at 2:00 PM
             </p>
             <div className="space-y-1.5 text-xs text-muted/80">
               <div className="flex items-center gap-2">
                 <LuCalendarDays className="w-3.5 h-3.5 text-accent/60" />
-                <span>Calendar invite attached</span>
+                <span>Your artist will confirm within 24 hours</span>
               </div>
               <div className="flex items-center gap-2">
                 <LuClock className="w-3.5 h-3.5 text-accent/60" />
-                <span>Reminder sent 24 hours before</span>
+                <span>Reminder sent once your booking is approved</span>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Mock SMS reminder */}
+        {/* SMS reminder — phone number updates live */}
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
@@ -77,29 +101,28 @@ export function PanelContact() {
               <LuMessageSquare className="w-3.5 h-3.5 text-accent" />
             </div>
             <div className="flex-1">
+              {/* "To:" line updates as phone is typed */}
+              <div className="flex items-center gap-1.5 mb-1">
+                <span className="text-[10px] text-muted/40">To:</span>
+                <motion.span
+                  key={displayPhone || "placeholder"}
+                  initial={{ opacity: 0, y: -4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className={`text-[10px] font-medium ${displayPhone ? "text-accent" : "text-muted/30"}`}
+                >
+                  {displayPhone || "your phone number"}
+                </motion.span>
+              </div>
               <div className="rounded-xl rounded-tl-sm bg-surface border border-foreground/5 px-3.5 py-2.5">
                 <p className="text-xs text-foreground leading-relaxed">
-                  <span className="font-medium">T Creative Studio:</span> Reminder — your lash
-                  appointment is tomorrow at 2:00 PM. See you soon! Reply STOP to opt out.
+                  <span className="font-medium">T Creative Studio:</span> Your booking request is
+                  confirmed! We&apos;ll send a reminder 24 hours before. Reply STOP to opt out.
                 </p>
               </div>
-              <p className="text-[10px] text-muted/50 mt-1 ml-1">SMS · 24 hours before</p>
+              <p className="text-[10px] text-muted/50 mt-1 ml-1">SMS · sent on approval</p>
             </div>
           </div>
-        </motion.div>
-
-        {/* Scheduling note */}
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.5, duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-          className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg bg-accent/5 border border-accent/10"
-        >
-          <LuCalendarDays className="w-4 h-4 text-accent shrink-0" />
-          <p className="text-[11px] text-muted leading-relaxed">
-            Your availability helps us suggest times that work for you — less back-and-forth, faster
-            booking.
-          </p>
         </motion.div>
 
         <motion.p

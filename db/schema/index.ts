@@ -1,12 +1,26 @@
 /**
- * schema — Barrel export for all Drizzle ORM table definitions.
+ * db/schema/index.ts — Barrel export for all Drizzle ORM table definitions.
  *
- * Import from `@/db/schema` to access any table, enum, or relation.
- * Drizzle Kit reads this file (via drizzle.config.ts) to generate
- * SQL migrations.
+ * ## Purpose
+ * Provides a single import path for every table, enum, and Drizzle relation in
+ * the database schema. Application code and Drizzle Kit both read from here.
+ *
+ * ## How Drizzle Kit uses this file
+ * `drizzle.config.ts` points `schema` at this file. Drizzle Kit scans all
+ * re-exported tables to detect schema changes and generate SQL migrations.
+ * Adding a new table file requires a re-export here for migrations to pick it up.
+ *
+ * ## Import convention
+ * Always import from `@/db/schema` (the barrel), never from individual files.
+ * This keeps import paths stable if files are reorganised internally.
  *
  * @example
  *   import { profiles, bookings, bookingStatusEnum } from "@/db/schema";
+ *
+ * ## Schema modules
+ * Modules are grouped logically below. Each group maps to one or more files
+ * in db/schema/. Cross-file foreign keys are resolved by Drizzle's relations
+ * system — see the `*Relations` exports in each module file.
  */
 
 /* Enums */
@@ -126,6 +140,14 @@ export {
   assistantProfilesRelations,
   shiftsRelations,
 } from "./assistants";
+
+/* Loyalty points ledger */
+export {
+  loyaltyTxTypeEnum,
+  loyaltyTransactions,
+  loyaltyTransactionsRelations,
+  type LoyaltyTxType,
+} from "./loyalty";
 
 /* Integrations (Square + Zoho sync) */
 export {

@@ -1,16 +1,42 @@
 /**
- * users — Profile and RBAC tables.
+ * users.ts — `profiles` table definition and relations.
  *
- * Auth is handled by Supabase Auth (`auth.users`). This table extends it
- * with application-level profile data and role assignments. The `id` column
- * is a foreign key to `auth.users.id` so Supabase RLS policies can
- * reference it directly.
+ * ## Responsibility
+ * Extends Supabase Auth with application-level profile data, role assignments,
+ * CRM metadata, notification preferences, and referral tracking. Every user
+ * in the system — client, assistant, and admin — has exactly one row here.
  *
- * External system IDs (Square, Zoho) are stored here so sync operations
- * can reconcile records across platforms without redundant API lookups.
+ * ## Auth architecture
+ * Auth is handled by Supabase Auth (`auth.users`). The `profiles.id` column
+ * is a UUID foreign key to `auth.users.id`. Supabase RLS policies reference
+ * this ID directly so row-level access control works without a separate join.
+ * A database trigger (configured in the seed migration) auto-inserts a minimal
+ * row here on each new Supabase signup; `saveOnboardingData` fills in the rest.
  *
- * Supabase will auto-populate a row here via a database trigger on signup
- * (configured in the seed migration).
+ * ## JSONB vs dedicated columns
+ * Fields that are never used in SQL WHERE / ORDER BY / JOIN clauses — such as
+ * allergy booleans, availability windows, waiver agreements, and admin schedule
+ * config — are stored in the `onboardingData` JSONB column to avoid bloating the
+ * schema with columns that provide no query benefit. Fields that are filtered
+ * or sorted on (role, source, isVip, email, referralCode) get dedicated indexed
+ * columns.
+ *
+ * ## External integrations
+ * `squareCustomerId` and `zohoContactId` let sync jobs reconcile records
+ * across platforms without additional API lookups. Both are nullable — clients
+ * created before the integration was set up won't have them yet.
+ *
+ * ## Key columns
+ * - `role`            — drives middleware route guards (admin / assistant / client)
+ * - `source`          — acquisition channel; shown as a pill in the CRM
+ * - `referralCode`    — generated during onboarding; used on the public share link
+ * - `referredBy`      — FK to the profile that referred this person
+ * - `onboardingData`  — JSONB bucket for all structured but non-queryable fields
+ *
+ * ## Related files
+ * - db/schema/index.ts          — re-exports this table
+ * - app/onboarding/actions.ts   — writes to profiles on onboarding completion
+ * - db/schema/loyalty.ts        — loyalty_transactions.profileId → profiles.id
  */
 import { relations } from "drizzle-orm";
 import {
@@ -45,6 +71,8 @@ import { wishlistItems } from "./wishlists";
  */
 export const clientSourceEnum = pgEnum("client_source", [
   "instagram",
+  "tiktok",
+  "pinterest",
   "word_of_mouth",
   "google_search",
   "referral",

@@ -1,32 +1,39 @@
 "use client";
 
 /**
- * StepAllergies.tsx — Allergy and sensitivity disclosure step
+ * StepAllergies.tsx — Allergy and sensitivity disclosure step.
  *
- * What: Asks the user about common allergies (adhesive, latex, nickel,
- *       fragrances) and offers a free-text notes field for anything else.
- * Why: Safety requirement for lash and jewelry services. This step is
- *      conditionally shown — it only appears if the user selected "lash"
- *      or "jewelry" in the interests step (filtered in OnboardingFlow).
- * How: Each allergy is a boolean toggle. Selecting "None of the above"
- *      clears all other selections (mutual exclusion). Selecting any
- *      specific allergy clears the "None" option. Keyboard shortcuts
- *      (A-E) toggle options without clicking.
+ * What: Asks the client about four common allergies relevant to lash and
+ *       jewelry services (adhesive/glue, latex, nickel/metals, fragrances)
+ *       plus a "None of the above" option and an optional free-text notes field.
  *
- * Key concepts:
- * - Conditional step: This component always exists in code, but
- *   OnboardingFlow.tsx filters it out of the active step array when
- *   the user hasn't chosen lash/jewelry interests.
- * - Mutual exclusion: "None" and specific allergies are mutually exclusive.
- *   The toggle function handles this logic explicitly.
- * - Keyboard guard: The keydown handler checks if the user is typing in the
- *   notes input field and skips letter-key shortcuts if so (preventing "A"
- *   from toggling adhesive while typing notes).
+ * Why: A safety requirement before any lash extension or permanent jewelry
+ *      service. Collecting this at onboarding means the studio can flag
+ *      sensitivities before every future appointment without re-asking.
+ *
+ * Conditional step: This component always exists in the codebase but
+ *       OnboardingFlow.tsx filters it out of the active steps array when
+ *       the client's selected interests don't include "lash" or "jewelry".
+ *       If a client later adds those interests, the step is reinstated.
+ *
+ * Mutual exclusion:
+ *       "None of the above" and specific allergies are mutually exclusive.
+ *       Selecting "None" clears all specific allergies; selecting any specific
+ *       allergy clears "None". This is computed in `toggle()` before calling
+ *       `setSelected` + `form.setFieldValue` to avoid React's in-render state
+ *       update warning (form.setFieldValue is always called after setSelected,
+ *       never inside the state updater).
+ *
+ * Keyboard shortcuts:
+ * - A–D toggle the four specific allergies
+ * - E toggles "None of the above"
+ * - Enter advances (skipped when the notes textarea is focused)
  *
  * Related files:
- * - components/onboarding/OnboardingFlow.tsx — conditionally includes this step
- * - components/onboarding/StepPanels.tsx — PanelAllergies is the paired right panel
- * - lib/onboarding-schema.ts — allergies field schema definition
+ * - components/onboarding/panels/PanelAllergies.tsx — paired right panel (live echo)
+ * - components/onboarding/OnboardingFlow.tsx         — conditionally includes this step
+ * - lib/onboarding-schema.ts                         — allergies object schema
+ * - app/onboarding/actions.ts                        — persists allergies to JSONB
  */
 // useState: holds component-local state. useEffect: runs side effects (like event listeners).
 // useCallback: wraps a function so it's only recreated when its dependencies change.
@@ -76,33 +83,23 @@ export function StepAllergies({ form, onNext, stepNum }: StepProps) {
   // This prevents unnecessary re-renders in child components that receive this function.
   const toggle = useCallback(
     (field: string) => {
-      // Passing a function to setSelected gives you `prev` (the current state).
-      // You must return a new object — never mutate `prev` directly.
-      setSelected((prev) => {
-        let next: Record<string, boolean>;
-        if (field === "none") {
-          // "None" is mutually exclusive: toggling it ON clears all specific
-          // allergies; toggling it OFF leaves everything deselected.
-          // Object.fromEntries converts an array of [key, value] pairs back into an object.
-          // .map() transforms each option into a [field, boolean] pair.
-          next = Object.fromEntries(
-            ALLERGY_OPTIONS.map((o) => [o.field, o.field === "none" ? !prev.none : false]),
-          );
-        } else {
-          // Selecting any specific allergy auto-clears the "None" option.
-          // Spread operator { ...prev } copies all properties from prev into a new object.
-          // [field] is a computed property name — the variable `field` becomes the key.
-          // Together, { ...prev, [field]: !prev[field] } means "copy prev, but flip this one field."
-          next = { ...prev, [field]: !prev[field], none: false };
-        }
-        for (const o of ALLERGY_OPTIONS) {
-          // Same type assertion workaround as above for TanStack Form's strict field paths.
-          form.setFieldValue(`allergies.${o.field}` as "allergies.adhesive", next[o.field]);
-        }
-        return next;
-      });
+      // Compute next state from current `selected` (not an updater fn) so we can
+      // call form.setFieldValue AFTER setSelected — never inside the updater.
+      // Calling form.setFieldValue inside a setState updater triggers a state update
+      // on another component (LocalSubscribe) during render, which React disallows.
+      const next: Record<string, boolean> =
+        field === "none"
+          ? Object.fromEntries(
+              ALLERGY_OPTIONS.map((o) => [o.field, o.field === "none" ? !selected.none : false]),
+            )
+          : { ...selected, [field]: !selected[field], none: false };
+
+      setSelected(next);
+      for (const o of ALLERGY_OPTIONS) {
+        form.setFieldValue(`allergies.${o.field}` as "allergies.adhesive", next[o.field]);
+      }
     },
-    [form],
+    [form, selected],
   );
 
   const handleKeyDown = useCallback(
@@ -224,16 +221,26 @@ export function StepAllergies({ form, onNext, stepNum }: StepProps) {
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.45, duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+            className="space-y-1"
           >
-            <input
-              type="text"
-              placeholder="Anything else? (optional)"
+            <label className="text-xs font-medium text-muted uppercase tracking-wide">
+              Additional notes <span className="normal-case text-muted/60">(optional)</span>
+            </label>
+            <textarea
+              rows={2}
+              placeholder="e.g. Had a reaction to adhesive in 2022, sensitive to certain metals…"
               value={field.state.value ?? ""}
-              onChange={(e) => field.handleChange(e.target.value)}
-              className="w-full max-w-[360px] px-0 py-2 text-sm bg-transparent border-b border-foreground/10
-                placeholder:text-muted/30 text-foreground
+              onChange={(e) => {
+                field.handleChange(e.target.value);
+                // Auto-grow: reset height then set to scrollHeight so it expands as the user types
+                e.target.style.height = "auto";
+                e.target.style.height = `${e.target.scrollHeight}px`;
+              }}
+              onBlur={field.handleBlur}
+              className="w-full sm:max-w-[360px] px-0 py-2 text-sm bg-transparent border-b border-foreground/10
+                placeholder:text-muted/30 text-foreground resize-none overflow-hidden
                 focus:outline-none focus:border-accent
-                transition-colors duration-200"
+                transition-colors duration-200 leading-relaxed"
             />
           </motion.div>
         )}

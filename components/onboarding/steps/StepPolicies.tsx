@@ -1,33 +1,37 @@
 "use client";
 
 /**
- * StepPolicies.tsx — Combined waiver + cancellation policy agreement step
+ * StepPolicies.tsx — Combined waiver + cancellation policy agreement step.
  *
- * What: Merges the service waiver and cancellation policy into a single step.
- *       Displays scrollable waiver text (Assumption of Risk, Aftercare,
- *       Accuracy, Liability), the three cancellation policy items, and TWO
- *       independent agreement toggles — one for each policy.
- * Why: Combining the two agreement steps reduces onboarding friction while
- *      still collecting legally distinct consent for each policy. Fewer steps
- *      means higher completion rates without losing any legal coverage.
- * How: Two pieces of boolean state (`waiverAgreed`, `cancellationAgreed`)
- *      are tracked independently. Both must be true to enable the OK button.
- *      Keyboard shortcut "A" toggles waiver agreement, "B" toggles
- *      cancellation agreement, and Enter advances when both are agreed.
+ * What: A single step that collects two legally distinct agreements:
+ *       A. Service waiver (liability, aftercare acknowledgment)
+ *       B. Cancellation policy (24-hour notice, late arrivals, no-show fee)
+ *       Policy text is shown inline; the full waiver document is shown in the
+ *       right-side PanelWaiver. Both toggles must be checked before advancing.
  *
- * Key concepts:
- * - Dual-gate pattern: Unlike the single-gate pattern in StepWaiver or
- *   StepCancellation, this step requires TWO independent agreements before
- *   the user can proceed. `bothAgreed` is a derived boolean (not state).
- * - One-way toggles: Once agreed, clicking again doesn't un-agree. This
- *   prevents accidental un-agreement on legally required consent.
- * - Derived value: `bothAgreed` is computed from the two state variables
- *   each render — it doesn't need its own useState because it can always
- *   be calculated from the existing state.
+ * Why: Consolidating two consent gates into one step reduces drop-off while
+ *      preserving legal coverage. Each toggle is independently tracked so
+ *      partial agreement is captured if the user navigates away mid-step.
+ *
+ * Toggles are two-way: clicking again can un-agree. This is intentional —
+ *       the user may want to re-read the policy before confirming. The
+ *       `bothAgreed` gate on the OK button is sufficient protection.
+ *
+ * Keyboard shortcuts:
+ * - "A" toggles `waiverAgreed`
+ * - "B" toggles `cancellationAgreed`
+ * - Enter advances when `bothAgreed` is true
+ *
+ * Derived value:
+ * `bothAgreed = waiverAgreed && cancellationAgreed` is computed each render —
+ * no separate `useState` needed because it fully depends on the two existing
+ * boolean states.
  *
  * Related files:
- * - components/onboarding/OnboardingFlow.tsx — renders this step
- * - components/onboarding/StepPanels.tsx — paired right panel
+ * - components/onboarding/panels/PanelWaiver     — right-side panel (full waiver text)
+ * - components/onboarding/OnboardingFlow.tsx      — renders this step
+ * - app/onboarding/actions.ts                     — persists waiverAgreed / cancellationAgreed
+ * - lib/onboarding-schema.ts                      — validates both booleans
  */
 // useState: React hook that creates a piece of state. Returns [currentValue, setterFunction].
 // useEffect: React hook that runs side effects (like adding event listeners) after render.
@@ -62,35 +66,26 @@ export function StepPolicies({ form, onNext, stepNum }: StepProps) {
   // computed from the two booleans above. React will recalculate it each render.
   const bothAgreed = waiverAgreed && cancellationAgreed;
 
-  // useCallback wraps this function so React reuses the same reference between renders.
-  // [form] is the dependency array: the function is only recreated if `form` changes.
+  // Both toggles are two-way so users can de-select if they clicked by mistake.
   const handleWaiverAgree = useCallback(() => {
-    setWaiverAgreed(true);
-    // form.setFieldValue() writes a value into the TanStack Form state.
-    form.setFieldValue("waiverAgreed", true);
-  }, [form]);
+    const next = !waiverAgreed;
+    setWaiverAgreed(next);
+    form.setFieldValue("waiverAgreed", next);
+  }, [form, waiverAgreed]);
 
   const handleCancellationAgree = useCallback(() => {
-    setCancellationAgreed(true);
-    form.setFieldValue("cancellationAgreed", true);
-  }, [form]);
+    const next = !cancellationAgreed;
+    setCancellationAgreed(next);
+    form.setFieldValue("cancellationAgreed", next);
+  }, [form, cancellationAgreed]);
 
-  // The dependency array tells useCallback to recreate this function only when
-  // one of the listed values changes.
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
       if (e.key === "Enter" && bothAgreed) onNext();
-      if (e.key.toUpperCase() === "A" && !waiverAgreed) handleWaiverAgree();
-      if (e.key.toUpperCase() === "B" && !cancellationAgreed) handleCancellationAgree();
+      if (e.key.toUpperCase() === "A") handleWaiverAgree();
+      if (e.key.toUpperCase() === "B") handleCancellationAgree();
     },
-    [
-      bothAgreed,
-      waiverAgreed,
-      cancellationAgreed,
-      onNext,
-      handleWaiverAgree,
-      handleCancellationAgree,
-    ],
+    [bothAgreed, onNext, handleWaiverAgree, handleCancellationAgree],
   );
 
   // useEffect runs after each render. The dependency array [handleKeyDown] means it
@@ -131,8 +126,12 @@ export function StepPolicies({ form, onNext, stepNum }: StepProps) {
             The `key` prop helps React track which items changed between renders. */}
         {[
           {
+            title: "Approval-based booking",
+            desc: "All bookings require confirmation from your artist before they're locked in. You'll hear back within 24 hours.",
+          },
+          {
             title: "24-hour cancellation notice",
-            desc: "Please cancel or reschedule at least 24 hours before your appointment.",
+            desc: "Please cancel or reschedule at least 24 hours before your confirmed appointment.",
           },
           {
             title: "Late arrivals",

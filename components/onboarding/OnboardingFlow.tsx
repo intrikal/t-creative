@@ -34,7 +34,7 @@
  *       → StepName, StepInterests, etc.  (individual step forms)
  *       → PanelName, PanelInterests, etc. (decorative right-side panels)
  */
-import { useState, useCallback, useMemo, useRef, type ReactNode } from "react";
+import { useState, useCallback, useRef, type ReactNode } from "react";
 import { useForm } from "@tanstack/react-form";
 import { saveOnboardingData } from "@/app/onboarding/actions";
 import { OnboardingShell } from "./OnboardingShell";
@@ -45,7 +45,6 @@ import {
   PanelAllergies,
   PanelContact,
   PanelWaiver,
-  PanelPhotoConsent,
   PanelRoleSkills,
   PanelShiftAvailability,
   PanelEmergencyContact,
@@ -62,6 +61,8 @@ import {
   PanelAdminRewards,
   PanelAssistantPortfolio,
   PanelAssistantPolicies,
+  PanelRewards,
+  PanelPreferences,
 } from "./panels";
 import { PanelSummary } from "./PanelSummary";
 import { StepAdminContact } from "./steps/StepAdminContact";
@@ -80,10 +81,11 @@ import { StepComplete } from "./steps/StepComplete";
 import { StepContact } from "./steps/StepContact";
 import { StepContactPrefs } from "./steps/StepContactPrefs";
 import { StepEmergencyContact } from "./steps/StepEmergencyContact";
-import { StepFinalPrefs } from "./steps/StepFinalPrefs";
 import { StepInterests } from "./steps/StepInterests";
 import { StepName } from "./steps/StepName";
 import { StepPolicies } from "./steps/StepPolicies";
+import { StepPreferences } from "./steps/StepPreferences";
+import { StepRewards } from "./steps/StepRewards";
 import { StepRoleSkills } from "./steps/StepRoleSkills";
 import { StepShiftAvailability } from "./steps/StepShiftAvailability";
 
@@ -115,10 +117,17 @@ import { StepShiftAvailability } from "./steps/StepShiftAvailability";
  * - `photoConsent`      — whether we can use their photos for marketing
  * - `birthday`          — used for birthday promotions
  */
-function useClientForm() {
+function useClientForm(email = "", googleName = "") {
+  // Split Google's full name into first + last. "Jane Smith" → ["Jane", "Smith"].
+  // If there are more than two parts (e.g. "Mary Jane Watson"), everything after
+  // the first word becomes the last name.
+  const [googleFirst = "", ...rest] = googleName.trim().split(/\s+/);
+  const googleLast = rest.join(" ");
+
   return useForm({
     defaultValues: {
-      firstName: "",
+      firstName: googleFirst,
+      lastName: googleLast,
       interests: [] as ("lash" | "jewelry" | "crochet" | "consulting")[],
       allergies: {
         adhesive: false,
@@ -128,7 +137,8 @@ function useClientForm() {
         none: false,
         notes: "",
       },
-      email: "",
+      // Pre-filled from Google OAuth so the client never has to type their email.
+      email,
       phone: "",
       availability: {
         weekdays: false,
@@ -139,6 +149,8 @@ function useClientForm() {
       },
       source: "instagram" as
         | "instagram"
+        | "tiktok"
+        | "pinterest"
         | "word_of_mouth"
         | "google_search"
         | "referral"
@@ -290,49 +302,10 @@ interface StepDef<F> {
   panel: ReactNode;
 }
 
-/**
- * CLIENT_STEPS — the master list of every possible step in the client flow.
- *
- * Note that "allergies" is not always shown — see the `needsAllergies` logic
- * in ClientOnboardingFlow below, which filters this array dynamically.
- * All other steps are always present.
- */
-const CLIENT_STEPS: StepDef<OnboardingForm>[] = [
-  {
-    id: "name",
-    render: (form, onNext, n) => <StepName form={form} onNext={onNext} stepNum={n} />,
-    panel: <PanelName />,
-  },
-  {
-    id: "interests",
-    render: (form, onNext, n) => <StepInterests form={form} onNext={onNext} stepNum={n} />,
-    panel: <PanelInterests />,
-  },
-  {
-    // Only included in the active step list when the client selects "lash" or "jewelry"
-    id: "allergies",
-    render: (form, onNext, n) => <StepAllergies form={form} onNext={onNext} stepNum={n} />,
-    panel: <PanelAllergies />,
-  },
-  {
-    id: "contact",
-    render: (form, onNext, n) => <StepContact form={form} onNext={onNext} stepNum={n} />,
-    panel: <PanelContact />,
-  },
-  {
-    id: "policies",
-    render: (form, onNext, n) => <StepPolicies form={form} onNext={onNext} stepNum={n} />,
-    panel: <PanelWaiver />,
-  },
-  {
-    id: "final_prefs",
-    render: (form, onNext, n) => <StepFinalPrefs form={form} onNext={onNext} stepNum={n} />,
-    panel: <PanelPhotoConsent />,
-  },
-];
-
-// ASSISTANT_STEP_DEFS is now built inside AssistantOnboardingFlow so panels can
+// ASSISTANT_STEP_DEFS is built inside AssistantOnboardingFlow so panels can
 // access the live form instance via form.Subscribe. See AssistantOnboardingFlow below.
+// CLIENT_STEPS is defined inside ClientOnboardingFlow for the same reason —
+// the contact step needs closure access to avatarUrl and googleName.
 
 /* ------------------------------------------------------------------ */
 /*  Step content renderer                                             */
@@ -362,7 +335,15 @@ function StepContent<F>({
 /*  Client onboarding flow                                             */
 /* ------------------------------------------------------------------ */
 
-function ClientOnboardingFlow() {
+function ClientOnboardingFlow({
+  email = "",
+  googleName = "",
+  avatarUrl = "",
+}: {
+  email?: string;
+  googleName?: string;
+  avatarUrl?: string;
+}) {
   /**
    * `step` is the current zero-based index into the `steps` array below.
    * When `step >= steps.length`, the wizard is complete and shows the summary screen.
@@ -376,8 +357,111 @@ function ClientOnboardingFlow() {
    */
   const [direction, setDirection] = useState(1);
 
-  /** The TanStack Form instance — holds all field values for this wizard run. */
-  const form = useClientForm();
+  /** The TanStack Form instance — email + name pre-filled from Google OAuth. */
+  const form = useClientForm(email, googleName);
+
+  /**
+   * CLIENT_STEPS — defined here (not at module level) so the contact step can
+   * close over `avatarUrl` and `googleName` from the component's props.
+   *
+   * ## Step sequence (7 steps, 8 with allergies)
+   * 1. name        — first name
+   * 2. interests   — which services they want
+   * 3. allergies   — conditional: only shown when "lash" or "jewelry" is selected
+   * 4. contact     — locked email chip + optional phone
+   * 5. policies    — waiver + cancellation agreements
+   * 6. rewards     — loyalty program intro + birthday + referral + source
+   * 7. preferences — availability windows + notification prefs + photo consent
+   */
+  const CLIENT_STEPS: StepDef<OnboardingForm>[] = [
+    {
+      id: "name",
+      render: (f, onNext, n) => (
+        <StepName
+          form={f}
+          onNext={onNext}
+          stepNum={n}
+          avatarUrl={avatarUrl}
+          googleName={googleName}
+          email={email}
+        />
+      ),
+      panel: <PanelName />,
+    },
+    {
+      id: "interests",
+      render: (f, onNext, n) => <StepInterests form={f} onNext={onNext} stepNum={n} />,
+      panel: (
+        <form.Subscribe selector={(s) => s.values.interests}>
+          {(interests) => <PanelInterests interests={interests} />}
+        </form.Subscribe>
+      ),
+    },
+    {
+      // Only included when the client selects "lash" or "jewelry"
+      id: "allergies",
+      render: (f, onNext, n) => <StepAllergies form={f} onNext={onNext} stepNum={n} />,
+      panel: (
+        <form.Subscribe selector={(s) => s.values.allergies}>
+          {(allergies) => <PanelAllergies allergies={allergies} />}
+        </form.Subscribe>
+      ),
+    },
+    {
+      id: "contact",
+      render: (f, onNext, n) => (
+        <StepContact
+          form={f}
+          onNext={onNext}
+          stepNum={n}
+          avatarUrl={avatarUrl}
+          googleName={googleName}
+        />
+      ),
+      panel: (
+        <form.Subscribe selector={(s) => s.values.phone}>
+          {(phone) => <PanelContact phone={phone} />}
+        </form.Subscribe>
+      ),
+    },
+    {
+      id: "policies",
+      render: (f, onNext, n) => <StepPolicies form={f} onNext={onNext} stepNum={n} />,
+      panel: <PanelWaiver />,
+    },
+    {
+      id: "rewards",
+      render: (f, onNext, n) => <StepRewards form={f} onNext={onNext} stepNum={n} />,
+      panel: (
+        <form.Subscribe
+          selector={(s) => ({ birthday: s.values.birthday, referral: s.values.referral })}
+        >
+          {({ birthday, referral }) => <PanelRewards birthday={birthday} referral={referral} />}
+        </form.Subscribe>
+      ),
+    },
+    {
+      id: "preferences",
+      render: (f, onNext, n) => <StepPreferences form={f} onNext={onNext} stepNum={n} />,
+      panel: (
+        <form.Subscribe
+          selector={(s) => ({
+            availability: s.values.availability,
+            notifications: s.values.notifications,
+            photoConsent: s.values.photoConsent,
+          })}
+        >
+          {({ availability, notifications, photoConsent }) => (
+            <PanelPreferences
+              availability={availability}
+              notifications={notifications}
+              photoConsent={photoConsent}
+            />
+          )}
+        </form.Subscribe>
+      ),
+    },
+  ];
 
   /**
    * `savedRef` is a ref (not state) that acts as a one-shot flag to prevent
@@ -391,6 +475,8 @@ function ClientOnboardingFlow() {
    * The `.catch()` resets it to false so a retry is possible if the save fails.
    */
   const savedRef = useRef(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState(false);
 
   /**
    * Allergies step is conditional — it only appears if the client has selected
@@ -401,15 +487,10 @@ function ClientOnboardingFlow() {
   const interests = form.getFieldValue("interests");
   const needsAllergies = interests.includes("lash") || interests.includes("jewelry");
 
-  /**
-   * Dynamically filter the master CLIENT_STEPS list based on whether the
-   * allergies step is needed. `useMemo` caches the result so we don't
-   * rebuild the array on every render — only when `needsAllergies` changes.
-   */
-  const steps = useMemo(
-    () => CLIENT_STEPS.filter((s) => s.id !== "allergies" || needsAllergies),
-    [needsAllergies],
-  );
+  // Filter allergies step out when not needed. CLIENT_STEPS is defined inside
+  // the component so it changes every render — useMemo can't memoize it reliably.
+  // The filter is O(8) so computing it inline is fine.
+  const steps = CLIENT_STEPS.filter((s) => s.id !== "allergies" || needsAllergies);
 
   const totalSteps = steps.length;
   /** The wizard is "complete" once the step index moves past the last step. */
@@ -426,18 +507,35 @@ function ClientOnboardingFlow() {
    * somehow called twice rapidly.
    */
   const next = useCallback(() => {
+    // Per-step advancement guard — inlined to satisfy react-hooks/preserve-manual-memoization
+    // (all referenced values are already in the dep array below).
+    const stepId = steps[step]?.id;
+    const v = form.state.values;
+    if (stepId === "name" && !v.firstName?.trim()) return;
+    if (
+      stepId === "allergies" &&
+      !Object.values(v.allergies).some((val) => typeof val === "boolean" && val)
+    )
+      return;
+    if (stepId === "policies" && !(v.waiverAgreed && v.cancellationAgreed)) return;
+
     const nextStep = step + 1;
     setDirection(1);
     setStep(nextStep);
     if (nextStep >= totalSteps && !savedRef.current) {
       savedRef.current = true;
+      setIsSaving(true);
+      setSaveError(false);
       const values = form.state.values;
-      saveOnboardingData(values, "client").catch(() => {
-        // If save fails, reset the flag so a retry is possible
-        savedRef.current = false;
-      });
+      saveOnboardingData(values, "client")
+        .then(() => setIsSaving(false))
+        .catch(() => {
+          setIsSaving(false);
+          setSaveError(true);
+          savedRef.current = false;
+        });
     }
-  }, [step, totalSteps, form]);
+  }, [step, steps, totalSteps, form, setIsSaving, setSaveError]);
 
   /** `back` — go one step back, but never below step 0 (Math.max guard). */
   const back = useCallback(() => {
@@ -455,14 +553,43 @@ function ClientOnboardingFlow() {
       direction={direction}
       isComplete={isComplete}
       stepId={currentStep?.id}
-      // `step + 1` converts 0-based index to 1-based display number for "Step 1 of N"
+      canAdvance={(() => {
+        const sid = currentStep?.id;
+        if (!sid) return true;
+        const v = form.state.values;
+        if (sid === "name") return !!v.firstName?.trim();
+        if (sid === "allergies")
+          return Object.values(v.allergies).some((val) => typeof val === "boolean" && val);
+        if (sid === "policies") return v.waiverAgreed && v.cancellationAgreed;
+        return true;
+      })()}
       stepContent={
         currentStep ? (
           <StepContent step={currentStep} form={form} onNext={next} stepNum={step + 1} />
         ) : null
       }
       panelContent={currentStep?.panel ?? null}
-      completionContent={<StepComplete form={form} />}
+      completionContent={
+        <StepComplete
+          form={form}
+          role="client"
+          onBack={back}
+          isSaving={isSaving}
+          saveError={saveError}
+          onRetry={() => {
+            setSaveError(false);
+            setIsSaving(true);
+            savedRef.current = true;
+            saveOnboardingData(form.state.values, "client")
+              .then(() => setIsSaving(false))
+              .catch(() => {
+                setIsSaving(false);
+                setSaveError(true);
+                savedRef.current = false;
+              });
+          }}
+        />
+      }
       completionPanel={<PanelSummary form={form} />}
       onBack={back}
       onNext={next}
@@ -1174,5 +1301,5 @@ export function OnboardingFlow({
         avatarUrl={avatarUrl}
       />
     );
-  return <ClientOnboardingFlow />;
+  return <ClientOnboardingFlow email={email} googleName={googleName} avatarUrl={avatarUrl} />;
 }

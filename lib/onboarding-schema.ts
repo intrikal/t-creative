@@ -1,26 +1,43 @@
 /**
- * onboarding-schema.ts — Zod validation schema for onboarding data
+ * lib/onboarding-schema.ts — Zod validation schemas for all three onboarding flows.
  *
- * What: Defines the exact shape and validation rules for every piece of data
- *       collected during the onboarding flow.
- * Why: Centralizes all validation in one place so the form, the API, and any
- *      database writes can share the same rules. If a field's requirements
- *      change, you update it here and it propagates everywhere.
- * How: Uses Zod (a schema validation library) to declare each field's type,
- *      constraints, and error messages. The schema is then used by TanStack Form
- *      in OnboardingFlow.tsx to validate user input before submission.
+ * ## What
+ * Defines the exact shape and validation rules for every field collected during
+ * onboarding, for all three user roles:
+ * - `onboardingSchema`        → client flow
+ * - `assistantOnboardingSchema` → assistant (staff) flow
+ * - `adminOnboardingSchema`   → admin / studio-owner setup flow
  *
- * Key concepts:
- * - z.object(): Defines an object with specific fields — like a blueprint.
- * - z.enum(): Restricts a value to a set of allowed strings (like a dropdown).
- * - z.infer: Automatically generates a TypeScript type from the schema, so
- *   the type and the validation rules never get out of sync.
- * - STEPS array: Defines the order and titles of onboarding steps. Used by
- *   OnboardingFlow to know which steps exist and what to display.
+ * ## Why it exists (single source of truth)
+ * Centralising validation here means the browser-side form (TanStack Form in
+ * OnboardingFlow.tsx) and the server-side action (`app/onboarding/actions.ts`)
+ * share identical rules. Changing a field's constraints in one place propagates
+ * everywhere automatically — no risk of the client and server diverging.
  *
- * Related files:
- * - components/onboarding/OnboardingFlow.tsx — consumes this schema for form state
- * - app/onboarding/page.tsx — the page that renders the flow
+ * ## How it's used
+ * 1. **Type inference** — `z.infer<typeof onboardingSchema>` produces the
+ *    `OnboardingData` TypeScript type used as the action's parameter type.
+ * 2. **Server-side validation** — `actions.ts` calls `.parse(raw)` on the
+ *    appropriate schema before touching the database. A Zod parse error
+ *    surfaces as a thrown ZodError, which Next.js propagates to the client.
+ * 3. **Default values** — `OnboardingFlow.tsx` reads field names from the
+ *    schemas (implicitly) when initialising TanStack Form default values.
+ *
+ * ## Schema design notes
+ * - `z.string().optional().or(z.literal(""))` is used for optional text inputs
+ *   because HTML inputs produce `""` when cleared, not `undefined`. Without
+ *   the `.or(z.literal(""))` branch, Zod would reject empty strings.
+ * - `availableDates` and `availableDateOverrides` are stored as JSON strings
+ *   (not arrays/objects) because TanStack Form fields must be primitives.
+ *   The action deserialises them with JSON.parse before writing to the DB.
+ * - The `rewards` object in `adminOnboardingSchema` uses flat string fields
+ *   (e.g. `tier1Name`, `tier2Threshold`) to avoid nested array complexity in
+ *   TanStack Form; the action reconstructs the nested `tiers` array.
+ *
+ * ## Related files
+ * - components/onboarding/OnboardingFlow.tsx — form default values mirror these schemas
+ * - app/onboarding/actions.ts               — calls `.parse()` on each schema
+ * - db/schema/users.ts                      — `profiles.onboardingData` stores the result
  */
 import { z } from "zod/v4";
 
@@ -32,12 +49,13 @@ export const onboardingSchema = z.object({
   /** Client's first name. */
   firstName: z.string().min(1, "Please enter your name"),
 
+  /** Client's last name. */
+  lastName: z.string().optional().or(z.literal("")),
+
   // `z.array(z.enum([...]))` means an array that can only contain the listed string values.
   // `z.enum([...])` restricts each element to one of these exact strings — like a dropdown's allowed options.
   /** Which service zones the client is interested in. */
-  interests: z
-    .array(z.enum(["lash", "jewelry", "crochet", "consulting"]))
-    .min(1, "Pick at least one service"),
+  interests: z.array(z.enum(["lash", "jewelry", "crochet", "consulting"])),
 
   /** Allergies & sensitivities (shown if lash or jewelry selected). */
   allergies: z.object({
@@ -66,7 +84,15 @@ export const onboardingSchema = z.object({
   }),
 
   /** How the client discovered T Creative. */
-  source: z.enum(["instagram", "word_of_mouth", "google_search", "referral", "website_direct"]),
+  source: z.enum([
+    "instagram",
+    "tiktok",
+    "pinterest",
+    "word_of_mouth",
+    "google_search",
+    "referral",
+    "website_direct",
+  ]),
 
   /** Notification preferences. */
   notifications: z.object({

@@ -1,35 +1,46 @@
 "use client";
 
 /**
- * LoginPage — The sign-in page for T Creative Studio.
+ * LoginPage — Authentication entry point for T Creative Studio.
  *
  * ## How sign-in works
- * There are two ways to sign in, both powered by Supabase Auth:
+ * Two auth methods are supported, both powered by Supabase Auth:
  *
  * ### 1. OAuth (social login)
- * The user clicks a provider button (Google, Apple, GitHub, X). We call
- * `supabase.auth.signInWithOAuth(...)`, which immediately redirects the browser
- * to that provider's login page. After the user approves, the provider sends
- * them back to /auth/callback with a short-lived authorization code,
- * which the callback route exchanges for a real session.
+ * Clicking a provider button (Google, Apple, GitHub, X) calls
+ * `supabase.auth.signInWithOAuth(...)`, which redirects the browser to that
+ * provider's login page. After approval the provider returns to /auth/callback
+ * with a short-lived authorization code, which the callback route exchanges
+ * for a real session and sets the auth cookies.
  *
  * ### 2. Magic link (passwordless email)
- * The user types their email and we call `supabase.auth.signInWithOtp(...)`.
- * Supabase sends them an email with a one-time link. Clicking that link
- * redirects them to /auth/callback with a code, same as OAuth.
+ * Submitting an email address calls `supabase.auth.signInWithOtp(...)`. Supabase
+ * emails a one-time sign-in link. Clicking it redirects to /auth/callback with
+ * a code, same as OAuth. The form transitions to a "Check your email" state so
+ * users aren't confused by the blank screen.
  *
  * ## Invite token threading
- * If this page was opened via an admin invite link (e.g. /login?invite=<jwt>),
- * that token is captured from the URL and threaded through to /auth/callback
- * via the `redirectTo` option. The callback route then reads it and promotes
- * the user to the "assistant" role automatically after sign-in.
+ * If the page was opened via an admin-generated invite link
+ * (e.g. /login?invite=<jwt>), `buildCallbackUrl()` appends the token to the
+ * `redirectTo` URL. The callback route (/auth/callback) reads it back after
+ * sign-in and promotes the new user to the "assistant" role automatically.
+ * This allows the studio to onboard staff without granting them self-serve
+ * registration.
  *
  * ## Why `<Suspense>`?
- * `useSearchParams()` (used to read ?invite= and ?error=) requires a Suspense
- * boundary in Next.js App Router because it makes the component dependent on
- * dynamic request data. Without the boundary, Next.js would throw a build error.
- * We wrap the inner component in Suspense so the outer export can be used in
- * any page without the caller needing to add their own boundary.
+ * `useSearchParams()` reads ?invite= and ?error= from the URL. In Next.js App
+ * Router this makes the component dependent on dynamic request data, which
+ * requires a Suspense boundary at build time. `LoginContent` (the inner
+ * component with the actual form) is wrapped in Suspense by the exported
+ * `LoginPage` so callers never need to add their own boundary.
+ *
+ * ## Error messages
+ * Query-string errors (?error=suspended, ?error=auth_failed, etc.) set by
+ * /auth/callback are mapped to human-readable strings via `ERROR_MESSAGES`.
+ *
+ * ## Related files
+ * - app/auth/callback/route.ts — exchanges the auth code for a session
+ * - app/login/page.tsx         — Next.js page wrapper that renders this
  */
 import { useState } from "react";
 import { Suspense } from "react";
@@ -65,7 +76,10 @@ function LoginContent() {
     const supabase = createClient();
     await supabase.auth.signInWithOAuth({
       provider,
-      options: { redirectTo: buildCallbackUrl() },
+      options: {
+        redirectTo: buildCallbackUrl(),
+        queryParams: provider === "google" ? { prompt: "select_account" } : undefined,
+      },
     });
   };
 

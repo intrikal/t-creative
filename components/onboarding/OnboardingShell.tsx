@@ -68,6 +68,8 @@ interface OnboardingShellProps {
   completionPanel: ReactNode;
   onBack: () => void;
   onNext: () => void;
+  /** When false the next arrow is disabled — prevents skipping required steps. Defaults to true. */
+  canAdvance?: boolean;
 }
 
 export function OnboardingShell({
@@ -82,6 +84,7 @@ export function OnboardingShell({
   completionPanel,
   onBack,
   onNext,
+  canAdvance = true,
 }: OnboardingShellProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -103,31 +106,17 @@ export function OnboardingShell({
         </div>
       )}
 
-      <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
-        {/* Panel — visible on mobile (top) and desktop (right) */}
-        <div className="h-[35vh] md:h-auto md:order-2 md:w-[45%] lg:w-1/2 relative bg-surface overflow-y-auto shrink-0 scrollbar-none">
-          <div className="flex min-h-full items-center justify-center p-4 md:p-8 lg:p-12">
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={isComplete ? "summary" : stepId}
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-                className="w-full h-full"
-              >
-                {isComplete ? completionPanel : panelContent}
-              </motion.div>
-            </AnimatePresence>
-          </div>
-        </div>
-
-        {/* Form content */}
-        <div className="relative flex-1 flex flex-col min-w-0 md:order-1">
+      {/*
+        Mobile:  flex-col, scrollable as one page — form (top) then panel (below).
+        Desktop: flex-row, overflow-hidden — each column independently scrollable.
+      */}
+      <div className="flex-1 flex flex-col md:flex-row overflow-y-auto md:overflow-hidden">
+        {/* Form — order-1: top on mobile, left on desktop */}
+        <div className="relative flex-none md:flex-1 flex flex-col min-w-0 order-1">
           {!isComplete && <div className="pt-5" />}
 
-          <div ref={scrollRef} className="flex-1 overflow-y-auto scrollbar-none">
-            <div className="flex min-h-full items-center px-6 sm:px-10 md:px-16 lg:px-20 py-4">
+          <div ref={scrollRef} className="md:flex-1 md:overflow-y-auto scrollbar-none">
+            <div className="flex md:min-h-full items-center px-6 sm:px-10 md:px-14 lg:px-20 py-4">
               <AnimatePresence mode="wait" custom={direction}>
                 <motion.div
                   key={stepId ?? "complete"}
@@ -147,7 +136,7 @@ export function OnboardingShell({
 
           {/* Bottom bar */}
           {!isComplete && (
-            <div className="flex items-center justify-between px-6 sm:px-10 pb-6">
+            <div className="flex items-center justify-between px-6 sm:px-10 md:px-14 lg:px-20 pb-6">
               <div className="text-xs text-muted/60">
                 {step + 1} of {totalSteps}
               </div>
@@ -174,7 +163,12 @@ export function OnboardingShell({
                 </button>
                 <button
                   onClick={onNext}
-                  className="w-7 h-7 flex items-center justify-center rounded text-muted hover:text-foreground hover:bg-surface transition-colors"
+                  disabled={!canAdvance}
+                  className={`w-7 h-7 flex items-center justify-center rounded transition-colors ${
+                    canAdvance
+                      ? "text-muted hover:text-foreground hover:bg-surface"
+                      : "text-muted/30 cursor-not-allowed"
+                  }`}
                   aria-label="Next step"
                 >
                   <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
@@ -190,6 +184,24 @@ export function OnboardingShell({
               </div>
             </div>
           )}
+        </div>
+
+        {/* Panel — order-2: below form on mobile (auto height), right column on desktop */}
+        <div className="order-2 shrink-0 md:h-auto md:w-[45%] lg:w-1/2 relative bg-surface md:overflow-y-auto scrollbar-none">
+          <div className="flex md:min-h-full items-center justify-center p-6 md:p-8 lg:p-12">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={isComplete ? "summary" : stepId}
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+                className="w-full h-full"
+              >
+                {isComplete ? completionPanel : panelContent}
+              </motion.div>
+            </AnimatePresence>
+          </div>
         </div>
       </div>
     </div>

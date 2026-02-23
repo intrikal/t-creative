@@ -1,30 +1,49 @@
 "use client";
 
 /**
- * PanelSummary.tsx — Completion summary card shown after onboarding finishes
+ * PanelSummary.tsx — Completion summary card for the client onboarding flow.
  *
- * What: Displays a read-only card summarizing everything the user entered
- *       during onboarding — name, services, contact info, availability,
- *       notifications, referral, and birthday.
- * Why: Gives the user a visual confirmation that their data was captured
- *      correctly. Appears in the right-side panel on the completion screen.
- * How: Reads values directly from the TanStack Form instance (passed as a
- *      prop) and maps internal IDs (like "lash") to human-readable labels
- *      (like "Lash Extensions") using lookup dictionaries.
+ * What: Displays a read-only profile card in the right panel after the client
+ *       completes onboarding. Shows: full name, selected services (interest
+ *       badges), allergies / sensitivities, contact info (email, phone,
+ *       birthday, referrer), availability windows, and notification preferences.
  *
- * Key concepts:
- * - This component does NOT submit data — it only reads and displays.
- * - Object.entries() is used to convert { weekdays: true, weekends: false }
- *   into an array so we can filter for only the `true` values.
- * - The form field path "referral.referrerName" uses dot notation to access
- *   a nested property inside the referral object.
+ * Why: Gives the client a final visual confirmation that all their data was
+ *      captured correctly before navigating to the dashboard. This is the last
+ *      impression of the onboarding experience and should feel polished.
+ *
+ * How: Reads all values directly from the TanStack Form instance via
+ *      `form.getFieldValue()`. No network call — the form is already fully
+ *      populated by the time this component renders. Internal IDs are mapped to
+ *      human-readable labels via `INTEREST_LABELS`, `ALLERGY_LABELS`, and
+ *      `AVAILABILITY_LABELS` dictionaries.
+ *
+ * TanStack Form dot-notation workaround:
+ *       `form.getFieldValue("referral.referrerName" as "referral")` is a type
+ *       assertion workaround — TanStack Form's types don't natively accept
+ *       nested dot-notation paths, so we assert the path to the parent key
+ *       type and then re-assert the result to `string`. The value is correct
+ *       at runtime; the assertion is purely to satisfy the TypeScript compiler.
+ *
+ * This component is client-only because it reads from the form instance
+ * (React state) and renders with Framer Motion animations.
  *
  * Related files:
- * - components/onboarding/OnboardingFlow.tsx — renders this on completion
- * - components/onboarding/steps/StepComplete.tsx — the left-side completion view
+ * - components/onboarding/OnboardingFlow.tsx      — passes the form instance here
+ * - components/onboarding/steps/StepComplete.tsx  — the left-side completion content
+ * - components/onboarding/OnboardingShell.tsx      — renders both panels side-by-side
  */
 import { motion } from "framer-motion";
-import { LuMail, LuPhone, LuBell, LuHeart, LuShieldCheck, LuClock, LuUsers } from "react-icons/lu";
+import {
+  LuMail,
+  LuPhone,
+  LuBell,
+  LuHeart,
+  LuShieldCheck,
+  LuClock,
+  LuUsers,
+  LuTriangleAlert,
+} from "react-icons/lu";
 import { TCLogo } from "@/components/TCLogo";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -37,6 +56,13 @@ const INTEREST_LABELS: Record<string, string> = {
   jewelry: "Permanent Jewelry",
   crochet: "Custom Crochet",
   consulting: "Business Consulting",
+};
+
+const ALLERGY_LABELS: Record<string, string> = {
+  adhesive: "Adhesive",
+  latex: "Latex",
+  nickel: "Nickel",
+  fragrances: "Fragrances",
 };
 
 const AVAILABILITY_LABELS: Record<string, string> = {
@@ -55,6 +81,8 @@ interface Props {
 
 export function PanelSummary({ form }: Props) {
   const firstName = form.getFieldValue("firstName");
+  const lastName = form.getFieldValue("lastName") as string | undefined;
+  const fullName = [firstName, lastName].filter(Boolean).join(" ");
   const interests = form.getFieldValue("interests");
   const email = form.getFieldValue("email");
   const phone = form.getFieldValue("phone");
@@ -67,6 +95,11 @@ export function PanelSummary({ form }: Props) {
     "referral.referrerName" as "referral",
   ) as unknown as string;
   const birthday = form.getFieldValue("birthday");
+  const allergies = form.getFieldValue("allergies");
+  const activeAllergies = Object.entries(allergies)
+    .filter(([k, v]) => k !== "none" && k !== "notes" && v === true)
+    .map(([k]) => ALLERGY_LABELS[k]);
+  const noSensitivities = allergies.none === true;
 
   // `Object.entries()` converts { weekdays: true, weekends: false } into
   // [["weekdays", true], ["weekends", false]] — an array of [key, value] pairs.
@@ -97,7 +130,7 @@ export function PanelSummary({ form }: Props) {
                 <TCLogo size={26} className="text-accent" />
               </div>
               <div className="min-w-0">
-                <p className="text-base font-medium text-foreground">{firstName}</p>
+                <p className="text-base font-medium text-foreground">{fullName || firstName}</p>
                 <p className="text-xs text-muted">New client</p>
               </div>
             </div>
@@ -119,6 +152,33 @@ export function PanelSummary({ form }: Props) {
                 ))}
               </div>
             </div>
+
+            {/* ── Allergies / sensitivities ── */}
+            {(activeAllergies.length > 0 || noSensitivities) && (
+              <div className="px-6 py-4 border-b border-foreground/5">
+                <div className="flex items-center gap-1.5 mb-2.5">
+                  <LuTriangleAlert className="w-3 h-3 text-muted/60" />
+                  <p className="text-[10px] font-medium text-muted uppercase tracking-widest">
+                    Sensitivities
+                  </p>
+                </div>
+                {noSensitivities ? (
+                  <p className="text-xs text-muted/60">No known sensitivities</p>
+                ) : (
+                  <div className="flex flex-wrap gap-1.5">
+                    {activeAllergies.map((label) => (
+                      <Badge
+                        key={label}
+                        variant="secondary"
+                        className="text-xs px-2.5 py-1 bg-amber-50 text-amber-700 border-amber-100 border font-normal"
+                      >
+                        {label}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* ── Contact details ── */}
             <div className="px-6 py-4 border-b border-foreground/5 space-y-2.5">

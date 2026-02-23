@@ -35,6 +35,16 @@ const WORK_STYLE_OPTIONS = [
   { id: "both" as const, label: "Both" },
 ];
 
+const TRAINING_FORMAT_OPTIONS: {
+  id: "one_on_one" | "group" | "online" | "in_person";
+  label: string;
+}[] = [
+  { id: "one_on_one", label: "1-on-1" },
+  { id: "group", label: "Group" },
+  { id: "online", label: "Online" },
+  { id: "in_person", label: "In-person" },
+];
+
 interface StepProps {
   form: AssistantOnboardingForm;
   onNext: () => void;
@@ -47,31 +57,55 @@ export function StepRoleSkills({ form, onNext, stepNum }: StepProps) {
 
   const [selectedSkills, setSelectedSkills] = useState<
     ("lash" | "jewelry" | "crochet" | "consulting")[]
-  >(() => form.getFieldValue("skills") ?? []);
+  >(() => form.state.values.skills ?? []);
   const [selectedCerts, setSelectedCerts] = useState<CertId[]>(
-    () => (form.getFieldValue("certifications") as CertId[]) ?? [],
+    () => (form.state.values.certifications as CertId[]) ?? [],
   );
+  const [offersTraining, setOffersTraining] = useState<boolean>(
+    () => form.state.values.offersTraining ?? false,
+  );
+  const [selectedTrainingFormats, setSelectedTrainingFormats] = useState<
+    ("one_on_one" | "group" | "online" | "in_person")[]
+  >(() => form.state.values.trainingFormats ?? []);
+
+  // Refs hold the current value synchronously so form.setFieldValue can be called
+  // directly in event handlers — not inside setState updaters (which causes the
+  // "Cannot update a component while rendering" React warning).
+  const selectedSkillsRef = useRef(selectedSkills);
+  const selectedCertsRef = useRef(selectedCerts);
+  const selectedTrainingFormatsRef = useRef(selectedTrainingFormats);
 
   const canContinue = selectedSkills.length > 0;
 
   const toggleSkill = useCallback(
     (id: "lash" | "jewelry" | "crochet" | "consulting") => {
-      setSelectedSkills((prev) => {
-        const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
-        form.setFieldValue("skills", next);
-        return next;
-      });
+      const prev = selectedSkillsRef.current;
+      const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
+      selectedSkillsRef.current = next;
+      setSelectedSkills(next);
+      form.setFieldValue("skills", next);
     },
     [form],
   );
 
   const toggleCert = useCallback(
     (id: CertId) => {
-      setSelectedCerts((prev) => {
-        const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
-        form.setFieldValue("certifications", next);
-        return next;
-      });
+      const prev = selectedCertsRef.current;
+      const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
+      selectedCertsRef.current = next;
+      setSelectedCerts(next);
+      form.setFieldValue("certifications", next);
+    },
+    [form],
+  );
+
+  const toggleTrainingFormat = useCallback(
+    (id: "one_on_one" | "group" | "online" | "in_person") => {
+      const prev = selectedTrainingFormatsRef.current;
+      const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
+      selectedTrainingFormatsRef.current = next;
+      setSelectedTrainingFormats(next);
+      form.setFieldValue("trainingFormats", next);
     },
     [form],
   );
@@ -363,11 +397,78 @@ export function StepRoleSkills({ form, onNext, stepNum }: StepProps) {
         </form.Field>
       </motion.div>
 
+      {/* Training toggle */}
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.6, duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+      >
+        <p className="block text-[10px] font-medium text-muted uppercase tracking-widest mb-1.5">
+          Training &amp; Education
+        </p>
+        <button
+          type="button"
+          onClick={() => {
+            const next = !offersTraining;
+            setOffersTraining(next);
+            form.setFieldValue("offersTraining", next);
+            if (!next) {
+              setSelectedTrainingFormats([]);
+              form.setFieldValue("trainingFormats", []);
+            }
+          }}
+          className={`
+            inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs border
+            transition-all duration-150
+            ${
+              offersTraining
+                ? "border-accent bg-accent/10 text-accent font-medium"
+                : "border-foreground/10 text-foreground/70 hover:border-foreground/20 hover:bg-surface/60"
+            }
+          `}
+        >
+          I also offer training or classes to other artists
+        </button>
+
+        {offersTraining && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            transition={{ duration: 0.25 }}
+            className="mt-2 overflow-hidden"
+          >
+            <p className="text-[10px] text-muted mb-1.5">Preferred formats</p>
+            <div className="flex flex-wrap gap-1.5">
+              {TRAINING_FORMAT_OPTIONS.map((opt) => {
+                const isSelected = selectedTrainingFormats.includes(opt.id);
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => toggleTrainingFormat(opt.id)}
+                    className={`
+                      px-3 py-1.5 rounded-full text-xs border transition-all duration-150
+                      ${
+                        isSelected
+                          ? "border-accent bg-accent/10 text-accent font-medium"
+                          : "border-foreground/10 text-foreground/70 hover:border-foreground/20 hover:bg-surface/60"
+                      }
+                    `}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+          </motion.div>
+        )}
+      </motion.div>
+
       {/* OK */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ delay: 0.65 }}
+        transition={{ delay: 0.75 }}
         className="flex items-center gap-3 pt-1"
       >
         <button

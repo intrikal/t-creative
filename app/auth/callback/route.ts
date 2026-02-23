@@ -42,6 +42,16 @@ import { createClient } from "@/utils/supabase/server";
  */
 const ADMIN_EMAILS = ["alvinwquach@gmail.com"];
 
+/**
+ * Known assistant email addresses. Add team members here for dev/staging access.
+ * On first sign-in, these users are automatically promoted to the "assistant" role
+ * and redirected to the assistant onboarding flow.
+ *
+ * For production, prefer the invite-token flow (`/api/invites`) so new assistants
+ * receive a scoped, expiring link rather than being allowlisted permanently.
+ */
+const ASSISTANT_EMAILS = ["retrobytetech@gmail.com"];
+
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   // `code` is the one-time authorization code from the OAuth provider
@@ -120,7 +130,17 @@ export async function GET(request: Request) {
   }
 
   let assignedAssistant = false;
-  if (!assignedAdmin && invite) {
+
+  // Email allowlist — promotes known assistant emails on every sign-in.
+  if (!assignedAdmin && user.email && ASSISTANT_EMAILS.includes(user.email)) {
+    if (profile && profile.role !== "assistant") {
+      await db.update(profiles).set({ role: "assistant" }).where(eq(profiles.id, user.id));
+    }
+    assignedAssistant = true;
+  }
+
+  // Invite token — promotes users who arrived via an admin-generated invite link.
+  if (!assignedAdmin && !assignedAssistant && invite) {
     const payload = await verifyInviteToken(invite);
     if (payload && profile) {
       await db.update(profiles).set({ role: "assistant" }).where(eq(profiles.id, user.id));

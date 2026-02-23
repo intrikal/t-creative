@@ -147,6 +147,10 @@ export async function saveOnboardingData(
         isActive: true,
       }));
 
+    // Pull the Google profile photo directly from auth metadata so it's always
+    // in sync with the user's Google account without requiring a form field.
+    const googleAvatarUrl = (user.user_metadata?.avatar_url as string | undefined) ?? null;
+
     const profileData = {
       role: "admin" as const,
       firstName,
@@ -155,6 +159,7 @@ export async function saveOnboardingData(
       phone: phone || null,
       notifySms: notifySms ?? true,
       notifyEmail: notifyEmail ?? true,
+      avatarUrl: googleAvatarUrl,
       onboardingData: {
         studioName: studioName || null,
         bio: bio || null,

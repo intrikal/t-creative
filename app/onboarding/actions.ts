@@ -23,9 +23,9 @@
  * ### Assistant path
  * Saves to THREE places:
  * - `profiles` table: firstName, email, phone, notification prefs
- * - `profiles.onboarding_data` (JSONB): shift availability, preferred shift time,
- *   max hours/week, emergency contact, experience level, certifications,
- *   work style, Instagram handle
+ * - `profiles.onboarding_data` (JSONB): calendar availability (dates, overrides,
+ *   default hours, lunch break), emergency contact, experience level, certifications,
+ *   work style, training offerings, portfolio links, Instagram handle, policy acknowledgments
  * - `assistant_profiles` table: professional display data (title, specialties, bio)
  *
  * ## Why use a JSONB column for some fields?
@@ -354,12 +354,25 @@ export async function saveOnboardingData(
       bio,
       certifications,
       workStyle,
-      shiftAvailability,
-      preferredShiftTime,
-      maxHoursPerWeek,
       emergencyContactName,
       emergencyContactPhone,
       emergencyContactRelation,
+      offersTraining,
+      trainingFormats,
+      portfolioInstagram,
+      tiktokHandle,
+      portfolioWebsite,
+      policyClientPhotos,
+      policyConfidentiality,
+      policyConduct,
+      policyCompensation,
+      availableDefaultStart,
+      availableDefaultEnd,
+      availableDates,
+      availableDateOverrides,
+      availableLunchBreak,
+      availableLunchStart,
+      availableLunchDuration,
     } = data;
 
     /**
@@ -369,9 +382,27 @@ export async function saveOnboardingData(
      * so they don't need their own columns.
      */
     const onboardingData = {
-      shiftAvailability, // { monday: bool, tuesday: bool, ... } — which days they can work
-      preferredShiftTime, // "morning" | "afternoon" | "evening" | "flexible"
-      maxHoursPerWeek, // optional number — their weekly hour cap
+      availability: {
+        defaultStart: availableDefaultStart,
+        defaultEnd: availableDefaultEnd,
+        dates: (() => {
+          try {
+            return JSON.parse(availableDates || "[]");
+          } catch {
+            return [];
+          }
+        })(),
+        dateOverrides: (() => {
+          try {
+            return JSON.parse(availableDateOverrides || "{}");
+          } catch {
+            return {};
+          }
+        })(),
+        lunchBreak: availableLunchBreak,
+        lunchStart: availableLunchBreak ? availableLunchStart || "12:00" : null,
+        lunchDuration: availableLunchBreak ? parseInt(availableLunchDuration) || 30 : null,
+      },
       emergencyContactName,
       emergencyContactPhone,
       emergencyContactRelation,
@@ -379,21 +410,41 @@ export async function saveOnboardingData(
       certifications: certifications ?? [], // array of certification IDs
       workStyle, // "client_facing" | "back_of_house" | "both"
       instagramHandle: instagramHandle || null,
+      offersTraining: offersTraining ?? false,
+      trainingFormats: trainingFormats ?? [],
+      portfolioInstagram: portfolioInstagram || null,
+      tiktokHandle: tiktokHandle || null,
+      portfolioWebsite: portfolioWebsite || null,
+      policies: {
+        clientPhotos: policyClientPhotos ?? false,
+        confidentiality: policyConfidentiality ?? false,
+        conduct: policyConduct ?? false,
+        compensation: policyCompensation ?? false,
+      },
     };
 
-    // Step 1: Update the shared profiles row with identity and contact info
+    // Pull the Google profile photo directly from auth metadata.
+    const googleAvatarUrl = (user.user_metadata?.avatar_url as string | undefined) ?? null;
+
+    const profileData = {
+      role: "assistant" as const,
+      firstName,
+      lastName: "",
+      email,
+      phone: phone || null,
+      notifySms: notifications.sms,
+      notifyEmail: notifications.email,
+      notifyMarketing: notifications.marketing,
+      avatarUrl: googleAvatarUrl,
+      onboardingData,
+    };
+
+    // Step 1: Upsert the shared profiles row — creates it if the Supabase
+    // signup trigger hasn't run yet, updates it if the row already exists.
     await db
-      .update(profiles)
-      .set({
-        firstName,
-        email,
-        phone: phone || null,
-        notifySms: notifications.sms,
-        notifyEmail: notifications.email,
-        notifyMarketing: notifications.marketing,
-        onboardingData,
-      })
-      .where(eq(profiles.id, user.id));
+      .insert(profiles)
+      .values({ id: user.id, ...profileData })
+      .onConflictDoUpdate({ target: profiles.id, set: profileData });
 
     /**
      * Step 2: Upsert the assistant_profiles row.

@@ -30,3 +30,5 @@ export { PanelAdminHours } from "./PanelAdminHours";
 export { PanelAdminIntake } from "./PanelAdminIntake";
 export { PanelAdminPolicies } from "./PanelAdminPolicies";
 export { PanelAdminRewards } from "./PanelAdminRewards";
+export { PanelAssistantPortfolio } from "./PanelAssistantPortfolio";
+export { PanelAssistantPolicies } from "./PanelAssistantPolicies";

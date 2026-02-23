@@ -37,22 +37,11 @@ const SKILL_LABELS: Record<string, string> = {
   consulting: "Business Consulting",
 };
 
-const SHIFT_TIME_LABELS: Record<string, string> = {
-  morning: "Morning",
-  afternoon: "Afternoon",
-  evening: "Evening",
-  flexible: "Flexible",
-};
-
-const DAY_LABELS: Record<string, string> = {
-  monday: "Mon",
-  tuesday: "Tue",
-  wednesday: "Wed",
-  thursday: "Thu",
-  friday: "Fri",
-  saturday: "Sat",
-  sunday: "Sun",
-};
+function formatTime(t: string): string {
+  const h = parseInt(t.split(":")[0], 10);
+  if (h === 12) return "12 pm";
+  return h < 12 ? `${h} am` : `${h - 12} pm`;
+}
 
 interface Props {
   form: AssistantOnboardingForm;
@@ -62,9 +51,9 @@ export function PanelAssistantSummary({ form }: Props) {
   const firstName = form.getFieldValue("firstName");
   const preferredTitle = form.getFieldValue("preferredTitle");
   const skills = form.getFieldValue("skills");
-  const shiftAvailability = form.getFieldValue("shiftAvailability");
-  const preferredShiftTime = form.getFieldValue("preferredShiftTime");
-  const maxHoursPerWeek = form.getFieldValue("maxHoursPerWeek");
+  const availableDefaultStart = form.getFieldValue("availableDefaultStart") as string;
+  const availableDefaultEnd = form.getFieldValue("availableDefaultEnd") as string;
+  const availableDatesRaw = form.getFieldValue("availableDates") as string;
   const emergencyContactName = form.getFieldValue("emergencyContactName");
   const emergencyContactPhone = form.getFieldValue("emergencyContactPhone");
   const emergencyContactRelation = form.getFieldValue("emergencyContactRelation");
@@ -75,9 +64,13 @@ export function PanelAssistantSummary({ form }: Props) {
   const workStyle = form.getFieldValue("workStyle");
   const notifications = form.getFieldValue("notifications");
 
-  const activeDays = Object.entries(shiftAvailability)
-    .filter(([, v]) => v)
-    .map(([k]) => DAY_LABELS[k]);
+  const selectedDateCount = (() => {
+    try {
+      return (JSON.parse(availableDatesRaw || "[]") as string[]).length;
+    } catch {
+      return 0;
+    }
+  })();
 
   const activeNotifications = Object.entries(notifications)
     .filter(([, v]) => v)
@@ -148,19 +141,22 @@ export function PanelAssistantSummary({ form }: Props) {
               <p className="text-[10px] font-medium text-muted uppercase tracking-widest mb-2.5">
                 Schedule
               </p>
-              {activeDays.length > 0 && (
+              {selectedDateCount > 0 && (
                 <div className="flex items-center gap-3">
                   <LuCalendarDays className="w-3.5 h-3.5 text-muted/60 shrink-0" />
-                  <span className="text-sm text-foreground">{activeDays.join(", ")}</span>
+                  <span className="text-sm text-foreground">
+                    {selectedDateCount} {selectedDateCount === 1 ? "day" : "days"} selected
+                  </span>
                 </div>
               )}
-              <div className="flex items-center gap-3">
-                <LuClock className="w-3.5 h-3.5 text-muted/60 shrink-0" />
-                <span className="text-sm text-foreground">
-                  {SHIFT_TIME_LABELS[preferredShiftTime]}
-                  {maxHoursPerWeek ? ` · ${maxHoursPerWeek}h/week max` : ""}
-                </span>
-              </div>
+              {availableDefaultStart && availableDefaultEnd && (
+                <div className="flex items-center gap-3">
+                  <LuClock className="w-3.5 h-3.5 text-muted/60 shrink-0" />
+                  <span className="text-sm text-foreground">
+                    {formatTime(availableDefaultStart)} – {formatTime(availableDefaultEnd)}
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* Emergency contact */}

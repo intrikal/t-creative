@@ -128,17 +128,17 @@ export const assistantOnboardingSchema = z.object({
   experienceLevel: z.enum(["junior", "mid", "senior"]),
   bio: z.string().optional().or(z.literal("")),
 
-  shiftAvailability: z.object({
-    monday: z.boolean(),
-    tuesday: z.boolean(),
-    wednesday: z.boolean(),
-    thursday: z.boolean(),
-    friday: z.boolean(),
-    saturday: z.boolean(),
-    sunday: z.boolean(),
-  }),
-  preferredShiftTime: z.enum(["morning", "afternoon", "evening", "flexible"]),
-  maxHoursPerWeek: z.number().min(1).max(60).optional(),
+  /** Default availability hours (apply to all selected dates unless overridden). */
+  availableDefaultStart: z.string().default("09:00"),
+  availableDefaultEnd: z.string().default("17:00"),
+  /** JSON-encoded string[] of "YYYY-MM-DD" dates the assistant is available. */
+  availableDates: z.string().default("[]"),
+  /** JSON-encoded Record<string, {startTime, endTime}> for per-date overrides. */
+  availableDateOverrides: z.string().default("{}"),
+  /** Whether a lunch break is blocked off during the shift. */
+  availableLunchBreak: z.boolean().default(false),
+  availableLunchStart: z.string().default("12:00"),
+  availableLunchDuration: z.string().default("30"),
 
   emergencyContactName: z.string().min(1, "Required"),
   emergencyContactPhone: z.string().min(1, "Required"),
@@ -160,6 +160,22 @@ export const assistantOnboardingSchema = z.object({
     email: z.boolean(),
     marketing: z.boolean(),
   }),
+
+  /** Whether the assistant also offers training or classes to other artists. */
+  offersTraining: z.boolean(),
+  /** Which training formats they're comfortable with (only relevant if offersTraining). */
+  trainingFormats: z.array(z.enum(["one_on_one", "group", "online", "in_person"])).optional(),
+
+  /** Portfolio & socials (separate from personal). */
+  portfolioInstagram: z.string().optional().or(z.literal("")),
+  tiktokHandle: z.string().optional().or(z.literal("")),
+  portfolioWebsite: z.string().optional().or(z.literal("")),
+
+  /** Studio policy acknowledgments — all must be true before saving. */
+  policyClientPhotos: z.boolean(),
+  policyConfidentiality: z.boolean(),
+  policyConduct: z.boolean(),
+  policyCompensation: z.boolean(),
 });
 
 export type AssistantOnboardingData = z.infer<typeof assistantOnboardingSchema>;
@@ -169,7 +185,9 @@ export const ASSISTANT_STEPS = [
   { id: "role_skills", title: "Your role & skills" },
   { id: "shift_availability", title: "Your availability" },
   { id: "emergency_contact", title: "Emergency contact" },
+  { id: "portfolio", title: "Portfolio & socials" },
   { id: "contact_prefs", title: "Contact preferences" },
+  { id: "policies", title: "Studio policies" },
 ] as const;
 
 export type AssistantStepId = (typeof ASSISTANT_STEPS)[number]["id"];

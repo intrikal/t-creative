@@ -60,6 +60,8 @@ import {
   PanelAdminIntake,
   PanelAdminPolicies,
   PanelAdminRewards,
+  PanelAssistantPortfolio,
+  PanelAssistantPolicies,
 } from "./panels";
 import { PanelSummary } from "./PanelSummary";
 import { StepAdminContact } from "./steps/StepAdminContact";
@@ -72,6 +74,8 @@ import { StepAdminServices } from "./steps/StepAdminServices";
 import { StepAdminSocials } from "./steps/StepAdminSocials";
 import { StepAdminStudio } from "./steps/StepAdminStudio";
 import { StepAllergies } from "./steps/StepAllergies";
+import { StepAssistantPolicies } from "./steps/StepAssistantPolicies";
+import { StepAssistantPortfolio } from "./steps/StepAssistantPortfolio";
 import { StepComplete } from "./steps/StepComplete";
 import { StepContact } from "./steps/StepContact";
 import { StepContactPrefs } from "./steps/StepContactPrefs";
@@ -165,40 +169,66 @@ export type OnboardingForm = ReturnType<typeof useClientForm>;
  * useAssistantForm — creates the TanStack Form instance for the assistant onboarding flow.
  *
  * Mirrors useClientForm but with staff-specific fields instead of client preferences.
+ * Accepts `email` and `googleName` from OAuth so the name/email fields are
+ * pre-filled on first render without the assistant having to retype them.
  *
  * ## Field reference
+ *
+ * ### Identity & role (steps 1–2)
+ * - `firstName`             — pre-filled from Google OAuth; editable
  * - `preferredTitle`        — how they'd like to be listed (e.g. "Lash Artist", "Senior Stylist")
  * - `skills`                — which services they're trained to perform
  * - `experienceLevel`       — junior / mid / senior, used for scheduling and display
  * - `bio`                   — short public-facing bio shown on their staff profile
- * - `shiftAvailability`     — per-day availability for the weekly schedule view
- * - `preferredShiftTime`    — morning / afternoon / evening / flexible
- * - `maxHoursPerWeek`       — optional cap (undefined = no limit)
- * - `emergencyContactName/Phone/Relation` — required by HR before first shift
  * - `certifications`        — completed training certificates (internal and external)
- * - `workStyle`             — whether they work client-facing, back-of-house, or both
- * - `instagramHandle`       — optional, displayed on their public staff card
- * - `notifications`         — same communication preferences as the client form
+ * - `workStyle`             — client-facing, back-of-house, or both
+ * - `offersTraining`        — whether they also teach/train other artists
+ * - `trainingFormats`       — which training formats they offer (one-on-one, group, online, in-person)
+ *
+ * ### Availability (step 3)
+ * - `availableDefaultStart` — "HH:MM" default shift start across all selected dates
+ * - `availableDefaultEnd`   — "HH:MM" default shift end across all selected dates
+ * - `availableDates`        — JSON string: string[] of "YYYY-MM-DD" dates they're open
+ * - `availableDateOverrides`— JSON string: Record<string, {startTime, endTime}> per-date overrides
+ * - `availableLunchBreak`   — whether a lunch break is blocked off during shifts
+ * - `availableLunchStart`   — "HH:MM" start of the lunch break
+ * - `availableLunchDuration`— duration in minutes as a string (e.g. "30", "45", "60")
+ *
+ * ### Emergency contact (step 4)
+ * - `emergencyContactName/Phone/Relation` — required by HR before first shift
+ *
+ * ### Portfolio & socials (step 5)
+ * - `portfolioInstagram`    — portfolio Instagram handle (may differ from personal)
+ * - `tiktokHandle`          — TikTok handle
+ * - `portfolioWebsite`      — personal or business website URL
+ *
+ * ### Contact & notifications (step 6)
+ * - `email`                 — pre-filled from Supabase session; editable
+ * - `phone`                 — optional phone number
+ * - `instagramHandle`       — personal Instagram, displayed on the staff card
+ * - `notifications`         — sms / email / marketing communication preferences
+ *
+ * ### Policies (step 7)
+ * - `policyClientPhotos`    — consent to use client photos for marketing
+ * - `policyConfidentiality` — agreement to keep client data private
+ * - `policyConduct`         — agreement to studio conduct standards
+ * - `policyCompensation`    — acknowledgment of compensation structure
  */
-function useAssistantForm() {
+function useAssistantForm(email: string, googleName: string) {
   return useForm({
     defaultValues: {
-      firstName: "",
+      firstName: googleName,
       preferredTitle: "",
       skills: [] as ("lash" | "jewelry" | "crochet" | "consulting")[],
       experienceLevel: "mid" as "junior" | "mid" | "senior",
       bio: "",
-      shiftAvailability: {
-        monday: false,
-        tuesday: false,
-        wednesday: false,
-        thursday: false,
-        friday: false,
-        saturday: false,
-        sunday: false,
-      },
-      preferredShiftTime: "flexible" as "morning" | "afternoon" | "evening" | "flexible",
-      maxHoursPerWeek: undefined as number | undefined,
+      availableDefaultStart: "09:00",
+      availableDefaultEnd: "17:00",
+      availableDates: "[]",
+      availableDateOverrides: "{}",
+      availableLunchBreak: false,
+      availableLunchStart: "12:00",
+      availableLunchDuration: "30",
       emergencyContactName: "",
       emergencyContactPhone: "",
       emergencyContactRelation: "",
@@ -209,10 +239,19 @@ function useAssistantForm() {
         | "external_jewelry"
       )[],
       workStyle: "both" as "client_facing" | "back_of_house" | "both",
-      email: "",
+      email,
       phone: "",
       instagramHandle: "",
       notifications: { sms: true, email: true, marketing: false },
+      offersTraining: false,
+      trainingFormats: [] as ("one_on_one" | "group" | "online" | "in_person")[],
+      portfolioInstagram: "",
+      tiktokHandle: "",
+      portfolioWebsite: "",
+      policyClientPhotos: false,
+      policyConfidentiality: false,
+      policyConduct: false,
+      policyCompensation: false,
     },
   });
 }
@@ -292,43 +331,8 @@ const CLIENT_STEPS: StepDef<OnboardingForm>[] = [
   },
 ];
 
-/** ASSISTANT_STEP_DEFS — the fixed list of steps in the assistant onboarding flow. */
-const ASSISTANT_STEP_DEFS: StepDef<AssistantOnboardingForm>[] = [
-  {
-    id: "name",
-    /**
-     * StepName is shared between client and assistant flows — it only reads/writes
-     * `firstName`, which exists on both form types. However, TypeScript can't verify
-     * this automatically because the two form types are structurally distinct generics.
-     * The `as unknown as OnboardingForm` cast sidesteps the type error while keeping
-     * the runtime behavior correct: StepName only touches `firstName` regardless.
-     */
-    render: (form, onNext, n) => (
-      <StepName form={form as unknown as OnboardingForm} onNext={onNext} stepNum={n} />
-    ),
-    panel: <PanelName />,
-  },
-  {
-    id: "role_skills",
-    render: (form, onNext, n) => <StepRoleSkills form={form} onNext={onNext} stepNum={n} />,
-    panel: <PanelRoleSkills />,
-  },
-  {
-    id: "shift_availability",
-    render: (form, onNext, n) => <StepShiftAvailability form={form} onNext={onNext} stepNum={n} />,
-    panel: <PanelShiftAvailability />,
-  },
-  {
-    id: "emergency_contact",
-    render: (form, onNext, n) => <StepEmergencyContact form={form} onNext={onNext} stepNum={n} />,
-    panel: <PanelEmergencyContact />,
-  },
-  {
-    id: "contact_prefs",
-    render: (form, onNext, n) => <StepContactPrefs form={form} onNext={onNext} stepNum={n} />,
-    panel: <PanelContactPrefs />,
-  },
-];
+// ASSISTANT_STEP_DEFS is now built inside AssistantOnboardingFlow so panels can
+// access the live form instance via form.Subscribe. See AssistantOnboardingFlow below.
 
 /* ------------------------------------------------------------------ */
 /*  Step content renderer                                             */
@@ -478,13 +482,132 @@ function ClientOnboardingFlow() {
  * The same savedRef + next/back pattern is used here for the same reasons
  * documented in ClientOnboardingFlow above.
  */
-function AssistantOnboardingFlow() {
+function AssistantOnboardingFlow({
+  email,
+  googleName,
+  avatarUrl,
+}: {
+  email: string;
+  googleName: string;
+  avatarUrl: string;
+}) {
   const [step, setStep] = useState(0);
   const [direction, setDirection] = useState(1);
-  const form = useAssistantForm();
+  const [saveError, setSaveError] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const form = useAssistantForm(email, googleName);
   const savedRef = useRef(false);
 
-  const totalSteps = ASSISTANT_STEP_DEFS.length;
+  const ASSISTANT_STEPS: StepDef<AssistantOnboardingForm>[] = [
+    {
+      id: "name",
+      render: (f, onNext, n) => (
+        <StepName form={f as unknown as OnboardingForm} onNext={onNext} stepNum={n} />
+      ),
+      panel: <PanelName />,
+    },
+    {
+      id: "role_skills",
+      render: (f, onNext, n) => <StepRoleSkills form={f} onNext={onNext} stepNum={n} />,
+      panel: (
+        <form.Subscribe
+          selector={(s) => ({
+            firstName: s.values.firstName,
+            preferredTitle: s.values.preferredTitle,
+            bio: s.values.bio,
+            experienceLevel: s.values.experienceLevel,
+            workStyle: s.values.workStyle,
+            skills: s.values.skills,
+            certifications: s.values.certifications,
+            offersTraining: s.values.offersTraining,
+            trainingFormats: s.values.trainingFormats,
+          })}
+        >
+          {(props) => <PanelRoleSkills {...props} />}
+        </form.Subscribe>
+      ),
+    },
+    {
+      id: "shift_availability",
+      render: (f, onNext, n) => <StepShiftAvailability form={f} onNext={onNext} stepNum={n} />,
+      panel: (
+        <form.Subscribe
+          selector={(s) => ({
+            availableDefaultStart: s.values.availableDefaultStart,
+            availableDefaultEnd: s.values.availableDefaultEnd,
+            availableDates: s.values.availableDates,
+            availableDateOverrides: s.values.availableDateOverrides,
+            availableLunchBreak: s.values.availableLunchBreak,
+            availableLunchStart: s.values.availableLunchStart,
+            availableLunchDuration: s.values.availableLunchDuration,
+          })}
+        >
+          {(props) => <PanelShiftAvailability {...props} />}
+        </form.Subscribe>
+      ),
+    },
+    {
+      id: "emergency_contact",
+      render: (f, onNext, n) => <StepEmergencyContact form={f} onNext={onNext} stepNum={n} />,
+      panel: (
+        <form.Subscribe
+          selector={(s) => ({
+            name: s.values.emergencyContactName,
+            phone: s.values.emergencyContactPhone,
+            relationship: s.values.emergencyContactRelation,
+          })}
+        >
+          {(props) => <PanelEmergencyContact {...props} />}
+        </form.Subscribe>
+      ),
+    },
+    {
+      id: "portfolio",
+      render: (f, onNext, n) => <StepAssistantPortfolio form={f} onNext={onNext} stepNum={n} />,
+      panel: (
+        <form.Subscribe
+          selector={(s) => ({
+            portfolioInstagram: s.values.portfolioInstagram,
+            tiktokHandle: s.values.tiktokHandle,
+            portfolioWebsite: s.values.portfolioWebsite,
+          })}
+        >
+          {({ portfolioInstagram, tiktokHandle, portfolioWebsite }) => (
+            <PanelAssistantPortfolio
+              portfolioInstagram={portfolioInstagram}
+              tiktokHandle={tiktokHandle}
+              portfolioWebsite={portfolioWebsite}
+            />
+          )}
+        </form.Subscribe>
+      ),
+    },
+    {
+      id: "contact_prefs",
+      render: (f, onNext, n) => (
+        <StepContactPrefs form={f} onNext={onNext} stepNum={n} avatarUrl={avatarUrl} />
+      ),
+      panel: (
+        <form.Subscribe
+          selector={(s) => ({
+            email: s.values.email,
+            phone: s.values.phone,
+            instagramHandle: s.values.instagramHandle,
+            notifications: s.values.notifications,
+          })}
+        >
+          {(props) => <PanelContactPrefs {...props} />}
+        </form.Subscribe>
+      ),
+    },
+    {
+      id: "policies",
+      render: (f, onNext, n) => <StepAssistantPolicies form={f} onNext={onNext} stepNum={n} />,
+      panel: <PanelAssistantPolicies />,
+    },
+  ];
+
+  const totalSteps = ASSISTANT_STEPS.length;
   const isComplete = step >= totalSteps;
 
   const next = useCallback(() => {
@@ -493,10 +616,15 @@ function AssistantOnboardingFlow() {
     setStep(nextStep);
     if (nextStep >= totalSteps && !savedRef.current) {
       savedRef.current = true;
+      setIsSaving(true);
       const values = form.state.values;
-      saveOnboardingData(values, "assistant").catch(() => {
-        savedRef.current = false;
-      });
+      saveOnboardingData(values, "assistant")
+        .then(() => setIsSaving(false))
+        .catch(() => {
+          savedRef.current = false;
+          setIsSaving(false);
+          setSaveError(true);
+        });
     }
   }, [step, totalSteps, form]);
 
@@ -505,7 +633,20 @@ function AssistantOnboardingFlow() {
     setStep((s) => Math.max(s - 1, 0));
   }, []);
 
-  const currentStep = ASSISTANT_STEP_DEFS[step] as StepDef<AssistantOnboardingForm> | undefined;
+  function handleRetry() {
+    setSaveError(false);
+    savedRef.current = true;
+    setIsSaving(true);
+    saveOnboardingData(form.state.values, "assistant")
+      .then(() => setIsSaving(false))
+      .catch(() => {
+        savedRef.current = false;
+        setIsSaving(false);
+        setSaveError(true);
+      });
+  }
+
+  const currentStep = ASSISTANT_STEPS[step] as StepDef<AssistantOnboardingForm> | undefined;
 
   return (
     <OnboardingShell
@@ -526,7 +667,15 @@ function AssistantOnboardingFlow() {
        * because StepComplete only reads `firstName` from the form, which exists
        * on both form types.
        */
-      completionContent={<StepComplete form={form as unknown as OnboardingForm} role="assistant" />}
+      completionContent={
+        <StepComplete
+          form={form as unknown as OnboardingForm}
+          role="assistant"
+          saveError={saveError}
+          isSaving={isSaving}
+          onRetry={handleRetry}
+        />
+      }
       completionPanel={<PanelAssistantSummary form={form} />}
       onBack={back}
       onNext={next}
@@ -1014,7 +1163,8 @@ export function OnboardingFlow({
   fullName = "",
   avatarUrl = "",
 }: OnboardingFlowProps) {
-  if (role === "assistant") return <AssistantOnboardingFlow />;
+  if (role === "assistant")
+    return <AssistantOnboardingFlow email={email} googleName={googleName} avatarUrl={avatarUrl} />;
   if (role === "admin")
     return (
       <AdminOnboardingFlow

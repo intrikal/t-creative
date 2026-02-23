@@ -105,9 +105,8 @@ export function Navbar({ user = null }: NavbarProps) {
               </form>
             </>
           ) : (
-            // Logged-out state: show a "Client Portal" link
             <Link
-              href="/client"
+              href="/login"
               className="text-xs tracking-wide text-muted hover:text-foreground transition-colors duration-200"
             >
               Sign In
@@ -197,7 +196,7 @@ export function Navbar({ user = null }: NavbarProps) {
                   </form>
                 ) : (
                   <Link
-                    href="/client"
+                    href="/login"
                     className="text-sm text-muted hover:text-foreground transition-colors"
                     onClick={() => setMobileOpen(false)}
                   >

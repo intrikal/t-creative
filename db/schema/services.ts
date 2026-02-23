@@ -36,6 +36,9 @@ export const services = pgTable(
     /** Price in cents (e.g. 15000 = $150.00). Null = "Contact for quote". */
     priceInCents: integer("price_in_cents"),
 
+    /** Deposit required to hold the booking, in cents. Null = no deposit. */
+    depositInCents: integer("deposit_in_cents"),
+
     /** Estimated duration in minutes. Null = variable/TBD. */
     durationMinutes: integer("duration_minutes"),
 

@@ -45,17 +45,20 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { profiles } from "@/db/schema";
 import { assistantProfiles } from "@/db/schema/assistants";
+import { services as servicesTable } from "@/db/schema/services";
 import {
   onboardingSchema,
   assistantOnboardingSchema,
+  adminOnboardingSchema,
   type OnboardingData,
   type AssistantOnboardingData,
+  type AdminOnboardingData,
 } from "@/lib/onboarding-schema";
 import { createClient } from "@/utils/supabase/server";
 
 export async function saveOnboardingData(
-  raw: OnboardingData | AssistantOnboardingData,
-  role: "client" | "assistant" = "client",
+  raw: OnboardingData | AssistantOnboardingData | AdminOnboardingData,
+  role: "client" | "assistant" | "admin" = "client",
 ) {
   /**
    * Verify the caller is authenticated using the server-side Supabase client
@@ -70,6 +73,260 @@ export async function saveOnboardingData(
 
   if (!user) {
     throw new Error("Not authenticated");
+  }
+
+  if (role === "admin") {
+    const {
+      firstName,
+      lastName,
+      email,
+      phone,
+      notifySms,
+      notifyEmail,
+      studioName,
+      bio,
+      locationType,
+      locationArea,
+      bookingNotice,
+      socials,
+      services,
+      workingHours,
+      intake,
+      waitlist,
+      bookingConfirmation,
+      cancellationFee,
+      cancellationWindow,
+      noShowFee,
+      rewards,
+    } = adminOnboardingSchema.parse(raw);
+
+    console.log("[onboarding/admin] user.id:", user.id);
+    console.log("[onboarding/admin] identity:", { firstName, lastName, email, phone });
+    console.log("[onboarding/admin] studio:", { studioName, bio, locationType, locationArea });
+    console.log("[onboarding/admin] services:", JSON.stringify(services, null, 2));
+    console.log("[onboarding/admin] rewards.enabled:", rewards?.enabled);
+    console.log(
+      "[onboarding/admin] rewards.tiers:",
+      rewards?.tier1Name,
+      rewards?.tier2Name,
+      rewards?.tier3Name,
+      rewards?.tier4Name,
+    );
+
+    // Strip empty handles so we don't store blank strings in the DB.
+    const filteredSocials = Object.fromEntries(
+      Object.entries(socials ?? {}).filter(([, v]) => v.trim() !== ""),
+    );
+
+    const SERVICE_CATEGORIES = {
+      lash: "lash",
+      jewelry: "jewelry",
+      crochet: "crochet",
+      consulting: "consulting",
+    } as const;
+    const SERVICE_NAMES = {
+      lash: "Lash Extensions",
+      jewelry: "Permanent Jewelry",
+      crochet: "Crochet",
+      consulting: "Consulting",
+    } as const;
+    type ServiceKey = keyof typeof SERVICE_CATEGORIES;
+    const serviceInserts = (
+      Object.entries(services ?? {}) as [
+        ServiceKey,
+        { enabled: boolean; price: string; duration: string; deposit: string },
+      ][]
+    )
+      .filter(([, s]) => s.enabled && s.price)
+      .map(([key, s]) => ({
+        category: SERVICE_CATEGORIES[key] as "lash" | "jewelry" | "crochet" | "consulting",
+        name: SERVICE_NAMES[key],
+        priceInCents: Math.round(parseFloat(s.price) * 100),
+        depositInCents: s.deposit ? Math.round(parseFloat(s.deposit) * 100) : null,
+        durationMinutes: parseInt(s.duration) || null,
+        isActive: true,
+      }));
+
+    const profileData = {
+      role: "admin" as const,
+      firstName,
+      lastName: lastName || "",
+      email,
+      phone: phone || null,
+      notifySms: notifySms ?? true,
+      notifyEmail: notifyEmail ?? true,
+      onboardingData: {
+        studioName: studioName || null,
+        bio: bio || null,
+        location: {
+          type: locationType || "home_studio",
+          area: locationArea || null,
+        },
+        bookingNoticeHours: bookingNotice ? parseInt(bookingNotice) : 24,
+        socials: filteredSocials,
+        schedule: workingHours
+          ? {
+              selectedDates: (() => {
+                try {
+                  return JSON.parse(workingHours.selectedDates || "[]");
+                } catch {
+                  return [];
+                }
+              })(),
+              dayOverrides: (() => {
+                try {
+                  return JSON.parse(workingHours.dayOverrides || "{}");
+                } catch {
+                  return {};
+                }
+              })(),
+              defaultStartTime: workingHours.defaultStartTime,
+              defaultEndTime: workingHours.defaultEndTime,
+              appointmentGap: parseInt(workingHours.appointmentGap) || 15,
+              lunchBreak: workingHours.lunchBreak,
+              lunchStart: workingHours.lunchBreak ? workingHours.lunchStart || "12:00" : null,
+              lunchDuration: workingHours.lunchBreak
+                ? parseInt(workingHours.lunchDuration) || 30
+                : null,
+            }
+          : null,
+        intake: intake
+          ? {
+              lash: services.lash?.enabled
+                ? {
+                    prep: intake.lash.prep || null,
+                    questions: {
+                      adhesiveAllergy: intake.lash.adhesiveAllergy,
+                      contactLenses: intake.lash.contactLenses,
+                      previousLashes: intake.lash.previousLashes,
+                      desiredLook: intake.lash.desiredLook,
+                    },
+                  }
+                : null,
+              jewelry: services.jewelry?.enabled
+                ? {
+                    prep: intake.jewelry.prep || null,
+                    questions: {
+                      metalAllergy: intake.jewelry.metalAllergy,
+                      designPreference: intake.jewelry.designPreference,
+                    },
+                  }
+                : null,
+              crochet: services.crochet?.enabled
+                ? {
+                    prep: intake.crochet.prep || null,
+                    questions: {
+                      hairType: intake.crochet.hairType,
+                      desiredStyle: intake.crochet.desiredStyle,
+                      scalpSensitivity: intake.crochet.scalpSensitivity,
+                    },
+                  }
+                : null,
+              consulting: services.consulting?.enabled
+                ? {
+                    prep: intake.consulting.prep || null,
+                    questions: {
+                      serviceInterest: intake.consulting.serviceInterest,
+                      previousExperience: intake.consulting.previousExperience,
+                      goal: intake.consulting.goal,
+                    },
+                  }
+                : null,
+            }
+          : null,
+        policies: {
+          bookingConfirmation: bookingConfirmation ?? "instant",
+          waitlist: waitlist ?? { lash: true, jewelry: true, crochet: true, consulting: "request" },
+          cancellationFeeInCents: cancellationFee
+            ? Math.round(parseFloat(cancellationFee) * 100)
+            : null,
+          cancellationWindowHours: cancellationWindow ? parseInt(cancellationWindow) : null,
+          noShowFeeInCents: noShowFee ? Math.round(parseFloat(noShowFee) * 100) : null,
+        },
+        rewards: rewards?.enabled
+          ? {
+              enabled: true,
+              pointsPerDollar: parseInt(rewards.pointsPerDollar) || 10,
+              pointsToRedeem: parseInt(rewards.pointsToRedeem) || 100,
+              bonuses: {
+                firstBooking: rewards.firstBookingBonus
+                  ? parseInt(rewards.firstBookingBonus)
+                  : null,
+                birthday: rewards.birthdayBonus ? parseInt(rewards.birthdayBonus) : null,
+                referral: rewards.referralBonus ? parseInt(rewards.referralBonus) : null,
+                referee: rewards.refereeBonus ? parseInt(rewards.refereeBonus) : null,
+                review: rewards.reviewBonus ? parseInt(rewards.reviewBonus) : null,
+                rebook: rewards.rebookBonus ? parseInt(rewards.rebookBonus) : null,
+                milestone5th: rewards.milestoneBonus ? parseInt(rewards.milestoneBonus) : null,
+                socialShare: rewards.socialShareBonus ? parseInt(rewards.socialShareBonus) : null,
+                productPurchase: rewards.productPurchaseBonus
+                  ? parseInt(rewards.productPurchaseBonus)
+                  : null,
+                profileComplete: rewards.profileCompleteBonus
+                  ? parseInt(rewards.profileCompleteBonus)
+                  : null,
+                anniversary: rewards.anniversaryBonus ? parseInt(rewards.anniversaryBonus) : null,
+                milestone10th: rewards.milestone10thBonus
+                  ? parseInt(rewards.milestone10thBonus)
+                  : null,
+                newService: rewards.newServiceBonus ? parseInt(rewards.newServiceBonus) : null,
+                classAttendance: rewards.classAttendanceBonus
+                  ? parseInt(rewards.classAttendanceBonus)
+                  : null,
+                packagePurchase: rewards.packagePurchaseBonus
+                  ? parseInt(rewards.packagePurchaseBonus)
+                  : null,
+                programComplete: rewards.programCompleteBonus
+                  ? parseInt(rewards.programCompleteBonus)
+                  : null,
+                certification: rewards.certificationBonus
+                  ? parseInt(rewards.certificationBonus)
+                  : null,
+              },
+              tiers: [
+                {
+                  name: rewards.tier1Name || "Member",
+                  threshold: 0,
+                  multiplier: parseFloat(rewards.tier1Multiplier) || 1,
+                },
+                {
+                  name: rewards.tier2Name || "Regular",
+                  threshold: parseInt(rewards.tier2Threshold) || 500,
+                  multiplier: parseFloat(rewards.tier2Multiplier) || 1.25,
+                },
+                {
+                  name: rewards.tier3Name || "VIP",
+                  threshold: parseInt(rewards.tier3Threshold) || 2000,
+                  multiplier: parseFloat(rewards.tier3Multiplier) || 1.5,
+                },
+                {
+                  name: rewards.tier4Name || "Elite",
+                  threshold: parseInt(rewards.tier4Threshold) || 5000,
+                  multiplier: parseFloat(rewards.tier4Multiplier) || 2,
+                },
+              ],
+              pointsExpiryMonths: rewards.pointsExpiry ? parseInt(rewards.pointsExpiry) : null,
+            }
+          : { enabled: false },
+      },
+    };
+
+    await db.transaction(async (tx) => {
+      await tx
+        .insert(profiles)
+        .values({ id: user.id, ...profileData })
+        .onConflictDoUpdate({ target: profiles.id, set: profileData });
+
+      // Clear existing services before reinserting so re-running onboarding
+      // (e.g. updating prices) always produces a clean, up-to-date catalog.
+      await tx.delete(servicesTable);
+      if (serviceInserts.length > 0) {
+        await tx.insert(servicesTable).values(serviceInserts);
+      }
+      console.log("[onboarding/admin] ✓ profile upserted, services saved");
+    });
+
+    return;
   }
 
   if (role === "assistant") {

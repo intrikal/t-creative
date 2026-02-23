@@ -1,0 +1,1 @@
+ALTER TABLE "services" ADD COLUMN "deposit_in_cents" integer;

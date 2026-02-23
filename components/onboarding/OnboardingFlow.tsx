@@ -50,8 +50,27 @@ import {
   PanelShiftAvailability,
   PanelEmergencyContact,
   PanelContactPrefs,
+  PanelAdminWelcome,
+  PanelAdminContact,
+  PanelAdminSocials,
+  PanelAdminStudio,
+  PanelAdminComplete,
+  PanelAdminServices,
+  PanelAdminHours,
+  PanelAdminIntake,
+  PanelAdminPolicies,
+  PanelAdminRewards,
 } from "./panels";
 import { PanelSummary } from "./PanelSummary";
+import { StepAdminContact } from "./steps/StepAdminContact";
+import { StepAdminHours } from "./steps/StepAdminHours";
+import { StepAdminIntake } from "./steps/StepAdminIntake";
+import { StepAdminName } from "./steps/StepAdminName";
+import { StepAdminPolicies } from "./steps/StepAdminPolicies";
+import { StepAdminRewards } from "./steps/StepAdminRewards";
+import { StepAdminServices } from "./steps/StepAdminServices";
+import { StepAdminSocials } from "./steps/StepAdminSocials";
+import { StepAdminStudio } from "./steps/StepAdminStudio";
 import { StepAllergies } from "./steps/StepAllergies";
 import { StepComplete } from "./steps/StepComplete";
 import { StepContact } from "./steps/StepContact";
@@ -519,30 +538,491 @@ function AssistantOnboardingFlow() {
 /*  Main export                                                        */
 /* ------------------------------------------------------------------ */
 
-interface OnboardingFlowProps {
-  /**
-   * Which onboarding sequence to show.
-   * - "client" (default): the customer-facing multi-step wizard
-   * - "assistant": the staff-facing wizard with shift/skills/HR fields
-   *
-   * This value comes from the `?role=` query parameter set in the auth callback
-   * route, which reads it from either the invite token or the user's existing
-   * profile role.
-   */
-  role?: "client" | "assistant";
-}
+/* ------------------------------------------------------------------ */
+/*  Admin onboarding flow                                             */
+/* ------------------------------------------------------------------ */
 
 /**
- * OnboardingFlow — the single component to drop in anywhere you need the wizard.
+ * AdminOnboardingFlow — minimal one-step flow for the admin.
  *
- * Usage:
- *   <OnboardingFlow role="client" />    ← shows the client flow (default)
- *   <OnboardingFlow role="assistant" /> ← shows the assistant flow
- *
- * Internally delegates to the role-specific sub-component so each flow has
- * its own isolated state and form instance.
+ * Admins only need to set their display name to complete setup.
+ * Everything else (business settings, preferences) lives in the admin dashboard.
  */
-export function OnboardingFlow({ role = "client" }: OnboardingFlowProps) {
+function useAdminForm(email: string, firstName: string, lastName: string) {
+  return useForm({
+    defaultValues: {
+      firstName,
+      lastName,
+      email,
+      phone: "",
+      notifySms: true,
+      notifyEmail: true,
+      socials: {
+        instagram: "",
+        instagram2: "",
+        instagram3: "",
+        instagram4: "",
+        tiktok: "",
+        facebook: "",
+        youtube: "",
+        pinterest: "",
+        linkedin: "",
+        google: "",
+        website: "",
+      },
+      services: {
+        lash: { enabled: true, price: "120", duration: "120", deposit: "50" },
+        jewelry: { enabled: true, price: "85", duration: "60", deposit: "" },
+        crochet: { enabled: true, price: "150", duration: "180", deposit: "75" },
+        consulting: { enabled: false, price: "75", duration: "60", deposit: "" },
+      },
+      studioName: "T Creative Studio",
+      bio: "A luxury studio specializing in lash extensions, permanent jewelry, crochet & consulting.",
+      locationType: "home_studio" as "home_studio" | "salon_suite" | "mobile",
+      locationArea: "",
+      bookingNotice: "24",
+      waitlist: {
+        lash: true,
+        jewelry: true,
+        crochet: true,
+        consulting: "request" as "off" | "request" | "waitlist",
+      },
+      workingHours: {
+        defaultStartTime: "10:00",
+        defaultEndTime: "19:00",
+        appointmentGap: "15", // minutes between bookings
+        lunchBreak: true,
+        lunchStart: "12:00",
+        lunchDuration: "30", // minutes
+        selectedDates: "[]", // JSON string: string[] of "YYYY-MM-DD"
+        dayOverrides: "{}", // JSON string: Record<string, {startTime, endTime}>
+      },
+      intake: {
+        lash: {
+          prep: "",
+          adhesiveAllergy: true,
+          contactLenses: true,
+          previousLashes: true,
+          desiredLook: true,
+        },
+        jewelry: {
+          prep: "",
+          metalAllergy: true,
+          designPreference: true,
+        },
+        crochet: {
+          prep: "",
+          hairType: true,
+          desiredStyle: true,
+          scalpSensitivity: false,
+        },
+        consulting: {
+          prep: "",
+          serviceInterest: true,
+          previousExperience: false,
+          goal: true,
+        },
+      },
+      bookingConfirmation: "instant" as "instant" | "manual",
+      cancellationFee: "25",
+      cancellationWindow: "24",
+      noShowFee: "50",
+      rewards: {
+        enabled: true,
+        pointsPerDollar: "10",
+        pointsToRedeem: "100",
+        // Bonus events
+        firstBookingBonus: "100",
+        birthdayBonus: "50",
+        referralBonus: "100", // referrer
+        refereeBonus: "50", // person being referred, on their first booking
+        reviewBonus: "75",
+        rebookBonus: "50",
+        milestoneBonus: "200", // 5th visit
+        milestone10thBonus: "400", // 10th visit
+        socialShareBonus: "50",
+        productPurchaseBonus: "25",
+        profileCompleteBonus: "25",
+        anniversaryBonus: "100",
+        newServiceBonus: "75",
+        classAttendanceBonus: "150",
+        packagePurchaseBonus: "200",
+        programCompleteBonus: "300",
+        certificationBonus: "500",
+        // Tiers (flat fields to avoid array complexity)
+        tier1Name: "Member",
+        tier1Threshold: "0",
+        tier1Multiplier: "1",
+        tier2Name: "Regular",
+        tier2Threshold: "500",
+        tier2Multiplier: "1.25",
+        tier3Name: "VIP",
+        tier3Threshold: "2000",
+        tier3Multiplier: "1.5",
+        tier4Name: "Elite",
+        tier4Threshold: "5000",
+        tier4Multiplier: "2",
+        // Expiry — "" means never expires
+        pointsExpiry: "",
+      },
+    },
+  });
+}
+
+export type AdminOnboardingForm = ReturnType<typeof useAdminForm>;
+
+function AdminOnboardingFlow({
+  email,
+  googleName,
+  fullName,
+  avatarUrl,
+}: {
+  email: string;
+  googleName: string;
+  fullName: string;
+  avatarUrl: string;
+}) {
+  const [step, setStep] = useState(0);
+  const [direction, setDirection] = useState(1);
+  const [saveError, setSaveError] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const lastName = fullName.split(" ").slice(1).join(" ");
+  const form = useAdminForm(email, googleName, lastName);
+  const savedRef = useRef(false);
+
+  const ADMIN_STEPS: StepDef<AdminOnboardingForm>[] = [
+    {
+      id: "name",
+      render: (f, onNext, n) => (
+        <StepAdminName
+          form={f}
+          onNext={onNext}
+          stepNum={n}
+          avatarUrl={avatarUrl}
+          fullName={fullName}
+        />
+      ),
+      panel: <PanelAdminWelcome />,
+    },
+    {
+      id: "contact",
+      render: (f, onNext, n) => <StepAdminContact form={f} onNext={onNext} stepNum={n} />,
+      panel: (
+        <form.Subscribe
+          selector={(s) => ({
+            phone: s.values.phone,
+            email: s.values.email,
+            notifySms: s.values.notifySms,
+            notifyEmail: s.values.notifyEmail,
+          })}
+        >
+          {(contact) => <PanelAdminContact contact={contact} />}
+        </form.Subscribe>
+      ),
+    },
+    {
+      id: "socials",
+      render: (f, onNext, n) => <StepAdminSocials form={f} onNext={onNext} stepNum={n} />,
+      panel: (
+        <form.Subscribe selector={(state) => state.values.socials}>
+          {(socials) => <PanelAdminSocials socials={socials} />}
+        </form.Subscribe>
+      ),
+    },
+    {
+      id: "studio",
+      render: (f, onNext, n) => <StepAdminStudio form={f} onNext={onNext} stepNum={n} />,
+      panel: (
+        <form.Subscribe
+          selector={(s) => ({
+            name: s.values.studioName,
+            bio: s.values.bio,
+            locationType: s.values.locationType,
+            locationArea: s.values.locationArea,
+          })}
+        >
+          {(studio) => <PanelAdminStudio studio={studio} />}
+        </form.Subscribe>
+      ),
+    },
+    {
+      id: "services",
+      render: (f, onNext, n) => <StepAdminServices form={f} onNext={onNext} stepNum={n} />,
+      panel: (
+        <form.Subscribe
+          selector={(s) => ({
+            services: s.values.services,
+            studioName: s.values.studioName,
+            bookingNotice: s.values.bookingNotice,
+          })}
+        >
+          {({ services, studioName, bookingNotice }) => (
+            <PanelAdminServices
+              services={services}
+              studioName={studioName}
+              bookingNotice={bookingNotice}
+            />
+          )}
+        </form.Subscribe>
+      ),
+    },
+    {
+      id: "hours",
+      render: (f, onNext, n) => <StepAdminHours form={f} onNext={onNext} stepNum={n} />,
+      panel: (
+        <form.Subscribe selector={(s) => s.values.workingHours}>
+          {(wh) => <PanelAdminHours workingHours={wh} />}
+        </form.Subscribe>
+      ),
+    },
+    {
+      id: "intake",
+      render: (f, onNext, n) => <StepAdminIntake form={f} onNext={onNext} stepNum={n} />,
+      panel: (
+        <form.Subscribe
+          selector={(s) => ({ services: s.values.services, intake: s.values.intake })}
+        >
+          {({ services, intake }) => <PanelAdminIntake services={services} intake={intake} />}
+        </form.Subscribe>
+      ),
+    },
+    {
+      id: "policies",
+      render: (f, onNext, n) => <StepAdminPolicies form={f} onNext={onNext} stepNum={n} />,
+      panel: (
+        <form.Subscribe
+          selector={(s) => ({
+            waitlist: s.values.waitlist,
+            bookingConfirmation: s.values.bookingConfirmation,
+            cancellationFee: s.values.cancellationFee,
+            cancellationWindow: s.values.cancellationWindow,
+            noShowFee: s.values.noShowFee,
+          })}
+        >
+          {(vals) => (
+            <PanelAdminPolicies
+              waitlist={vals.waitlist}
+              bookingConfirmation={vals.bookingConfirmation}
+              cancellationFee={vals.cancellationFee}
+              cancellationWindow={vals.cancellationWindow}
+              noShowFee={vals.noShowFee}
+            />
+          )}
+        </form.Subscribe>
+      ),
+    },
+    {
+      id: "rewards",
+      render: (f, onNext, n) => <StepAdminRewards form={f} onNext={onNext} stepNum={n} />,
+      panel: (
+        <form.Subscribe selector={(s) => s.values.rewards ?? null}>
+          {(r) => (r ? <PanelAdminRewards rewards={r} /> : null)}
+        </form.Subscribe>
+      ),
+    },
+  ];
+
+  const totalSteps = ADMIN_STEPS.length;
+  const isComplete = step >= totalSteps;
+
+  const next = useCallback(() => {
+    const nextStep = step + 1;
+    setDirection(1);
+    setStep(nextStep);
+    if (nextStep >= totalSteps && !savedRef.current) {
+      savedRef.current = true;
+      setIsSaving(true);
+      const {
+        firstName,
+        lastName,
+        email,
+        phone,
+        notifySms,
+        notifyEmail,
+        socials,
+        studioName,
+        bio,
+        locationType,
+        locationArea,
+        bookingNotice,
+        services,
+        workingHours,
+        intake,
+        waitlist,
+        bookingConfirmation,
+        cancellationFee,
+        cancellationWindow,
+        noShowFee,
+        rewards,
+      } = form.state.values;
+      saveOnboardingData(
+        {
+          firstName,
+          lastName,
+          email,
+          phone,
+          notifySms,
+          notifyEmail,
+          socials,
+          studioName,
+          bio,
+          locationType,
+          locationArea,
+          bookingNotice,
+          services,
+          workingHours,
+          intake,
+          waitlist,
+          bookingConfirmation,
+          cancellationFee,
+          cancellationWindow,
+          noShowFee,
+          rewards,
+        },
+        "admin",
+      )
+        .then(() => setIsSaving(false))
+        .catch(() => {
+          savedRef.current = false;
+          setIsSaving(false);
+          setSaveError(true);
+        });
+    }
+  }, [step, totalSteps, form]);
+
+  const back = useCallback(() => {
+    setDirection(-1);
+    setStep((s) => Math.max(s - 1, 0));
+  }, []);
+
+  const currentStep = ADMIN_STEPS[step] as StepDef<AdminOnboardingForm> | undefined;
+
+  return (
+    <OnboardingShell
+      step={step}
+      totalSteps={totalSteps}
+      direction={direction}
+      isComplete={isComplete}
+      stepId={currentStep?.id}
+      stepContent={
+        currentStep ? (
+          <StepContent step={currentStep} form={form} onNext={next} stepNum={step + 1} />
+        ) : null
+      }
+      panelContent={currentStep?.panel ?? null}
+      completionContent={
+        <StepComplete
+          form={form as unknown as OnboardingForm}
+          role="admin"
+          onBack={back}
+          saveError={saveError}
+          isSaving={isSaving}
+          studioName={form.getFieldValue("studioName")}
+          onRetry={() => {
+            setSaveError(false);
+            savedRef.current = true;
+            setIsSaving(true);
+            const {
+              firstName,
+              lastName,
+              email,
+              phone,
+              notifySms,
+              notifyEmail,
+              socials,
+              studioName,
+              bio,
+              locationType,
+              locationArea,
+              bookingNotice,
+              services,
+              workingHours,
+              intake,
+              waitlist,
+              bookingConfirmation,
+              cancellationFee,
+              cancellationWindow,
+              noShowFee,
+              rewards,
+            } = form.state.values;
+            saveOnboardingData(
+              {
+                firstName,
+                lastName,
+                email,
+                phone,
+                notifySms,
+                notifyEmail,
+                socials,
+                studioName,
+                bio,
+                locationType,
+                locationArea,
+                bookingNotice,
+                services,
+                workingHours,
+                intake,
+                waitlist,
+                bookingConfirmation,
+                cancellationFee,
+                cancellationWindow,
+                noShowFee,
+                rewards,
+              },
+              "admin",
+            )
+              .then(() => setIsSaving(false))
+              .catch(() => {
+                savedRef.current = false;
+                setIsSaving(false);
+                setSaveError(true);
+              });
+          }}
+        />
+      }
+      completionPanel={
+        <form.Subscribe selector={(s) => s.values.studioName}>
+          {(studioName) => <PanelAdminComplete studioName={studioName} />}
+        </form.Subscribe>
+      }
+      onBack={back}
+      onNext={next}
+    />
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Main export                                                        */
+/* ------------------------------------------------------------------ */
+
+interface OnboardingFlowProps {
+  role?: "client" | "assistant" | "admin";
+  /** Pre-filled email from the auth session — passed to the admin flow. */
+  email?: string;
+  /** First name from Google OAuth metadata — used for the personalized admin greeting. */
+  googleName?: string;
+  /** Full name from Google OAuth metadata — displayed in the admin profile card. */
+  fullName?: string;
+  /** Profile photo URL from Google OAuth — displayed on the admin name step. */
+  avatarUrl?: string;
+}
+
+export function OnboardingFlow({
+  role = "client",
+  email = "",
+  googleName = "",
+  fullName = "",
+  avatarUrl = "",
+}: OnboardingFlowProps) {
   if (role === "assistant") return <AssistantOnboardingFlow />;
+  if (role === "admin")
+    return (
+      <AdminOnboardingFlow
+        email={email}
+        googleName={googleName}
+        fullName={fullName}
+        avatarUrl={avatarUrl}
+      />
+    );
   return <ClientOnboardingFlow />;
 }

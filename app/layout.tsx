@@ -5,8 +5,7 @@
  * - Global metadata and OpenGraph defaults
  * - Font loading: Geist Sans (body) + Cormorant Garamond (display)
  * - Smooth scroll provider (Lenis)
- * - Custom cursor
- * - Skip link for keyboard accessibility (WCAG 2.4.1)
+ *- Skip link for keyboard accessibility (WCAG 2.4.1)
  * - Global navigation bar
  * - Server Component — no "use client" directive
  */
@@ -16,7 +15,6 @@ import type { Metadata } from "next";
 import { ConditionalNavbar } from "@/components/ConditionalNavbar";
 import { NavbarWrapper } from "@/components/NavbarWrapper";
 import { SmoothScroll } from "@/components/providers/SmoothScroll";
-import { Cursor } from "@/components/ui/Cursor";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -110,8 +108,6 @@ export default function RootLayout({
           <NavbarWrapper />
         </ConditionalNavbar>
         <SmoothScroll>{children}</SmoothScroll>
-        {/* Custom cursor — renders null on touch/mobile automatically */}
-        <Cursor />
       </body>
     </html>
   );

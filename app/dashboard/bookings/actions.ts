@@ -120,9 +120,23 @@ export async function getBookings(): Promise<BookingRow[]> {
   }));
 }
 
-export async function updateBookingStatus(id: number, status: BookingStatus): Promise<void> {
+export async function updateBookingStatus(
+  id: number,
+  status: BookingStatus,
+  cancellationReason?: string,
+): Promise<void> {
   await getUser();
-  await db.update(bookings).set({ status }).where(eq(bookings.id, id));
+
+  const updates: Record<string, unknown> = { status };
+
+  if (status === "confirmed") updates.confirmedAt = new Date();
+  if (status === "completed") updates.completedAt = new Date();
+  if (status === "cancelled") {
+    updates.cancelledAt = new Date();
+    if (cancellationReason) updates.cancellationReason = cancellationReason;
+  }
+
+  await db.update(bookings).set(updates).where(eq(bookings.id, id));
   revalidatePath("/dashboard/bookings");
 }
 
@@ -139,6 +153,38 @@ export async function createBooking(input: BookingInput): Promise<void> {
     clientNotes: input.clientNotes ?? undefined,
     status: "confirmed",
   });
+  revalidatePath("/dashboard/bookings");
+}
+
+export async function updateBooking(
+  id: number,
+  input: BookingInput & { status: BookingStatus },
+): Promise<void> {
+  await getUser();
+
+  const updates: Record<string, unknown> = {
+    clientId: input.clientId,
+    serviceId: input.serviceId,
+    staffId: input.staffId ?? undefined,
+    startsAt: input.startsAt,
+    durationMinutes: input.durationMinutes,
+    totalInCents: input.totalInCents,
+    location: input.location ?? undefined,
+    clientNotes: input.clientNotes ?? undefined,
+    status: input.status,
+  };
+
+  if (input.status === "confirmed") updates.confirmedAt = new Date();
+  if (input.status === "completed") updates.completedAt = new Date();
+  if (input.status === "cancelled") updates.cancelledAt = new Date();
+
+  await db.update(bookings).set(updates).where(eq(bookings.id, id));
+  revalidatePath("/dashboard/bookings");
+}
+
+export async function deleteBooking(id: number): Promise<void> {
+  await getUser();
+  await db.delete(bookings).where(eq(bookings.id, id));
   revalidatePath("/dashboard/bookings");
 }
 

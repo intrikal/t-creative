@@ -1,0 +1,194 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { eq, sql, desc } from "drizzle-orm";
+import { db } from "@/db";
+import { inquiries, productInquiries, products } from "@/db/schema";
+import { createClient as createSupabaseClient } from "@/utils/supabase/server";
+
+/* ------------------------------------------------------------------ */
+/*  Auth guard                                                         */
+/* ------------------------------------------------------------------ */
+
+async function getUser() {
+  const supabase = await createSupabaseClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+  return user;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Types                                                              */
+/* ------------------------------------------------------------------ */
+
+export type InquiryRow = {
+  id: number;
+  name: string;
+  email: string;
+  phone: string | null;
+  interest: "lash" | "jewelry" | "crochet" | "consulting" | null;
+  message: string;
+  status: "new" | "read" | "replied" | "archived";
+  staffReply: string | null;
+  repliedAt: string | null;
+  createdAt: string;
+};
+
+export type ProductInquiryRow = {
+  id: number;
+  clientName: string;
+  email: string;
+  phone: string | null;
+  productId: number;
+  productTitle: string;
+  productCategory: string;
+  message: string | null;
+  customizations: string | null;
+  status: "new" | "contacted" | "quote_sent" | "in_progress" | "completed";
+  quantity: number;
+  quotedInCents: number | null;
+  internalNotes: string | null;
+  contactedAt: string | null;
+  quoteSentAt: string | null;
+  createdAt: string;
+};
+
+/* ------------------------------------------------------------------ */
+/*  Queries                                                            */
+/* ------------------------------------------------------------------ */
+
+export async function getInquiries(): Promise<InquiryRow[]> {
+  await getUser();
+
+  const rows = await db
+    .select({
+      id: inquiries.id,
+      name: inquiries.name,
+      email: inquiries.email,
+      phone: inquiries.phone,
+      interest: inquiries.interest,
+      message: inquiries.message,
+      status: inquiries.status,
+      staffReply: inquiries.staffReply,
+      repliedAt: inquiries.repliedAt,
+      createdAt: inquiries.createdAt,
+    })
+    .from(inquiries)
+    .orderBy(desc(inquiries.createdAt));
+
+  return rows.map((r) => ({
+    ...r,
+    repliedAt: r.repliedAt ? r.repliedAt.toISOString() : null,
+    createdAt: r.createdAt.toISOString(),
+  }));
+}
+
+export async function getProductInquiries(): Promise<ProductInquiryRow[]> {
+  await getUser();
+
+  const rows = await db
+    .select({
+      id: productInquiries.id,
+      clientName: productInquiries.clientName,
+      email: productInquiries.email,
+      phone: productInquiries.phone,
+      productId: productInquiries.productId,
+      productTitle: products.title,
+      productCategory: products.category,
+      message: productInquiries.message,
+      customizations: productInquiries.customizations,
+      status: productInquiries.status,
+      quantity: productInquiries.quantity,
+      quotedInCents: productInquiries.quotedInCents,
+      internalNotes: productInquiries.internalNotes,
+      contactedAt: productInquiries.contactedAt,
+      quoteSentAt: productInquiries.quoteSentAt,
+      createdAt: productInquiries.createdAt,
+    })
+    .from(productInquiries)
+    .leftJoin(products, eq(productInquiries.productId, products.id))
+    .orderBy(desc(productInquiries.createdAt));
+
+  return rows.map((r) => ({
+    ...r,
+    productTitle: r.productTitle ?? "Unknown Product",
+    productCategory: r.productCategory ?? "",
+    contactedAt: r.contactedAt ? r.contactedAt.toISOString() : null,
+    quoteSentAt: r.quoteSentAt ? r.quoteSentAt.toISOString() : null,
+    createdAt: r.createdAt.toISOString(),
+  }));
+}
+
+/* ------------------------------------------------------------------ */
+/*  Mutations — General Inquiries                                      */
+/* ------------------------------------------------------------------ */
+
+export async function updateInquiryStatus(
+  id: number,
+  status: "new" | "read" | "replied" | "archived",
+) {
+  await getUser();
+  await db.update(inquiries).set({ status }).where(eq(inquiries.id, id));
+  revalidatePath("/dashboard/inquiries");
+}
+
+export async function replyToInquiry(id: number, replyText: string) {
+  await getUser();
+  await db
+    .update(inquiries)
+    .set({
+      staffReply: replyText,
+      repliedAt: new Date(),
+      status: "replied",
+    })
+    .where(eq(inquiries.id, id));
+  revalidatePath("/dashboard/inquiries");
+}
+
+export async function deleteInquiry(id: number) {
+  await getUser();
+  await db.delete(inquiries).where(eq(inquiries.id, id));
+  revalidatePath("/dashboard/inquiries");
+}
+
+/* ------------------------------------------------------------------ */
+/*  Mutations — Product Inquiries                                      */
+/* ------------------------------------------------------------------ */
+
+export async function updateProductInquiryStatus(
+  id: number,
+  status: "new" | "contacted" | "quote_sent" | "in_progress" | "completed",
+) {
+  await getUser();
+
+  const extra: Record<string, unknown> = {};
+  if (status === "contacted") extra.contactedAt = new Date();
+  if (status === "quote_sent") extra.quoteSentAt = new Date();
+
+  await db
+    .update(productInquiries)
+    .set({ status, ...extra })
+    .where(eq(productInquiries.id, id));
+  revalidatePath("/dashboard/inquiries");
+}
+
+export async function sendProductQuote(id: number, amountInCents: number) {
+  await getUser();
+  await db
+    .update(productInquiries)
+    .set({
+      quotedInCents: amountInCents,
+      quoteSentAt: new Date(),
+      status: "quote_sent",
+    })
+    .where(eq(productInquiries.id, id));
+  revalidatePath("/dashboard/inquiries");
+}
+
+export async function deleteProductInquiry(id: number) {
+  await getUser();
+  await db.delete(productInquiries).where(eq(productInquiries.id, id));
+  revalidatePath("/dashboard/inquiries");
+}

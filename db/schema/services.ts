@@ -11,6 +11,7 @@ import {
   boolean,
   index,
   integer,
+  jsonb,
   pgTable,
   serial,
   text,
@@ -18,7 +19,7 @@ import {
   varchar,
 } from "drizzle-orm/pg-core";
 import { bookings } from "./bookings";
-import { serviceCategoryEnum } from "./enums";
+import { formTypeEnum, serviceCategoryEnum } from "./enums";
 
 /* ------------------------------------------------------------------ */
 /*  Services                                                           */
@@ -107,3 +108,75 @@ export const serviceAddOnsRelations = relations(serviceAddOns, ({ one }) => ({
     references: [services.id],
   }),
 }));
+
+/* ------------------------------------------------------------------ */
+/*  Service Bundles                                                     */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Bundles group two or more services into a discounted package.
+ * Service membership is stored as a text array of service names for
+ * flexibility — avoids a junction table while the catalog is small.
+ */
+export const serviceBundles = pgTable("service_bundles", {
+  id: serial("id").primaryKey(),
+
+  name: varchar("name", { length: 200 }).notNull(),
+  description: text("description"),
+
+  /** Service names included in this bundle. */
+  serviceNames: text("service_names").array().notNull().default([]),
+
+  /** Sum of individual service prices, in cents. Used for savings display. */
+  originalPriceInCents: integer("original_price_in_cents").notNull().default(0),
+
+  /** Discounted bundle price, in cents. */
+  bundlePriceInCents: integer("bundle_price_in_cents").notNull().default(0),
+
+  isActive: boolean("is_active").notNull().default(true),
+
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
+});
+
+/* ------------------------------------------------------------------ */
+/*  Client Forms                                                        */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Intake forms, consent forms, and liability waivers sent before appointments.
+ * Field definitions are stored as JSONB for schema-less flexibility.
+ */
+export const clientForms = pgTable("client_forms", {
+  id: serial("id").primaryKey(),
+
+  name: varchar("name", { length: 200 }).notNull(),
+
+  /** Form type determines the default field set and UI presentation. */
+  type: formTypeEnum("type").notNull(),
+
+  description: text("description"),
+
+  /** Categories this form applies to, e.g. ["All"] or ["Lash", "Crochet"]. */
+  appliesTo: text("applies_to").array().notNull().default(["All"]),
+
+  /** Whether clients must complete this before their appointment is confirmed. */
+  required: boolean("required").notNull().default(false),
+
+  /**
+   * Custom field definitions as JSONB. Shape: Array<{ id, label, type, required }>.
+   * Null means use the default field set for the form type.
+   */
+  fields: jsonb("fields"),
+
+  isActive: boolean("is_active").notNull().default(true),
+
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
+});

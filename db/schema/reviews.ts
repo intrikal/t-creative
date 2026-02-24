@@ -67,6 +67,9 @@ export const reviews = pgTable(
       .notNull()
       .references(() => profiles.id, { onDelete: "cascade" }),
 
+    /** Where the review came from (google, website, instagram, yelp). */
+    source: varchar("source", { length: 50 }),
+
     /** 1–5 star rating. Filterable via the "All Ratings" dropdown. */
     rating: smallint("rating").notNull(),
 

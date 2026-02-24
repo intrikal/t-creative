@@ -1,3 +1,13 @@
+/**
+ * Server component for `/dashboard/inquiries`.
+ *
+ * Fetches both general and product inquiries in parallel via `Promise.all`,
+ * then passes the serialised rows as props to the client-side `InquiriesPage`.
+ *
+ * @module inquiries/page
+ * @see {@link ./actions.ts} — server actions (data fetching + mutations)
+ * @see {@link ./InquiriesPage.tsx} — client component rendering the UI
+ */
 import type { Metadata } from "next";
 import { getInquiries, getProductInquiries } from "./actions";
 import { InquiriesPage } from "./InquiriesPage";

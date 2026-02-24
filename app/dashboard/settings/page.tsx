@@ -1,21 +1,26 @@
 /**
- * app/dashboard/settings/page.tsx — Settings page Server Component.
+ * Server component for `/dashboard/settings`.
  *
- * Fetches the three working-hours datasets in parallel before rendering
- * the client-side `SettingsPage`. All other settings tabs (Business,
- * Booking Rules, Policies, etc.) still use mock data — they will be
- * wired to the DB in a follow-up phase.
+ * Fetches 7 datasets in parallel via `Promise.all`:
+ * - Business hours, time-off blocks, lunch break (from `hours-actions`)
+ * - Business profile, policies, loyalty config, notifications (from `settings-actions`)
  *
- * ## Parallel fetching
- * `Promise.all` fires all three DB queries simultaneously. Typical cold
- * latency: < 30 ms on the same VPC as Supabase.
+ * All data is passed as serialised props to the client-side `SettingsPage` shell,
+ * which delegates to individual tab components.
  *
- * ## noindex
- * Settings pages should never appear in search results.
+ * @module settings/page
+ * @see {@link ./hours-actions.ts} — schedule-related server actions
+ * @see {@link ./settings-actions.ts} — key-value settings server actions
+ * @see {@link ./SettingsPage.tsx} — client component (tab shell)
  */
-
 import type { Metadata } from "next";
 import { getBusinessHours, getTimeOff, getLunchBreak } from "./hours-actions";
+import {
+  getBusinessProfile,
+  getPolicies,
+  getLoyaltyConfig,
+  getNotificationPrefs,
+} from "./settings-actions";
 import { SettingsPage } from "./SettingsPage";
 
 export const metadata: Metadata = {
@@ -25,10 +30,22 @@ export const metadata: Metadata = {
 };
 
 export default async function Page() {
-  const [initialHours, initialTimeOff, initialLunchBreak] = await Promise.all([
+  const [
+    initialHours,
+    initialTimeOff,
+    initialLunchBreak,
+    initialBusiness,
+    initialPolicies,
+    initialLoyalty,
+    initialNotifications,
+  ] = await Promise.all([
     getBusinessHours(),
     getTimeOff(),
     getLunchBreak(),
+    getBusinessProfile(),
+    getPolicies(),
+    getLoyaltyConfig(),
+    getNotificationPrefs(),
   ]);
 
   return (
@@ -36,6 +53,10 @@ export default async function Page() {
       initialHours={initialHours}
       initialTimeOff={initialTimeOff}
       initialLunchBreak={initialLunchBreak}
+      initialBusiness={initialBusiness}
+      initialPolicies={initialPolicies}
+      initialLoyalty={initialLoyalty}
+      initialNotifications={initialNotifications}
     />
   );
 }

@@ -1,3 +1,28 @@
+/**
+ * Client component for the Inquiries dashboard.
+ *
+ * Renders a two-tab interface — "Contact Form" (general inquiries) and
+ * "Product Requests" — with search, status filtering, and stat cards.
+ *
+ * **Exported helpers** (consumed by detail dialogs):
+ * - `CATEGORY_COLOR`, `CATEGORY_LABEL` — interest/category → colour/label maps
+ * - `SOURCE_ICON`, `SOURCE_LABEL` — inquiry source metadata
+ * - `statusBadge()`, `productStatusBadge()` — status → {label, className} for badges
+ *
+ * **Exported types**: `GeneralInquiry`, `ProductInquiry`
+ *
+ * Data arrives as serialised `InquiryRow[]` / `ProductInquiryRow[]` from the
+ * server component and is mapped to richer client types via `mapInquiry()` and
+ * `mapProductInquiry()` (computed initials, relative timestamps, category mapping).
+ *
+ * CRUD handlers call server actions from `./actions.ts` and trigger
+ * `router.refresh()` to re-fetch from the server component.
+ *
+ * @module inquiries/InquiriesPage
+ * @see {@link ./actions.ts} — server actions
+ * @see {@link ./components/GeneralDetailDialog.tsx}
+ * @see {@link ./components/ProductDetailDialog.tsx}
+ */
 "use client";
 
 import { useState } from "react";

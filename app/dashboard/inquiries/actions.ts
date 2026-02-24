@@ -1,3 +1,22 @@
+/**
+ * Server actions for the Inquiries dashboard (`/dashboard/inquiries`).
+ *
+ * Handles two distinct inquiry types:
+ * - **General inquiries** — contact-form submissions stored in `inquiries`.
+ * - **Product inquiries** — product-specific requests stored in `product_inquiries`,
+ *   LEFT JOINed to `products` for title/category metadata.
+ *
+ * Every action is auth-gated via Supabase `getUser()`. Mutations call
+ * `revalidatePath` so the Next.js server component re-fetches fresh data.
+ *
+ * Timestamps are serialised to ISO strings before crossing the server → client
+ * boundary to avoid Next.js serialisation errors with `Date` objects.
+ *
+ * @module inquiries/actions
+ * @see {@link ../InquiriesPage.tsx} — client component consuming these actions
+ * @see {@link ../components/GeneralDetailDialog.tsx} — detail modal for general inquiries
+ * @see {@link ../components/ProductDetailDialog.tsx} — detail modal for product inquiries
+ */
 "use server";
 
 import { revalidatePath } from "next/cache";

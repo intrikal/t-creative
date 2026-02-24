@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import {
   ChevronLeft,
   ChevronRight,
@@ -16,6 +17,8 @@ import {
 } from "lucide-react";
 import { Dialog, Field, Input, Select, Textarea, DialogFooter } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { createBooking, updateBooking, deleteBooking } from "../bookings/actions";
+import type { BookingRow, BookingInput } from "../bookings/actions";
 
 /* ------------------------------------------------------------------ */
 /*  Constants                                                           */
@@ -62,277 +65,55 @@ interface CalEvent {
   client?: string;
   location?: string;
   notes?: string;
+  // DB tracking — present for events loaded from bookings table
+  bookingId?: number;
+  clientId?: string;
+  serviceId?: number;
+  staffId?: string | null;
+  status?: string;
 }
 
 /* ------------------------------------------------------------------ */
 /*  Mock data                                                           */
 /* ------------------------------------------------------------------ */
 
-const STAFF_MEMBERS = ["Trini", "Aaliyah", "Jade", "Maya"];
-
 let _nextId = 100;
 function nextId() {
   return ++_nextId;
 }
 
-const INITIAL_EVENTS: CalEvent[] = [
-  // Mon Feb 16
-  {
-    id: 1,
-    title: "Volume Lash Full Set",
-    type: "lash",
-    date: "2026-02-16",
-    startTime: "09:00",
-    durationMin: 90,
-    staff: "Trini",
-    client: "Sarah M.",
-  },
-  {
-    id: 2,
-    title: "Permanent Anklet",
-    type: "jewelry",
-    date: "2026-02-16",
-    startTime: "11:00",
-    durationMin: 60,
-    staff: "Jade",
-    client: "Nina P.",
-  },
-  {
-    id: 3,
-    title: "Goddess Locs",
-    type: "crochet",
-    date: "2026-02-16",
-    startTime: "10:00",
-    durationMin: 180,
-    staff: "Aaliyah",
-    client: "Keisha W.",
-  },
-  // Tue Feb 17
-  {
-    id: 4,
-    title: "Volume Lash Masterclass",
-    type: "training",
-    date: "2026-02-17",
-    startTime: "09:00",
-    durationMin: 180,
-    staff: "Trini",
-    location: "Studio",
-  },
-  {
-    id: 5,
-    title: "Mega Volume Set",
-    type: "lash",
-    date: "2026-02-17",
-    startTime: "10:00",
-    durationMin: 90,
-    staff: "Trini",
-    client: "Destiny C.",
-  },
-  {
-    id: 6,
-    title: "Dainty Wrist Chain",
-    type: "jewelry",
-    date: "2026-02-17",
-    startTime: "13:00",
-    durationMin: 60,
-    staff: "Jade",
-    client: "Camille F.",
-  },
-  {
-    id: 7,
-    title: "Classic Wispy Lash",
-    type: "lash",
-    date: "2026-02-17",
-    startTime: "14:00",
-    durationMin: 90,
-    staff: "Jade",
-    client: "Amara J.",
-  },
-  // Wed Feb 18
-  {
-    id: 8,
-    title: "Bridal Lashes",
-    type: "lash",
-    date: "2026-02-18",
-    startTime: "11:00",
-    durationMin: 120,
-    staff: "Trini",
-    client: "Lily N.",
-  },
-  {
-    id: 9,
-    title: "Classic Fill",
-    type: "lash",
-    date: "2026-02-18",
-    startTime: "11:00",
-    durationMin: 60,
-    staff: "Jade",
-    client: "Maya R.",
-  },
-  {
-    id: 10,
-    title: "Permanent Necklace",
-    type: "jewelry",
-    date: "2026-02-18",
-    startTime: "13:00",
-    durationMin: 60,
-    staff: "Jade",
-    client: "Priya K.",
-  },
-  {
-    id: 11,
-    title: "Blocked – Lunch",
-    type: "blocked",
-    date: "2026-02-18",
-    startTime: "15:00",
-    durationMin: 60,
-    staff: "Trini",
-  },
-  // Thu Feb 19
-  {
-    id: 12,
-    title: "Pop-up at Valley Fair",
-    type: "event",
-    date: "2026-02-19",
-    startTime: "10:00",
-    durationMin: 360,
-    staff: "Trini",
-    location: "Valley Fair Mall",
-  },
-  {
-    id: 13,
-    title: "Crochet Box Braids",
-    type: "crochet",
-    date: "2026-02-19",
-    startTime: "10:00",
-    durationMin: 240,
-    staff: "Aaliyah",
-    client: "Keisha W.",
-  },
-  // Fri Feb 20
-  {
-    id: 14,
-    title: "Classic Lash Fill",
-    type: "lash",
-    date: "2026-02-20",
-    startTime: "09:00",
-    durationMin: 60,
-    staff: "Jade",
-    client: "Sarah M.",
-  },
-  {
-    id: 15,
-    title: "Volume Lash Full Set",
-    type: "lash",
-    date: "2026-02-20",
-    startTime: "10:30",
-    durationMin: 90,
-    staff: "Trini",
-    client: "Destiny C.",
-  },
-  {
-    id: 16,
-    title: "Goddess Locs",
-    type: "crochet",
-    date: "2026-02-20",
-    startTime: "13:00",
-    durationMin: 150,
-    staff: "Aaliyah",
-    client: "Amara J.",
-  },
-  {
-    id: 17,
-    title: "Permanent Bracelet",
-    type: "jewelry",
-    date: "2026-02-20",
-    startTime: "13:00",
-    durationMin: 45,
-    staff: "Jade",
-    client: "Lily N.",
-  },
-  // Sat Feb 21 (today)
-  {
-    id: 18,
-    title: "Mega Volume Set",
-    type: "lash",
-    date: "2026-02-21",
-    startTime: "10:00",
-    durationMin: 90,
-    staff: "Trini",
-    client: "Camille F.",
-  },
-  {
-    id: 19,
-    title: "Permanent Necklace",
-    type: "jewelry",
-    date: "2026-02-21",
-    startTime: "12:00",
-    durationMin: 60,
-    staff: "Jade",
-    client: "Maya R.",
-  },
-  {
-    id: 20,
-    title: "Classic Wispy",
-    type: "lash",
-    date: "2026-02-21",
-    startTime: "13:00",
-    durationMin: 90,
-    staff: "Trini",
-    client: "Priya K.",
-  },
-  // Sun Feb 22
-  {
-    id: 21,
-    title: "Crochet Tutorial",
-    type: "training",
-    date: "2026-02-22",
-    startTime: "14:00",
-    durationMin: 120,
-    staff: "Aaliyah",
-  },
-  // Mon Feb 23
-  {
-    id: 22,
-    title: "Mega Volume Masterclass",
-    type: "training",
-    date: "2026-02-23",
-    startTime: "10:00",
-    durationMin: 180,
-    staff: "Trini",
-  },
-  {
-    id: 23,
-    title: "Permanent Anklet",
-    type: "jewelry",
-    date: "2026-02-23",
-    startTime: "09:00",
-    durationMin: 45,
-    staff: "Jade",
-    client: "Nina P.",
-  },
-  // Tue Feb 24
-  {
-    id: 24,
-    title: "Classic Lash Set",
-    type: "lash",
-    date: "2026-02-24",
-    startTime: "11:00",
-    durationMin: 90,
-    staff: "Trini",
-    client: "Sarah M.",
-  },
-  {
-    id: 25,
-    title: "Dainty Chain",
-    type: "jewelry",
-    date: "2026-02-24",
-    startTime: "14:00",
-    durationMin: 60,
-    staff: "Jade",
-    client: "Keisha W.",
-  },
-];
+function categoryToEventType(category: string): EventType {
+  if (category === "lash" || category === "jewelry" || category === "crochet") return category;
+  if (category === "training") return "training";
+  return "event";
+}
+
+function mapBookingToCalEvent(row: BookingRow): CalEvent {
+  const d = new Date(row.startsAt);
+  const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const startTime = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  const clientName = [row.clientFirstName, row.clientLastName].filter(Boolean).join(" ");
+
+  return {
+    id: row.id,
+    title: row.serviceName,
+    type: categoryToEventType(row.serviceCategory),
+    date,
+    startTime,
+    durationMin: row.durationMinutes,
+    staff: row.staffFirstName ?? undefined,
+    client: clientName || undefined,
+    location: row.location ?? undefined,
+    notes: row.clientNotes ?? undefined,
+    bookingId: row.id,
+    clientId: row.clientId,
+    serviceId: row.serviceId,
+    staffId: row.staffId,
+    status: row.status,
+  };
+}
+
+/* Mock data removed — calendar now uses real bookings from DB */
 
 /* ------------------------------------------------------------------ */
 /*  Colors                                                              */
@@ -413,7 +194,7 @@ function getMonthGrid(year: number, month: number): Date[] {
   return days;
 }
 
-const TODAY = "2026-02-21";
+const TODAY = fmtDate(new Date());
 
 function isToday(dateStr: string): boolean {
   return dateStr === TODAY;
@@ -833,11 +614,13 @@ function DayView({
 function StaffView({
   cursor,
   events,
+  staffMembers,
   onEventClick,
   onSlotClick,
 }: {
   cursor: Date;
   events: CalEvent[];
+  staffMembers: string[];
   onEventClick: (e: CalEvent) => void;
   onSlotClick: (date: string, h: number, staff: string) => void;
 }) {
@@ -845,21 +628,21 @@ function StaffView({
 
   const byStaff = useMemo(() => {
     const map: Record<string, CalEvent[]> = {};
-    for (const s of STAFF_MEMBERS) map[s] = [];
+    for (const s of staffMembers) map[s] = [];
     for (const ev of events) {
       if (ev.date === ds && ev.staff && map[ev.staff]) {
         map[ev.staff].push(ev);
       }
     }
     return map;
-  }, [events, ds]);
+  }, [events, ds, staffMembers]);
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
       {/* Staff column headers */}
       <div className="flex shrink-0 border-b border-border">
         <div className="w-14 shrink-0" />
-        {STAFF_MEMBERS.map((s) => (
+        {staffMembers.map((s) => (
           <div key={s} className="flex-1 py-2 text-center border-l border-border/30">
             <div className="w-7 h-7 rounded-full bg-foreground/10 flex items-center justify-center text-xs font-semibold text-foreground mx-auto mb-0.5">
               {s[0]}
@@ -877,7 +660,7 @@ function StaffView({
           <TimeRuler />
           <div className="flex flex-1 relative">
             <HourLines />
-            {STAFF_MEMBERS.map((s) => (
+            {staffMembers.map((s) => (
               <DayColumn
                 key={s}
                 events={byStaff[s]}
@@ -1128,6 +911,10 @@ interface FormState {
   client: string;
   location: string;
   notes: string;
+  // DB IDs for server actions
+  serviceId: number | "";
+  clientId: string;
+  staffId: string;
 }
 
 const BLANK_FORM: FormState = {
@@ -1136,10 +923,13 @@ const BLANK_FORM: FormState = {
   date: "",
   startTime: "09:00",
   durationMin: 60,
-  staff: "Trini",
+  staff: "",
   client: "",
   location: "",
   notes: "",
+  serviceId: "",
+  clientId: "",
+  staffId: "",
 };
 
 function EventFormDialog({
@@ -1148,43 +938,89 @@ function EventFormDialog({
   initial,
   onClose,
   onSave,
+  clients,
+  serviceOptions,
+  staffOptions,
 }: {
   open: boolean;
   title: string;
   initial: FormState;
   onClose: () => void;
   onSave: (f: FormState) => void;
+  clients: { id: string; name: string; phone: string | null }[];
+  serviceOptions: {
+    id: number;
+    name: string;
+    category: string;
+    durationMinutes: number;
+    priceInCents: number;
+  }[];
+  staffOptions: { id: string; name: string }[];
 }) {
   const [form, setForm] = useState<FormState>(initial);
   const set = (k: keyof FormState) => (v: string | number) =>
     setForm((prev) => ({ ...prev, [k]: v }));
 
+  function onServiceChange(serviceId: number | "") {
+    if (!serviceId) {
+      setForm((prev) => ({ ...prev, serviceId: "", title: "", type: "lash" as EventType }));
+      return;
+    }
+    const svc = serviceOptions.find((s) => s.id === serviceId);
+    if (svc) {
+      setForm((prev) => ({
+        ...prev,
+        serviceId,
+        title: svc.name,
+        type: categoryToEventType(svc.category),
+        durationMin: svc.durationMinutes,
+      }));
+    }
+  }
+
+  function onClientChange(clientId: string) {
+    const c = clients.find((cl) => cl.id === clientId);
+    setForm((prev) => ({
+      ...prev,
+      clientId,
+      client: c?.name ?? "",
+    }));
+  }
+
+  function onStaffChange(staffId: string) {
+    const s = staffOptions.find((st) => st.id === staffId);
+    setForm((prev) => ({
+      ...prev,
+      staffId,
+      staff: s?.name ?? "",
+    }));
+  }
+
+  const valid = form.serviceId !== "" && form.clientId !== "" && form.date.trim() !== "";
+
   return (
     <Dialog open={open} onClose={onClose} title={title} size="md">
       <div className="space-y-4">
-        <Field label="Title" required>
-          <Input
-            value={form.title}
-            onChange={(e) => set("title")(e.target.value)}
-            placeholder="e.g. Volume Lash Full Set"
-          />
-        </Field>
-
         <div className="grid grid-cols-2 gap-4">
-          <Field label="Type">
-            <Select value={form.type} onChange={(e) => set("type")(e.target.value as EventType)}>
-              {(Object.keys(TYPE_LABELS) as EventType[]).map((t) => (
-                <option key={t} value={t}>
-                  {TYPE_LABELS[t]}
+          <Field label="Service" required>
+            <Select
+              value={form.serviceId}
+              onChange={(e) => onServiceChange(e.target.value === "" ? "" : Number(e.target.value))}
+            >
+              <option value="">Select service…</option>
+              {serviceOptions.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
                 </option>
               ))}
             </Select>
           </Field>
-          <Field label="Staff">
-            <Select value={form.staff} onChange={(e) => set("staff")(e.target.value)}>
-              {STAFF_MEMBERS.map((s) => (
-                <option key={s} value={s}>
-                  {s}
+          <Field label="Client" required>
+            <Select value={form.clientId} onChange={(e) => onClientChange(e.target.value)}>
+              <option value="">Select client…</option>
+              {clients.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
                 </option>
               ))}
             </Select>
@@ -1217,12 +1053,15 @@ function EventFormDialog({
               ))}
             </Select>
           </Field>
-          <Field label="Client">
-            <Input
-              value={form.client}
-              onChange={(e) => set("client")(e.target.value)}
-              placeholder="e.g. Sarah M."
-            />
+          <Field label="Staff">
+            <Select value={form.staffId} onChange={(e) => onStaffChange(e.target.value)}>
+              <option value="">Unassigned</option>
+              {staffOptions.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </Select>
           </Field>
         </div>
 
@@ -1248,7 +1087,7 @@ function EventFormDialog({
         onCancel={onClose}
         onConfirm={() => onSave(form)}
         confirmLabel="Save"
-        disabled={!form.title.trim() || !form.date}
+        disabled={!valid}
       />
     </Dialog>
   );
@@ -1599,10 +1438,36 @@ type CalPageTab = (typeof CAL_PAGE_TABS)[number]["id"];
 /*  CalendarPage                                                        */
 /* ------------------------------------------------------------------ */
 
-export function CalendarPage() {
+export function CalendarPage({
+  initialBookings,
+  clients,
+  serviceOptions,
+  staffOptions,
+}: {
+  initialBookings: BookingRow[];
+  clients: { id: string; name: string; phone: string | null }[];
+  serviceOptions: {
+    id: number;
+    name: string;
+    category: string;
+    durationMinutes: number;
+    priceInCents: number;
+  }[];
+  staffOptions: { id: string; name: string }[];
+}) {
+  const router = useRouter();
+  const staffMembers = useMemo(() => staffOptions.map((s) => s.name), [staffOptions]);
+
+  const initialEvents = useMemo(() => {
+    const active = initialBookings.filter(
+      (b) => b.status !== "cancelled" && b.status !== "no_show",
+    );
+    return active.map(mapBookingToCalEvent);
+  }, [initialBookings]);
+
   const [view, setView] = useState<View>("week");
   const [cursor, setCursor] = useState<Date>(() => parseDate(TODAY));
-  const [events, setEvents] = useState<CalEvent[]>(INITIAL_EVENTS);
+  const [events, setEvents] = useState<CalEvent[]>(initialEvents);
   const [calPageTab, setCalPageTab] = useState<CalPageTab>("calendar");
 
   const [selectedEvent, setSelectedEvent] = useState<CalEvent | null>(null);
@@ -1625,31 +1490,73 @@ export function CalendarPage() {
       date: ev.date,
       startTime: ev.startTime,
       durationMin: ev.durationMin,
-      staff: ev.staff ?? "Trini",
+      staff: ev.staff ?? "",
       client: ev.client ?? "",
       location: ev.location ?? "",
       notes: ev.notes ?? "",
+      serviceId: ev.serviceId ?? "",
+      clientId: ev.clientId ?? "",
+      staffId: ev.staffId ?? "",
     });
     setSelectedEvent(null);
     setFormOpen(true);
   };
 
-  const handleSave = (f: FormState) => {
-    if (editTarget) {
-      setEvents((prev) => prev.map((ev) => (ev.id === editTarget.id ? { ...ev, ...f } : ev)));
-    } else {
-      setEvents((prev) => [...prev, { ...f, id: nextId() }]);
+  const handleSave = async (f: FormState) => {
+    const startsAt = new Date(`${f.date}T${f.startTime}`);
+    const svc = serviceOptions.find((s) => s.id === f.serviceId);
+    const totalInCents = svc ? svc.priceInCents : 0;
+
+    if (editTarget && editTarget.bookingId) {
+      await updateBooking(editTarget.bookingId, {
+        clientId: f.clientId,
+        serviceId: Number(f.serviceId),
+        staffId: f.staffId || null,
+        startsAt,
+        durationMinutes: f.durationMin,
+        totalInCents,
+        location: f.location || undefined,
+        clientNotes: f.notes || undefined,
+        status: editTarget.status as
+          | "confirmed"
+          | "pending"
+          | "completed"
+          | "in_progress"
+          | "cancelled"
+          | "no_show",
+      });
+      router.refresh();
+    } else if (f.serviceId && f.clientId) {
+      await createBooking({
+        clientId: f.clientId,
+        serviceId: Number(f.serviceId),
+        staffId: f.staffId || null,
+        startsAt,
+        durationMinutes: f.durationMin,
+        totalInCents,
+        location: f.location || undefined,
+        clientNotes: f.notes || undefined,
+      });
+      router.refresh();
     }
     setFormOpen(false);
   };
 
-  const handleDelete = (ev: CalEvent) => {
+  const handleDelete = async (ev: CalEvent) => {
+    if (ev.bookingId) {
+      await deleteBooking(ev.bookingId);
+    }
     setEvents((prev) => prev.filter((e) => e.id !== ev.id));
     setSelectedEvent(null);
   };
 
   const handleSlotClick = (date: string, h: number, staff?: string) => {
-    openNew({ date, startTime: `${String(h).padStart(2, "0")}:00`, ...(staff ? { staff } : {}) });
+    const staffOpt = staff ? staffOptions.find((s) => s.name === staff) : undefined;
+    openNew({
+      date,
+      startTime: `${String(h).padStart(2, "0")}:00`,
+      ...(staffOpt ? { staff: staffOpt.name, staffId: staffOpt.id } : {}),
+    });
   };
 
   const handleDayClick = (d: Date) => {
@@ -1785,6 +1692,7 @@ export function CalendarPage() {
           <StaffView
             cursor={cursor}
             events={events}
+            staffMembers={staffMembers}
             onEventClick={setSelectedEvent}
             onSlotClick={handleSlotClick}
           />
@@ -1809,10 +1717,13 @@ export function CalendarPage() {
         <EventFormDialog
           key={editTarget?.id ?? "new"}
           open
-          title={editTarget ? "Edit Event" : "New Event"}
+          title={editTarget ? "Edit Booking" : "New Booking"}
           initial={formInitial}
           onClose={() => setFormOpen(false)}
           onSave={handleSave}
+          clients={clients}
+          serviceOptions={serviceOptions}
+          staffOptions={staffOptions}
         />
       )}
     </div>

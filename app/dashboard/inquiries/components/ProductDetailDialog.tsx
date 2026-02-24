@@ -1,3 +1,18 @@
+/**
+ * Detail dialog for product-specific inquiries.
+ *
+ * Displays product name, category badge, quantity, customisation notes, and
+ * the client's contact info. Provides a quote workflow:
+ *
+ * 1. Enter dollar amount → "Send Quote" (converts to cents via `Math.round(dollars * 100)`)
+ * 2. "Mark In Progress" → "Mark Completed" status progression
+ *
+ * The DB stores `quoted_in_cents` (integer); the UI accepts/displays dollar amounts
+ * and converts at the boundary.
+ *
+ * @module inquiries/components/ProductDetailDialog
+ * @see {@link ../InquiriesPage.tsx} — parent component + shared types/helpers
+ */
 "use client";
 
 import { useState } from "react";

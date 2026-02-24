@@ -1,3 +1,16 @@
+/**
+ * Detail dialog for general contact-form inquiries.
+ *
+ * Shows the inquiry sender's info, message body, interest category badge,
+ * and action buttons (Mark Read, Archive). Includes a quick-reply textarea
+ * that calls `onReply` (wired to `replyToInquiry` server action).
+ *
+ * If the inquiry already has a staff reply (status = "replied"), the existing
+ * reply is displayed read-only above the reply form.
+ *
+ * @module inquiries/components/GeneralDetailDialog
+ * @see {@link ../InquiriesPage.tsx} — parent component + shared types/helpers
+ */
 "use client";
 
 import { useState } from "react";

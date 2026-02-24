@@ -35,6 +35,10 @@ export {
   messageChannelEnum,
   mediaTypeEnum,
   formTypeEnum,
+  invoiceStatusEnum,
+  expenseCategoryEnum,
+  giftCardStatusEnum,
+  discountTypeEnum,
 } from "./enums";
 
 /* Users & RBAC */
@@ -165,3 +169,15 @@ export {
   syncLog,
   webhookEvents,
 } from "./integrations";
+
+/* Invoices */
+export { invoices, invoicesRelations } from "./invoices";
+
+/* Expenses */
+export { expenses, expensesRelations } from "./expenses";
+
+/* Gift Cards */
+export { giftCards, giftCardsRelations } from "./gift-cards";
+
+/* Promotions */
+export { promotions, promotionsRelations } from "./promotions";

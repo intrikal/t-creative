@@ -112,3 +112,39 @@ export const mediaTypeEnum = pgEnum("media_type", ["image", "video", "before_aft
 
 /** Client form types for intake, consent, and liability flows. */
 export const formTypeEnum = pgEnum("form_type", ["intake", "waiver", "consent", "custom"]);
+
+/* ------------------------------------------------------------------ */
+/*  Invoices                                                           */
+/* ------------------------------------------------------------------ */
+
+/** Invoice lifecycle from draft through payment. */
+export const invoiceStatusEnum = pgEnum("invoice_status", ["draft", "sent", "paid", "overdue"]);
+
+/* ------------------------------------------------------------------ */
+/*  Expenses                                                           */
+/* ------------------------------------------------------------------ */
+
+/** Business expense categories for bookkeeping. */
+export const expenseCategoryEnum = pgEnum("expense_category", [
+  "supplies",
+  "rent",
+  "marketing",
+  "equipment",
+  "software",
+  "travel",
+  "other",
+]);
+
+/* ------------------------------------------------------------------ */
+/*  Gift Cards                                                         */
+/* ------------------------------------------------------------------ */
+
+/** Gift card lifecycle — active until fully redeemed or expired. */
+export const giftCardStatusEnum = pgEnum("gift_card_status", ["active", "redeemed", "expired"]);
+
+/* ------------------------------------------------------------------ */
+/*  Promotions                                                         */
+/* ------------------------------------------------------------------ */
+
+/** Discount mechanic applied by a promotion code. */
+export const discountTypeEnum = pgEnum("discount_type", ["percent", "fixed", "bogo"]);

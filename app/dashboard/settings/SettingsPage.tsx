@@ -46,6 +46,7 @@ import type {
   PolicySettings,
   LoyaltyConfig,
   NotificationPrefs,
+  FinancialConfig,
 } from "./settings-actions";
 
 /* ------------------------------------------------------------------ */
@@ -78,6 +79,7 @@ export function SettingsPage({
   initialPolicies,
   initialLoyalty,
   initialNotifications,
+  initialFinancial,
 }: {
   initialHours: BusinessHourRow[];
   initialTimeOff: TimeOffRow[];
@@ -86,11 +88,12 @@ export function SettingsPage({
   initialPolicies: PolicySettings;
   initialLoyalty: LoyaltyConfig;
   initialNotifications: NotificationPrefs;
+  initialFinancial: FinancialConfig;
 }) {
   const [tab, setTab] = useState<Tab>("business");
 
   const PANEL: Record<Tab, React.ReactNode> = {
-    business: <BusinessTab initial={initialBusiness} />,
+    business: <BusinessTab initial={initialBusiness} initialFinancial={initialFinancial} />,
     hours: (
       <HoursTab
         initialHours={initialHours}

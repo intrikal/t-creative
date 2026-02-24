@@ -23,7 +23,8 @@ export type ClientSource =
   | "word_of_mouth"
   | "google_search"
   | "referral"
-  | "website_direct";
+  | "website_direct"
+  | "event";
 
 export type ServiceCategory = "lash" | "jewelry" | "crochet" | "consulting";
 

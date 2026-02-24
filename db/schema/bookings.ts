@@ -25,7 +25,9 @@ import {
   varchar,
 } from "drizzle-orm/pg-core";
 import { bookingStatusEnum } from "./enums";
+import { giftCards } from "./gift-cards";
 import { payments } from "./payments";
+import { promotions } from "./promotions";
 import { reviews } from "./reviews";
 import { services } from "./services";
 import { profiles } from "./users";
@@ -64,6 +66,17 @@ export const bookings = pgTable(
     /** Price in cents (snapshotted from service + add-ons at booking time). */
     totalInCents: integer("total_in_cents").notNull(),
 
+    /* ------ Discounts / Redemptions ------ */
+
+    /** Gift card applied to this booking (nullable). */
+    giftCardId: integer("gift_card_id").references(() => giftCards.id, { onDelete: "set null" }),
+
+    /** Promotion code applied to this booking (nullable). */
+    promotionId: integer("promotion_id").references(() => promotions.id, { onDelete: "set null" }),
+
+    /** Discount amount in cents (from gift card or promo). */
+    discountInCents: integer("discount_in_cents").notNull().default(0),
+
     /** Client-provided notes (e.g. "prefers natural look"). */
     clientNotes: text("client_notes"),
 
@@ -90,6 +103,14 @@ export const bookings = pgTable(
     /** If cancelled, why. */
     cancellationReason: text("cancellation_reason"),
 
+    /* ------ Deposit tracking ------ */
+
+    /** Deposit amount collected in cents. Null = no deposit collected yet. */
+    depositPaidInCents: integer("deposit_paid_in_cents"),
+
+    /** When the deposit was collected. */
+    depositPaidAt: timestamp("deposit_paid_at", { withTimezone: true }),
+
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
@@ -103,6 +124,8 @@ export const bookings = pgTable(
     index("bookings_status_idx").on(t.status),
     index("bookings_starts_at_idx").on(t.startsAt),
     index("bookings_square_id_idx").on(t.squareAppointmentId),
+    index("bookings_gift_card_idx").on(t.giftCardId),
+    index("bookings_promotion_idx").on(t.promotionId),
   ],
 );
 
@@ -154,6 +177,16 @@ export const bookingsRelations = relations(bookings, ({ one, many }) => ({
   payments: many(payments),
   /** One-to-many: bookings.id → reviews.booking_id (client reviews for this appointment). */
   review: many(reviews),
+  /** Many-to-one: bookings.gift_card_id → gift_cards.id (gift card applied). */
+  giftCard: one(giftCards, {
+    fields: [bookings.giftCardId],
+    references: [giftCards.id],
+  }),
+  /** Many-to-one: bookings.promotion_id → promotions.id (promo code applied). */
+  promotion: one(promotions, {
+    fields: [bookings.promotionId],
+    references: [promotions.id],
+  }),
 }));
 
 export const bookingAddOnsRelations = relations(bookingAddOns, ({ one }) => ({

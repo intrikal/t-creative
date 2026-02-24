@@ -54,6 +54,9 @@ import { assistantProfiles, shifts } from "./assistants";
 import { bookings } from "./bookings";
 import { userRoleEnum } from "./enums";
 import { events } from "./events";
+import { expenses } from "./expenses";
+import { giftCards } from "./gift-cards";
+import { invoices } from "./invoices";
 import { threads, messages } from "./messages";
 import { orders } from "./orders";
 import { payments } from "./payments";
@@ -77,6 +80,7 @@ export const clientSourceEnum = pgEnum("client_source", [
   "google_search",
   "referral",
   "website_direct",
+  "event",
 ]);
 
 /* ------------------------------------------------------------------ */
@@ -125,6 +129,9 @@ export const profiles = pgTable(
      * on the client card and filterable via the "All Sources" dropdown.
      */
     source: clientSourceEnum("source"),
+
+    /** Name of the event that brought this client in (when source = "event"). */
+    eventSourceName: varchar("event_source_name", { length: 200 }),
 
     /* ------ Notification preferences ------ */
 
@@ -224,4 +231,10 @@ export const profilesRelations = relations(profiles, ({ many }) => ({
   shifts: many(shifts),
   /** One-to-many: profiles.id → wishlist_items.client_id (saved marketplace products). */
   wishlistItems: many(wishlistItems),
+  /** One-to-many: profiles.id → invoices.client_id (invoices billed to this client). */
+  invoices: many(invoices),
+  /** One-to-many: profiles.id → expenses.created_by (expenses logged by this admin). */
+  loggedExpenses: many(expenses),
+  /** One-to-many: profiles.id → gift_cards.purchased_by_client_id (gift cards purchased). */
+  giftCards: many(giftCards),
 }));

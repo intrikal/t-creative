@@ -16,14 +16,23 @@
 import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import type { BusinessProfile } from "../settings-actions";
-import { saveBusinessProfile } from "../settings-actions";
+import type { BusinessProfile, FinancialConfig } from "../settings-actions";
+import { saveBusinessProfile, saveFinancialConfig } from "../settings-actions";
 import { FieldRow, StatefulSaveButton, INPUT_CLASS } from "./shared";
 
-export function BusinessTab({ initial }: { initial: BusinessProfile }) {
+export function BusinessTab({
+  initial,
+  initialFinancial,
+}: {
+  initial: BusinessProfile;
+  initialFinancial: FinancialConfig;
+}) {
   const [data, setData] = useState(initial);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [financial, setFinancial] = useState(initialFinancial);
+  const [savingFinancial, setSavingFinancial] = useState(false);
+  const [savedFinancial, setSavedFinancial] = useState(false);
 
   function update<K extends keyof BusinessProfile>(key: K, value: BusinessProfile[K]) {
     setData((prev) => ({ ...prev, [key]: value }));
@@ -37,6 +46,17 @@ export function BusinessTab({ initial }: { initial: BusinessProfile }) {
       setTimeout(() => setSaved(false), 2000);
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleSaveFinancial() {
+    setSavingFinancial(true);
+    try {
+      await saveFinancialConfig(financial);
+      setSavedFinancial(true);
+      setTimeout(() => setSavedFinancial(false), 2000);
+    } finally {
+      setSavingFinancial(false);
     }
   }
 
@@ -81,6 +101,50 @@ export function BusinessTab({ initial }: { initial: BusinessProfile }) {
           </FieldRow>
           <div className="flex justify-end pt-2 border-t border-border/50">
             <StatefulSaveButton saving={saving} saved={saved} onSave={handleSave} />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Financial Config */}
+      <div className="pt-4">
+        <h2 className="text-base font-semibold text-foreground">Financial</h2>
+        <p className="text-xs text-muted mt-0.5">
+          Revenue goals and tax settings used across analytics and financial dashboards
+        </p>
+      </div>
+      <Card className="gap-0">
+        <CardContent className="px-5 pb-5 pt-5 space-y-4">
+          <FieldRow label="Monthly Revenue Goal ($)">
+            <input
+              type="number"
+              min={0}
+              step={500}
+              value={financial.revenueGoalMonthly}
+              onChange={(e) =>
+                setFinancial((prev) => ({ ...prev, revenueGoalMonthly: Number(e.target.value) }))
+              }
+              className={INPUT_CLASS}
+            />
+          </FieldRow>
+          <FieldRow label="Estimated Tax Rate (%)">
+            <input
+              type="number"
+              min={0}
+              max={100}
+              step={1}
+              value={financial.estimatedTaxRate}
+              onChange={(e) =>
+                setFinancial((prev) => ({ ...prev, estimatedTaxRate: Number(e.target.value) }))
+              }
+              className={INPUT_CLASS}
+            />
+          </FieldRow>
+          <div className="flex justify-end pt-2 border-t border-border/50">
+            <StatefulSaveButton
+              saving={savingFinancial}
+              saved={savedFinancial}
+              onSave={handleSaveFinancial}
+            />
           </div>
         </CardContent>
       </Card>

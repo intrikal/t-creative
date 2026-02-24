@@ -225,3 +225,32 @@ export async function saveNotificationPrefs(data: NotificationPrefs): Promise<vo
   await upsertSetting(KEY_NOTIFICATIONS, "Notification Preferences", data);
   revalidatePath("/dashboard/settings");
 }
+
+/* ------------------------------------------------------------------ */
+/*  Financial Config                                                   */
+/* ------------------------------------------------------------------ */
+
+export interface FinancialConfig {
+  revenueGoalMonthly: number;
+  estimatedTaxRate: number;
+}
+
+const DEFAULT_FINANCIAL: FinancialConfig = {
+  revenueGoalMonthly: 12000,
+  estimatedTaxRate: 25,
+};
+
+const KEY_FINANCIAL = "financial_config";
+
+export async function getFinancialConfig(): Promise<FinancialConfig> {
+  await getUser();
+  return getSetting(KEY_FINANCIAL, DEFAULT_FINANCIAL);
+}
+
+export async function saveFinancialConfig(data: FinancialConfig): Promise<void> {
+  await getUser();
+  await upsertSetting(KEY_FINANCIAL, "Financial Config", data);
+  revalidatePath("/dashboard/settings");
+  revalidatePath("/dashboard/analytics");
+  revalidatePath("/dashboard/financial");
+}

@@ -105,3 +105,10 @@ export const messageChannelEnum = pgEnum("message_channel", ["internal", "email"
 
 /** Supported media asset types for the portfolio and gallery. */
 export const mediaTypeEnum = pgEnum("media_type", ["image", "video", "before_after"]);
+
+/* ------------------------------------------------------------------ */
+/*  Forms & Waivers                                                    */
+/* ------------------------------------------------------------------ */
+
+/** Client form types for intake, consent, and liability flows. */
+export const formTypeEnum = pgEnum("form_type", ["intake", "waiver", "consent", "custom"]);

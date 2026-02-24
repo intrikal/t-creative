@@ -34,13 +34,21 @@ export {
   inquiryStatusEnum,
   messageChannelEnum,
   mediaTypeEnum,
+  formTypeEnum,
 } from "./enums";
 
 /* Users & RBAC */
 export { clientSourceEnum, profiles, profilesRelations } from "./users";
 
 /* Service catalog */
-export { services, serviceAddOns, servicesRelations, serviceAddOnsRelations } from "./services";
+export {
+  services,
+  serviceAddOns,
+  serviceBundles,
+  clientForms,
+  servicesRelations,
+  serviceAddOnsRelations,
+} from "./services";
 
 /* Bookings & appointments */
 export { bookings, bookingAddOns, bookingsRelations, bookingAddOnsRelations } from "./bookings";

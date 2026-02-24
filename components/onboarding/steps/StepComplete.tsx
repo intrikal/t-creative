@@ -315,7 +315,7 @@ export function StepComplete({
                 isSaving || saveError
                   ? undefined
                   : () => {
-                      window.location.href = "/admin";
+                      window.location.href = "/dashboard";
                     }
               }
               variant="primary"

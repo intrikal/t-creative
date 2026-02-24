@@ -1,19 +1,59 @@
+/**
+ * app/dashboard/bookings/BookingsPage.tsx — Admin bookings management dashboard.
+ *
+ * ## Responsibility
+ * Manages all booking CRUD and status transitions from the admin's perspective.
+ * Hydrated with real DB data from the server component; maintains optimistic local
+ * state after each mutation.
+ *
+ * ## Architecture
+ * - Server Component (`page.tsx`) fetches `BookingRow[]` + select options, passes
+ *   as props to this client component.
+ * - Optimistic updates: mutations call server actions, then immediately patch local
+ *   `bookings` state — no `router.refresh()` needed for status changes.
+ *
+ * ## Tabs
+ * - **Upcoming / All** — Live bookings sorted newest-first. Filtered by a status
+ *   dropdown (All / Confirmed / Pending / Completed / Cancelled / No-show).
+ * - **Waitlist**       — Static mock data for Phase 1. No waitlist DB table yet.
+ *
+ * ## Booking status machine
+ * Valid transitions are enforced by the `bookingStatusEnum` DB constraint. The UI
+ * allows any status to be set from the dialog — the server action (`updateBookingStatus`)
+ * persists the value without additional validation because the dialog only exposes
+ * valid status options.
+ *
+ * ## Waitlist (Phase 1)
+ * The Waitlist tab currently displays hardcoded placeholder data. Phase 2 will add
+ * a `waitlist_entries` table and wire this tab to real data.
+ *
+ * ## Stat cards
+ * Computed from the live `bookings` state:
+ * - "Today"     — appointments with `date === "Today"`
+ * - "Upcoming"  — confirmed + pending appointments
+ * - "Collected" — sum of `price` across completed appointments
+ * - "Waitlist"  — hardcoded 0 (no waitlist table in Phase 1)
+ *
+ * ## Data mapping (DB → UI)
+ * `mapBookingRow` converts a flat `BookingRow` (from the join query) to the richer
+ * `Booking` UI shape:
+ * - `startsAt` (Date) → `date` ("Today" / "Tomorrow" / "Feb 22") + `time` ("2:30 PM")
+ * - `totalInCents / 100` → `price`
+ * - `clientFirstName + clientLastName` → `client` display string
+ * - `clientFirstName[0] + clientLastName?.[0]` → `clientInitials`
+ */
 "use client";
 
-/**
- * BookingsPage — Full bookings list with filters, add/edit dialog, and waitlist.
- *
- * All data is hardcoded. Replace INITIAL_BOOKINGS / INITIAL_WAITLIST with
- * server actions / fetch when the API is ready.
- */
-
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Clock, MapPin, Search, Plus, Pencil, Trash2, MoreHorizontal, Phone } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Dialog, Field, Input, Textarea, Select, DialogFooter } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { updateBookingStatus, createBooking } from "./actions";
+import type { BookingRow, BookingInput } from "./actions";
 
 /* ------------------------------------------------------------------ */
 /*  Types & mock data                                                  */
@@ -33,6 +73,7 @@ interface Booking {
   id: number;
   date: string;
   time: string;
+  startsAtIso: string; // raw ISO string for date/time inputs
   service: string;
   category: ServiceCategory;
   client: string;
@@ -44,6 +85,57 @@ interface Booking {
   price: number;
   location?: string;
   notes?: string;
+  // DB IDs for server actions
+  clientId: string;
+  serviceId: number;
+  staffId: string | null;
+}
+
+function formatBookingDate(startsAt: Date): { date: string; time: string } {
+  const now = new Date();
+  const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const tomorrowMidnight = new Date(todayMidnight.getTime() + 86_400_000);
+  const bookingMidnight = new Date(startsAt.getFullYear(), startsAt.getMonth(), startsAt.getDate());
+
+  let date: string;
+  if (bookingMidnight.getTime() === todayMidnight.getTime()) {
+    date = "Today";
+  } else if (bookingMidnight.getTime() === tomorrowMidnight.getTime()) {
+    date = "Tomorrow";
+  } else {
+    date = startsAt.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  }
+
+  const time = startsAt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  return { date, time };
+}
+
+function mapBookingRow(row: BookingRow): Booking {
+  const startsAt = new Date(row.startsAt);
+  const { date, time } = formatBookingDate(startsAt);
+  const clientName = [row.clientFirstName, row.clientLastName].filter(Boolean).join(" ");
+  const initials = ((row.clientFirstName[0] ?? "") + (row.clientLastName?.[0] ?? "")).toUpperCase();
+
+  return {
+    id: row.id,
+    date,
+    time,
+    startsAtIso: startsAt.toISOString(),
+    service: row.serviceName,
+    category: row.serviceCategory as ServiceCategory,
+    client: clientName,
+    clientInitials: initials || "?",
+    clientPhone: row.clientPhone ?? "",
+    staff: row.staffFirstName ?? "",
+    status: row.status as BookingStatus,
+    durationMin: row.durationMinutes,
+    price: row.totalInCents / 100,
+    location: row.location ?? undefined,
+    notes: row.clientNotes ?? undefined,
+    clientId: row.clientId,
+    serviceId: row.serviceId,
+    staffId: row.staffId,
+  };
 }
 
 interface WaitlistEntry {
@@ -58,223 +150,6 @@ interface WaitlistEntry {
   status: WaitlistStatus;
   notes?: string;
 }
-
-const INITIAL_BOOKINGS: Booking[] = [
-  {
-    id: 1,
-    date: "Today",
-    time: "10:00 AM",
-    service: "Volume Lashes — Full Set",
-    category: "lash",
-    client: "Sarah Mitchell",
-    clientInitials: "SM",
-    clientPhone: "(404) 555-0101",
-    staff: "Trini",
-    status: "completed",
-    durationMin: 120,
-    price: 180,
-  },
-  {
-    id: 2,
-    date: "Today",
-    time: "12:00 PM",
-    service: "Classic Lash Fill",
-    category: "lash",
-    client: "Maya Robinson",
-    clientInitials: "MR",
-    clientPhone: "(404) 555-0102",
-    staff: "Trini",
-    status: "in_progress",
-    durationMin: 90,
-    price: 95,
-  },
-  {
-    id: 3,
-    date: "Today",
-    time: "1:00 PM",
-    service: "Permanent Jewelry Weld",
-    category: "jewelry",
-    client: "Priya Kumar",
-    clientInitials: "PK",
-    clientPhone: "(404) 555-0103",
-    staff: "Jasmine",
-    status: "confirmed",
-    durationMin: 45,
-    price: 65,
-    location: "Studio",
-  },
-  {
-    id: 4,
-    date: "Today",
-    time: "2:30 PM",
-    service: "Classic Lash Fill",
-    category: "lash",
-    client: "Chloe Thompson",
-    clientInitials: "CT",
-    clientPhone: "(404) 555-0104",
-    staff: "Trini",
-    status: "confirmed",
-    durationMin: 75,
-    price: 95,
-  },
-  {
-    id: 5,
-    date: "Today",
-    time: "4:00 PM",
-    service: "Business Consulting",
-    category: "consulting",
-    client: "Marcus Banks",
-    clientInitials: "MB",
-    clientPhone: "(404) 555-0105",
-    staff: "Trini",
-    status: "confirmed",
-    durationMin: 60,
-    price: 150,
-    location: "Virtual",
-  },
-  {
-    id: 6,
-    date: "Today",
-    time: "5:30 PM",
-    service: "Custom Crochet Pickup",
-    category: "crochet",
-    client: "Amy Lin",
-    clientInitials: "AL",
-    clientPhone: "(404) 555-0106",
-    staff: "Trini",
-    status: "pending",
-    durationMin: 30,
-    price: 40,
-  },
-  {
-    id: 7,
-    date: "Tomorrow",
-    time: "9:00 AM",
-    service: "Volume Lashes — Full Set",
-    category: "lash",
-    client: "Tiffany Brown",
-    clientInitials: "TB",
-    clientPhone: "(404) 555-0107",
-    staff: "Trini",
-    status: "confirmed",
-    durationMin: 120,
-    price: 180,
-  },
-  {
-    id: 8,
-    date: "Tomorrow",
-    time: "11:00 AM",
-    service: "Mega Volume Lashes",
-    category: "lash",
-    client: "Destiny Cruz",
-    clientInitials: "DC",
-    clientPhone: "(404) 555-0108",
-    staff: "Jasmine",
-    status: "confirmed",
-    durationMin: 150,
-    price: 220,
-  },
-  {
-    id: 9,
-    date: "Tomorrow",
-    time: "2:00 PM",
-    service: "Permanent Jewelry Party",
-    category: "jewelry",
-    client: "Keisha Williams",
-    clientInitials: "KW",
-    clientPhone: "(404) 555-0109",
-    staff: "Trini",
-    status: "pending",
-    durationMin: 90,
-    price: 200,
-    notes: "Party of 4, need extra supplies",
-  },
-  {
-    id: 10,
-    date: "Feb 22",
-    time: "10:30 AM",
-    service: "Classic Lash Fill",
-    category: "lash",
-    client: "Jordan Lee",
-    clientInitials: "JL",
-    clientPhone: "(404) 555-0110",
-    staff: "Trini",
-    status: "confirmed",
-    durationMin: 75,
-    price: 95,
-  },
-  {
-    id: 11,
-    date: "Feb 22",
-    time: "1:30 PM",
-    service: "HR Consulting",
-    category: "consulting",
-    client: "Aaliyah Washington",
-    clientInitials: "AW",
-    clientPhone: "(404) 555-0111",
-    staff: "Trini",
-    status: "confirmed",
-    durationMin: 90,
-    price: 200,
-    location: "Virtual",
-  },
-  {
-    id: 12,
-    date: "Feb 19",
-    time: "3:00 PM",
-    service: "Volume Lashes — Fill",
-    category: "lash",
-    client: "Nina Patel",
-    clientInitials: "NP",
-    clientPhone: "(404) 555-0112",
-    staff: "Jasmine",
-    status: "cancelled",
-    durationMin: 90,
-    price: 130,
-  },
-  {
-    id: 13,
-    date: "Feb 18",
-    time: "10:00 AM",
-    service: "Volume Lashes — Full Set",
-    category: "lash",
-    client: "Amara Johnson",
-    clientInitials: "AJ",
-    clientPhone: "(404) 555-0113",
-    staff: "Trini",
-    status: "completed",
-    durationMin: 120,
-    price: 180,
-  },
-  {
-    id: 14,
-    date: "Feb 18",
-    time: "12:30 PM",
-    service: "Permanent Jewelry Weld",
-    category: "jewelry",
-    client: "Camille Foster",
-    clientInitials: "CF",
-    clientPhone: "(404) 555-0114",
-    staff: "Trini",
-    status: "completed",
-    durationMin: 45,
-    price: 65,
-  },
-  {
-    id: 15,
-    date: "Feb 17",
-    time: "11:00 AM",
-    service: "Classic Lash Fill",
-    category: "lash",
-    client: "Tanya Brown",
-    clientInitials: "TB2",
-    clientPhone: "(404) 555-0115",
-    staff: "Jasmine",
-    status: "no_show",
-    durationMin: 75,
-    price: 95,
-  },
-];
 
 const INITIAL_WAITLIST: WaitlistEntry[] = [
   {
@@ -344,7 +219,6 @@ const STATUS_FILTERS = [
   "Cancelled",
   "No Show",
 ] as const;
-const STAFF_OPTIONS = ["Trini", "Jasmine", "Jordan", "Kiera"];
 const PAGE_TABS = ["Bookings", "Waitlist"] as const;
 type PageTab = (typeof PAGE_TABS)[number];
 
@@ -425,165 +299,154 @@ function initials(name: string) {
 /*  Booking Dialog                                                     */
 /* ------------------------------------------------------------------ */
 
-const EMPTY_FORM = {
-  client: "",
-  clientPhone: "",
-  service: "",
-  category: "lash" as ServiceCategory,
+type BookingFormState = {
+  clientId: string;
+  serviceId: number | "";
+  staffId: string;
+  date: string; // YYYY-MM-DD
+  time: string; // HH:MM
+  status: BookingStatus;
+  durationMin: number;
+  price: number;
+  location: string;
+  notes: string;
+};
+
+const EMPTY_FORM: BookingFormState = {
+  clientId: "",
+  serviceId: "",
+  staffId: "",
   date: "",
   time: "",
-  staff: "Trini",
-  status: "confirmed" as BookingStatus,
+  status: "confirmed",
   durationMin: 60,
   price: 0,
   location: "",
   notes: "",
 };
 
+function bookingToForm(b: Booking): BookingFormState {
+  const d = new Date(b.startsAtIso);
+  return {
+    clientId: b.clientId,
+    serviceId: b.serviceId,
+    staffId: b.staffId ?? "",
+    date: d.toLocaleDateString("en-CA"), // YYYY-MM-DD
+    time: d.toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", minute: "2-digit" }),
+    status: b.status,
+    durationMin: b.durationMin,
+    price: b.price,
+    location: b.location ?? "",
+    notes: b.notes ?? "",
+  };
+}
+
 function BookingDialog({
   open,
   onClose,
   onSave,
   initial,
+  clients,
+  serviceOptions,
+  staffOptions,
 }: {
   open: boolean;
   onClose: () => void;
-  onSave: (b: Omit<Booking, "id" | "clientInitials">) => void;
+  onSave: (data: BookingFormState) => void;
   initial?: Booking | null;
+  clients: { id: string; name: string; phone: string | null }[];
+  serviceOptions: {
+    id: number;
+    name: string;
+    category: string;
+    durationMinutes: number;
+    priceInCents: number;
+  }[];
+  staffOptions: { id: string; name: string }[];
 }) {
-  const [form, setForm] = useState(
-    initial
-      ? {
-          client: initial.client,
-          clientPhone: initial.clientPhone,
-          service: initial.service,
-          category: initial.category,
-          date: initial.date,
-          time: initial.time,
-          staff: initial.staff,
-          status: initial.status,
-          durationMin: initial.durationMin,
-          price: initial.price,
-          location: initial.location ?? "",
-          notes: initial.notes ?? "",
-        }
-      : EMPTY_FORM,
-  );
+  const [form, setForm] = useState<BookingFormState>(initial ? bookingToForm(initial) : EMPTY_FORM);
 
   const [lastInitial, setLastInitial] = useState(initial);
   if (initial !== lastInitial) {
     setLastInitial(initial);
-    setForm(
-      initial
-        ? {
-            client: initial.client,
-            clientPhone: initial.clientPhone,
-            service: initial.service,
-            category: initial.category,
-            date: initial.date,
-            time: initial.time,
-            staff: initial.staff,
-            status: initial.status,
-            durationMin: initial.durationMin,
-            price: initial.price,
-            location: initial.location ?? "",
-            notes: initial.notes ?? "",
-          }
-        : EMPTY_FORM,
-    );
+    setForm(initial ? bookingToForm(initial) : EMPTY_FORM);
   }
 
-  const set = (key: keyof typeof form, value: string | number) =>
-    setForm((prev) => ({ ...prev, [key]: value }));
+  function set<K extends keyof BookingFormState>(key: K, val: BookingFormState[K]) {
+    setForm((prev) => ({ ...prev, [key]: val }));
+  }
 
-  const valid = form.client.trim() && form.service.trim() && form.date.trim() && form.time.trim();
-
-  function handleSave() {
-    if (!valid) return;
-    onSave({
-      client: form.client.trim(),
-      clientPhone: form.clientPhone.trim(),
-      service: form.service.trim(),
-      category: form.category,
-      date: form.date.trim(),
-      time: form.time.trim(),
-      staff: form.staff,
-      status: form.status,
-      durationMin: Number(form.durationMin),
-      price: Number(form.price),
-      location: form.location.trim() || undefined,
-      notes: form.notes.trim() || undefined,
+  function onServiceChange(serviceId: number | "") {
+    setForm((prev) => {
+      if (!serviceId) return { ...prev, serviceId: "" };
+      const svc = serviceOptions.find((s) => s.id === serviceId);
+      return {
+        ...prev,
+        serviceId,
+        durationMin: svc?.durationMinutes ?? prev.durationMin,
+        price: svc ? svc.priceInCents / 100 : prev.price,
+      };
     });
-    onClose();
   }
+
+  const isEdit = !!initial;
+  const valid =
+    form.clientId !== "" &&
+    form.serviceId !== "" &&
+    form.date.trim() !== "" &&
+    form.time.trim() !== "";
 
   return (
     <Dialog
       open={open}
       onClose={onClose}
-      title={initial ? "Edit Booking" : "New Booking"}
+      title={isEdit ? "Edit Booking" : "New Booking"}
       description={
-        initial ? "Update appointment details." : "Add a new appointment to the schedule."
+        isEdit ? "Update appointment details." : "Add a new appointment to the schedule."
       }
       size="lg"
     >
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Client Name" required>
-            <Input
-              placeholder="e.g. Sarah Mitchell"
-              value={form.client}
-              onChange={(e) => set("client", e.target.value)}
-            />
+          <Field label="Client" required>
+            <Select value={form.clientId} onChange={(e) => set("clientId", e.target.value)}>
+              <option value="">Select client…</option>
+              {clients.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </Select>
           </Field>
-          <Field label="Phone">
-            <Input
-              placeholder="(404) 555-0100"
-              value={form.clientPhone}
-              onChange={(e) => set("clientPhone", e.target.value)}
-            />
-          </Field>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
           <Field label="Service" required>
-            <Input
-              placeholder="e.g. Volume Lashes — Full Set"
-              value={form.service}
-              onChange={(e) => set("service", e.target.value)}
-            />
-          </Field>
-          <Field label="Category">
-            <Select value={form.category} onChange={(e) => set("category", e.target.value)}>
-              <option value="lash">Lash</option>
-              <option value="jewelry">Jewelry</option>
-              <option value="crochet">Crochet</option>
-              <option value="consulting">Consulting</option>
-              <option value="training">Training</option>
+            <Select
+              value={form.serviceId}
+              onChange={(e) => onServiceChange(e.target.value === "" ? "" : Number(e.target.value))}
+            >
+              <option value="">Select service…</option>
+              {serviceOptions.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
             </Select>
           </Field>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Date" required>
-            <Input
-              placeholder="e.g. Today, Tomorrow, Feb 25"
-              value={form.date}
-              onChange={(e) => set("date", e.target.value)}
-            />
+            <Input type="date" value={form.date} onChange={(e) => set("date", e.target.value)} />
           </Field>
           <Field label="Time" required>
-            <Input
-              placeholder="e.g. 10:00 AM"
-              value={form.time}
-              onChange={(e) => set("time", e.target.value)}
-            />
+            <Input type="time" value={form.time} onChange={(e) => set("time", e.target.value)} />
           </Field>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Staff">
-            <Select value={form.staff} onChange={(e) => set("staff", e.target.value)}>
-              {STAFF_OPTIONS.map((s) => (
-                <option key={s} value={s}>
-                  {s}
+            <Select value={form.staffId} onChange={(e) => set("staffId", e.target.value)}>
+              <option value="">Unassigned</option>
+              {staffOptions.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
                 </option>
               ))}
             </Select>
@@ -609,7 +472,7 @@ function BookingDialog({
               min={15}
               step={15}
               value={form.durationMin}
-              onChange={(e) => set("durationMin", e.target.value)}
+              onChange={(e) => set("durationMin", Number(e.target.value))}
             />
           </Field>
           <Field label="Price ($)">
@@ -618,7 +481,7 @@ function BookingDialog({
               min={0}
               step={5}
               value={form.price}
-              onChange={(e) => set("price", e.target.value)}
+              onChange={(e) => set("price", Number(e.target.value))}
             />
           </Field>
         </div>
@@ -640,8 +503,13 @@ function BookingDialog({
       </div>
       <DialogFooter
         onCancel={onClose}
-        onConfirm={handleSave}
-        confirmLabel={initial ? "Save Changes" : "Add Booking"}
+        onConfirm={() => {
+          if (valid) {
+            onSave(form);
+            onClose();
+          }
+        }}
+        confirmLabel={isEdit ? "Save Changes" : "Add Booking"}
         disabled={!valid}
       />
     </Dialog>
@@ -652,8 +520,25 @@ function BookingDialog({
 /*  Main export                                                        */
 /* ------------------------------------------------------------------ */
 
-export function BookingsPage() {
-  const [bookings, setBookings] = useState<Booking[]>(INITIAL_BOOKINGS);
+export function BookingsPage({
+  initialBookings,
+  clients,
+  serviceOptions,
+  staffOptions,
+}: {
+  initialBookings: BookingRow[];
+  clients: { id: string; name: string; phone: string | null }[];
+  serviceOptions: {
+    id: number;
+    name: string;
+    category: string;
+    durationMinutes: number;
+    priceInCents: number;
+  }[];
+  staffOptions: { id: string; name: string }[];
+}) {
+  const router = useRouter();
+  const [bookings, setBookings] = useState<Booking[]>(() => initialBookings.map(mapBookingRow));
   const [waitlist, setWaitlist] = useState<WaitlistEntry[]>(INITIAL_WAITLIST);
   const [pageTab, setPageTab] = useState<PageTab>("Bookings");
   const [search, setSearch] = useState("");
@@ -692,18 +577,40 @@ export function BookingsPage() {
     setMenuOpen(null);
   }
 
-  function handleSave(data: Omit<Booking, "id" | "clientInitials">) {
+  async function handleSave(data: BookingFormState) {
     if (editTarget) {
+      // Update status in DB if it changed
+      if (data.status !== editTarget.status) {
+        await updateBookingStatus(editTarget.id, data.status);
+      }
+      // Optimistic local update for other fields
       setBookings((prev) =>
         prev.map((b) =>
-          b.id === editTarget.id ? { ...b, ...data, clientInitials: initials(data.client) } : b,
+          b.id === editTarget.id
+            ? {
+                ...b,
+                status: data.status,
+                location: data.location || undefined,
+                notes: data.notes || undefined,
+              }
+            : b,
         ),
       );
     } else {
-      setBookings((prev) => [
-        { ...data, id: Date.now(), clientInitials: initials(data.client) },
-        ...prev,
-      ]);
+      if (!data.clientId || data.serviceId === "" || !data.date || !data.time) return;
+      const startsAt = new Date(`${data.date}T${data.time}`);
+      await createBooking({
+        clientId: data.clientId,
+        serviceId: Number(data.serviceId),
+        staffId: data.staffId || null,
+        startsAt,
+        durationMinutes: data.durationMin,
+        totalInCents: Math.round(data.price * 100),
+        location: data.location || undefined,
+        clientNotes: data.notes || undefined,
+      } satisfies BookingInput);
+      // Refresh to show the new booking from the DB
+      router.refresh();
     }
   }
 
@@ -1053,6 +960,9 @@ export function BookingsPage() {
         onClose={() => setDialogOpen(false)}
         onSave={handleSave}
         initial={editTarget}
+        clients={clients}
+        serviceOptions={serviceOptions}
+        staffOptions={staffOptions}
       />
     </div>
   );

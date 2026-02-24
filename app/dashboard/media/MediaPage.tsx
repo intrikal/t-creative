@@ -1,198 +1,46 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, useTransition } from "react";
 import Image from "next/image";
-import { Upload, Grid, List, Star, Eye, Instagram, Filter, ImagePlus, X } from "lucide-react";
+import {
+  Upload,
+  Grid,
+  List,
+  Star,
+  Eye,
+  EyeOff,
+  Filter,
+  ImagePlus,
+  X,
+  Trash2,
+  MoreHorizontal,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Dialog, DialogFooter, Field, Input, Select, Textarea } from "@/components/ui/dialog";
+import { Dialog, DialogFooter, Field, Select, Textarea } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import type { MediaRow, MediaStats, MediaCategory } from "./actions";
+import { uploadMedia, togglePublish, toggleFeatured, deleteMediaItem } from "./actions";
 
 /* ------------------------------------------------------------------ */
-/*  Mock data                                                           */
+/*  Constants                                                          */
 /* ------------------------------------------------------------------ */
 
-type MediaCategory = "lash" | "jewelry" | "crochet" | "consulting" | "events" | "bts";
+type FilterCategory = "all" | MediaCategory;
 
-interface MediaItem {
-  id: number;
-  client?: string;
-  category: MediaCategory;
-  caption: string;
-  date: string;
-  featured: boolean;
-  postedToIG: boolean;
-  tags: string[];
-  // Real upload uses `objectUrl`; mock items use gradient colors
-  objectUrl?: string;
-  colorA?: string;
-  colorB?: string;
-}
-
-const MOCK_MEDIA: MediaItem[] = [
-  {
-    id: 1,
-    client: "Sarah M.",
-    category: "lash",
-    caption: "Volume lash full set — graduation day ✨",
-    date: "Feb 20",
-    featured: true,
-    postedToIG: true,
-    tags: ["volume", "graduation", "lashes"],
-    colorA: "#c4907a",
-    colorB: "#e8c4b8",
-  },
-  {
-    id: 2,
-    client: "Destiny C.",
-    category: "lash",
-    caption: "Mega volume — obsessed with this set 🖤",
-    date: "Feb 19",
-    featured: true,
-    postedToIG: true,
-    tags: ["mega", "lashes", "dramatic"],
-    colorA: "#2a2a2a",
-    colorB: "#4a3a3a",
-  },
-  {
-    id: 3,
-    client: "Nina P.",
-    category: "jewelry",
-    caption: "Permanent anklet duo — sisters ✨",
-    date: "Feb 17",
-    featured: false,
-    postedToIG: true,
-    tags: ["anklet", "permanent", "matching"],
-    colorA: "#d4a574",
-    colorB: "#f0d4b0",
-  },
-  {
-    id: 4,
-    client: "Camille F.",
-    category: "jewelry",
-    caption: "Dainty wrist chain — the perfect everyday piece",
-    date: "Feb 16",
-    featured: false,
-    postedToIG: false,
-    tags: ["bracelet", "dainty", "everyday"],
-    colorA: "#c0a060",
-    colorB: "#e8d0a0",
-  },
-  {
-    id: 5,
-    client: "Keisha W.",
-    category: "crochet",
-    caption: "Goddess locs with pops of burgundy 🍇",
-    date: "Feb 14",
-    featured: false,
-    postedToIG: true,
-    tags: ["crochet", "goddesslocs", "braids"],
-    colorA: "#5a2a4a",
-    colorB: "#8a4a6a",
-  },
-  {
-    id: 6,
-    client: "Amara J.",
-    category: "lash",
-    caption: "Classic wispy — clean and natural 🤍",
-    date: "Feb 13",
-    featured: false,
-    postedToIG: false,
-    tags: ["classic", "wispy", "natural"],
-    colorA: "#d4b8a8",
-    colorB: "#f0e4dc",
-  },
-  {
-    id: 7,
-    client: "Lily N.",
-    category: "lash",
-    caption: "Bridal lashes — bride + bridesmaids all done 💍",
-    date: "Feb 8",
-    featured: true,
-    postedToIG: true,
-    tags: ["bridal", "wedding", "lashes"],
-    colorA: "#e8d4c8",
-    colorB: "#f8f0ec",
-  },
-  {
-    id: 8,
-    category: "events",
-    caption: "Pop-up setup at Valley Fair 🛍️",
-    date: "Feb 5",
-    featured: false,
-    postedToIG: true,
-    tags: ["popup", "events", "jewelry"],
-    colorA: "#5b8a8a",
-    colorB: "#8ab0b0",
-  },
-  {
-    id: 9,
-    category: "bts",
-    caption: "Studio setup day ✨ new light installed",
-    date: "Feb 3",
-    featured: false,
-    postedToIG: true,
-    tags: ["bts", "studio", "setup"],
-    colorA: "#8fa89c",
-    colorB: "#b4ccc6",
-  },
-  {
-    id: 10,
-    client: "Maya R.",
-    category: "lash",
-    caption: "Classic fill — always so easy to work with 🙏",
-    date: "Jan 31",
-    featured: false,
-    postedToIG: false,
-    tags: ["classic", "fill", "lashes"],
-    colorA: "#c8a090",
-    colorB: "#e0c0b0",
-  },
-  {
-    id: 11,
-    client: "Priya K.",
-    category: "jewelry",
-    caption: "Permanent necklace — minimal luxury",
-    date: "Jan 28",
-    featured: true,
-    postedToIG: true,
-    tags: ["necklace", "minimal", "jewelry"],
-    colorA: "#b89060",
-    colorB: "#d8b890",
-  },
-  {
-    id: 12,
-    category: "bts",
-    caption: "New chain collection just dropped 🔗",
-    date: "Jan 25",
-    featured: false,
-    postedToIG: true,
-    tags: ["chains", "new", "jewelry"],
-    colorA: "#a09070",
-    colorB: "#c8b898",
-  },
-];
-
-const CATEGORIES: { value: "all" | MediaCategory; label: string }[] = [
+const CATEGORIES: { value: FilterCategory; label: string }[] = [
   { value: "all", label: "All" },
   { value: "lash", label: "Lash" },
   { value: "jewelry", label: "Jewelry" },
   { value: "crochet", label: "Crochet" },
-  { value: "events", label: "Events" },
-  { value: "bts", label: "BTS" },
+  { value: "consulting", label: "Consulting" },
 ];
-
-/* ------------------------------------------------------------------ */
-/*  Helpers                                                             */
-/* ------------------------------------------------------------------ */
 
 const catLabel: Record<MediaCategory, string> = {
   lash: "Lash",
   jewelry: "Jewelry",
   crochet: "Crochet",
   consulting: "Consulting",
-  events: "Events",
-  bts: "BTS",
 };
 
 const catStyle: Record<MediaCategory, string> = {
@@ -200,52 +48,131 @@ const catStyle: Record<MediaCategory, string> = {
   jewelry: "bg-[#d4a574]/12 text-[#a07040] border-[#d4a574]/20",
   crochet: "bg-[#7ba3a3]/12 text-[#4a7a7a] border-[#7ba3a3]/20",
   consulting: "bg-[#5b8a8a]/12 text-[#3a6a6a] border-[#5b8a8a]/20",
-  events: "bg-purple-50 text-purple-700 border-purple-100",
-  bts: "bg-foreground/8 text-muted border-foreground/12",
 };
 
-function todayLabel() {
-  return new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" });
+function formatBytes(bytes: number) {
+  if (bytes === 0) return "0 B";
+  const k = 1024;
+  const sizes = ["B", "KB", "MB", "GB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`;
 }
 
 /* ------------------------------------------------------------------ */
-/*  Media tile                                                          */
+/*  Media tile                                                         */
 /* ------------------------------------------------------------------ */
 
-function MediaTile({ item, grid }: { item: MediaItem; grid: boolean }) {
-  const bg = item.objectUrl
-    ? undefined
-    : { background: `linear-gradient(135deg, ${item.colorA}, ${item.colorB})` };
+function MediaTile({
+  item,
+  grid,
+  isPending,
+  onTogglePublish,
+  onToggleFeatured,
+  onDelete,
+}: {
+  item: MediaRow;
+  grid: boolean;
+  isPending: boolean;
+  onTogglePublish: () => void;
+  onToggleFeatured: () => void;
+  onDelete: () => void;
+}) {
+  const [menuOpen, setMenuOpen] = useState(false);
 
   if (grid) {
     return (
-      <div className="group relative rounded-xl overflow-hidden border border-border cursor-pointer">
-        <div className="relative aspect-square w-full" style={bg}>
-          {item.objectUrl && (
+      <div
+        className={cn(
+          "group relative rounded-xl overflow-hidden border border-border cursor-pointer transition-opacity",
+          isPending && "opacity-60",
+        )}
+      >
+        <div className="relative aspect-square w-full bg-surface">
+          {item.publicUrl ? (
             <Image
               fill
-              src={item.objectUrl}
-              alt={item.caption}
+              src={item.publicUrl}
+              alt={item.caption ?? item.title ?? "Media"}
               className="object-cover"
               sizes="(max-width: 768px) 50vw, 33vw"
               unoptimized
             />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-muted">
+              <ImagePlus className="w-8 h-8" />
+            </div>
           )}
         </div>
         <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all flex flex-col justify-between p-2 opacity-0 group-hover:opacity-100">
           <div className="flex items-center justify-between">
-            {item.featured && <Star className="w-3.5 h-3.5 text-[#d4a574] fill-[#d4a574]" />}
-            {item.postedToIG && <Instagram className="w-3.5 h-3.5 text-white" />}
+            <div className="flex items-center gap-1">
+              {item.isFeatured && <Star className="w-3.5 h-3.5 text-[#d4a574] fill-[#d4a574]" />}
+              {item.isPublished && <Eye className="w-3.5 h-3.5 text-white" />}
+            </div>
+            <div className="relative">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setMenuOpen(!menuOpen);
+                }}
+                className="w-6 h-6 rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-black/70"
+              >
+                <MoreHorizontal className="w-3.5 h-3.5" />
+              </button>
+              {menuOpen && (
+                <div
+                  className="absolute right-0 top-7 bg-white rounded-lg shadow-lg border border-border py-1 z-10 min-w-[140px]"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <button
+                    onClick={() => {
+                      onTogglePublish();
+                      setMenuOpen(false);
+                    }}
+                    className="w-full text-left px-3 py-1.5 text-xs hover:bg-surface flex items-center gap-2"
+                  >
+                    {item.isPublished ? (
+                      <>
+                        <EyeOff className="w-3 h-3" /> Unpublish
+                      </>
+                    ) : (
+                      <>
+                        <Eye className="w-3 h-3" /> Publish
+                      </>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => {
+                      onToggleFeatured();
+                      setMenuOpen(false);
+                    }}
+                    className="w-full text-left px-3 py-1.5 text-xs hover:bg-surface flex items-center gap-2"
+                  >
+                    <Star className="w-3 h-3" />
+                    {item.isFeatured ? "Unfeature" : "Feature"}
+                  </button>
+                  <button
+                    onClick={() => {
+                      onDelete();
+                      setMenuOpen(false);
+                    }}
+                    className="w-full text-left px-3 py-1.5 text-xs hover:bg-surface text-red-600 flex items-center gap-2"
+                  >
+                    <Trash2 className="w-3 h-3" /> Delete
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
           <div>
             <p className="text-white text-[11px] font-medium line-clamp-2 leading-snug">
-              {item.caption}
+              {item.caption ?? item.title}
             </p>
             {item.client && <p className="text-white/70 text-[10px] mt-0.5">{item.client}</p>}
           </div>
         </div>
-        {item.featured && (
-          <div className="absolute top-1.5 right-1.5">
+        {item.isFeatured && (
+          <div className="absolute top-1.5 right-1.5 group-hover:opacity-0 transition-opacity">
             <span className="w-5 h-5 rounded-full bg-black/40 flex items-center justify-center">
               <Star className="w-2.5 h-2.5 text-[#d4a574] fill-[#d4a574]" />
             </span>
@@ -256,35 +183,67 @@ function MediaTile({ item, grid }: { item: MediaItem; grid: boolean }) {
   }
 
   return (
-    <Card className="gap-0">
+    <Card className={cn("gap-0", isPending && "opacity-60")}>
       <CardContent className="px-4 py-3 flex items-center gap-3">
-        <div className="relative w-12 h-12 rounded-lg shrink-0 overflow-hidden" style={bg}>
-          {item.objectUrl && (
+        <div className="relative w-12 h-12 rounded-lg shrink-0 overflow-hidden bg-surface">
+          {item.publicUrl ? (
             <Image
               fill
-              src={item.objectUrl}
-              alt={item.caption}
+              src={item.publicUrl}
+              alt={item.caption ?? item.title ?? "Media"}
               className="object-cover"
               sizes="48px"
               unoptimized
             />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-muted">
+              <ImagePlus className="w-4 h-4" />
+            </div>
           )}
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <Badge className={cn("border text-[10px] px-1.5 py-0.5", catStyle[item.category])}>
-              {catLabel[item.category]}
-            </Badge>
+            {item.category && (
+              <Badge className={cn("border text-[10px] px-1.5 py-0.5", catStyle[item.category])}>
+                {catLabel[item.category]}
+              </Badge>
+            )}
             {item.client && <span className="text-xs text-muted">{item.client}</span>}
           </div>
-          <p className="text-sm text-foreground mt-0.5 truncate">{item.caption}</p>
+          <p className="text-sm text-foreground mt-0.5 truncate">
+            {item.caption ?? item.title ?? "Untitled"}
+          </p>
           <p className="text-[10px] text-muted mt-0.5">{item.date}</p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          {item.featured && <Star className="w-3.5 h-3.5 text-[#d4a574] fill-[#d4a574]" />}
-          {item.postedToIG && <Instagram className="w-3.5 h-3.5 text-muted" />}
-          <button className="p-1.5 rounded-lg hover:bg-foreground/5 text-muted transition-colors">
-            <Eye className="w-3.5 h-3.5" />
+          {item.isFeatured && <Star className="w-3.5 h-3.5 text-[#d4a574] fill-[#d4a574]" />}
+          {item.isPublished && <Eye className="w-3.5 h-3.5 text-muted" />}
+          <button
+            onClick={onTogglePublish}
+            className="p-1.5 rounded-lg hover:bg-foreground/5 text-muted transition-colors"
+            title={item.isPublished ? "Unpublish" : "Publish"}
+          >
+            {item.isPublished ? (
+              <EyeOff className="w-3.5 h-3.5" />
+            ) : (
+              <Eye className="w-3.5 h-3.5" />
+            )}
+          </button>
+          <button
+            onClick={onToggleFeatured}
+            className="p-1.5 rounded-lg hover:bg-foreground/5 text-muted transition-colors"
+            title={item.isFeatured ? "Unfeature" : "Feature"}
+          >
+            <Star
+              className={cn("w-3.5 h-3.5", item.isFeatured && "fill-[#d4a574] text-[#d4a574]")}
+            />
+          </button>
+          <button
+            onClick={onDelete}
+            className="p-1.5 rounded-lg hover:bg-foreground/5 text-red-400 hover:text-red-600 transition-colors"
+            title="Delete"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
           </button>
         </div>
       </CardContent>
@@ -293,7 +252,7 @@ function MediaTile({ item, grid }: { item: MediaItem; grid: boolean }) {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Upload dialog                                                       */
+/*  Upload dialog                                                      */
 /* ------------------------------------------------------------------ */
 
 interface PendingFile {
@@ -301,19 +260,14 @@ interface PendingFile {
   objectUrl: string;
 }
 
-interface UploadDialogProps {
-  open: boolean;
-  onClose: () => void;
-  onUpload: (items: Omit<MediaItem, "id">[]) => void;
-}
-
-function UploadDialog({ open, onClose, onUpload }: UploadDialogProps) {
+function UploadDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [pending, setPending] = useState<PendingFile[]>([]);
   const [caption, setCaption] = useState("");
-  const [client, setClient] = useState("");
   const [category, setCategory] = useState<MediaCategory>("lash");
+  const [featured, setFeatured] = useState(false);
   const [dragging, setDragging] = useState(false);
+  const [uploading, startUpload] = useTransition();
 
   function addFiles(files: FileList | null) {
     if (!files) return;
@@ -334,32 +288,31 @@ function UploadDialog({ open, onClose, onUpload }: UploadDialogProps) {
   }
 
   function handleConfirm() {
-    const today = todayLabel();
-    const newItems: Omit<MediaItem, "id">[] = pending.map((p) => ({
-      objectUrl: p.objectUrl,
-      category,
-      caption: caption || p.file.name.replace(/\.[^.]+$/, ""),
-      client: client || undefined,
-      date: today,
-      featured: false,
-      postedToIG: false,
-      tags: [],
-    }));
-    onUpload(newItems);
-    // reset
-    setPending([]);
-    setCaption("");
-    setClient("");
-    setCategory("lash");
-    onClose();
+    const fd = new FormData();
+    pending.forEach((p) => fd.append("files", p.file));
+    if (caption.trim()) fd.append("caption", caption.trim());
+    fd.append("category", category);
+    fd.append("featured", String(featured));
+
+    startUpload(async () => {
+      await uploadMedia(fd);
+      // cleanup
+      pending.forEach((p) => URL.revokeObjectURL(p.objectUrl));
+      setPending([]);
+      setCaption("");
+      setCategory("lash");
+      setFeatured(false);
+      onClose();
+    });
   }
 
   function handleClose() {
+    if (uploading) return;
     pending.forEach((p) => URL.revokeObjectURL(p.objectUrl));
     setPending([]);
     setCaption("");
-    setClient("");
     setCategory("lash");
+    setFeatured(false);
     onClose();
   }
 
@@ -438,8 +391,6 @@ function UploadDialog({ open, onClose, onUpload }: UploadDialogProps) {
             <option value="jewelry">Jewelry</option>
             <option value="crochet">Crochet</option>
             <option value="consulting">Consulting</option>
-            <option value="events">Events</option>
-            <option value="bts">BTS</option>
           </Select>
         </Field>
 
@@ -452,46 +403,111 @@ function UploadDialog({ open, onClose, onUpload }: UploadDialogProps) {
           />
         </Field>
 
-        <Field label="Client name" hint="Optional — used for internal labeling only">
-          <Input
-            value={client}
-            onChange={(e) => setClient(e.target.value)}
-            placeholder="e.g. Sarah M."
-          />
-        </Field>
+        <label className="flex items-center gap-3 cursor-pointer">
+          <button
+            type="button"
+            role="switch"
+            aria-checked={featured}
+            onClick={() => setFeatured(!featured)}
+            className={cn(
+              "relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors",
+              featured ? "bg-[#d4a574]" : "bg-foreground/15",
+            )}
+          >
+            <span
+              className={cn(
+                "inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform",
+                featured ? "translate-x-[18px]" : "translate-x-[3px]",
+              )}
+            />
+          </button>
+          <div>
+            <span className="text-sm font-medium text-foreground flex items-center gap-1.5">
+              <Star
+                className={cn(
+                  "w-3.5 h-3.5",
+                  featured ? "fill-[#d4a574] text-[#d4a574]" : "text-muted",
+                )}
+              />
+              Featured
+            </span>
+            <p className="text-xs text-muted">Show on public portfolio and auto-publish</p>
+          </div>
+        </label>
       </div>
 
       <DialogFooter
         onCancel={handleClose}
         onConfirm={handleConfirm}
-        confirmLabel={`Upload ${pending.length > 0 ? `${pending.length} photo${pending.length > 1 ? "s" : ""}` : ""}`}
-        disabled={pending.length === 0}
+        confirmLabel={
+          uploading
+            ? "Uploading…"
+            : `Upload ${pending.length > 0 ? `${pending.length} photo${pending.length > 1 ? "s" : ""}` : ""}`
+        }
+        disabled={pending.length === 0 || uploading}
       />
     </Dialog>
   );
 }
 
 /* ------------------------------------------------------------------ */
-/*  Main export                                                         */
+/*  Main export                                                        */
 /* ------------------------------------------------------------------ */
 
-export function MediaPage() {
-  const [media, setMedia] = useState<MediaItem[]>(MOCK_MEDIA);
-  const [category, setCategory] = useState<"all" | MediaCategory>("all");
+export function MediaPage({
+  initialItems,
+  stats,
+}: {
+  initialItems: MediaRow[];
+  stats: MediaStats;
+}) {
+  const [category, setCategory] = useState<FilterCategory>("all");
   const [gridView, setGridView] = useState(true);
-  const [featured, setFeatured] = useState(false);
+  const [featuredOnly, setFeaturedOnly] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [isPending, startTransition] = useTransition();
+  const [pendingIds, setPendingIds] = useState<Set<number>>(new Set());
 
-  const filtered = media.filter((m) => {
+  const filtered = initialItems.filter((m) => {
     if (category !== "all" && m.category !== category) return false;
-    if (featured && !m.featured) return false;
+    if (featuredOnly && !m.isFeatured) return false;
     return true;
   });
 
-  function handleUpload(newItems: Omit<MediaItem, "id">[]) {
-    const maxId = media.reduce((max, m) => Math.max(max, m.id), 0);
-    const withIds: MediaItem[] = newItems.map((item, i) => ({ ...item, id: maxId + i + 1 }));
-    setMedia((prev) => [...withIds, ...prev]);
+  function handleTogglePublish(id: number, currentState: boolean) {
+    setPendingIds((prev) => new Set(prev).add(id));
+    startTransition(async () => {
+      await togglePublish(id, !currentState);
+      setPendingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    });
+  }
+
+  function handleToggleFeatured(id: number, currentState: boolean) {
+    setPendingIds((prev) => new Set(prev).add(id));
+    startTransition(async () => {
+      await toggleFeatured(id, !currentState);
+      setPendingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    });
+  }
+
+  function handleDelete(id: number) {
+    setPendingIds((prev) => new Set(prev).add(id));
+    startTransition(async () => {
+      await deleteMediaItem(id);
+      setPendingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    });
   }
 
   return (
@@ -501,7 +517,8 @@ export function MediaPage() {
         <div>
           <h1 className="text-xl font-semibold text-foreground tracking-tight">Media</h1>
           <p className="text-sm text-muted mt-0.5">
-            Portfolio photos organized by service and client
+            {stats.total} items · {stats.published} published · {stats.featured} featured
+            {stats.totalSizeBytes > 0 && ` · ${formatBytes(stats.totalSizeBytes)}`}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -553,15 +570,15 @@ export function MediaPage() {
           ))}
         </div>
         <button
-          onClick={() => setFeatured(!featured)}
+          onClick={() => setFeaturedOnly(!featuredOnly)}
           className={cn(
             "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border",
-            featured
+            featuredOnly
               ? "bg-[#d4a574]/12 text-[#a07040] border-[#d4a574]/25"
               : "text-muted border-transparent hover:text-foreground",
           )}
         >
-          <Star className={cn("w-3 h-3", featured && "fill-[#d4a574] text-[#d4a574]")} />
+          <Star className={cn("w-3 h-3", featuredOnly && "fill-[#d4a574] text-[#d4a574]")} />
           Featured only
         </button>
         <span className="text-xs text-muted ml-auto flex items-center gap-1">
@@ -569,32 +586,49 @@ export function MediaPage() {
         </span>
       </div>
 
-      {/* Grid view */}
+      {/* Grid / List view */}
       {gridView ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6 gap-2">
           {filtered.map((item) => (
-            <MediaTile key={item.id} item={item} grid={true} />
+            <MediaTile
+              key={item.id}
+              item={item}
+              grid={true}
+              isPending={pendingIds.has(item.id)}
+              onTogglePublish={() => handleTogglePublish(item.id, item.isPublished)}
+              onToggleFeatured={() => handleToggleFeatured(item.id, item.isFeatured)}
+              onDelete={() => handleDelete(item.id)}
+            />
           ))}
         </div>
       ) : (
         <div className="space-y-2">
           {filtered.map((item) => (
-            <MediaTile key={item.id} item={item} grid={false} />
+            <MediaTile
+              key={item.id}
+              item={item}
+              grid={false}
+              isPending={pendingIds.has(item.id)}
+              onTogglePublish={() => handleTogglePublish(item.id, item.isPublished)}
+              onToggleFeatured={() => handleToggleFeatured(item.id, item.isFeatured)}
+              onDelete={() => handleDelete(item.id)}
+            />
           ))}
         </div>
       )}
 
       {filtered.length === 0 && (
         <div className="text-center py-16">
-          <p className="text-sm text-muted">No media matches your filters.</p>
+          <ImagePlus className="w-10 h-10 text-muted mx-auto mb-3" />
+          <p className="text-sm text-muted">
+            {initialItems.length === 0
+              ? "No media yet. Upload your first photo!"
+              : "No media matches your filters."}
+          </p>
         </div>
       )}
 
-      <UploadDialog
-        open={uploadOpen}
-        onClose={() => setUploadOpen(false)}
-        onUpload={handleUpload}
-      />
+      <UploadDialog open={uploadOpen} onClose={() => setUploadOpen(false)} />
     </div>
   );
 }

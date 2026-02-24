@@ -35,6 +35,7 @@ export const productTypeEnum = pgEnum("product_type", ["custom_order", "ready_ma
 /** How the product is priced. */
 export const pricingTypeEnum = pgEnum("pricing_type", [
   "fixed_price",
+  "starting_at",
   "price_range",
   "contact_for_quote",
 ]);

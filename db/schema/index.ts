@@ -181,3 +181,6 @@ export { giftCards, giftCardsRelations } from "./gift-cards";
 
 /* Promotions */
 export { promotions, promotionsRelations } from "./promotions";
+
+/* Supplies (service consumables) */
+export { supplies } from "./supplies";

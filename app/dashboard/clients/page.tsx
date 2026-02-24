@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { getClients, getClientLoyalty } from "./actions";
 import { ClientsPage } from "./ClientsPage";
 
 export const metadata: Metadata = {
@@ -7,6 +8,8 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export default function Page() {
-  return <ClientsPage />;
+export default async function Page() {
+  const [initialClients, initialLoyalty] = await Promise.all([getClients(), getClientLoyalty()]);
+
+  return <ClientsPage initialClients={initialClients} initialLoyalty={initialLoyalty} />;
 }

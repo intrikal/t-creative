@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { getInquiries, getProductInquiries } from "./actions";
 import { InquiriesPage } from "./InquiriesPage";
 
 export const metadata: Metadata = {
@@ -7,6 +8,16 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export default function Page() {
-  return <InquiriesPage />;
+export default async function Page() {
+  const [initialInquiries, initialProductInquiries] = await Promise.all([
+    getInquiries(),
+    getProductInquiries(),
+  ]);
+
+  return (
+    <InquiriesPage
+      initialInquiries={initialInquiries}
+      initialProductInquiries={initialProductInquiries}
+    />
+  );
 }

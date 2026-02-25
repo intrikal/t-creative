@@ -6,6 +6,7 @@ import {
   getClientsForSelect,
   getServicesForSelect,
   getStaffForSelect,
+  getAssistantBookings,
 } from "./actions";
 import { AssistantBookingsPage } from "./AssistantBookingsPage";
 import { BookingsPage } from "./BookingsPage";
@@ -21,7 +22,8 @@ export default async function Page() {
   if (!user) redirect("/login");
 
   if (user.profile?.role === "assistant") {
-    return <AssistantBookingsPage />;
+    const { bookings, stats } = await getAssistantBookings();
+    return <AssistantBookingsPage initialBookings={bookings} stats={stats} />;
   }
 
   const [initialBookings, clients, serviceOptions, staffOptions] = await Promise.all([

@@ -28,7 +28,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { eq, desc, ne } from "drizzle-orm";
+import { eq, desc, ne, and, gte, sum } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
 import { bookings, profiles, services } from "@/db/schema";
@@ -257,4 +257,120 @@ export async function getStaffForSelect(): Promise<{ id: string; name: string }[
     id: r.id,
     name: [r.firstName, r.lastName].filter(Boolean).join(" "),
   }));
+}
+
+/* ------------------------------------------------------------------ */
+/*  Assistant-scoped bookings                                          */
+/* ------------------------------------------------------------------ */
+
+export type AssistantBookingRow = {
+  id: number;
+  date: string;
+  dayLabel: string;
+  time: string;
+  service: string;
+  category: string;
+  client: string;
+  clientInitials: string;
+  clientPhone: string | null;
+  status: string;
+  durationMin: number;
+  price: number;
+  notes: string | null;
+};
+
+export type AssistantBookingStats = {
+  upcomingCount: number;
+  completedCount: number;
+  completedRevenue: number;
+};
+
+function formatTime(d: Date): string {
+  return d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+}
+
+function formatDateKey(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function formatDayLabel(d: Date): string {
+  const now = new Date();
+  if (formatDateKey(d) === formatDateKey(now)) return "Today";
+  const tomorrow = new Date(now);
+  tomorrow.setDate(now.getDate() + 1);
+  if (formatDateKey(d) === formatDateKey(tomorrow)) return "Tomorrow";
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+function getInitials(first: string, last: string): string {
+  return [first?.[0], last?.[0]].filter(Boolean).join("").toUpperCase() || "?";
+}
+
+export async function getAssistantBookings(): Promise<{
+  bookings: AssistantBookingRow[];
+  stats: AssistantBookingStats;
+}> {
+  const user = await getUser();
+
+  const clientProfile = alias(profiles, "client");
+
+  const rows = await db
+    .select({
+      id: bookings.id,
+      status: bookings.status,
+      startsAt: bookings.startsAt,
+      durationMinutes: bookings.durationMinutes,
+      totalInCents: bookings.totalInCents,
+      location: bookings.location,
+      clientNotes: bookings.clientNotes,
+      staffNotes: bookings.staffNotes,
+      clientFirstName: clientProfile.firstName,
+      clientLastName: clientProfile.lastName,
+      clientPhone: clientProfile.phone,
+      serviceName: services.name,
+      serviceCategory: services.category,
+    })
+    .from(bookings)
+    .innerJoin(clientProfile, eq(bookings.clientId, clientProfile.id))
+    .innerJoin(services, eq(bookings.serviceId, services.id))
+    .where(eq(bookings.staffId, user.id))
+    .orderBy(desc(bookings.startsAt));
+
+  const mapped: AssistantBookingRow[] = rows.map((r) => {
+    const start = new Date(r.startsAt);
+    const firstName = r.clientFirstName ?? "";
+    const lastName = r.clientLastName ?? "";
+    return {
+      id: r.id,
+      date: formatDateKey(start),
+      dayLabel: formatDayLabel(start),
+      time: formatTime(start),
+      service: r.serviceName,
+      category: r.serviceCategory ?? "lash",
+      client: `${firstName} ${lastName.charAt(0)}.`.trim(),
+      clientInitials: getInitials(firstName, lastName),
+      clientPhone: r.clientPhone,
+      status: r.status,
+      durationMin: r.durationMinutes,
+      price: r.totalInCents / 100,
+      notes: r.staffNotes ?? r.clientNotes ?? null,
+    };
+  });
+
+  const upcomingCount = mapped.filter((b) =>
+    ["confirmed", "pending", "in_progress"].includes(b.status),
+  ).length;
+  const completedBookings = mapped.filter((b) => b.status === "completed");
+
+  return {
+    bookings: mapped,
+    stats: {
+      upcomingCount,
+      completedCount: completedBookings.length,
+      completedRevenue: completedBookings.reduce((s, b) => s + b.price, 0),
+    },
+  };
 }

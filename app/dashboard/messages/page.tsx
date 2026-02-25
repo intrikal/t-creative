@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
+import { getThreads } from "./actions";
 import { AssistantMessagesPage } from "./AssistantMessagesPage";
 import { ClientMessagesPage } from "./ClientMessagesPage";
 import { MessagesPage } from "./MessagesPage";
@@ -13,8 +14,10 @@ export default async function Page() {
   }
 
   if (user.profile?.role === "assistant") {
-    return <AssistantMessagesPage />;
+    const threads = await getThreads();
+    return <AssistantMessagesPage initialThreads={threads} />;
   }
 
-  return <MessagesPage />;
+  const threads = await getThreads();
+  return <MessagesPage initialThreads={threads} />;
 }

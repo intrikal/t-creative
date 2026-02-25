@@ -26,8 +26,10 @@
  * for O(1) lookup — no filtering on the client side.
  */
 
+import { useState } from "react";
 import { LuClock, LuFlame } from "react-icons/lu";
 import { Badge } from "@/components/ui/badge";
+import { BookingRequestDialog } from "../BookingRequestDialog";
 import { formatPrice } from "../helpers";
 import type { Service, ServiceAddOn } from "../types";
 
@@ -50,6 +52,8 @@ export function ServiceCard({
   addOns: ServiceAddOn[];
   isPopular: boolean;
 }) {
+  const [showRequest, setShowRequest] = useState(false);
+
   return (
     <div
       className={`rounded-2xl border border-stone-100 border-l-4 ${meta.border} bg-white p-5 shadow-sm transition-shadow hover:shadow-md`}
@@ -118,25 +122,19 @@ export function ServiceCard({
         </div>
       )}
 
-      {/*
-       * Dual CTA row — Book (primary, flex-1) + Waitlist (secondary, fixed width).
-       * Phase 2: onClick handlers will open the booking/waitlist modal instead of alert().
-       */}
-      <div className="flex gap-2">
-        <button
-          onClick={() => alert("Booking calendar coming soon!")}
-          className="flex-1 rounded-xl bg-stone-900 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-rose-500 active:scale-[0.98]"
-        >
-          Book this service
-        </button>
-        <button
-          onClick={() => alert("Waitlist sign-up coming soon!")}
-          className="rounded-xl border border-stone-200 px-3 py-2.5 text-xs font-medium text-stone-500 transition-colors hover:border-stone-300 hover:bg-stone-50 active:scale-[0.98]"
-          title="Join the waitlist for this service"
-        >
-          Waitlist
-        </button>
-      </div>
+      {/* Book CTA */}
+      <button
+        onClick={() => setShowRequest(true)}
+        className="w-full rounded-xl bg-stone-900 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-rose-500 active:scale-[0.98]"
+      >
+        Book this service
+      </button>
+
+      <BookingRequestDialog
+        service={service}
+        open={showRequest}
+        onClose={() => setShowRequest(false)}
+      />
     </div>
   );
 }

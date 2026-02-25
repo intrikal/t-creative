@@ -5,6 +5,10 @@ import { X } from "lucide-react";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 
+/* ------------------------------------------------------------------ */
+/*  Custom Dialog — used by all dashboard dialog forms                  */
+/* ------------------------------------------------------------------ */
+
 interface DialogProps {
   open: boolean;
   onClose: () => void;
@@ -84,6 +88,10 @@ export function Dialog({ open, onClose, title, description, children, size = "md
     document.body,
   );
 }
+
+/* ------------------------------------------------------------------ */
+/*  Form field helpers                                                  */
+/* ------------------------------------------------------------------ */
 
 /** Reusable form field wrapper */
 export function Field({

@@ -11,7 +11,7 @@ import { BookingDialog, type BookingFormState } from "./components/BookingDialog
 import { BookingRow as BookingRowComponent } from "./components/BookingRow";
 import { CancelDialog } from "./components/CancelDialog";
 import { DeleteDialog } from "./components/DeleteDialog";
-import { WaitlistTab, INITIAL_WAITLIST, type WaitlistEntry } from "./components/WaitlistTab";
+import { WaitlistTab } from "./components/WaitlistTab";
 
 /* ------------------------------------------------------------------ */
 /*  Exported types & helpers (used by child components)                */
@@ -176,7 +176,6 @@ export function BookingsPage({
 }) {
   const router = useRouter();
   const [bookings, setBookings] = useState<Booking[]>(() => initialBookings.map(mapBookingRow));
-  const [waitlist, setWaitlist] = useState<WaitlistEntry[]>(INITIAL_WAITLIST);
   const [pageTab, setPageTab] = useState<PageTab>("Bookings");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("All");
@@ -201,7 +200,8 @@ export function BookingsPage({
     (b) => b.status === "pending" || b.status === "confirmed",
   ).length;
   const revenue = bookings.filter((b) => b.status === "completed").reduce((s, b) => s + b.price, 0);
-  const waitingCount = waitlist.filter((w) => w.status === "waiting").length;
+  const pendingBookings = bookings.filter((b) => b.status === "pending");
+  const waitingCount = pendingBookings.length;
 
   /* ---- Handlers ---- */
 
@@ -284,9 +284,10 @@ export function BookingsPage({
     }
   }
 
-  function removeFromWaitlist(id: number) {
-    setWaitlist((prev) =>
-      prev.map((w) => (w.id === id ? { ...w, status: "removed" as const } : w)),
+  async function removeFromWaitlist(id: number) {
+    await updateBookingStatus(id, "cancelled");
+    setBookings((prev) =>
+      prev.map((b) => (b.id === id ? { ...b, status: "cancelled" as BookingStatus } : b)),
     );
   }
 
@@ -427,7 +428,11 @@ export function BookingsPage({
 
       {/* Waitlist tab */}
       {pageTab === "Waitlist" && (
-        <WaitlistTab waitlist={waitlist} onBook={openAdd} onRemove={removeFromWaitlist} />
+        <WaitlistTab
+          pendingBookings={pendingBookings}
+          onBook={openAdd}
+          onRemove={removeFromWaitlist}
+        />
       )}
 
       <BookingDialog

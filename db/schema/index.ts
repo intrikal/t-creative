@@ -64,8 +64,10 @@ export {
   threads,
   messages,
   quickReplies,
+  threadParticipants,
   threadsRelations,
   messagesRelations,
+  threadParticipantsRelations,
 } from "./messages";
 
 /* Payments (Square-synced) */

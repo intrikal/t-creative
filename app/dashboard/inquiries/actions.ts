@@ -20,7 +20,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { eq, sql, desc } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 import { db } from "@/db";
 import { inquiries, productInquiries, products } from "@/db/schema";
 import { createClient as createSupabaseClient } from "@/utils/supabase/server";
@@ -47,7 +47,7 @@ export type InquiryRow = {
   name: string;
   email: string;
   phone: string | null;
-  interest: "lash" | "jewelry" | "crochet" | "consulting" | null;
+  interest: "lash" | "jewelry" | "crochet" | "consulting" | "3d_printing" | "aesthetics" | null;
   message: string;
   status: "new" | "read" | "replied" | "archived";
   staffReply: string | null;

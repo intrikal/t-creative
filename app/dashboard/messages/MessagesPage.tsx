@@ -1,230 +1,203 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Search,
   Send,
   Paperclip,
-  MoreVertical,
   ArrowLeft,
-  Filter,
+  Star,
+  Archive,
+  CheckCircle2,
+  XCircle,
   MessageSquare,
+  PenSquare,
+  Users,
 } from "lucide-react";
+import { ComposeDialog } from "@/components/messages/ComposeDialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import type { ThreadRow, MessageRow } from "./actions";
+import {
+  getThreads,
+  getThreadMessages,
+  sendMessage,
+  markThreadRead,
+  updateThreadStatus,
+  toggleThreadStar,
+  archiveThread,
+} from "./actions";
 
 /* ------------------------------------------------------------------ */
-/*  Mock data                                                           */
+/*  Helpers                                                            */
 /* ------------------------------------------------------------------ */
 
-type MessageStatus = "new" | "read" | "replied" | "archived";
-type MessageChannel = "website" | "instagram" | "sms" | "email";
-type ServiceCategory = "lash" | "jewelry" | "crochet" | "consulting" | "training" | "events";
-
-interface Message {
-  id: number;
-  sender: "client" | "trini";
-  text: string;
-  time: string;
+function initials(first: string | null, last: string | null) {
+  return `${(first ?? "G").charAt(0)}${(last ?? "").charAt(0)}`.toUpperCase();
 }
 
-interface Conversation {
-  id: number;
-  name: string;
-  initials: string;
-  channel: MessageChannel;
-  interest: ServiceCategory;
-  preview: string;
-  time: string;
-  status: MessageStatus;
-  unread: number;
-  messages: Message[];
+function timeAgo(date: Date) {
+  const now = new Date();
+  const diff = now.getTime() - new Date(date).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "Just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days === 1) return "Yesterday";
+  if (days < 7) return `${days}d ago`;
+  return new Date(date).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-const MOCK_CONVERSATIONS: Conversation[] = [
-  {
-    id: 1,
-    name: "Jordan Lee",
-    initials: "JL",
-    channel: "website",
-    interest: "lash",
-    preview: "Hi! I'm interested in a full set of volume lashes…",
-    time: "1h ago",
-    status: "new",
-    unread: 2,
-    messages: [
-      {
-        id: 1,
-        sender: "client",
-        text: "Hi! I'm interested in a full set of volume lashes for my graduation next month. Do you have availability in late March?",
-        time: "10:12 AM",
-      },
-      { id: 2, sender: "client", text: "Also, do you offer a student discount?", time: "10:14 AM" },
-    ],
-  },
-  {
-    id: 2,
-    name: "Camille Foster",
-    initials: "CF",
-    channel: "instagram",
-    interest: "jewelry",
-    preview: "Do you do matching sets? I'd love permanent jewelry…",
-    time: "3h ago",
-    status: "new",
-    unread: 1,
-    messages: [
-      {
-        id: 1,
-        sender: "client",
-        text: "Do you do matching sets? I'd love permanent jewelry for me and my sister as a birthday gift.",
-        time: "8:45 AM",
-      },
-    ],
-  },
-  {
-    id: 3,
-    name: "Marcus Webb",
-    initials: "MW",
-    channel: "email",
-    interest: "consulting",
-    preview: "I'm launching a beauty brand and need help…",
-    time: "Yesterday",
-    status: "replied",
-    unread: 0,
-    messages: [
-      {
-        id: 1,
-        sender: "client",
-        text: "I'm launching a beauty brand and need help structuring HR processes for a small team of 5.",
-        time: "Yesterday, 2:30 PM",
-      },
-      {
-        id: 2,
-        sender: "trini",
-        text: "Hi Marcus! That sounds like an exciting venture. I'd love to schedule a discovery call. Are you available this week?",
-        time: "Yesterday, 4:00 PM",
-      },
-      {
-        id: 3,
-        sender: "client",
-        text: "Yes! Thursday at 3 PM works great for me.",
-        time: "Yesterday, 4:45 PM",
-      },
-    ],
-  },
-  {
-    id: 4,
-    name: "Aisha Rahman",
-    initials: "AR",
-    channel: "sms",
-    interest: "lash",
-    preview: "Can I reschedule my appointment from Friday to…",
-    time: "Yesterday",
-    status: "read",
-    unread: 0,
-    messages: [
-      {
-        id: 1,
-        sender: "client",
-        text: "Hi Trini! Can I reschedule my appointment from Friday to next Monday instead?",
-        time: "Yesterday, 11:00 AM",
-      },
-    ],
-  },
-  {
-    id: 5,
-    name: "Destiny Cruz",
-    initials: "DC",
-    channel: "instagram",
-    interest: "jewelry",
-    preview: "OMG your work is so beautiful! How much for a…",
-    time: "2 days ago",
-    status: "replied",
-    unread: 0,
-    messages: [
-      {
-        id: 1,
-        sender: "client",
-        text: "OMG your work is so beautiful! How much for a permanent ankle bracelet?",
-        time: "2 days ago, 6:20 PM",
-      },
-      {
-        id: 2,
-        sender: "trini",
-        text: "Thank you so much! 🥰 Permanent ankle bracelets start at $65. DM me to book!",
-        time: "2 days ago, 7:00 PM",
-      },
-    ],
-  },
-  {
-    id: 6,
-    name: "Priya Kapoor",
-    initials: "PK",
-    channel: "website",
-    interest: "training",
-    preview: "I saw your lash training program — when is the…",
-    time: "3 days ago",
-    status: "archived",
-    unread: 0,
-    messages: [
-      {
-        id: 1,
-        sender: "client",
-        text: "I saw your lash training program — when is the next cohort starting?",
-        time: "3 days ago, 9:15 AM",
-      },
-    ],
-  },
-];
-
-/* ------------------------------------------------------------------ */
-/*  Helpers                                                             */
-/* ------------------------------------------------------------------ */
-
-function channelBadge(channel: MessageChannel) {
-  switch (channel) {
-    case "website":
-      return { label: "Web", className: "bg-foreground/8 text-muted border-foreground/12" };
-    case "instagram":
-      return { label: "IG", className: "bg-pink-50 text-pink-700 border-pink-100" };
-    case "sms":
-      return { label: "SMS", className: "bg-blue-50 text-blue-700 border-blue-100" };
-    case "email":
-      return { label: "Email", className: "bg-amber-50 text-amber-700 border-amber-100" };
-  }
+function fmtTime(date: Date) {
+  return new Date(date).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
 }
 
-function statusDot(status: MessageStatus) {
-  switch (status) {
-    case "new":
-      return "bg-blush";
-    case "read":
-      return "bg-foreground/20";
-    case "replied":
-      return "bg-[#4e6b51]";
-    case "archived":
-      return "bg-transparent";
-  }
-}
+const STATUS_CFG: Record<string, { label: string; dot: string }> = {
+  new: { label: "New", dot: "bg-blush" },
+  pending: { label: "Pending", dot: "bg-amber-500" },
+  contacted: { label: "Contacted", dot: "bg-foreground/20" },
+  approved: { label: "Approved", dot: "bg-[#4e6b51]" },
+  rejected: { label: "Rejected", dot: "bg-destructive" },
+  resolved: { label: "Resolved", dot: "bg-foreground/20" },
+};
+
+const TYPE_BADGE: Record<string, { label: string; className: string }> = {
+  request: { label: "Request", className: "bg-blush/12 text-[#96604a] border-blush/20" },
+  inquiry: { label: "Inquiry", className: "bg-amber-50 text-amber-700 border-amber-100" },
+  booking: { label: "Booking", className: "bg-blue-50 text-blue-700 border-blue-100" },
+  confirmation: {
+    label: "Confirmed",
+    className: "bg-[#4e6b51]/10 text-[#4e6b51] border-[#4e6b51]/20",
+  },
+  reminder: { label: "Reminder", className: "bg-purple-50 text-purple-700 border-purple-100" },
+  general: { label: "General", className: "bg-foreground/8 text-muted border-foreground/12" },
+};
 
 /* ------------------------------------------------------------------ */
-/*  Main component                                                      */
+/*  Main component                                                     */
 /* ------------------------------------------------------------------ */
 
-export function MessagesPage() {
-  const [selected, setSelected] = useState<Conversation | null>(null);
-  const [filter, setFilter] = useState<"all" | "new" | "replied" | "archived">("all");
+export function MessagesPage({ initialThreads }: { initialThreads: ThreadRow[] }) {
+  const [threadsList, setThreadsList] = useState(initialThreads);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [msgs, setMsgs] = useState<MessageRow[]>([]);
+  const [loadingMsgs, setLoadingMsgs] = useState(false);
+  const [filter, setFilter] = useState<"all" | "new" | "starred" | "archived">("all");
   const [draft, setDraft] = useState("");
+  const [sending, setSending] = useState(false);
   const [search, setSearch] = useState("");
+  const [composeOpen, setComposeOpen] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const filtered = MOCK_CONVERSATIONS.filter((c) => {
-    if (filter !== "all" && c.status !== filter) return false;
-    if (search && !c.name.toLowerCase().includes(search.toLowerCase())) return false;
+  const selected = threadsList.find((t) => t.id === selectedId) ?? null;
+
+  // Filter threads
+  const filtered = threadsList.filter((t) => {
+    if (filter === "new" && t.status !== "new") return false;
+    if (filter === "starred" && !t.isStarred) return false;
+    if (filter === "archived" && !t.isArchived) return false;
+    if (filter !== "archived" && t.isArchived) return false;
+    if (
+      search &&
+      !`${t.clientFirstName ?? ""} ${t.clientLastName ?? ""}`
+        .toLowerCase()
+        .includes(search.toLowerCase()) &&
+      !t.subject.toLowerCase().includes(search.toLowerCase())
+    )
+      return false;
     return true;
   });
 
-  const totalUnread = MOCK_CONVERSATIONS.reduce((sum, c) => sum + c.unread, 0);
+  const totalUnread = threadsList.reduce((sum, t) => sum + t.unreadCount, 0);
+
+  // Load messages when a thread is selected
+  useEffect(() => {
+    if (!selectedId) return;
+    let cancelled = false;
+    setLoadingMsgs(true);
+    getThreadMessages(selectedId).then((rows) => {
+      if (cancelled) return;
+      setMsgs(rows);
+      setLoadingMsgs(false);
+      markThreadRead(selectedId).then(() => {
+        setThreadsList((prev) =>
+          prev.map((t) => (t.id === selectedId ? { ...t, unreadCount: 0 } : t)),
+        );
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedId]);
+
+  // Scroll to bottom when messages change
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [msgs]);
+
+  async function handleSend() {
+    if (!draft.trim() || !selectedId || sending) return;
+    setSending(true);
+    try {
+      const newMsg = await sendMessage(selectedId, draft.trim());
+      setMsgs((prev) => [...prev, newMsg]);
+      setDraft("");
+      // Update thread preview
+      setThreadsList((prev) =>
+        prev.map((t) =>
+          t.id === selectedId
+            ? {
+                ...t,
+                lastMessageBody: newMsg.body,
+                lastMessageAt: newMsg.createdAt,
+                lastMessageSenderId: newMsg.senderId,
+              }
+            : t,
+        ),
+      );
+    } finally {
+      setSending(false);
+    }
+  }
+
+  async function handleStar() {
+    if (!selectedId) return;
+    await toggleThreadStar(selectedId);
+    setThreadsList((prev) =>
+      prev.map((t) => (t.id === selectedId ? { ...t, isStarred: !t.isStarred } : t)),
+    );
+  }
+
+  async function handleArchive() {
+    if (!selectedId) return;
+    await archiveThread(selectedId);
+    setThreadsList((prev) =>
+      prev.map((t) => (t.id === selectedId ? { ...t, isArchived: true } : t)),
+    );
+    setSelectedId(null);
+  }
+
+  async function handleStatus(status: "approved" | "rejected" | "resolved") {
+    if (!selectedId) return;
+    await updateThreadStatus(selectedId, status);
+    setThreadsList((prev) => prev.map((t) => (t.id === selectedId ? { ...t, status } : t)));
+  }
+
+  function handleCreated(threadId: number) {
+    getThreads().then((rows) => {
+      setThreadsList(rows);
+      setSelectedId(threadId);
+    });
+  }
+
+  function threadDisplayName(t: ThreadRow) {
+    if (t.isGroup) return t.subject;
+    if (t.clientFirstName) return `${t.clientFirstName} ${t.clientLastName ?? ""}`.trim();
+    return t.subject;
+  }
 
   return (
     <div className="flex flex-1 min-h-0 overflow-hidden">
@@ -242,8 +215,12 @@ export function MessagesPage() {
               <h1 className="text-lg font-semibold text-foreground tracking-tight">Messages</h1>
               {totalUnread > 0 && <p className="text-xs text-muted mt-0.5">{totalUnread} unread</p>}
             </div>
-            <button className="p-2 rounded-lg hover:bg-foreground/5 text-muted transition-colors">
-              <Filter className="w-4 h-4" />
+            <button
+              onClick={() => setComposeOpen(true)}
+              className="p-2 rounded-lg hover:bg-foreground/8 text-muted hover:text-foreground transition-colors"
+              title="New message"
+            >
+              <PenSquare className="w-4 h-4" />
             </button>
           </div>
 
@@ -252,7 +229,7 @@ export function MessagesPage() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted" />
             <input
               type="text"
-              placeholder="Search conversations…"
+              placeholder="Search conversations..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full pl-8 pr-3 py-2 text-sm bg-surface border border-border rounded-lg placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-accent/30"
@@ -261,7 +238,7 @@ export function MessagesPage() {
 
           {/* Filter tabs */}
           <div className="flex gap-1 mt-3">
-            {(["all", "new", "replied", "archived"] as const).map((f) => (
+            {(["all", "new", "starred", "archived"] as const).map((f) => (
               <button
                 key={f}
                 onClick={() => setFilter(f)}
@@ -281,28 +258,41 @@ export function MessagesPage() {
         {/* Conversation list */}
         <div className="flex-1 overflow-y-auto divide-y divide-border/50">
           {filtered.length === 0 && (
-            <p className="text-sm text-muted text-center py-10">No conversations found.</p>
+            <div className="text-center py-10">
+              <p className="text-sm text-muted">
+                {filter === "all" && !search
+                  ? "No conversations yet. They'll appear here when clients reach out."
+                  : "No conversations found."}
+              </p>
+            </div>
           )}
-          {filtered.map((conv) => {
-            const ch = channelBadge(conv.channel);
+          {filtered.map((thread) => {
+            const typeBadge = TYPE_BADGE[thread.threadType] ?? TYPE_BADGE.general;
+            const statusCfg = STATUS_CFG[thread.status] ?? STATUS_CFG.new;
             return (
               <button
-                key={conv.id}
-                onClick={() => setSelected(conv)}
+                key={thread.id}
+                onClick={() => setSelectedId(thread.id)}
                 className={cn(
                   "w-full text-left px-4 py-3.5 hover:bg-foreground/3 transition-colors flex gap-3",
-                  selected?.id === conv.id && "bg-foreground/5",
+                  selectedId === thread.id && "bg-foreground/5",
                 )}
               >
                 <div className="relative shrink-0 mt-0.5">
-                  <Avatar size="sm">
-                    <AvatarFallback className="text-[10px] bg-surface text-muted font-semibold">
-                      {conv.initials}
-                    </AvatarFallback>
-                  </Avatar>
-                  {conv.unread > 0 && (
+                  {thread.isGroup ? (
+                    <div className="w-8 h-8 rounded-full bg-accent/10 flex items-center justify-center">
+                      <Users className="w-3.5 h-3.5 text-accent" />
+                    </div>
+                  ) : (
+                    <Avatar size="sm">
+                      <AvatarFallback className="text-[10px] bg-surface text-muted font-semibold">
+                        {initials(thread.clientFirstName, thread.clientLastName)}
+                      </AvatarFallback>
+                    </Avatar>
+                  )}
+                  {thread.unreadCount > 0 && (
                     <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-blush text-white text-[9px] font-bold flex items-center justify-center">
-                      {conv.unread}
+                      {thread.unreadCount}
                     </span>
                   )}
                 </div>
@@ -311,23 +301,35 @@ export function MessagesPage() {
                     <span
                       className={cn(
                         "text-sm font-medium truncate",
-                        conv.unread > 0 ? "text-foreground" : "text-foreground/80",
+                        thread.unreadCount > 0 ? "text-foreground" : "text-foreground/80",
                       )}
                     >
-                      {conv.name}
+                      {threadDisplayName(thread)}
                     </span>
-                    <span className="text-[10px] text-muted shrink-0">{conv.time}</span>
+                    <span className="text-[10px] text-muted shrink-0">
+                      {timeAgo(thread.lastMessageAt)}
+                    </span>
                   </div>
                   <div className="flex items-center gap-1.5 mt-0.5">
-                    <span
-                      className={cn("w-1.5 h-1.5 rounded-full shrink-0", statusDot(conv.status))}
-                    />
+                    <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", statusCfg.dot)} />
                     <Badge
-                      className={cn("border text-[9px] px-1 py-0 leading-4 shrink-0", ch.className)}
+                      className={cn(
+                        "border text-[9px] px-1 py-0 leading-4 shrink-0",
+                        typeBadge.className,
+                      )}
                     >
-                      {ch.label}
+                      {typeBadge.label}
                     </Badge>
-                    <p className="text-xs text-muted truncate">{conv.preview}</p>
+                    {thread.isStarred && (
+                      <Star className="w-3 h-3 text-amber-500 fill-amber-500 shrink-0" />
+                    )}
+                    <p className="text-xs text-muted truncate">
+                      {thread.lastMessageBody
+                        ? thread.lastMessageBody.length > 60
+                          ? thread.lastMessageBody.slice(0, 60) + "..."
+                          : thread.lastMessageBody
+                        : thread.subject}
+                    </p>
                   </div>
                 </div>
               </button>
@@ -343,72 +345,121 @@ export function MessagesPage() {
           <div className="px-5 py-4 border-b border-border flex items-center gap-3">
             <button
               className="lg:hidden p-1.5 rounded-lg hover:bg-foreground/5 text-muted"
-              onClick={() => setSelected(null)}
+              onClick={() => setSelectedId(null)}
             >
               <ArrowLeft className="w-4 h-4" />
             </button>
-            <Avatar size="sm">
-              <AvatarFallback className="text-[10px] bg-surface text-muted font-semibold">
-                {selected.initials}
-              </AvatarFallback>
-            </Avatar>
+            {selected.isGroup ? (
+              <div className="w-8 h-8 rounded-full bg-accent/10 flex items-center justify-center shrink-0">
+                <Users className="w-4 h-4 text-accent" />
+              </div>
+            ) : (
+              <Avatar size="sm">
+                <AvatarFallback className="text-[10px] bg-surface text-muted font-semibold">
+                  {initials(selected.clientFirstName, selected.clientLastName)}
+                </AvatarFallback>
+              </Avatar>
+            )}
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-foreground">{selected.name}</p>
+              <p className="text-sm font-semibold text-foreground">{threadDisplayName(selected)}</p>
               <div className="flex items-center gap-2">
                 <Badge
                   className={cn(
                     "border text-[10px] px-1.5 py-0.5",
-                    channelBadge(selected.channel).className,
+                    (TYPE_BADGE[selected.threadType] ?? TYPE_BADGE.general).className,
                   )}
                 >
-                  {channelBadge(selected.channel).label}
+                  {(TYPE_BADGE[selected.threadType] ?? TYPE_BADGE.general).label}
                 </Badge>
-                <span className="text-xs text-muted capitalize">{selected.interest}</span>
+                <span className="text-xs text-muted capitalize">
+                  {(STATUS_CFG[selected.status] ?? STATUS_CFG.new).label}
+                </span>
               </div>
             </div>
-            <button className="p-2 rounded-lg hover:bg-foreground/5 text-muted">
-              <MoreVertical className="w-4 h-4" />
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={handleStar}
+                className="p-2 rounded-lg hover:bg-foreground/5 text-muted transition-colors"
+                title={selected.isStarred ? "Unstar" : "Star"}
+              >
+                <Star
+                  className={cn("w-4 h-4", selected.isStarred && "text-amber-500 fill-amber-500")}
+                />
+              </button>
+              {selected.threadType === "request" && selected.status !== "approved" && (
+                <button
+                  onClick={() => handleStatus("approved")}
+                  className="p-2 rounded-lg hover:bg-[#4e6b51]/10 text-[#4e6b51] transition-colors"
+                  title="Approve"
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                </button>
+              )}
+              {selected.threadType === "request" && selected.status !== "rejected" && (
+                <button
+                  onClick={() => handleStatus("rejected")}
+                  className="p-2 rounded-lg hover:bg-destructive/10 text-destructive transition-colors"
+                  title="Decline"
+                >
+                  <XCircle className="w-4 h-4" />
+                </button>
+              )}
+              <button
+                onClick={handleArchive}
+                className="p-2 rounded-lg hover:bg-foreground/5 text-muted transition-colors"
+                title="Archive"
+              >
+                <Archive className="w-4 h-4" />
+              </button>
+            </div>
           </div>
 
           {/* Messages */}
           <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
-            {selected.messages.map((msg) => (
-              <div
-                key={msg.id}
-                className={cn(
-                  "flex gap-2.5",
-                  msg.sender === "trini" ? "flex-row-reverse" : "flex-row",
-                )}
-              >
-                {msg.sender === "client" && (
-                  <Avatar size="sm" className="shrink-0 mt-0.5">
-                    <AvatarFallback className="text-[10px] bg-surface text-muted font-semibold">
-                      {selected.initials}
-                    </AvatarFallback>
-                  </Avatar>
-                )}
+            {loadingMsgs && (
+              <p className="text-sm text-muted text-center py-6">Loading messages...</p>
+            )}
+            {!loadingMsgs && msgs.length === 0 && (
+              <p className="text-sm text-muted text-center py-6">
+                No messages yet. Send a message to start the conversation.
+              </p>
+            )}
+            {msgs.map((msg) => {
+              const isStudio = msg.senderRole !== "client";
+              return (
                 <div
-                  className={cn(
-                    "max-w-[72%]",
-                    msg.sender === "trini" ? "items-end" : "items-start",
-                    "flex flex-col gap-1",
-                  )}
+                  key={msg.id}
+                  className={cn("flex gap-2.5", isStudio ? "flex-row-reverse" : "flex-row")}
                 >
+                  {!isStudio && (
+                    <Avatar size="sm" className="shrink-0 mt-0.5">
+                      <AvatarFallback className="text-[10px] bg-surface text-muted font-semibold">
+                        {initials(msg.senderFirstName, msg.senderLastName)}
+                      </AvatarFallback>
+                    </Avatar>
+                  )}
                   <div
                     className={cn(
-                      "px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed",
-                      msg.sender === "trini"
-                        ? "bg-accent text-white rounded-tr-sm"
-                        : "bg-surface text-foreground rounded-tl-sm border border-border",
+                      "max-w-[72%] flex flex-col gap-1",
+                      isStudio ? "items-end" : "items-start",
                     )}
                   >
-                    {msg.text}
+                    <div
+                      className={cn(
+                        "px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap",
+                        isStudio
+                          ? "bg-accent text-white rounded-tr-sm"
+                          : "bg-surface text-foreground rounded-tl-sm border border-border",
+                      )}
+                    >
+                      {msg.body}
+                    </div>
+                    <span className="text-[10px] text-muted px-1">{fmtTime(msg.createdAt)}</span>
                   </div>
-                  <span className="text-[10px] text-muted px-1">{msg.time}</span>
                 </div>
-              </div>
-            ))}
+              );
+            })}
+            <div ref={messagesEndRef} />
           </div>
 
           {/* Compose */}
@@ -420,18 +471,19 @@ export function MessagesPage() {
               <textarea
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
-                placeholder="Type a message…"
+                placeholder="Type a message..."
                 rows={1}
                 className="flex-1 resize-none bg-surface border border-border rounded-xl px-3.5 py-2.5 text-sm placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-accent/30 max-h-32 overflow-y-auto"
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey) {
                     e.preventDefault();
-                    setDraft("");
+                    handleSend();
                   }
                 }}
               />
               <button
-                disabled={!draft.trim()}
+                onClick={handleSend}
+                disabled={!draft.trim() || sending}
                 className="p-2.5 rounded-xl bg-accent text-white hover:bg-accent/90 disabled:opacity-40 transition-colors shrink-0"
               >
                 <Send className="w-4 h-4" />
@@ -453,6 +505,13 @@ export function MessagesPage() {
           </div>
         </div>
       )}
+
+      {/* Compose dialog */}
+      <ComposeDialog
+        open={composeOpen}
+        onClose={() => setComposeOpen(false)}
+        onCreated={handleCreated}
+      />
     </div>
   );
 }

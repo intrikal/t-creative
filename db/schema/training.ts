@@ -357,6 +357,40 @@ export const certificates = pgTable(
 );
 
 /* ------------------------------------------------------------------ */
+/*  Lesson Completions                                                 */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Tracks which lessons an assistant (or any user) has completed.
+ *
+ * Used by the assistant training view to persist per-lesson progress
+ * across sessions. When all lessons in a module are completed,
+ * the module shows as "completed" in the UI.
+ */
+export const lessonCompletions = pgTable(
+  "lesson_completions",
+  {
+    id: serial("id").primaryKey(),
+
+    /** The user who completed the lesson — FK to profiles. */
+    profileId: uuid("profile_id")
+      .notNull()
+      .references(() => profiles.id, { onDelete: "cascade" }),
+
+    /** The lesson that was completed — FK to training_lessons. */
+    lessonId: integer("lesson_id")
+      .notNull()
+      .references(() => trainingLessons.id, { onDelete: "cascade" }),
+
+    completedAt: timestamp("completed_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("lesson_completions_profile_idx").on(t.profileId),
+    index("lesson_completions_lesson_idx").on(t.lessonId),
+  ],
+);
+
+/* ------------------------------------------------------------------ */
 /*  Relations                                                          */
 /* ------------------------------------------------------------------ */
 
@@ -393,11 +427,26 @@ export const trainingModulesRelations = relations(trainingModules, ({ one, many 
   lessons: many(trainingLessons),
 }));
 
-export const trainingLessonsRelations = relations(trainingLessons, ({ one }) => ({
+export const trainingLessonsRelations = relations(trainingLessons, ({ one, many }) => ({
   /** Many-to-one: many lessons belong to one module (training_lessons.module_id → training_modules.id). */
   module: one(trainingModules, {
     fields: [trainingLessons.moduleId],
     references: [trainingModules.id],
+  }),
+  /** One-to-many: one lesson has many completion records. */
+  completions: many(lessonCompletions),
+}));
+
+export const lessonCompletionsRelations = relations(lessonCompletions, ({ one }) => ({
+  /** Many-to-one: completion belongs to a profile. */
+  profile: one(profiles, {
+    fields: [lessonCompletions.profileId],
+    references: [profiles.id],
+  }),
+  /** Many-to-one: completion belongs to a lesson. */
+  lesson: one(trainingLessons, {
+    fields: [lessonCompletions.lessonId],
+    references: [trainingLessons.id],
   }),
 }));
 

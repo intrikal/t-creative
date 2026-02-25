@@ -1,134 +1,32 @@
 "use client";
 
-import { useState } from "react";
-import { CheckCircle2, BookOpen, Lock, ChevronDown, ChevronUp, Award, Play } from "lucide-react";
+import { useState, useTransition } from "react";
+import {
+  CheckCircle2,
+  BookOpen,
+  Lock,
+  ChevronDown,
+  ChevronUp,
+  Award,
+  Play,
+  ExternalLink,
+  GraduationCap,
+  X,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import type { AssistantTrainingData, AssistantModule, AssistantLesson } from "./actions";
+import { toggleLessonCompletion } from "./actions";
 
-type ModuleCategory = "technique" | "client-care" | "business" | "safety";
-type ModuleStatus = "completed" | "in_progress" | "available" | "locked";
+type ModuleCategory = string;
 
-interface Lesson {
-  id: number;
-  title: string;
-  durationMin: number;
-  completed: boolean;
-}
-
-interface TrainingModule {
-  id: number;
-  title: string;
-  category: ModuleCategory;
-  status: ModuleStatus;
-  lessons: Lesson[];
-  dueDate?: string;
-  completedDate?: string;
-  description: string;
-}
-
-const INITIAL_MODULES: TrainingModule[] = [
-  {
-    id: 1,
-    title: "Updated Lash Aftercare Protocol",
-    category: "client-care",
-    status: "available",
-    dueDate: "Feb 24",
-    description:
-      "New glue formulation requires updated aftercare instructions. Review before your next appointment.",
-    lessons: [
-      { id: 1, title: "New glue formula — what changed", durationMin: 8, completed: false },
-      {
-        id: 2,
-        title: "Updated aftercare checklist walkthrough",
-        durationMin: 12,
-        completed: false,
-      },
-      {
-        id: 3,
-        title: "How to explain aftercare to new clients",
-        durationMin: 10,
-        completed: false,
-      },
-    ],
-  },
-  {
-    id: 2,
-    title: "Client Consultation Best Practices",
-    category: "client-care",
-    status: "available",
-    dueDate: "Mar 1",
-    description:
-      "How to conduct a thorough consultation, capture client preferences, and set accurate expectations.",
-    lessons: [
-      { id: 1, title: "Pre-appointment intake form review", durationMin: 10, completed: false },
-      {
-        id: 2,
-        title: "Reading lash health & contraindications",
-        durationMin: 15,
-        completed: false,
-      },
-      { id: 3, title: "Setting expectations for new clients", durationMin: 8, completed: false },
-      { id: 4, title: "Upsell without pressure", durationMin: 6, completed: false },
-    ],
-  },
-  {
-    id: 3,
-    title: "Intro to Volume Lashing",
-    category: "technique",
-    status: "completed",
-    completedDate: "Jan 2025",
-    description:
-      "Foundations of volume lash application — fan making, placement, and curl selection.",
-    lessons: [
-      { id: 1, title: "Fan making — 2D to 5D", durationMin: 20, completed: true },
-      { id: 2, title: "Curl and length mapping", durationMin: 15, completed: true },
-      { id: 3, title: "Placement and bonding technique", durationMin: 18, completed: true },
-      { id: 4, title: "Speed drills", durationMin: 25, completed: true },
-    ],
-  },
-  {
-    id: 4,
-    title: "Permanent Jewelry Safety & Prep",
-    category: "safety",
-    status: "completed",
-    completedDate: "Nov 2024",
-    description: "Proper setup, skin prep, and safety protocol for permanent jewelry welding.",
-    lessons: [
-      { id: 1, title: "Workspace setup and sanitation", durationMin: 10, completed: true },
-      { id: 2, title: "Skin prep and measurements", durationMin: 12, completed: true },
-      { id: 3, title: "Welder safety protocol", durationMin: 8, completed: true },
-    ],
-  },
-  {
-    id: 5,
-    title: "Advanced Volume — Mega Fans",
-    category: "technique",
-    status: "locked",
-    description: "10D–20D mega volume fans. Available after completing 3 months of volume service.",
-    lessons: [
-      { id: 1, title: "Mega fan structure", durationMin: 20, completed: false },
-      { id: 2, title: "Weight and retention considerations", durationMin: 15, completed: false },
-      { id: 3, title: "Client candidacy assessment", durationMin: 10, completed: false },
-    ],
-  },
-  {
-    id: 6,
-    title: "Business & Branding Basics",
-    category: "business",
-    status: "locked",
-    description:
-      "Personal branding for beauty professionals — social media, client retention, and referrals.",
-    lessons: [
-      { id: 1, title: "Building your personal brand", durationMin: 15, completed: false },
-      { id: 2, title: "Instagram for lash techs", durationMin: 12, completed: false },
-      { id: 3, title: "Client referral systems", durationMin: 10, completed: false },
-    ],
-  },
-];
-
-const CATEGORY_CONFIG: Record<ModuleCategory, { label: string; className: string }> = {
+const CATEGORY_CONFIG: Record<string, { label: string; className: string }> = {
   technique: {
+    label: "Technique",
+    className: "bg-[#c4907a]/12 text-[#96604a] border-[#c4907a]/20",
+  },
+  lash: {
     label: "Technique",
     className: "bg-[#c4907a]/12 text-[#96604a] border-[#c4907a]/20",
   },
@@ -136,20 +34,65 @@ const CATEGORY_CONFIG: Record<ModuleCategory, { label: string; className: string
     label: "Client Care",
     className: "bg-[#4e6b51]/12 text-[#4e6b51] border-[#4e6b51]/20",
   },
-  business: { label: "Business", className: "bg-accent/12 text-accent border-accent/20" },
-  safety: { label: "Safety", className: "bg-[#7ba3a3]/12 text-[#4a7a7a] border-[#7ba3a3]/20" },
+  business: {
+    label: "Business",
+    className: "bg-accent/12 text-accent border-accent/20",
+  },
+  consulting: {
+    label: "Business",
+    className: "bg-accent/12 text-accent border-accent/20",
+  },
+  safety: {
+    label: "Safety",
+    className: "bg-[#7ba3a3]/12 text-[#4a7a7a] border-[#7ba3a3]/20",
+  },
+  jewelry: {
+    label: "Jewelry",
+    className: "bg-[#7a5c10]/12 text-[#7a5c10] border-[#7a5c10]/20",
+  },
+  crochet: {
+    label: "Crochet",
+    className: "bg-[#8b6b9e]/12 text-[#6b4d80] border-[#8b6b9e]/20",
+  },
 };
 
-export function AssistantTrainingPage() {
-  const [modules, setModules] = useState<TrainingModule[]>(INITIAL_MODULES);
-  const [expanded, setExpanded] = useState<number | null>(1); // open first module by default
+function getCategoryConfig(cat: string) {
+  return (
+    CATEGORY_CONFIG[cat] ?? {
+      label: cat.charAt(0).toUpperCase() + cat.slice(1),
+      className: "bg-foreground/8 text-foreground border-foreground/20",
+    }
+  );
+}
 
-  const completed = modules.filter((m) => m.status === "completed").length;
-  const available = modules.filter((m) => m.status === "available").length;
+function formatDuration(min: number): string {
+  if (min < 60) return `${min}m`;
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return m > 0 ? `${h}hr ${m}m` : `${h}hr`;
+}
+
+export function AssistantTrainingPage({ data }: { data: AssistantTrainingData }) {
+  const [modules, setModules] = useState<AssistantModule[]>(data.modules);
+  const [expanded, setExpanded] = useState<number | null>(
+    modules.find((m) => m.status === "available" || m.status === "in_progress")?.id ?? null,
+  );
+  const [viewingLesson, setViewingLesson] = useState<AssistantLesson | null>(null);
+  const [isPending, startTransition] = useTransition();
+
+  const { stats } = data;
+
+  const completedModules = modules.filter((m) => m.status === "completed").length;
+  const availableModules = modules.filter(
+    (m) => m.status === "available" || m.status === "in_progress",
+  ).length;
   const totalLessons = modules.flatMap((m) => m.lessons).length;
   const completedLessons = modules.flatMap((m) => m.lessons).filter((l) => l.completed).length;
+  const progressPercent =
+    totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0;
 
-  function toggleLesson(moduleId: number, lessonId: number) {
+  function handleToggleLesson(moduleId: number, lessonId: number) {
+    // Optimistic update
     setModules((prev) =>
       prev.map((mod) => {
         if (mod.id !== moduleId) return mod;
@@ -157,20 +100,51 @@ export function AssistantTrainingPage() {
           l.id === lessonId ? { ...l, completed: !l.completed } : l,
         );
         const allDone = updated.every((l) => l.completed);
+        const anyStarted = updated.some((l) => l.completed);
         return {
           ...mod,
           lessons: updated,
-          status: allDone ? "completed" : mod.status === "completed" ? "available" : mod.status,
-          completedDate: allDone ? "Feb 2026" : undefined,
+          status: allDone
+            ? ("completed" as const)
+            : anyStarted
+              ? ("in_progress" as const)
+              : ("available" as const),
+          completedDate: allDone
+            ? new Date().toLocaleDateString("en-US", { month: "short", year: "numeric" })
+            : undefined,
         };
       }),
     );
+
+    startTransition(async () => {
+      await toggleLessonCompletion(lessonId);
+    });
   }
 
-  function startNextLesson(mod: TrainingModule) {
+  function handleStartLesson(mod: AssistantModule) {
     const nextLesson = mod.lessons.find((l) => !l.completed);
     if (!nextLesson) return;
-    toggleLesson(mod.id, nextLesson.id);
+
+    if (nextLesson.content) {
+      setViewingLesson(nextLesson);
+    } else {
+      handleToggleLesson(mod.id, nextLesson.id);
+    }
+  }
+
+  function handleLessonClick(mod: AssistantModule, lesson: AssistantLesson) {
+    if (mod.status === "locked") return;
+
+    if (lesson.content && !lesson.completed) {
+      setViewingLesson(lesson);
+    } else {
+      handleToggleLesson(mod.id, lesson.id);
+    }
+  }
+
+  function handleFinishReading(moduleId: number, lessonId: number) {
+    handleToggleLesson(moduleId, lessonId);
+    setViewingLesson(null);
   }
 
   return (
@@ -183,10 +157,10 @@ export function AssistantTrainingPage() {
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {[
-          { label: "Modules Completed", value: `${completed}/${modules.length}` },
-          { label: "Pending", value: available },
+          { label: "Modules Completed", value: `${completedModules}/${modules.length}` },
+          { label: "Pending", value: availableModules },
           { label: "Lessons Done", value: `${completedLessons}/${totalLessons}` },
-          { label: "Certificates", value: completed },
+          { label: "Certificates", value: stats.certificates },
         ].map((s) => (
           <Card key={s.label} className="gap-0 py-4">
             <CardContent className="px-4 text-center">
@@ -198,25 +172,36 @@ export function AssistantTrainingPage() {
       </div>
 
       {/* Overall progress bar */}
-      <div className="space-y-1.5">
-        <div className="flex items-center justify-between text-xs">
-          <span className="text-muted font-medium">Overall progress</span>
-          <span className="text-foreground font-semibold">
-            {Math.round((completedLessons / totalLessons) * 100)}%
-          </span>
+      {totalLessons > 0 && (
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-muted font-medium">Overall progress</span>
+            <span className="text-foreground font-semibold">{progressPercent}%</span>
+          </div>
+          <div className="w-full h-2 rounded-full bg-foreground/8">
+            <div
+              className="h-full rounded-full bg-accent transition-all"
+              style={{ width: `${progressPercent}%` }}
+            />
+          </div>
         </div>
-        <div className="w-full h-2 rounded-full bg-foreground/8">
-          <div
-            className="h-full rounded-full bg-accent transition-all"
-            style={{ width: `${(completedLessons / totalLessons) * 100}%` }}
-          />
+      )}
+
+      {/* Empty state */}
+      {modules.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-16">
+          <GraduationCap className="w-10 h-10 text-foreground/15 mb-3" />
+          <p className="text-sm text-muted">No training modules assigned yet.</p>
+          <p className="text-xs text-muted/60 mt-1">
+            Trini will add modules when new training is available.
+          </p>
         </div>
-      </div>
+      )}
 
       {/* Module list */}
       <div className="space-y-3">
         {modules.map((mod) => {
-          const cat = CATEGORY_CONFIG[mod.category];
+          const cat = getCategoryConfig(mod.category);
           const isExpanded = expanded === mod.id;
           const isLocked = mod.status === "locked";
           const isCompleted = mod.status === "completed" && mod.lessons.every((l) => l.completed);
@@ -226,7 +211,7 @@ export function AssistantTrainingPage() {
 
           return (
             <Card key={mod.id} className={cn("gap-0", isLocked && "opacity-60")}>
-              {/* Module header — clickable to expand */}
+              {/* Module header */}
               <button
                 onClick={() => !isLocked && setExpanded(isExpanded ? null : mod.id)}
                 disabled={isLocked}
@@ -304,7 +289,7 @@ export function AssistantTrainingPage() {
                   {mod.lessons.map((lesson, i) => (
                     <button
                       key={lesson.id}
-                      onClick={() => !isCompleted && toggleLesson(mod.id, lesson.id)}
+                      onClick={() => handleLessonClick(mod, lesson)}
                       disabled={isCompleted}
                       className={cn(
                         "w-full flex items-center gap-3 px-5 py-3 text-left transition-colors",
@@ -325,8 +310,11 @@ export function AssistantTrainingPage() {
                       >
                         {lesson.title}
                       </span>
+                      {lesson.content && !lesson.completed && (
+                        <BookOpen className="w-3 h-3 text-accent/60 shrink-0" />
+                      )}
                       <span className="text-[10px] text-muted/60 shrink-0">
-                        {lesson.durationMin}m
+                        {formatDuration(lesson.durationMin)}
                       </span>
                     </button>
                   ))}
@@ -335,8 +323,9 @@ export function AssistantTrainingPage() {
                   {!isCompleted && nextLesson && (
                     <div className="px-5 py-3 border-t border-border/30">
                       <button
-                        onClick={() => startNextLesson(mod)}
-                        className="w-full flex items-center justify-center gap-2 py-2 bg-accent text-white text-xs font-medium rounded-lg hover:bg-accent/90 transition-colors"
+                        onClick={() => handleStartLesson(mod)}
+                        disabled={isPending}
+                        className="w-full flex items-center justify-center gap-2 py-2 bg-accent text-white text-xs font-medium rounded-lg hover:bg-accent/90 transition-colors disabled:opacity-60"
                       >
                         <Play className="w-3 h-3" />
                         {noneStarted
@@ -346,7 +335,7 @@ export function AssistantTrainingPage() {
                     </div>
                   )}
 
-                  {/* All done prompt */}
+                  {/* All done */}
                   {!isCompleted && !nextLesson && (
                     <div className="px-5 py-3 border-t border-border/30 text-center">
                       <p className="text-xs text-[#4e6b51] font-medium flex items-center justify-center gap-1.5">
@@ -360,6 +349,83 @@ export function AssistantTrainingPage() {
             </Card>
           );
         })}
+      </div>
+
+      {/* Lesson content viewer */}
+      {viewingLesson && (
+        <LessonViewer
+          lesson={viewingLesson}
+          moduleId={modules.find((m) => m.lessons.some((l) => l.id === viewingLesson.id))?.id ?? 0}
+          onFinish={handleFinishReading}
+          onClose={() => setViewingLesson(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Lesson content viewer overlay                                      */
+/* ------------------------------------------------------------------ */
+
+function LessonViewer({
+  lesson,
+  moduleId,
+  onFinish,
+  onClose,
+}: {
+  lesson: AssistantLesson;
+  moduleId: number;
+  onFinish: (moduleId: number, lessonId: number) => void;
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+      <div className="bg-background rounded-xl shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border/50">
+          <div className="flex-1 min-w-0">
+            <h3 className="text-sm font-semibold text-foreground truncate">{lesson.title}</h3>
+            <p className="text-[10px] text-muted mt-0.5">
+              {formatDuration(lesson.durationMin)} read
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-lg hover:bg-foreground/5 transition-colors shrink-0 ml-3"
+          >
+            <X className="w-4 h-4 text-muted" />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto px-6 py-5">
+          <div className="prose prose-sm max-w-none text-foreground/90 whitespace-pre-wrap leading-relaxed">
+            {lesson.content}
+          </div>
+          {lesson.resourceUrl && (
+            <a
+              href={lesson.resourceUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 mt-4 text-xs text-accent hover:underline"
+            >
+              <ExternalLink className="w-3 h-3" />
+              View resource
+            </a>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-border/50">
+          <button
+            onClick={() => onFinish(moduleId, lesson.id)}
+            className="w-full flex items-center justify-center gap-2 py-2.5 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent/90 transition-colors"
+          >
+            <CheckCircle2 className="w-4 h-4" />
+            Mark as complete
+          </button>
+        </div>
       </div>
     </div>
   );

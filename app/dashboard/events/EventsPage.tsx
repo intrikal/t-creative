@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import {
   MapPin,
   Users,
@@ -17,126 +17,15 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, Field, Input, Textarea, Select, DialogFooter } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-
-/* ------------------------------------------------------------------ */
-/*  Types                                                               */
-/* ------------------------------------------------------------------ */
-
-type EventType = "bridal" | "popup" | "travel" | "private" | "workshop";
-type EventStatus = "upcoming" | "confirmed" | "completed" | "cancelled" | "draft";
-
-interface EventGuest {
-  name: string;
-  service: string;
-  paid: boolean;
-}
-
-interface StudioEvent {
-  id: number;
-  title: string;
-  type: EventType;
-  status: EventStatus;
-  date: string;
-  time: string;
-  location: string;
-  revenue: number;
-  capacity: number;
-  guests: EventGuest[];
-  notes?: string;
-  deposit?: number;
-}
-
-/* ------------------------------------------------------------------ */
-/*  Initial mock data                                                   */
-/* ------------------------------------------------------------------ */
-
-const INITIAL_EVENTS: StudioEvent[] = [
-  {
-    id: 1,
-    title: "Bridal Party — Nguyen Wedding",
-    type: "bridal",
-    status: "confirmed",
-    date: "Mar 8, 2026",
-    time: "9:00 AM – 2:00 PM",
-    location: "T Creative Studio, San Jose",
-    revenue: 1200,
-    deposit: 300,
-    capacity: 6,
-    notes: "Bride + 5 bridesmaids. Mix of lashes and permanent jewelry. Champagne requested.",
-    guests: [
-      { name: "Lily Nguyen (Bride)", service: "Volume Lashes + Jewelry", paid: true },
-      { name: "Sarah Kim", service: "Classic Lashes", paid: true },
-      { name: "Priya D.", service: "Jewelry Weld", paid: false },
-      { name: "Maya T.", service: "Classic Lashes", paid: false },
-      { name: "Jasmine R.", service: "Volume Lashes", paid: false },
-      { name: "Chloe P.", service: "Jewelry Weld", paid: false },
-    ],
-  },
-  {
-    id: 2,
-    title: "Pop-Up — Westfield Valley Fair",
-    type: "popup",
-    status: "upcoming",
-    date: "Mar 15, 2026",
-    time: "11:00 AM – 6:00 PM",
-    location: "Westfield Valley Fair, Santa Clara",
-    revenue: 0,
-    capacity: 20,
-    notes: "Walk-in permanent jewelry pop-up. Bring full kit + extra chains.",
-    guests: [],
-  },
-  {
-    id: 3,
-    title: "Travel Event — Los Angeles",
-    type: "travel",
-    status: "draft",
-    date: "Apr 5–6, 2026",
-    time: "10:00 AM – 5:00 PM",
-    location: "Brentwood, Los Angeles CA",
-    revenue: 0,
-    capacity: 12,
-    notes: "2-day lash & jewelry event. Flights TBD.",
-    guests: [],
-  },
-  {
-    id: 4,
-    title: "Private Jewelry Party — Davis Residence",
-    type: "private",
-    status: "confirmed",
-    date: "Feb 28, 2026",
-    time: "4:00 PM – 7:00 PM",
-    location: "Private Residence, Willow Glen",
-    revenue: 650,
-    deposit: 200,
-    capacity: 10,
-    notes: "Birthday party for Renee Davis. 8 confirmed guests.",
-    guests: [
-      { name: "Renee Davis (Host)", service: "Jewelry Weld", paid: true },
-      { name: "Tanya B.", service: "Jewelry Weld", paid: true },
-      { name: "Camille F.", service: "Matching Set", paid: false },
-      { name: "Jordan L.", service: "Jewelry Weld", paid: false },
-    ],
-  },
-  {
-    id: 5,
-    title: "Lash Workshop — Intro to Lash Extensions",
-    type: "workshop",
-    status: "completed",
-    date: "Feb 7, 2026",
-    time: "10:00 AM – 3:00 PM",
-    location: "T Creative Studio, San Jose",
-    revenue: 1500,
-    capacity: 5,
-    notes: "5 students completed. All received certificates.",
-    guests: [
-      { name: "Kezia T.", service: "Student", paid: true },
-      { name: "Bianca R.", service: "Student", paid: true },
-      { name: "Mia C.", service: "Student", paid: true },
-      { name: "Diana L.", service: "Student", paid: true },
-      { name: "Faith O.", service: "Student", paid: true },
-    ],
-  },
-];
+import type { EventRow, EventGuestRow, EventType, EventStatus, EventInput } from "./actions";
+import {
+  createEvent,
+  updateEvent,
+  deleteEvent,
+  addGuest,
+  removeGuest,
+  toggleGuestPaid,
+} from "./actions";
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                             */
@@ -153,7 +42,7 @@ const TYPE_CONFIG: Record<
     border: "border-pink-100",
     dot: "bg-pink-400",
   },
-  popup: {
+  pop_up: {
     label: "Pop-Up",
     bg: "bg-[#d4a574]/10",
     text: "text-[#a07040]",
@@ -167,8 +56,8 @@ const TYPE_CONFIG: Record<
     border: "border-blue-100",
     dot: "bg-blue-400",
   },
-  private: {
-    label: "Private",
+  private_party: {
+    label: "Private Party",
     bg: "bg-purple-50",
     text: "text-purple-700",
     border: "border-purple-100",
@@ -180,6 +69,20 @@ const TYPE_CONFIG: Record<
     text: "text-[#4e6b51]",
     border: "border-[#4e6b51]/20",
     dot: "bg-[#4e6b51]",
+  },
+  birthday: {
+    label: "Birthday",
+    bg: "bg-orange-50",
+    text: "text-orange-700",
+    border: "border-orange-100",
+    dot: "bg-orange-400",
+  },
+  corporate: {
+    label: "Corporate",
+    bg: "bg-slate-50",
+    text: "text-slate-700",
+    border: "border-slate-200",
+    dot: "bg-slate-400",
   },
 };
 
@@ -204,6 +107,40 @@ function statusConfig(status: EventStatus) {
   }
 }
 
+function formatDate(iso: string) {
+  return new Date(iso).toLocaleDateString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function formatTime(iso: string) {
+  return new Date(iso).toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function formatDateRange(startsAt: string, endsAt: string | null) {
+  const date = formatDate(startsAt);
+  const startTime = formatTime(startsAt);
+  if (!endsAt) return `${date} · ${startTime}`;
+  const endTime = formatTime(endsAt);
+  return `${date} · ${startTime} – ${endTime}`;
+}
+
+function centsToDisplay(cents: number | null): string {
+  if (cents == null || cents === 0) return "";
+  return `$${(cents / 100).toLocaleString()}`;
+}
+
+function dollarsToCents(dollars: string): number | null {
+  const n = Number(dollars);
+  return isNaN(n) || n === 0 ? null : Math.round(n * 100);
+}
+
 /* ------------------------------------------------------------------ */
 /*  Event form types                                                    */
 /* ------------------------------------------------------------------ */
@@ -214,10 +151,12 @@ type EventForm = {
   status: EventStatus;
   date: string;
   time: string;
+  endTime: string;
   location: string;
   capacity: string;
   revenue: string;
   deposit: string;
+  travelFee: string;
   notes: string;
 };
 
@@ -228,26 +167,59 @@ function emptyEventForm(): EventForm {
     status: "upcoming",
     date: "",
     time: "",
+    endTime: "",
     location: "",
     capacity: "",
     revenue: "0",
     deposit: "",
+    travelFee: "",
     notes: "",
   };
 }
 
-function eventToForm(e: StudioEvent): EventForm {
+function eventToForm(e: EventRow): EventForm {
+  const start = new Date(e.startsAt);
+  const dateStr = start.toISOString().slice(0, 10);
+  const timeStr = start.toTimeString().slice(0, 5);
+  const endTimeStr = e.endsAt ? new Date(e.endsAt).toTimeString().slice(0, 5) : "";
+
   return {
     title: e.title,
-    type: e.type,
+    type: e.eventType,
     status: e.status,
-    date: e.date,
-    time: e.time,
-    location: e.location,
-    capacity: String(e.capacity),
-    revenue: String(e.revenue),
-    deposit: e.deposit != null ? String(e.deposit) : "",
-    notes: e.notes ?? "",
+    date: dateStr,
+    time: timeStr,
+    endTime: endTimeStr,
+    location: e.location ?? "",
+    capacity: e.maxAttendees != null ? String(e.maxAttendees) : "",
+    revenue: e.expectedRevenueInCents != null ? String(e.expectedRevenueInCents / 100) : "0",
+    deposit: e.depositInCents != null ? String(e.depositInCents / 100) : "",
+    travelFee: e.travelFeeInCents != null ? String(e.travelFeeInCents / 100) : "",
+    notes: e.internalNotes ?? "",
+  };
+}
+
+function formToInput(form: EventForm): EventInput {
+  const startsAt =
+    form.date && form.time
+      ? new Date(`${form.date}T${form.time}`).toISOString()
+      : new Date(form.date).toISOString();
+
+  const endsAt =
+    form.date && form.endTime ? new Date(`${form.date}T${form.endTime}`).toISOString() : null;
+
+  return {
+    title: form.title,
+    eventType: form.type,
+    status: form.status,
+    startsAt,
+    endsAt,
+    location: form.location || null,
+    maxAttendees: form.capacity ? Number(form.capacity) : null,
+    expectedRevenueInCents: dollarsToCents(form.revenue),
+    depositInCents: dollarsToCents(form.deposit),
+    travelFeeInCents: dollarsToCents(form.travelFee),
+    internalNotes: form.notes || null,
   };
 }
 
@@ -293,11 +265,11 @@ function EventDialog({
         <div className="grid grid-cols-2 gap-3">
           <Field label="Type" required>
             <Select value={form.type} onChange={set("type")}>
-              <option value="bridal">Bridal Party</option>
-              <option value="popup">Pop-Up</option>
-              <option value="travel">Travel Event</option>
-              <option value="private">Private Party</option>
-              <option value="workshop">Workshop</option>
+              {Object.entries(TYPE_CONFIG).map(([key, cfg]) => (
+                <option key={key} value={key}>
+                  {cfg.label}
+                </option>
+              ))}
             </Select>
           </Field>
           <Field label="Status">
@@ -311,12 +283,15 @@ function EventDialog({
           </Field>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-3 gap-3">
           <Field label="Date" required>
-            <Input value={form.date} onChange={set("date")} placeholder="e.g. Mar 8, 2026" />
+            <Input type="date" value={form.date} onChange={set("date")} />
           </Field>
-          <Field label="Time">
-            <Input value={form.time} onChange={set("time")} placeholder="e.g. 10:00 AM – 2:00 PM" />
+          <Field label="Start time">
+            <Input type="time" value={form.time} onChange={set("time")} />
+          </Field>
+          <Field label="End time">
+            <Input type="time" value={form.endTime} onChange={set("endTime")} />
           </Field>
         </div>
 
@@ -328,7 +303,7 @@ function EventDialog({
           />
         </Field>
 
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <Field label="Capacity">
             <Input
               type="number"
@@ -352,6 +327,15 @@ function EventDialog({
               type="number"
               value={form.deposit}
               onChange={set("deposit")}
+              placeholder="0"
+              min={0}
+            />
+          </Field>
+          <Field label="Travel fee ($)" hint="Optional">
+            <Input
+              type="number"
+              value={form.travelFee}
+              onChange={set("travelFee")}
               placeholder="0"
               min={0}
             />
@@ -392,7 +376,7 @@ function AddGuestDialog({
 }: {
   open: boolean;
   onClose: () => void;
-  onAdd: (guest: EventGuest) => void;
+  onAdd: (guest: { name: string; service: string; paid: boolean }) => void;
 }) {
   const [name, setName] = useState("");
   const [service, setService] = useState("");
@@ -446,18 +430,23 @@ function EventCard({
   onDelete,
   onAddGuest,
   onToggleGuestPaid,
+  onRemoveGuest,
 }: {
-  event: StudioEvent;
+  event: EventRow;
   onEdit: () => void;
   onDelete: () => void;
-  onAddGuest: (guest: EventGuest) => void;
-  onToggleGuestPaid: (i: number) => void;
+  onAddGuest: (guest: { name: string; service: string; paid: boolean }) => void;
+  onToggleGuestPaid: (guestId: number) => void;
+  onRemoveGuest: (guestId: number) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [guestDialogOpen, setGuestDialogOpen] = useState(false);
-  const type = TYPE_CONFIG[event.type];
+  const type = TYPE_CONFIG[event.eventType];
   const status = statusConfig(event.status);
   const paidCount = event.guests.filter((g) => g.paid).length;
+  const revDisplay = centsToDisplay(event.expectedRevenueInCents);
+  const depDisplay = centsToDisplay(event.depositInCents);
+  const travelDisplay = centsToDisplay(event.travelFeeInCents);
 
   return (
     <>
@@ -491,9 +480,8 @@ function EventCard({
                     </span>
                     <span className="text-xs text-muted flex items-center gap-1">
                       <CalendarDays className="w-3 h-3" />
-                      {event.date}
+                      {formatDateRange(event.startsAt, event.endsAt)}
                     </span>
-                    {event.time && <span className="text-xs text-muted">{event.time}</span>}
                   </div>
                 </div>
                 <button
@@ -517,16 +505,21 @@ function EventCard({
                 )}
                 <span className="text-xs text-muted flex items-center gap-1">
                   <Users className="w-3 h-3" />
-                  {event.guests.length}/{event.capacity}
+                  {event.guests.length}
+                  {event.maxAttendees != null && `/${event.maxAttendees}`}
                   {event.guests.length > 0 && ` · ${paidCount} paid`}
                 </span>
-                {event.revenue > 0 && (
+                {revDisplay && (
                   <span className="text-xs font-medium text-[#4e6b51] flex items-center gap-1">
-                    <DollarSign className="w-3 h-3" />${event.revenue.toLocaleString()}
-                    {event.deposit && (
-                      <span className="text-muted font-normal">(${event.deposit} deposit)</span>
+                    <DollarSign className="w-3 h-3" />
+                    {revDisplay}
+                    {depDisplay && (
+                      <span className="text-muted font-normal">({depDisplay} deposit)</span>
                     )}
                   </span>
+                )}
+                {travelDisplay && (
+                  <span className="text-xs text-muted">+ {travelDisplay} travel</span>
                 )}
               </div>
             </div>
@@ -534,12 +527,14 @@ function EventCard({
 
           {expanded && (
             <div className="mt-4 pt-4 border-t border-border/60 space-y-4">
-              {event.notes && (
+              {event.internalNotes && (
                 <div>
                   <p className="text-[10px] font-semibold uppercase tracking-wide text-muted mb-1">
                     Notes
                   </p>
-                  <p className="text-sm text-foreground/80 leading-relaxed">{event.notes}</p>
+                  <p className="text-sm text-foreground/80 leading-relaxed">
+                    {event.internalNotes}
+                  </p>
                 </div>
               )}
 
@@ -547,9 +542,10 @@ function EventCard({
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
-                    Guests ({event.guests.length}/{event.capacity})
+                    Guests ({event.guests.length}
+                    {event.maxAttendees != null && `/${event.maxAttendees}`})
                   </p>
-                  {event.guests.length < event.capacity && (
+                  {(event.maxAttendees == null || event.guests.length < event.maxAttendees) && (
                     <button
                       onClick={() => setGuestDialogOpen(true)}
                       className="flex items-center gap-1 text-xs text-accent hover:opacity-80 transition-opacity"
@@ -560,12 +556,12 @@ function EventCard({
                 </div>
                 {event.guests.length > 0 ? (
                   <div className="space-y-1.5">
-                    {event.guests.map((g, i) => (
-                      <div key={i} className="flex items-center gap-3 text-xs">
+                    {event.guests.map((g) => (
+                      <div key={g.id} className="flex items-center gap-3 text-xs">
                         <span className="flex-1 text-foreground">{g.name}</span>
                         <span className="text-muted">{g.service}</span>
                         <button
-                          onClick={() => onToggleGuestPaid(i)}
+                          onClick={() => onToggleGuestPaid(g.id)}
                           className={cn(
                             "text-[10px] font-medium px-1.5 py-0.5 rounded-full border transition-colors",
                             g.paid
@@ -616,86 +612,131 @@ function EventCard({
 /*  Main export                                                         */
 /* ------------------------------------------------------------------ */
 
-export function EventsPage() {
-  const [events, setEvents] = useState<StudioEvent[]>(INITIAL_EVENTS);
+export function EventsPage({ initialEvents }: { initialEvents: EventRow[] }) {
+  const [events, setEvents] = useState<EventRow[]>(initialEvents);
   const [filter, setFilter] = useState<"all" | EventType>("all");
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingEvent, setEditingEvent] = useState<StudioEvent | null>(null);
+  const [editingEvent, setEditingEvent] = useState<EventRow | null>(null);
+  const [isPending, startTransition] = useTransition();
 
-  const filtered = filter === "all" ? events : events.filter((e) => e.type === filter);
+  const filtered = filter === "all" ? events : events.filter((e) => e.eventType === filter);
   const upcoming = events.filter((e) => e.status === "upcoming" || e.status === "confirmed");
-  const totalRevenue = events.reduce((s, e) => s + e.revenue, 0);
+  const totalRevenue = events.reduce((s, e) => s + (e.expectedRevenueInCents ?? 0), 0);
 
   function openNew() {
     setEditingEvent(null);
     setDialogOpen(true);
   }
-  function openEdit(e: StudioEvent) {
+  function openEdit(e: EventRow) {
     setEditingEvent(e);
     setDialogOpen(true);
   }
 
   function handleSave(form: EventForm) {
+    const input = formToInput(form);
+
     if (editingEvent) {
+      // Optimistic update
       setEvents((prev) =>
         prev.map((e) =>
           e.id === editingEvent.id
             ? {
                 ...e,
-                title: form.title,
-                type: form.type,
-                status: form.status,
-                date: form.date,
-                time: form.time,
-                location: form.location,
-                capacity: Number(form.capacity) || 10,
-                revenue: Number(form.revenue) || 0,
-                deposit: form.deposit ? Number(form.deposit) : undefined,
-                notes: form.notes,
+                title: input.title,
+                eventType: input.eventType,
+                status: input.status,
+                startsAt: input.startsAt,
+                endsAt: input.endsAt ?? null,
+                location: input.location ?? null,
+                maxAttendees: input.maxAttendees ?? null,
+                expectedRevenueInCents: input.expectedRevenueInCents ?? null,
+                depositInCents: input.depositInCents ?? null,
+                travelFeeInCents: input.travelFeeInCents ?? null,
+                internalNotes: input.internalNotes ?? null,
               }
             : e,
         ),
       );
+      startTransition(() => updateEvent(editingEvent.id, input));
     } else {
-      setEvents((prev) => [
-        {
-          id: Date.now(),
-          title: form.title,
-          type: form.type,
-          status: form.status,
-          date: form.date,
-          time: form.time,
-          location: form.location,
-          capacity: Number(form.capacity) || 10,
-          revenue: Number(form.revenue) || 0,
-          deposit: form.deposit ? Number(form.deposit) : undefined,
-          notes: form.notes,
-          guests: [],
-        },
-        ...prev,
-      ]);
+      startTransition(async () => {
+        const newId = await createEvent(input);
+        setEvents((prev) => [
+          {
+            id: newId,
+            title: input.title,
+            eventType: input.eventType,
+            status: input.status,
+            startsAt: input.startsAt,
+            endsAt: input.endsAt ?? null,
+            location: input.location ?? null,
+            address: null,
+            maxAttendees: input.maxAttendees ?? null,
+            expectedRevenueInCents: input.expectedRevenueInCents ?? null,
+            depositInCents: input.depositInCents ?? null,
+            travelFeeInCents: input.travelFeeInCents ?? null,
+            contactName: null,
+            contactEmail: null,
+            contactPhone: null,
+            services: input.services ?? null,
+            internalNotes: input.internalNotes ?? null,
+            description: null,
+            guests: [],
+          },
+          ...prev,
+        ]);
+      });
     }
   }
 
   function handleDelete(id: number) {
     setEvents((prev) => prev.filter((e) => e.id !== id));
+    startTransition(() => deleteEvent(id));
   }
 
-  function handleAddGuest(eventId: number, guest: EventGuest) {
-    setEvents((prev) =>
-      prev.map((e) => (e.id === eventId ? { ...e, guests: [...e.guests, guest] } : e)),
-    );
+  function handleAddGuest(
+    eventId: number,
+    guest: { name: string; service: string; paid: boolean },
+  ) {
+    startTransition(async () => {
+      const guestId = await addGuest(eventId, guest);
+      setEvents((prev) =>
+        prev.map((e) =>
+          e.id === eventId
+            ? {
+                ...e,
+                guests: [
+                  ...e.guests,
+                  {
+                    id: guestId,
+                    name: guest.name,
+                    service: guest.service || null,
+                    paid: guest.paid,
+                  },
+                ],
+              }
+            : e,
+        ),
+      );
+    });
   }
 
-  function handleToggleGuestPaid(eventId: number, guestIdx: number) {
+  function handleToggleGuestPaid(eventId: number, guestId: number) {
     setEvents((prev) =>
       prev.map((e) =>
         e.id === eventId
-          ? { ...e, guests: e.guests.map((g, i) => (i === guestIdx ? { ...g, paid: !g.paid } : g)) }
+          ? {
+              ...e,
+              guests: e.guests.map((g) => (g.id === guestId ? { ...g, paid: !g.paid } : g)),
+            }
           : e,
       ),
     );
+    startTransition(() => toggleGuestPaid(guestId));
   }
+
+  // Collect unique event types from current events for filter pills
+  const activeTypes = [...new Set(events.map((e) => e.eventType))].sort();
 
   return (
     <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto w-full space-y-6">
@@ -703,7 +744,7 @@ export function EventsPage() {
         <div>
           <h1 className="text-xl font-semibold text-foreground tracking-tight">Events</h1>
           <p className="text-sm text-muted mt-0.5">
-            Bridal parties, pop-ups, travel, and workshops
+            Bridal parties, pop-ups, travel, workshops, and more
           </p>
         </div>
         <button
@@ -723,7 +764,11 @@ export function EventsPage() {
             value: events.reduce((s, e) => s + e.guests.length, 0),
             sub: "across all events",
           },
-          { label: "Revenue", value: `$${totalRevenue.toLocaleString()}`, sub: "from events" },
+          {
+            label: "Revenue",
+            value: `$${(totalRevenue / 100).toLocaleString()}`,
+            sub: "from events",
+          },
         ].map((s) => (
           <Card key={s.label} className="gap-0 py-4">
             <CardContent className="px-4">
@@ -738,16 +783,27 @@ export function EventsPage() {
       </div>
 
       <div className="flex gap-1 flex-wrap">
-        {(["all", "bridal", "popup", "travel", "private", "workshop"] as const).map((f) => (
+        <button
+          onClick={() => setFilter("all")}
+          className={cn(
+            "px-3 py-1.5 rounded-lg text-xs font-medium transition-colors",
+            filter === "all"
+              ? "bg-foreground/8 text-foreground"
+              : "text-muted hover:text-foreground",
+          )}
+        >
+          All
+        </button>
+        {activeTypes.map((t) => (
           <button
-            key={f}
-            onClick={() => setFilter(f)}
+            key={t}
+            onClick={() => setFilter(t)}
             className={cn(
-              "px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors",
-              filter === f ? "bg-foreground/8 text-foreground" : "text-muted hover:text-foreground",
+              "px-3 py-1.5 rounded-lg text-xs font-medium transition-colors",
+              filter === t ? "bg-foreground/8 text-foreground" : "text-muted hover:text-foreground",
             )}
           >
-            {f === "all" ? "All" : f === "popup" ? "Pop-Up" : TYPE_CONFIG[f as EventType].label}
+            {TYPE_CONFIG[t].label}
           </button>
         ))}
       </div>
@@ -768,7 +824,8 @@ export function EventsPage() {
               onEdit={() => openEdit(e)}
               onDelete={() => handleDelete(e.id)}
               onAddGuest={(guest) => handleAddGuest(e.id, guest)}
-              onToggleGuestPaid={(i) => handleToggleGuestPaid(e.id, i)}
+              onToggleGuestPaid={(guestId) => handleToggleGuestPaid(e.id, guestId)}
+              onRemoveGuest={(guestId) => removeGuest(guestId)}
             />
           ))}
         </div>

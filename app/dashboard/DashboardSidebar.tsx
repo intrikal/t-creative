@@ -11,6 +11,8 @@ import {
   BarChart2,
   Star,
   CalendarRange,
+  CalendarDays,
+  PartyPopper,
   Image,
   ShoppingBag,
   GraduationCap,
@@ -72,6 +74,7 @@ const ADMIN_NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/dashboard/services", label: "Services", icon: Scissors },
       { href: "/dashboard/marketplace", label: "Marketplace", icon: ShoppingBag },
+      { href: "/dashboard/events", label: "Events", icon: CalendarDays },
       { href: "/dashboard/training", label: "Training", icon: GraduationCap },
       { href: "/dashboard/media", label: "Media", icon: Image },
     ],
@@ -103,6 +106,7 @@ const ASSISTANT_NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/dashboard/clients", label: "My Clients", icon: Users },
       { href: "/dashboard/services", label: "Services", icon: Scissors },
+      { href: "/dashboard/events", label: "Events", icon: CalendarDays },
       { href: "/dashboard/aftercare", label: "Aftercare", icon: HeartHandshake },
     ],
   },
@@ -132,6 +136,7 @@ const CLIENT_NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
       { href: "/dashboard/bookings", label: "My Bookings", icon: CalendarCheck },
+      { href: "/dashboard/events", label: "My Events", icon: PartyPopper },
       { href: "/dashboard/loyalty", label: "Loyalty & Rewards", icon: Gift },
       { href: "/dashboard/invoices", label: "Invoices", icon: Receipt },
       { href: "/dashboard/messages", label: "Messages", icon: MessageSquare },

@@ -47,6 +47,7 @@ import type {
   LoyaltyConfig,
   NotificationPrefs,
   FinancialConfig,
+  SquareConnectionStatus,
 } from "./settings-actions";
 
 /* ------------------------------------------------------------------ */
@@ -80,6 +81,7 @@ export function SettingsPage({
   initialLoyalty,
   initialNotifications,
   initialFinancial,
+  squareStatus,
 }: {
   initialHours: BusinessHourRow[];
   initialTimeOff: TimeOffRow[];
@@ -89,6 +91,7 @@ export function SettingsPage({
   initialLoyalty: LoyaltyConfig;
   initialNotifications: NotificationPrefs;
   initialFinancial: FinancialConfig;
+  squareStatus: SquareConnectionStatus;
 }) {
   const [tab, setTab] = useState<Tab>("business");
 
@@ -106,7 +109,13 @@ export function SettingsPage({
     loyalty: <LoyaltyTab initial={initialLoyalty} />,
     aftercare: <AftercareTab />,
     reminders: <RemindersTab />,
-    integrations: <IntegrationsTab />,
+    integrations: (
+      <IntegrationsTab
+        squareConnected={squareStatus.connected}
+        squareEnvironment={squareStatus.environment}
+        squareLocationId={squareStatus.locationId}
+      />
+    ),
     notifications: <NotificationsTab initial={initialNotifications} />,
   };
 

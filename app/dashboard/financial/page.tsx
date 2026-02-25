@@ -28,6 +28,7 @@ import {
   getExpenseCategoryBreakdown,
 } from "./actions";
 import { FinancialPage } from "./FinancialPage";
+import { getBookingsForPayment } from "./payment-actions";
 
 export default async function Page() {
   // Batch queries to avoid exhausting the Supabase connection pool
@@ -47,12 +48,14 @@ export default async function Page() {
     getTaxEstimate(),
   ]);
 
-  const [productSales, depositStats, tipTrends, expenseCategories] = await Promise.all([
-    getProductSales(),
-    getDepositStats(),
-    getTipTrends(),
-    getExpenseCategoryBreakdown(),
-  ]);
+  const [productSales, depositStats, tipTrends, expenseCategories, bookingsForPayment] =
+    await Promise.all([
+      getProductSales(),
+      getDepositStats(),
+      getTipTrends(),
+      getExpenseCategoryBreakdown(),
+      getBookingsForPayment(),
+    ]);
 
   return (
     <FinancialPage
@@ -70,6 +73,7 @@ export default async function Page() {
       depositStats={depositStats}
       tipTrends={tipTrends}
       expenseCategories={expenseCategories}
+      bookingsForPayment={bookingsForPayment}
     />
   );
 }

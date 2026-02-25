@@ -45,10 +45,11 @@ function paymentStatusConfig(status: string) {
 function methodLabel(method: string | null) {
   const map: Record<string, string> = {
     square_card: "Card",
-    square_cash: "Cash",
+    square_cash: "Cash App",
     square_wallet: "Wallet",
     square_gift_card: "Gift Card",
     square_other: "Other",
+    cash: "Cash",
   };
   return method ? (map[method] ?? method) : "—";
 }
@@ -64,7 +65,13 @@ function categoryMatchesFilter(category: string | null, filter: string) {
   return category ? map[category] === filter : false;
 }
 
-export function TransactionsTab({ payments }: { payments: PaymentRow[] }) {
+export function TransactionsTab({
+  payments,
+  onRefund,
+}: {
+  payments: PaymentRow[];
+  onRefund?: (payment: PaymentRow) => void;
+}) {
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("All");
 
@@ -135,9 +142,10 @@ export function TransactionsTab({ payments }: { payments: PaymentRow[] }) {
                   <th className="text-right text-[10px] font-semibold uppercase tracking-wide text-muted px-3 pb-2.5 whitespace-nowrap">
                     Amount
                   </th>
-                  <th className="text-center text-[10px] font-semibold uppercase tracking-wide text-muted px-4 md:px-5 pb-2.5">
+                  <th className="text-center text-[10px] font-semibold uppercase tracking-wide text-muted px-3 pb-2.5">
                     Status
                   </th>
+                  <th className="text-center text-[10px] font-semibold uppercase tracking-wide text-muted px-4 md:px-5 pb-2.5 w-16"></th>
                 </tr>
               </thead>
               <tbody>
@@ -170,10 +178,22 @@ export function TransactionsTab({ payments }: { payments: PaymentRow[] }) {
                           <p className="text-[10px] text-muted tabular-nums">+${payment.tip} tip</p>
                         )}
                       </td>
-                      <td className="px-4 md:px-5 py-3 text-center align-middle">
+                      <td className="px-3 py-3 text-center align-middle">
                         <Badge className={cn("border text-[10px] px-1.5 py-0.5", status.className)}>
                           {status.label}
                         </Badge>
+                      </td>
+                      <td className="px-4 md:px-5 py-3 text-center align-middle">
+                        {onRefund &&
+                          (payment.status === "paid" ||
+                            payment.status === "partially_refunded") && (
+                            <button
+                              onClick={() => onRefund(payment)}
+                              className="text-[11px] text-muted hover:text-destructive transition-colors font-medium"
+                            >
+                              Refund
+                            </button>
+                          )}
                       </td>
                     </tr>
                   );

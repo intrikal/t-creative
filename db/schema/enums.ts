@@ -61,6 +61,7 @@ export const paymentMethodEnum = pgEnum("payment_method", [
   "square_wallet",
   "square_gift_card",
   "square_other",
+  "cash",
 ]);
 
 /* ------------------------------------------------------------------ */

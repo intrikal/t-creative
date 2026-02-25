@@ -12,6 +12,7 @@ import {
   getLoyaltyConfig,
   getNotificationPrefs,
   getFinancialConfig,
+  getSquareConnectionStatus,
 } from "./settings-actions";
 import { SettingsPage } from "./SettingsPage";
 
@@ -44,6 +45,7 @@ export default async function Page() {
     initialLoyalty,
     initialNotifications,
     initialFinancial,
+    squareStatus,
   ] = await Promise.all([
     getBusinessHours(),
     getTimeOff(),
@@ -53,6 +55,7 @@ export default async function Page() {
     getLoyaltyConfig(),
     getNotificationPrefs(),
     getFinancialConfig(),
+    getSquareConnectionStatus(),
   ]);
 
   return (
@@ -65,6 +68,7 @@ export default async function Page() {
       initialLoyalty={initialLoyalty}
       initialNotifications={initialNotifications}
       initialFinancial={initialFinancial}
+      squareStatus={squareStatus}
     />
   );
 }

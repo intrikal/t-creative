@@ -39,11 +39,15 @@ import { ExpensesTab } from "./components/ExpensesTab";
 import { FinancialModals } from "./components/FinancialModals";
 import { GiftCardsTab } from "./components/GiftCardsTab";
 import { InvoicesTab } from "./components/InvoicesTab";
+import { PaymentLinkDialog } from "./components/PaymentLinkDialog";
 import { ProductSalesSection } from "./components/ProductSalesSection";
 import { ProfitLossSection } from "./components/ProfitLossSection";
 import { PromotionsTab } from "./components/PromotionsTab";
+import { RecordPaymentDialog } from "./components/RecordPaymentDialog";
+import { RefundDialog } from "./components/RefundDialog";
 import { TipTrendsSection } from "./components/TipTrendsSection";
 import { TransactionsTab } from "./components/TransactionsTab";
+import type { BookingForPayment } from "./payment-actions";
 
 /** Color for each category bar in the revenue breakdown chart. */
 const CATEGORY_COLORS: Record<string, string> = {
@@ -77,6 +81,7 @@ export function FinancialPage({
   depositStats,
   tipTrends,
   expenseCategories,
+  bookingsForPayment,
 }: {
   payments: PaymentRow[];
   stats: RevenueStats;
@@ -92,11 +97,15 @@ export function FinancialPage({
   depositStats: DepositStats;
   tipTrends: TipStats;
   expenseCategories: ExpenseCategoryBreakdown[];
+  bookingsForPayment: BookingForPayment[];
 }) {
   const [range, setRange] = useState("7d");
   const [tab, setTab] = useState<FinancialTab>("Transactions");
   const [hoveredBar, setHoveredBar] = useState<number | null>(null);
   const [modal, setModal] = useState<"invoice" | "expense" | "giftcard" | "promo" | null>(null);
+  const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
+  const [paymentLinkBooking, setPaymentLinkBooking] = useState<BookingForPayment | null>(null);
+  const [refundPayment, setRefundPayment] = useState<PaymentRow | null>(null);
 
   const maxBar = Math.max(...weeklyRevenue.map((b) => b.amount), 1);
   const gridLines = [2000, 1500, 1000, 500].filter((g) => g <= maxBar * 1.1);
@@ -110,21 +119,37 @@ export function FinancialPage({
           <h1 className="text-xl font-semibold text-foreground tracking-tight">Financial</h1>
           <p className="text-sm text-muted mt-0.5">Payments, transactions, and earnings</p>
         </div>
-        <div className="flex gap-1">
-          {["7d", "30d", "90d"].map((r) => (
-            <button
-              key={r}
-              onClick={() => setRange(r)}
-              className={cn(
-                "px-3 py-1.5 rounded-lg text-xs font-medium transition-colors",
-                range === r
-                  ? "bg-foreground text-background"
-                  : "bg-surface text-muted hover:bg-foreground/8 hover:text-foreground",
-              )}
-            >
-              {r}
-            </button>
-          ))}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => {
+              if (bookingsForPayment.length > 0) setPaymentLinkBooking(bookingsForPayment[0]);
+            }}
+            className="px-3 py-1.5 rounded-lg text-xs font-medium bg-surface text-foreground border border-border hover:bg-foreground/5 transition-colors"
+          >
+            Send Payment Link
+          </button>
+          <button
+            onClick={() => setPaymentDialogOpen(true)}
+            className="px-3 py-1.5 rounded-lg text-xs font-medium bg-accent text-white hover:bg-accent/90 transition-colors"
+          >
+            Record Payment
+          </button>
+          <div className="flex gap-1">
+            {["7d", "30d", "90d"].map((r) => (
+              <button
+                key={r}
+                onClick={() => setRange(r)}
+                className={cn(
+                  "px-3 py-1.5 rounded-lg text-xs font-medium transition-colors",
+                  range === r
+                    ? "bg-foreground text-background"
+                    : "bg-surface text-muted hover:bg-foreground/8 hover:text-foreground",
+                )}
+              >
+                {r}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -344,7 +369,9 @@ export function FinancialPage({
       </div>
 
       {/* Active tab content */}
-      {tab === "Transactions" && <TransactionsTab payments={payments} />}
+      {tab === "Transactions" && (
+        <TransactionsTab payments={payments} onRefund={setRefundPayment} />
+      )}
       {tab === "Invoices" && (
         <InvoicesTab invoices={invoices} onNewInvoice={() => setModal("invoice")} />
       )}
@@ -360,6 +387,21 @@ export function FinancialPage({
 
       {/* Modals */}
       <FinancialModals modal={modal} onClose={() => setModal(null)} />
+      <RecordPaymentDialog
+        open={paymentDialogOpen}
+        onClose={() => setPaymentDialogOpen(false)}
+        bookings={bookingsForPayment}
+      />
+      <RefundDialog
+        open={!!refundPayment}
+        onClose={() => setRefundPayment(null)}
+        payment={refundPayment}
+      />
+      <PaymentLinkDialog
+        open={!!paymentLinkBooking}
+        onClose={() => setPaymentLinkBooking(null)}
+        booking={paymentLinkBooking}
+      />
     </div>
   );
 }

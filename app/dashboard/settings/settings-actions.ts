@@ -30,9 +30,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { eq, inArray } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { settings } from "@/db/schema";
+import { isSquareConfigured } from "@/lib/square";
 import { createClient } from "@/utils/supabase/server";
 
 /* ------------------------------------------------------------------ */
@@ -253,4 +254,24 @@ export async function saveFinancialConfig(data: FinancialConfig): Promise<void> 
   revalidatePath("/dashboard/settings");
   revalidatePath("/dashboard/analytics");
   revalidatePath("/dashboard/financial");
+}
+
+/* ------------------------------------------------------------------ */
+/*  Square Integration Status                                          */
+/* ------------------------------------------------------------------ */
+
+export interface SquareConnectionStatus {
+  connected: boolean;
+  environment: string;
+  locationId: string;
+}
+
+export async function getSquareConnectionStatus(): Promise<SquareConnectionStatus> {
+  await getUser();
+  const connected = isSquareConfigured();
+  return {
+    connected,
+    environment: process.env.SQUARE_ENVIRONMENT ?? "sandbox",
+    locationId: connected ? `...${(process.env.SQUARE_LOCATION_ID ?? "").slice(-6)}` : "",
+  };
 }

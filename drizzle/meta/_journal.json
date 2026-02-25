@@ -57,6 +57,20 @@
       "when": 1772014485702,
       "tag": "0007_flat_harry_osborn",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1772054695151,
+      "tag": "0008_lucky_imperial_guard",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1772058593766,
+      "tag": "0009_typical_rawhide_kid",
+      "breakpoints": true
     }
   ]
 }

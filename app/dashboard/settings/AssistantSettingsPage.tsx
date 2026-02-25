@@ -1,105 +1,147 @@
 "use client";
 
-import { useState } from "react";
-import { CalendarOff, Check, Clock } from "lucide-react";
+import { useState, useTransition } from "react";
+import { CalendarOff, Check, Clock, Settings2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import type {
+  AssistantSettingsData,
+  DayAvailability,
+  NotificationPrefs,
+  TimeOffRequest,
+} from "./assistant-settings-actions";
+import {
+  saveAssistantProfile,
+  saveAssistantAvailability,
+  saveAssistantNotifications,
+  submitTimeOffRequest,
+} from "./assistant-settings-actions";
 
 type Section = "profile" | "availability" | "notifications" | "timeoff";
 
-const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-
-const DEFAULT_AVAILABILITY: Record<string, { on: boolean; start: string; end: string }> = {
-  Sunday: { on: false, start: "10:00", end: "17:00" },
-  Monday: { on: false, start: "10:00", end: "17:00" },
-  Tuesday: { on: true, start: "10:00", end: "18:00" },
-  Wednesday: { on: true, start: "10:00", end: "18:00" },
-  Thursday: { on: true, start: "10:00", end: "19:00" },
-  Friday: { on: true, start: "10:00", end: "19:00" },
-  Saturday: { on: true, start: "09:00", end: "17:00" },
+// ISO dayOfWeek → label (1=Mon, 7=Sun)
+const DAY_LABELS: Record<number, string> = {
+  1: "Mon",
+  2: "Tue",
+  3: "Wed",
+  4: "Thu",
+  5: "Fri",
+  6: "Sat",
+  7: "Sun",
 };
+
+const DAY_ORDER = [7, 1, 2, 3, 4, 5, 6]; // Display Sun–Sat
 
 type RequestStatus = "pending" | "approved" | "denied";
 
-interface TimeOffRequest {
-  id: number;
-  from: string;
-  to: string;
-  reason: string;
-  status: RequestStatus;
-  submittedOn: string;
-}
-
-const INITIAL_REQUESTS: TimeOffRequest[] = [
-  {
-    id: 1,
-    from: "2026-03-10",
-    to: "2026-03-12",
-    reason: "Family trip",
-    status: "approved",
-    submittedOn: "Feb 14",
-  },
-  {
-    id: 2,
-    from: "2026-04-18",
-    to: "2026-04-18",
-    reason: "Doctor's appointment",
-    status: "pending",
-    submittedOn: "Feb 19",
-  },
-];
-
 const STATUS_CFG: Record<RequestStatus, { label: string; className: string }> = {
   pending: { label: "Pending", className: "bg-[#7a5c10]/10 text-[#7a5c10] border-[#7a5c10]/20" },
-  approved: { label: "Approved", className: "bg-[#4e6b51]/10 text-[#4e6b51] border-[#4e6b51]/20" },
+  approved: {
+    label: "Approved",
+    className: "bg-[#4e6b51]/10 text-[#4e6b51] border-[#4e6b51]/20",
+  },
   denied: {
     label: "Denied",
     className: "bg-destructive/10 text-destructive border-destructive/20",
   },
 };
 
-export function AssistantSettingsPage() {
+export function AssistantSettingsPage({ data }: { data: AssistantSettingsData }) {
   const [section, setSection] = useState<Section>("profile");
-  const [profile, setProfile] = useState({
-    name: "Jasmine Carter",
-    phone: "(404) 555-0210",
-    email: "jasmine.carter@tcreativestudio.com",
-    bio: "Lead lash tech at T Creative Studio. Specializing in classic, hybrid, and volume lashes.",
-    instagram: "@jasminecarterbeauty",
-  });
-  const [availability, setAvailability] = useState(DEFAULT_AVAILABILITY);
-  const [notifications, setNotifications] = useState({
-    newBooking: true,
-    bookingReminder: true,
-    cancellation: true,
-    messageFromTrini: true,
-    trainingDue: true,
-    payoutProcessed: true,
-    weeklyDigest: false,
-  });
+  const [isPending, startTransition] = useTransition();
   const [saved, setSaved] = useState(false);
 
-  // Time off
-  const [requests, setRequests] = useState<TimeOffRequest[]>(INITIAL_REQUESTS);
+  // Profile state
+  const [profile, setProfile] = useState({
+    firstName: data.profile.firstName,
+    lastName: data.profile.lastName,
+    phone: data.profile.phone,
+    email: data.profile.email,
+    bio: data.profile.bio,
+    instagram: data.profile.instagram,
+  });
+
+  // Availability state — build a map keyed by dayOfWeek
+  const buildAvailMap = () => {
+    const map: Record<number, { on: boolean; start: string; end: string }> = {};
+    for (const d of data.availability) {
+      map[d.dayOfWeek] = {
+        on: d.isOpen,
+        start: d.opensAt ?? "10:00",
+        end: d.closesAt ?? "17:00",
+      };
+    }
+    // Ensure all 7 days exist
+    for (const dow of DAY_ORDER) {
+      if (!map[dow]) {
+        map[dow] = { on: false, start: "10:00", end: "17:00" };
+      }
+    }
+    return map;
+  };
+  const [availability, setAvailability] = useState(buildAvailMap);
+
+  // Notifications state
+  const [notifications, setNotifications] = useState<NotificationPrefs>(data.notifications);
+
+  // Time off state
+  const [requests, setRequests] = useState<TimeOffRequest[]>(data.timeOffRequests);
   const [newFrom, setNewFrom] = useState("");
   const [newTo, setNewTo] = useState("");
   const [newReason, setNewReason] = useState("");
   const [submitted, setSubmitted] = useState(false);
 
-  function save() {
+  function showSaved() {
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   }
 
-  function submitTimeOff() {
+  function handleSaveProfile() {
+    showSaved();
+    startTransition(async () => {
+      await saveAssistantProfile({
+        firstName: profile.firstName,
+        lastName: profile.lastName,
+        phone: profile.phone,
+        bio: profile.bio,
+        instagram: profile.instagram,
+      });
+    });
+  }
+
+  function handleSaveAvailability() {
+    showSaved();
+    const days: DayAvailability[] = DAY_ORDER.map((dow) => ({
+      dayOfWeek: dow,
+      isOpen: availability[dow].on,
+      opensAt: availability[dow].on ? availability[dow].start : null,
+      closesAt: availability[dow].on ? availability[dow].end : null,
+    }));
+    startTransition(async () => {
+      await saveAssistantAvailability(days);
+    });
+  }
+
+  function handleSaveNotifications() {
+    showSaved();
+    startTransition(async () => {
+      await saveAssistantNotifications(notifications);
+    });
+  }
+
+  function handleSubmitTimeOff() {
     if (!newFrom) return;
+    const toDate = newTo || newFrom;
+    const reason = newReason.trim() || "No reason provided";
+
+    // Optimistic update
     const req: TimeOffRequest = {
       id: Date.now(),
       from: newFrom,
-      to: newTo || newFrom,
-      reason: newReason.trim() || "No reason provided",
+      to: toDate,
+      reason,
       status: "pending",
-      submittedOn: "Today",
+      submittedOn: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" }),
     };
     setRequests((prev) => [req, ...prev]);
     setNewFrom("");
@@ -107,6 +149,10 @@ export function AssistantSettingsPage() {
     setNewReason("");
     setSubmitted(true);
     setTimeout(() => setSubmitted(false), 3000);
+
+    startTransition(async () => {
+      await submitTimeOffRequest({ from: newFrom, to: toDate, reason });
+    });
   }
 
   function fmtDate(d: string) {
@@ -170,10 +216,18 @@ export function AssistantSettingsPage() {
           <CardContent className="px-5 py-4 space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-foreground">Full name</label>
+                <label className="text-xs font-medium text-foreground">First name</label>
                 <input
-                  value={profile.name}
-                  onChange={(e) => setProfile((p) => ({ ...p, name: e.target.value }))}
+                  value={profile.firstName}
+                  onChange={(e) => setProfile((p) => ({ ...p, firstName: e.target.value }))}
+                  className="w-full px-3 py-2 text-sm bg-surface border border-border rounded-lg text-foreground placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-accent/40 transition"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-foreground">Last name</label>
+                <input
+                  value={profile.lastName}
+                  onChange={(e) => setProfile((p) => ({ ...p, lastName: e.target.value }))}
                   className="w-full px-3 py-2 text-sm bg-surface border border-border rounded-lg text-foreground placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-accent/40 transition"
                 />
               </div>
@@ -189,8 +243,8 @@ export function AssistantSettingsPage() {
                 <label className="text-xs font-medium text-foreground">Email</label>
                 <input
                   value={profile.email}
-                  onChange={(e) => setProfile((p) => ({ ...p, email: e.target.value }))}
-                  className="w-full px-3 py-2 text-sm bg-surface border border-border rounded-lg text-foreground placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-accent/40 transition"
+                  readOnly
+                  className="w-full px-3 py-2 text-sm bg-surface/50 border border-border rounded-lg text-muted cursor-not-allowed"
                 />
               </div>
               <div className="space-y-1.5">
@@ -198,6 +252,7 @@ export function AssistantSettingsPage() {
                 <input
                   value={profile.instagram}
                   onChange={(e) => setProfile((p) => ({ ...p, instagram: e.target.value }))}
+                  placeholder="@handle"
                   className="w-full px-3 py-2 text-sm bg-surface border border-border rounded-lg text-foreground placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-accent/40 transition"
                 />
               </div>
@@ -208,13 +263,15 @@ export function AssistantSettingsPage() {
                 value={profile.bio}
                 onChange={(e) => setProfile((p) => ({ ...p, bio: e.target.value }))}
                 rows={3}
+                placeholder="Tell clients about yourself…"
                 className="w-full px-3 py-2 text-sm bg-surface border border-border rounded-lg text-foreground placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-accent/40 resize-none transition"
               />
             </div>
             <div className="flex justify-end pt-2">
               <button
-                onClick={save}
-                className="px-4 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent/90 transition-colors"
+                onClick={handleSaveProfile}
+                disabled={isPending}
+                className="px-4 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent/90 transition-colors disabled:opacity-60"
               >
                 {saved ? "Saved!" : "Save changes"}
               </button>
@@ -233,20 +290,21 @@ export function AssistantSettingsPage() {
             </p>
           </CardHeader>
           <CardContent className="px-5 py-4 space-y-3">
-            {DAYS.map((day) => {
-              const a = availability[day];
+            {DAY_ORDER.map((dow) => {
+              const a = availability[dow];
+              const label = DAY_LABELS[dow];
               return (
-                <div key={day} className="flex items-center gap-3">
+                <div key={dow} className="flex items-center gap-3">
                   <div className="flex items-center gap-2 w-28 shrink-0">
                     <button
                       onClick={() =>
                         setAvailability((prev) => ({
                           ...prev,
-                          [day]: { ...prev[day], on: !prev[day].on },
+                          [dow]: { ...prev[dow], on: !prev[dow].on },
                         }))
                       }
                       className={cn(
-                        "w-8 h-4.5 rounded-full transition-colors relative shrink-0",
+                        "w-8 rounded-full transition-colors relative shrink-0",
                         a.on ? "bg-accent" : "bg-foreground/15",
                       )}
                       style={{ height: "18px", width: "32px" }}
@@ -261,7 +319,7 @@ export function AssistantSettingsPage() {
                     <span
                       className={cn("text-xs font-medium", a.on ? "text-foreground" : "text-muted")}
                     >
-                      {day.slice(0, 3)}
+                      {label}
                     </span>
                   </div>
                   {a.on ? (
@@ -272,7 +330,7 @@ export function AssistantSettingsPage() {
                         onChange={(e) =>
                           setAvailability((prev) => ({
                             ...prev,
-                            [day]: { ...prev[day], start: e.target.value },
+                            [dow]: { ...prev[dow], start: e.target.value },
                           }))
                         }
                         className="px-2 py-1 text-xs bg-surface border border-border rounded-md text-foreground focus:outline-none focus:ring-1 focus:ring-accent/40 transition"
@@ -284,7 +342,7 @@ export function AssistantSettingsPage() {
                         onChange={(e) =>
                           setAvailability((prev) => ({
                             ...prev,
-                            [day]: { ...prev[day], end: e.target.value },
+                            [dow]: { ...prev[dow], end: e.target.value },
                           }))
                         }
                         className="px-2 py-1 text-xs bg-surface border border-border rounded-md text-foreground focus:outline-none focus:ring-1 focus:ring-accent/40 transition"
@@ -298,8 +356,9 @@ export function AssistantSettingsPage() {
             })}
             <div className="flex justify-end pt-2">
               <button
-                onClick={save}
-                className="px-4 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent/90 transition-colors"
+                onClick={handleSaveAvailability}
+                disabled={isPending}
+                className="px-4 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent/90 transition-colors disabled:opacity-60"
               >
                 {saved ? "Saved!" : "Save availability"}
               </button>
@@ -324,7 +383,7 @@ export function AssistantSettingsPage() {
                 { key: "trainingDue", label: "Training module due soon" },
                 { key: "payoutProcessed", label: "Payout processed" },
                 { key: "weeklyDigest", label: "Weekly earnings digest" },
-              ] as { key: keyof typeof notifications; label: string }[]
+              ] as { key: keyof NotificationPrefs; label: string }[]
             ).map((item) => (
               <div
                 key={item.key}
@@ -352,8 +411,9 @@ export function AssistantSettingsPage() {
             ))}
             <div className="flex justify-end pt-3">
               <button
-                onClick={save}
-                className="px-4 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent/90 transition-colors"
+                onClick={handleSaveNotifications}
+                disabled={isPending}
+                className="px-4 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent/90 transition-colors disabled:opacity-60"
               >
                 {saved ? "Saved!" : "Save preferences"}
               </button>
@@ -418,8 +478,8 @@ export function AssistantSettingsPage() {
                 )}
                 <div className="ml-auto">
                   <button
-                    onClick={submitTimeOff}
-                    disabled={!newFrom}
+                    onClick={handleSubmitTimeOff}
+                    disabled={!newFrom || isPending}
                     className="px-4 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent/90 transition-colors disabled:opacity-40"
                   >
                     Submit request
@@ -436,7 +496,10 @@ export function AssistantSettingsPage() {
             </CardHeader>
             <CardContent className="px-0 py-0">
               {requests.length === 0 ? (
-                <p className="text-sm text-muted text-center py-8">No requests submitted yet.</p>
+                <div className="flex flex-col items-center justify-center py-10">
+                  <Settings2 className="w-8 h-8 text-foreground/15 mb-2" />
+                  <p className="text-sm text-muted">No requests submitted yet.</p>
+                </div>
               ) : (
                 requests.map((r) => {
                   const cfg = STATUS_CFG[r.status];

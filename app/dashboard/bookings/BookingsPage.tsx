@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Search, Plus } from "lucide-react";
+import { PaymentChoiceDialog } from "@/components/booking/PaymentChoiceDialog";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { updateBookingStatus, createBooking, updateBooking, deleteBooking } from "./actions";
@@ -171,6 +172,7 @@ export function BookingsPage({
     category: string;
     durationMinutes: number;
     priceInCents: number;
+    depositInCents: number;
   }[];
   staffOptions: { id: string; name: string }[];
 }) {
@@ -185,6 +187,7 @@ export function BookingsPage({
   const [cancelTarget, setCancelTarget] = useState<Booking | null>(null);
   const [cancelReason, setCancelReason] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<Booking | null>(null);
+  const [paymentTarget, setPaymentTarget] = useState<Booking | null>(null);
 
   const filtered = bookings.filter((b) => {
     const matchSearch =
@@ -219,6 +222,11 @@ export function BookingsPage({
     setMenuOpen(null);
     await updateBookingStatus(booking.id, status);
     setBookings((prev) => prev.map((b) => (b.id === booking.id ? { ...b, status } : b)));
+
+    // Show payment choice dialog when confirming a booking
+    if (status === "confirmed") {
+      setPaymentTarget({ ...booking, status: "confirmed" });
+    }
   }
 
   function openCancelDialog(booking: Booking) {
@@ -418,6 +426,10 @@ export function BookingsPage({
                     onQuickStatus={(status) => handleQuickStatus(booking, status)}
                     onCancel={() => openCancelDialog(booking)}
                     onDelete={() => openDeleteConfirm(booking)}
+                    onPayment={() => {
+                      setPaymentTarget(booking);
+                      setMenuOpen(null);
+                    }}
                   />
                 ))}
               </div>
@@ -458,6 +470,21 @@ export function BookingsPage({
         onConfirm={handleConfirmDelete}
         onClose={() => setDeleteTarget(null)}
       />
+
+      {paymentTarget &&
+        (() => {
+          const svc = serviceOptions.find((s) => s.id === paymentTarget.serviceId);
+          return (
+            <PaymentChoiceDialog
+              open
+              onClose={() => setPaymentTarget(null)}
+              bookingId={paymentTarget.id}
+              serviceName={paymentTarget.service}
+              totalInCents={Math.round(paymentTarget.price * 100)}
+              depositInCents={svc?.depositInCents ?? null}
+            />
+          );
+        })()}
     </div>
   );
 }

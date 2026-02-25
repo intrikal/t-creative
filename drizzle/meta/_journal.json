@@ -71,6 +71,13 @@
       "when": 1772058593766,
       "tag": "0009_typical_rawhide_kid",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1772060413718,
+      "tag": "0010_sweet_ricochet",
+      "breakpoints": true
     }
   ]
 }

@@ -1,6 +1,16 @@
 "use client";
 
-import { Clock, MapPin, Pencil, Trash2, MoreHorizontal, Check, X, CheckCircle } from "lucide-react";
+import {
+  Clock,
+  MapPin,
+  Pencil,
+  Trash2,
+  MoreHorizontal,
+  Check,
+  X,
+  CheckCircle,
+  CreditCard,
+} from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -14,6 +24,7 @@ export function BookingRow({
   onQuickStatus,
   onCancel,
   onDelete,
+  onPayment,
 }: {
   booking: Booking;
   menuOpen: boolean;
@@ -22,6 +33,7 @@ export function BookingRow({
   onQuickStatus: (status: BookingStatus) => void;
   onCancel: () => void;
   onDelete: () => void;
+  onPayment: () => void;
 }) {
   const status = statusConfig(booking.status);
 
@@ -101,6 +113,14 @@ export function BookingRow({
                 className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-foreground hover:bg-foreground/5 transition-colors"
               >
                 <Check className="w-3.5 h-3.5 text-muted" /> Confirm
+              </button>
+            )}
+            {booking.status === "confirmed" && (
+              <button
+                onClick={onPayment}
+                className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-foreground hover:bg-foreground/5 transition-colors"
+              >
+                <CreditCard className="w-3.5 h-3.5 text-muted" /> Payment Link
               </button>
             )}
             {(booking.status === "confirmed" || booking.status === "in_progress") && (

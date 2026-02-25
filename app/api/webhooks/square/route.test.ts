@@ -476,6 +476,7 @@ describe("POST /api/webhooks/square", () => {
     vi.doMock("@/db/schema", () => ({
       payments: {},
       bookings: {},
+      orders: { squareOrderId: "squareOrderId" },
       webhookEvents: {},
       syncLog: {},
     }));

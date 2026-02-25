@@ -130,3 +130,50 @@ export async function createSquarePaymentLink(params: {
 
   return { url: link.url, orderId: link.orderId };
 }
+
+/* ------------------------------------------------------------------ */
+/*  Checkout API — Product Order Payment Links                         */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Creates a Square payment link for a product order with multiple line items.
+ * Unlike `createSquarePaymentLink` (which uses quickPay for single items),
+ * this creates an order-based checkout link with inline line items.
+ *
+ * The `referenceId` is set to the local order ID for webhook matching.
+ */
+export async function createSquareOrderPaymentLink(params: {
+  orderId: number;
+  orderNumber: string;
+  lineItems: Array<{ name: string; quantity: number; amountInCents: number }>;
+}): Promise<{ url: string; orderId: string }> {
+  if (!isSquareConfigured()) throw new Error("Square not configured");
+
+  const response = await squareClient.checkout.paymentLinks.create({
+    idempotencyKey: crypto.randomUUID(),
+    order: {
+      locationId: SQUARE_LOCATION_ID,
+      referenceId: String(params.orderId),
+      lineItems: params.lineItems.map((item) => ({
+        name: item.name,
+        quantity: String(item.quantity),
+        basePriceMoney: {
+          amount: BigInt(item.amountInCents / item.quantity),
+          currency: "USD",
+        },
+      })),
+      metadata: {
+        orderNumber: params.orderNumber,
+        source: "shop",
+      },
+    },
+    paymentNote: `Order ${params.orderNumber}`,
+  });
+
+  const link = response.paymentLink;
+  if (!link?.url || !link?.orderId) {
+    throw new Error("Payment link creation failed — no URL returned");
+  }
+
+  return { url: link.url, orderId: link.orderId };
+}

@@ -4,18 +4,22 @@ import { useState } from "react";
 import { Dialog, Field, Input, Textarea, Select, DialogFooter } from "@/components/ui/dialog";
 import type { ProductForm } from "./helpers";
 
+export type ServiceOption = { id: number; name: string };
+
 export function ProductDialog({
   open,
   onClose,
   initial,
   onSave,
   saving,
+  serviceOptions = [],
 }: {
   open: boolean;
   onClose: () => void;
   initial: ProductForm;
   onSave: (form: ProductForm) => void;
   saving: boolean;
+  serviceOptions?: ServiceOption[];
 }) {
   const [form, setForm] = useState<ProductForm>(initial);
   const set =
@@ -109,6 +113,18 @@ export function ProductDialog({
             <Input value={form.tags} onChange={set("tags")} placeholder="lash, aftercare, kit" />
           </Field>
         </div>
+        {serviceOptions.length > 0 && (
+          <Field label="Link to service" hint="Also bookable as a service appointment">
+            <Select value={form.serviceId} onChange={set("serviceId")}>
+              <option value="">None</option>
+              {serviceOptions.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        )}
         <DialogFooter
           onCancel={onClose}
           onConfirm={() => onSave(form)}

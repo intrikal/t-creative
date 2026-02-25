@@ -1,4 +1,3 @@
-import { createHmac } from "crypto";
 import { test, expect } from "@playwright/test";
 
 /**
@@ -10,12 +9,6 @@ import { test, expect } from "@playwright/test";
  * either succeed against the dev DB or fail gracefully (the route
  * always returns 200 to Square).
  */
-
-function makeSignature(body: string, url: string, key: string): string {
-  const hmac = createHmac("sha256", key);
-  hmac.update(url + body);
-  return hmac.digest("base64");
-}
 
 test.describe("POST /api/webhooks/square", () => {
   const webhookUrl = "/api/webhooks/square";

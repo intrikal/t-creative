@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import {
   ShoppingCart,
   X,
@@ -14,144 +15,23 @@ import {
   CheckCircle2,
   Clock,
   ChevronRight,
+  ExternalLink,
 } from "lucide-react";
+import { placeOrder, type ShopProduct, type ClientOrder } from "@/app/shop/actions";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { useCartStore, cartTotalInCents, cartItemCount } from "@/stores/useCartStore";
 
 /* ------------------------------------------------------------------ */
-/*  Types & data                                                        */
+/*  Category config                                                     */
 /* ------------------------------------------------------------------ */
 
 type ProductCategory = "aftercare" | "jewelry" | "crochet" | "merch";
 
-interface JewelryVariant {
-  id: string;
-  name: string;
-  priceLabel: string;
-  price: number;
-}
-
-interface Product {
-  id: number;
-  name: string;
-  category: ProductCategory;
-  description: string;
-  longDescription: string;
-  priceLabel: string;
-  price: number;
-  inStock: boolean;
-  tags: string[];
-  variants?: JewelryVariant[];
-}
-
-const PRODUCTS: Product[] = [
-  {
-    id: 1,
-    name: "Lash Aftercare Kit",
-    category: "aftercare",
-    description: "Cleanser + spoolie set — everything you need post-appointment.",
-    longDescription:
-      "Our signature aftercare kit includes a 60ml oil-free lash foam cleanser, 5 disposable spoolies, and a printed aftercare card. Designed to extend the life of your extensions and keep your natural lashes healthy. Recommended for all new lash clients.",
-    priceLabel: "$18",
-    price: 18,
-    inStock: true,
-    tags: ["aftercare", "lash", "kit"],
-  },
-  {
-    id: 2,
-    name: "T Creative Lash Cleanser",
-    category: "aftercare",
-    description: "Private label foam cleanser, 60ml. Oil-free formula.",
-    longDescription:
-      "Gentle foaming cleanser formulated specifically for lash extensions. Removes makeup, oil, and debris without weakening the adhesive bond. Fragrance-free, ophthalmologist tested. 60ml bottle — approximately 60 uses.",
-    priceLabel: "$14",
-    price: 14,
-    inStock: true,
-    tags: ["cleanser", "aftercare"],
-  },
-  {
-    id: 3,
-    name: "Custom Permanent Jewelry",
-    category: "jewelry",
-    description: "14k gold-filled chains welded on-site. Price varies by style.",
-    longDescription:
-      "Choose your chain style and length — our artist welds it on-site for a perfect, clasp-free fit. Available as bracelets, anklets, or necklaces. All chains are 14k gold-filled, nickel-free, and waterproof. Booking required for permanent jewelry services.",
-    priceLabel: "From $55",
-    price: 55,
-    inStock: true,
-    tags: ["permanent", "jewelry", "custom"],
-    variants: [
-      { id: "bracelet-box", name: "Bracelet — Box Chain", priceLabel: "$55", price: 55 },
-      { id: "bracelet-rope", name: "Bracelet — Rope Chain", priceLabel: "$60", price: 60 },
-      { id: "anklet-box", name: "Anklet — Box Chain", priceLabel: "$60", price: 60 },
-      { id: "anklet-rope", name: "Anklet — Rope Chain", priceLabel: "$65", price: 65 },
-      { id: "necklace-box", name: "Necklace — Box Chain", priceLabel: "$75", price: 75 },
-      { id: "necklace-rope", name: "Necklace — Rope Chain", priceLabel: "$80", price: 80 },
-    ],
-  },
-  {
-    id: 4,
-    name: "Jewelry Matching Set",
-    category: "jewelry",
-    description: "Coordinating bracelet + anklet combo. Perfect for gifting.",
-    longDescription:
-      "A curated matching set: one bracelet and one anklet in the same chain style, welded on-site. Both pieces are 14k gold-filled. The perfect gift for yourself or someone special — appointment required.",
-    priceLabel: "From $110",
-    price: 110,
-    inStock: true,
-    tags: ["matching", "jewelry", "gift"],
-    variants: [
-      { id: "set-box", name: "Box Chain Set (Bracelet + Anklet)", priceLabel: "$110", price: 110 },
-      {
-        id: "set-rope",
-        name: "Rope Chain Set (Bracelet + Anklet)",
-        priceLabel: "$120",
-        price: 120,
-      },
-    ],
-  },
-  {
-    id: 5,
-    name: "Custom Crochet Set",
-    category: "crochet",
-    description: "Fully custom crochet install. Price depends on style and length.",
-    longDescription:
-      "Book a consultation to discuss your desired style, length, and hair type. We use high-quality crochet hair and our installs are designed to last 4–6 weeks with proper care. Pricing is determined after your consultation call.",
-    priceLabel: "$80–$220",
-    price: 80,
-    inStock: true,
-    tags: ["crochet", "custom", "hair"],
-  },
-  {
-    id: 6,
-    name: "T Creative Tote Bag",
-    category: "merch",
-    description: "Canvas tote with TC logo. Limited run — only 3 left.",
-    longDescription:
-      'Heavy-duty canvas tote in natural with the T Creative logo screen printed in muted black. 15" x 16" with 5" gusset. Great for the studio, the market, or everyday carry. This is a limited run — once they\'re gone, they\'re gone.',
-    priceLabel: "$28",
-    price: 28,
-    inStock: true,
-    tags: ["merch", "tote", "limited"],
-  },
-  {
-    id: 7,
-    name: "Lash Spoolie Set (5pk)",
-    category: "aftercare",
-    description: "Disposable mascara wands for lash maintenance between fills.",
-    longDescription:
-      "A pack of 5 disposable spoolies — the exact style used in the studio. Use one per brushing session to keep your lashes looking fresh. Replace weekly or whenever the bristles look worn.",
-    priceLabel: "$5",
-    price: 5,
-    inStock: false,
-    tags: ["spoolie", "lash", "aftercare"],
-  },
-];
-
 const CAT_CONFIG: Record<
-  ProductCategory,
+  string,
   {
     label: string;
     bg: string;
@@ -195,52 +75,34 @@ const CAT_CONFIG: Record<
   },
 };
 
-type CartItem = { product: Product; qty: number; variantId?: string };
-
-interface PastOrder {
-  id: string;
-  date: string;
-  items: string;
-  total: string;
-  status: "completed" | "pending" | "ready";
+function getCatConfig(category: string) {
+  return (
+    CAT_CONFIG[category] ?? {
+      label: category,
+      bg: "bg-foreground/8",
+      text: "text-foreground",
+      border: "border-foreground/15",
+      iconBg: "bg-foreground/8",
+      icon: Package,
+    }
+  );
 }
 
-const PAST_ORDERS: PastOrder[] = [
-  {
-    id: "ORD-0031",
-    date: "Jan 18, 2026",
-    items: "Lash Aftercare Kit × 1",
-    total: "$18",
-    status: "completed",
-  },
-  {
-    id: "ORD-0024",
-    date: "Dec 2, 2025",
-    items: "T Creative Lash Cleanser × 2",
-    total: "$28",
-    status: "completed",
-  },
-  {
-    id: "ORD-0019",
-    date: "Oct 14, 2025",
-    items: "Lash Spoolie Set × 1 · Lash Cleanser × 1",
-    total: "$19",
-    status: "completed",
-  },
-];
-
-const STATUS_CONFIG = {
-  completed: {
-    label: "Picked up",
+const ORDER_STATUS_CONFIG: Record<
+  string,
+  { label: string; color: string; bg: string; border: string }
+> = {
+  accepted: {
+    label: "Confirmed",
     color: "text-[#4e6b51]",
     bg: "bg-[#4e6b51]/10",
     border: "border-[#4e6b51]/20",
   },
-  pending: {
-    label: "Pending",
-    color: "text-[#a07040]",
-    bg: "bg-[#d4a574]/10",
-    border: "border-[#d4a574]/20",
+  in_progress: {
+    label: "Processing",
+    color: "text-accent",
+    bg: "bg-accent/10",
+    border: "border-accent/20",
   },
   ready: {
     label: "Ready for pickup",
@@ -248,23 +110,57 @@ const STATUS_CONFIG = {
     bg: "bg-accent/10",
     border: "border-accent/20",
   },
+  completed: {
+    label: "Picked up",
+    color: "text-[#4e6b51]",
+    bg: "bg-[#4e6b51]/10",
+    border: "border-[#4e6b51]/20",
+  },
+  cancelled: {
+    label: "Cancelled",
+    color: "text-destructive",
+    bg: "bg-destructive/10",
+    border: "border-destructive/20",
+  },
 };
+
+/* ------------------------------------------------------------------ */
+/*  Helpers                                                             */
+/* ------------------------------------------------------------------ */
+
+function canAddToCart(p: ShopProduct): boolean {
+  return p.pricingType === "fixed_price" && !!p.priceInCents && p.availability !== "out_of_stock";
+}
+
+function priceLabel(p: ShopProduct): string {
+  if (p.pricingType === "fixed_price" && p.priceInCents) {
+    return `$${(p.priceInCents / 100).toFixed(0)}`;
+  }
+  if (p.pricingType === "starting_at" && p.priceMinInCents) {
+    return `From $${(p.priceMinInCents / 100).toFixed(0)}`;
+  }
+  if (p.pricingType === "price_range" && p.priceMinInCents && p.priceMaxInCents) {
+    return `$${(p.priceMinInCents / 100).toFixed(0)}–$${(p.priceMaxInCents / 100).toFixed(0)}`;
+  }
+  return "Contact for quote";
+}
 
 /* ------------------------------------------------------------------ */
 /*  Product image placeholder                                           */
 /* ------------------------------------------------------------------ */
 
-function ProductThumb({ category, inStock }: { category: ProductCategory; inStock: boolean }) {
-  const { iconBg, icon: Icon, text } = CAT_CONFIG[category];
+function ProductThumb({ category, available }: { category: string; available: boolean }) {
+  const cat = getCatConfig(category);
+  const Icon = cat.icon;
   return (
     <div
       className={cn(
         "w-full aspect-[4/3] rounded-xl flex items-center justify-center mb-4",
-        iconBg,
-        !inStock && "opacity-50",
+        cat.iconBg,
+        !available && "opacity-50",
       )}
     >
-      <Icon className={cn("w-10 h-10 opacity-40", text)} />
+      <Icon className={cn("w-10 h-10 opacity-40", cat.text)} />
     </div>
   );
 }
@@ -274,24 +170,24 @@ function ProductThumb({ category, inStock }: { category: ProductCategory; inStoc
 /* ------------------------------------------------------------------ */
 
 function CartDrawer({
-  items,
   onClose,
-  onUpdateQty,
   onCheckout,
+  checkingOut,
 }: {
-  items: CartItem[];
   onClose: () => void;
-  onUpdateQty: (id: number, qty: number, variantId?: string) => void;
-  onCheckout: () => void;
+  onCheckout: (method: "pickup_cash" | "pickup_online") => void;
+  checkingOut: boolean;
 }) {
-  const total = items.reduce((s, i) => s + i.product.price * i.qty, 0);
+  const { items, updateQuantity, removeItem } = useCartStore();
+  const total = cartTotalInCents(items);
+  const count = cartItemCount(items);
 
   return (
     <div className="fixed inset-0 z-50 flex">
       <button className="flex-1 bg-foreground/20 backdrop-blur-sm" onClick={onClose} />
       <div className="w-80 bg-background border-l border-border flex flex-col shadow-2xl">
         <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-          <p className="text-sm font-semibold text-foreground">Cart ({items.length})</p>
+          <p className="text-sm font-semibold text-foreground">Cart ({count})</p>
           <button onClick={onClose} className="text-muted hover:text-foreground transition-colors">
             <X className="w-4 h-4" />
           </button>
@@ -304,42 +200,40 @@ function CartDrawer({
               <p className="text-sm text-muted">Your cart is empty</p>
             </div>
           ) : (
-            items.map(({ product, qty, variantId }) => {
-              const variant = product.variants?.find((v) => v.id === variantId);
-              return (
-                <div
-                  key={`${product.id}-${variantId ?? "default"}`}
-                  className="flex items-start gap-3 py-3 border-b border-border/40 last:border-0"
-                >
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-foreground leading-snug">
-                      {product.name}
-                    </p>
-                    {variant && <p className="text-[11px] text-muted mt-0.5">{variant.name}</p>}
-                    <p className="text-xs text-muted mt-0.5">
-                      {variant ? variant.priceLabel : product.priceLabel}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <button
-                      onClick={() => onUpdateQty(product.id, qty - 1, variantId)}
-                      className="w-6 h-6 rounded-md border border-border flex items-center justify-center text-muted hover:text-foreground hover:bg-foreground/5 transition-colors"
-                    >
-                      <Minus className="w-3 h-3" />
-                    </button>
-                    <span className="text-sm font-medium text-foreground w-5 text-center">
-                      {qty}
-                    </span>
-                    <button
-                      onClick={() => onUpdateQty(product.id, qty + 1, variantId)}
-                      className="w-6 h-6 rounded-md border border-border flex items-center justify-center text-muted hover:text-foreground hover:bg-foreground/5 transition-colors"
-                    >
-                      <Plus className="w-3 h-3" />
-                    </button>
-                  </div>
+            items.map((item) => (
+              <div
+                key={item.productId}
+                className="flex items-start gap-3 py-3 border-b border-border/40 last:border-0"
+              >
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-foreground leading-snug">{item.title}</p>
+                  <p className="text-xs text-muted mt-0.5">
+                    ${(item.priceInCents / 100).toFixed(0)}
+                  </p>
                 </div>
-              );
-            })
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    onClick={() =>
+                      item.quantity <= 1
+                        ? removeItem(item.productId)
+                        : updateQuantity(item.productId, item.quantity - 1)
+                    }
+                    className="w-6 h-6 rounded-md border border-border flex items-center justify-center text-muted hover:text-foreground hover:bg-foreground/5 transition-colors"
+                  >
+                    <Minus className="w-3 h-3" />
+                  </button>
+                  <span className="text-sm font-medium text-foreground w-5 text-center">
+                    {item.quantity}
+                  </span>
+                  <button
+                    onClick={() => updateQuantity(item.productId, item.quantity + 1)}
+                    className="w-6 h-6 rounded-md border border-border flex items-center justify-center text-muted hover:text-foreground hover:bg-foreground/5 transition-colors"
+                  >
+                    <Plus className="w-3 h-3" />
+                  </button>
+                </div>
+              </div>
+            ))
           )}
         </div>
 
@@ -347,17 +241,25 @@ function CartDrawer({
           <div className="px-5 py-4 border-t border-border space-y-3">
             <div className="flex items-center justify-between">
               <p className="text-sm font-medium text-muted">Subtotal</p>
-              <p className="text-base font-bold text-foreground">${total}</p>
+              <p className="text-base font-bold text-foreground">${(total / 100).toFixed(0)}</p>
             </div>
             <p className="text-[11px] text-muted">
               Orders are available for pickup at the studio or can be added to your next
               appointment.
             </p>
             <button
-              onClick={onCheckout}
-              className="w-full py-2.5 rounded-xl bg-accent text-white text-sm font-medium hover:bg-accent/90 transition-colors"
+              onClick={() => onCheckout("pickup_online")}
+              disabled={checkingOut}
+              className="w-full py-2.5 rounded-xl bg-accent text-white text-sm font-medium hover:bg-accent/90 transition-colors disabled:opacity-50"
             >
-              Place Order
+              {checkingOut ? "Placing order…" : "Pay Now"}
+            </button>
+            <button
+              onClick={() => onCheckout("pickup_cash")}
+              disabled={checkingOut}
+              className="w-full py-2 rounded-xl border border-border text-sm font-medium text-foreground hover:bg-foreground/5 transition-colors disabled:opacity-50"
+            >
+              Pick Up & Pay Cash
             </button>
           </div>
         )}
@@ -375,81 +277,55 @@ function ProductModal({
   onClose,
   onAddToCart,
 }: {
-  product: Product;
+  product: ShopProduct;
   onClose: () => void;
-  onAddToCart: (product: Product, variantId?: string) => void;
+  onAddToCart: (product: ShopProduct) => void;
 }) {
-  const cat = CAT_CONFIG[product.category];
-  const [selectedVariant, setSelectedVariant] = useState<string | undefined>(
-    product.variants?.[0]?.id,
-  );
+  const cat = getCatConfig(product.category);
   const [added, setAdded] = useState(false);
-
-  const activeVariant = product.variants?.find((v) => v.id === selectedVariant);
-  const displayPrice = activeVariant ? activeVariant.priceLabel : product.priceLabel;
+  const available = canAddToCart(product);
 
   function handleAdd() {
-    if (!product.inStock) return;
-    onAddToCart(product, selectedVariant);
+    if (!available) return;
+    onAddToCart(product);
     setAdded(true);
     setTimeout(() => setAdded(false), 2000);
   }
 
   return (
-    <Dialog open onClose={onClose} title={product.name} size="md">
+    <Dialog open onClose={onClose} title={product.title} size="md">
       <div className="space-y-5">
-        <ProductThumb category={product.category} inStock={product.inStock} />
+        <ProductThumb category={product.category} available={available} />
 
         <div className="flex items-center justify-between gap-3">
           <Badge className={cn("border text-[10px] px-1.5 py-0.5", cat.bg, cat.text, cat.border)}>
             {cat.label}
           </Badge>
-          {!product.inStock && (
+          {product.availability === "out_of_stock" && (
             <span className="text-xs font-medium text-destructive">Out of stock</span>
           )}
         </div>
 
-        <p className="text-sm text-foreground leading-relaxed">{product.longDescription}</p>
+        {product.description && (
+          <p className="text-sm text-foreground leading-relaxed">{product.description}</p>
+        )}
 
-        <div className="flex flex-wrap gap-1">
-          {product.tags.map((tag) => (
-            <span
-              key={tag}
-              className="text-[10px] bg-surface border border-border text-muted/60 px-1.5 py-0.5 rounded-full"
-            >
-              {tag}
-            </span>
-          ))}
-        </div>
-
-        {/* Jewelry variants */}
-        {product.variants && product.variants.length > 0 && (
-          <div className="space-y-2">
-            <p className="text-xs font-semibold text-foreground">Choose Style</p>
-            <div className="grid grid-cols-1 gap-1.5">
-              {product.variants.map((variant) => (
-                <button
-                  key={variant.id}
-                  onClick={() => setSelectedVariant(variant.id)}
-                  className={cn(
-                    "flex items-center justify-between px-3 py-2.5 rounded-lg border text-left transition-colors",
-                    selectedVariant === variant.id
-                      ? "border-accent bg-accent/5 text-foreground"
-                      : "border-border text-muted hover:text-foreground hover:border-foreground/20",
-                  )}
-                >
-                  <span className="text-xs font-medium">{variant.name}</span>
-                  <span className="text-xs font-bold text-foreground">{variant.priceLabel}</span>
-                </button>
-              ))}
-            </div>
+        {product.tags.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {product.tags.map((tag) => (
+              <span
+                key={tag}
+                className="text-[10px] bg-surface border border-border text-muted/60 px-1.5 py-0.5 rounded-full"
+              >
+                {tag}
+              </span>
+            ))}
           </div>
         )}
 
-        {/* Footer */}
         <div className="flex items-center justify-between gap-3 pt-3 border-t border-border">
-          <p className="text-xl font-bold text-foreground">{displayPrice}</p>
-          {product.inStock ? (
+          <p className="text-xl font-bold text-foreground">{priceLabel(product)}</p>
+          {available ? (
             <button
               onClick={handleAdd}
               className={cn(
@@ -467,8 +343,12 @@ function ProductModal({
                 </>
               )}
             </button>
-          ) : (
+          ) : product.availability === "out_of_stock" ? (
             <span className="text-sm font-medium text-muted">Currently unavailable</span>
+          ) : (
+            <a href="/contact" className="text-sm font-medium text-accent hover:underline">
+              Inquire
+            </a>
           )}
         </div>
       </div>
@@ -480,44 +360,66 @@ function ProductModal({
 /*  Main export                                                         */
 /* ------------------------------------------------------------------ */
 
-export function ClientShopPage() {
+export function ClientShopPage({
+  products,
+  orders,
+}: {
+  products: ShopProduct[];
+  orders: ClientOrder[];
+}) {
+  const router = useRouter();
   const [tab, setTab] = useState<"products" | "orders">("products");
-  const [categoryFilter, setCategoryFilter] = useState<"all" | ProductCategory>("all");
-  const [cart, setCart] = useState<CartItem[]>([]);
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [cartOpen, setCartOpen] = useState(false);
-  const [ordered, setOrdered] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<ShopProduct | null>(null);
+  const [orderResult, setOrderResult] = useState<{
+    orderNumber: string;
+    paymentUrl?: string;
+  } | null>(null);
+  const [isPending, startTransition] = useTransition();
 
+  const { items, addItem, clearCart } = useCartStore();
+  const cartCount = cartItemCount(items);
+
+  const categories = ["all", ...new Set(products.map((p) => p.category))];
   const filtered =
-    categoryFilter === "all" ? PRODUCTS : PRODUCTS.filter((p) => p.category === categoryFilter);
-  const cartCount = cart.reduce((s, i) => s + i.qty, 0);
+    categoryFilter === "all" ? products : products.filter((p) => p.category === categoryFilter);
 
-  function addToCart(product: Product, variantId?: string) {
-    setCart((prev) => {
-      const key = `${product.id}-${variantId ?? "default"}`;
-      const existing = prev.find((i) => i.product.id === product.id && i.variantId === variantId);
-      if (existing)
-        return prev.map((i) =>
-          i.product.id === product.id && i.variantId === variantId ? { ...i, qty: i.qty + 1 } : i,
-        );
-      return [...prev, { product, qty: 1, variantId }];
+  function handleAddToCart(product: ShopProduct) {
+    addItem({
+      productId: product.id,
+      title: product.title,
+      priceInCents: product.priceInCents!,
+      imageUrl: product.imageUrl,
     });
   }
 
-  function updateQty(id: number, qty: number, variantId?: string) {
-    if (qty <= 0)
-      setCart((prev) => prev.filter((i) => !(i.product.id === id && i.variantId === variantId)));
-    else
-      setCart((prev) =>
-        prev.map((i) => (i.product.id === id && i.variantId === variantId ? { ...i, qty } : i)),
-      );
-  }
+  function handleCheckout(method: "pickup_cash" | "pickup_online") {
+    startTransition(async () => {
+      const result = await placeOrder({
+        items: items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+        fulfillmentMethod: method,
+      });
 
-  function handleCheckout() {
-    setCart([]);
-    setCartOpen(false);
-    setOrdered(true);
-    setTimeout(() => setOrdered(false), 5000);
+      if (result.success) {
+        clearCart();
+        setCartOpen(false);
+
+        if (result.paymentUrl) {
+          // Redirect to Square checkout
+          window.open(result.paymentUrl, "_blank");
+          setOrderResult({
+            orderNumber: result.orderNumber!,
+            paymentUrl: result.paymentUrl,
+          });
+        } else {
+          setOrderResult({ orderNumber: result.orderNumber! });
+        }
+
+        router.refresh();
+        setTimeout(() => setOrderResult(null), 10000);
+      }
+    });
   }
 
   return (
@@ -543,13 +445,27 @@ export function ClientShopPage() {
       </div>
 
       {/* Order confirmed banner */}
-      {ordered && (
+      {orderResult && (
         <div className="bg-[#4e6b51]/10 border border-[#4e6b51]/20 rounded-xl px-4 py-3 flex items-center gap-3">
           <Package className="w-4 h-4 text-[#4e6b51] shrink-0" />
-          <p className="text-xs text-foreground">
-            <span className="font-semibold">Order placed!</span> T Creative Studio will confirm your
-            order within 24 hours. Pickup available at the studio.
-          </p>
+          <div className="flex-1">
+            <p className="text-xs text-foreground">
+              <span className="font-semibold">Order placed!</span>{" "}
+              {orderResult.paymentUrl
+                ? "Complete your payment to confirm the order."
+                : "T Creative Studio will have your order ready for pickup."}
+            </p>
+            {orderResult.paymentUrl && (
+              <a
+                href={orderResult.paymentUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-xs text-accent hover:underline mt-1"
+              >
+                Complete payment <ExternalLink className="w-3 h-3" />
+              </a>
+            )}
+          </div>
         </div>
       )}
 
@@ -571,12 +487,12 @@ export function ClientShopPage() {
         ))}
       </div>
 
-      {/* ── Products tab ── */}
+      {/* Products tab */}
       {tab === "products" && (
         <>
           {/* Category filter */}
           <div className="flex gap-1 flex-wrap">
-            {(["all", "aftercare", "jewelry", "crochet", "merch"] as const).map((f) => (
+            {categories.map((f) => (
               <button
                 key={f}
                 onClick={() => setCategoryFilter(f)}
@@ -587,108 +503,111 @@ export function ClientShopPage() {
                     : "text-muted hover:text-foreground",
                 )}
               >
-                {f === "all" ? "All Products" : CAT_CONFIG[f].label}
+                {f === "all" ? "All Products" : getCatConfig(f).label}
               </button>
             ))}
           </div>
 
           {/* Product grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-            {filtered.map((product) => {
-              const cat = CAT_CONFIG[product.category];
-              const inCart = cart.find((i) => i.product.id === product.id);
-              return (
-                <Card
-                  key={product.id}
-                  className={cn(
-                    "gap-0 flex flex-col h-full cursor-pointer group",
-                    !product.inStock && "opacity-60",
-                  )}
-                  onClick={() => setSelectedProduct(product)}
-                >
-                  <CardContent className="px-4 pt-4 pb-4 flex flex-col h-full">
-                    <ProductThumb category={product.category} inStock={product.inStock} />
-                    <div className="flex items-start justify-between gap-2 mb-1.5">
-                      <h3 className="text-sm font-semibold text-foreground leading-snug group-hover:text-accent transition-colors">
-                        {product.name}
-                      </h3>
-                      <Badge
-                        className={cn(
-                          "border text-[10px] px-1.5 py-0.5 shrink-0",
-                          cat.bg,
-                          cat.text,
-                          cat.border,
-                        )}
-                      >
-                        {cat.label}
-                      </Badge>
-                    </div>
-                    <p className="text-xs text-muted leading-relaxed flex-1">
-                      {product.description}
-                    </p>
-                    {product.variants && (
-                      <p className="text-[10px] text-muted/60 mt-1">
-                        {product.variants.length} styles available
-                      </p>
+          {filtered.length === 0 ? (
+            <div className="py-16 text-center border border-dashed border-border rounded-2xl">
+              <Package className="w-8 h-8 text-muted/40 mx-auto mb-2" />
+              <p className="text-sm text-muted">No products available</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+              {filtered.map((product) => {
+                const cat = getCatConfig(product.category);
+                const available = canAddToCart(product);
+                const inCart = items.some((i) => i.productId === product.id);
+                return (
+                  <Card
+                    key={product.id}
+                    className={cn(
+                      "gap-0 flex flex-col h-full cursor-pointer group",
+                      !available && "opacity-60",
                     )}
-                    <div className="flex items-center justify-between gap-3 mt-4 pt-3 border-t border-border/50">
-                      <span className="text-base font-bold text-foreground">
-                        {product.priceLabel}
-                      </span>
-                      {!product.inStock ? (
-                        <span className="text-xs text-destructive font-medium">Out of stock</span>
-                      ) : (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (product.variants) {
-                              setSelectedProduct(product);
-                            } else {
-                              addToCart(product);
-                            }
-                          }}
+                    onClick={() => setSelectedProduct(product)}
+                  >
+                    <CardContent className="px-4 pt-4 pb-4 flex flex-col h-full">
+                      <ProductThumb category={product.category} available={available} />
+                      <div className="flex items-start justify-between gap-2 mb-1.5">
+                        <h3 className="text-sm font-semibold text-foreground leading-snug group-hover:text-accent transition-colors">
+                          {product.title}
+                        </h3>
+                        <Badge
                           className={cn(
-                            "flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-colors",
-                            inCart && !product.variants
-                              ? "bg-[#4e6b51] text-white"
-                              : "bg-accent text-white hover:bg-accent/90",
+                            "border text-[10px] px-1.5 py-0.5 shrink-0",
+                            cat.bg,
+                            cat.text,
+                            cat.border,
                           )}
                         >
-                          {inCart && !product.variants ? (
-                            <>
-                              <CheckCircle2 className="w-3 h-3" /> In cart
-                            </>
-                          ) : product.variants ? (
-                            <>
-                              Choose style <ChevronRight className="w-3 h-3" />
-                            </>
-                          ) : (
-                            <>
-                              <ShoppingCart className="w-3 h-3" /> Add
-                            </>
-                          )}
-                        </button>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
+                          {cat.label}
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-muted leading-relaxed flex-1">
+                        {product.description}
+                      </p>
+                      <div className="flex items-center justify-between gap-3 mt-4 pt-3 border-t border-border/50">
+                        <span className="text-base font-bold text-foreground">
+                          {priceLabel(product)}
+                        </span>
+                        {product.availability === "out_of_stock" ? (
+                          <span className="text-xs text-destructive font-medium">Out of stock</span>
+                        ) : available ? (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleAddToCart(product);
+                            }}
+                            className={cn(
+                              "flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-colors",
+                              inCart
+                                ? "bg-[#4e6b51] text-white"
+                                : "bg-accent text-white hover:bg-accent/90",
+                            )}
+                          >
+                            {inCart ? (
+                              <>
+                                <CheckCircle2 className="w-3 h-3" /> In cart
+                              </>
+                            ) : (
+                              <>
+                                <ShoppingCart className="w-3 h-3" /> Add
+                              </>
+                            )}
+                          </button>
+                        ) : (
+                          <a
+                            href="/contact"
+                            onClick={(e) => e.stopPropagation()}
+                            className="text-xs font-medium text-accent hover:underline"
+                          >
+                            Inquire <ChevronRight className="w-3 h-3 inline" />
+                          </a>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
         </>
       )}
 
-      {/* ── Orders tab ── */}
+      {/* Orders tab */}
       {tab === "orders" && (
         <div className="space-y-3">
-          {PAST_ORDERS.length === 0 ? (
+          {orders.length === 0 ? (
             <div className="py-16 text-center border border-dashed border-border rounded-2xl">
               <Package className="w-8 h-8 text-muted/40 mx-auto mb-2" />
               <p className="text-sm text-muted">No orders yet</p>
             </div>
           ) : (
-            PAST_ORDERS.map((order) => {
-              const s = STATUS_CONFIG[order.status];
+            orders.map((order) => {
+              const s = ORDER_STATUS_CONFIG[order.status] ?? ORDER_STATUS_CONFIG.accepted;
               return (
                 <Card key={order.id} className="gap-0">
                   <CardContent className="px-5 py-4 flex items-center gap-4">
@@ -706,7 +625,7 @@ export function ClientShopPage() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <p className="text-sm font-semibold text-foreground">{order.id}</p>
+                        <p className="text-sm font-semibold text-foreground">{order.orderNumber}</p>
                         <span
                           className={cn(
                             "text-[10px] font-medium border px-1.5 py-0.5 rounded-full",
@@ -718,10 +637,17 @@ export function ClientShopPage() {
                           {s.label}
                         </span>
                       </div>
-                      <p className="text-xs text-muted mt-0.5">{order.items}</p>
-                      <p className="text-[11px] text-muted/60 mt-0.5">{order.date}</p>
+                      <p className="text-xs text-muted mt-0.5">
+                        {order.title}
+                        {order.quantity > 1 ? ` × ${order.quantity}` : ""}
+                      </p>
+                      <p className="text-[11px] text-muted/60 mt-0.5">{order.createdAt}</p>
                     </div>
-                    <p className="text-sm font-bold text-foreground shrink-0">{order.total}</p>
+                    <p className="text-sm font-bold text-foreground shrink-0">
+                      {order.finalInCents != null
+                        ? `$${(order.finalInCents / 100).toFixed(0)}`
+                        : "—"}
+                    </p>
                   </CardContent>
                 </Card>
               );
@@ -733,10 +659,9 @@ export function ClientShopPage() {
       {/* Cart drawer */}
       {cartOpen && (
         <CartDrawer
-          items={cart}
           onClose={() => setCartOpen(false)}
-          onUpdateQty={updateQty}
           onCheckout={handleCheckout}
+          checkingOut={isPending}
         />
       )}
 
@@ -745,8 +670,8 @@ export function ClientShopPage() {
         <ProductModal
           product={selectedProduct}
           onClose={() => setSelectedProduct(null)}
-          onAddToCart={(p, v) => {
-            addToCart(p, v);
+          onAddToCart={(p) => {
+            handleAddToCart(p);
             setSelectedProduct(null);
             setCartOpen(true);
           }}

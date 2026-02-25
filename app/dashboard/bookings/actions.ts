@@ -244,6 +244,7 @@ export async function getServicesForSelect(): Promise<
     category: string;
     durationMinutes: number;
     priceInCents: number;
+    depositInCents: number;
   }[]
 > {
   await getUser();
@@ -254,6 +255,7 @@ export async function getServicesForSelect(): Promise<
       category: services.category,
       durationMinutes: services.durationMinutes,
       priceInCents: services.priceInCents,
+      depositInCents: services.depositInCents,
     })
     .from(services)
     .where(eq(services.isActive, true))
@@ -265,6 +267,7 @@ export async function getServicesForSelect(): Promise<
     category: r.category,
     durationMinutes: r.durationMinutes ?? 60,
     priceInCents: r.priceInCents ?? 0,
+    depositInCents: r.depositInCents ?? 0,
   }));
 }
 

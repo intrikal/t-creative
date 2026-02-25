@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useTransition } from "react";
 import {
   CalendarDays,
   Clock,
@@ -10,10 +10,14 @@ import {
   ChevronRight,
   Star,
   X,
+  MapPin,
+  Plus,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import type { ClientBookingRow, ClientBookingsData } from "./actions";
+import { submitClientReview, cancelClientBooking } from "./actions";
 
 /* ------------------------------------------------------------------ */
 /*  Date helpers                                                        */
@@ -36,10 +40,13 @@ const MONTH_NAMES = [
 
 const DAY_NAMES = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 const DAY_NAMES_FULL = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const TODAY_ISO = "2026-02-21";
 
 function fmtISO(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function todayISO(): string {
+  return fmtISO(new Date());
 }
 
 function addDays(d: Date, n: number): Date {
@@ -69,109 +76,11 @@ function fmtDateLabel(ds: string): string {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Types & data                                                        */
-/* ------------------------------------------------------------------ */
-
-type BookingStatus = "confirmed" | "pending" | "completed" | "cancelled";
-
-interface Booking {
-  id: number;
-  dateISO: string;
-  date: string;
-  time: string;
-  service: string;
-  category: "lash" | "jewelry" | "crochet";
-  assistant: string;
-  durationMin: number;
-  price: number;
-  status: BookingStatus;
-  notes?: string;
-  reviewLeft?: boolean;
-}
-
-const BOOKINGS: Booking[] = [
-  {
-    id: 1,
-    dateISO: "2026-02-28",
-    date: "Sat, Feb 28, 2026",
-    time: "10:00 AM",
-    service: "Classic Lash Fill",
-    category: "lash",
-    assistant: "Jasmine",
-    durationMin: 90,
-    price: 75,
-    status: "confirmed",
-  },
-  {
-    id: 2,
-    dateISO: "2026-02-01",
-    date: "Sat, Feb 1, 2026",
-    time: "11:00 AM",
-    service: "Classic Lash Fill",
-    category: "lash",
-    assistant: "Jasmine",
-    durationMin: 90,
-    price: 75,
-    status: "completed",
-    reviewLeft: true,
-  },
-  {
-    id: 3,
-    dateISO: "2026-01-18",
-    date: "Sat, Jan 18, 2026",
-    time: "12:00 PM",
-    service: "Volume Lashes — Full Set",
-    category: "lash",
-    assistant: "Jasmine",
-    durationMin: 120,
-    price: 140,
-    status: "completed",
-    reviewLeft: false,
-  },
-  {
-    id: 4,
-    dateISO: "2026-01-04",
-    date: "Sat, Jan 4, 2026",
-    time: "10:00 AM",
-    service: "Classic Lash Fill",
-    category: "lash",
-    assistant: "Jasmine",
-    durationMin: 90,
-    price: 75,
-    status: "completed",
-    reviewLeft: true,
-  },
-  {
-    id: 5,
-    dateISO: "2025-12-21",
-    date: "Sat, Dec 21, 2025",
-    time: "11:30 AM",
-    service: "Classic Lash Fill",
-    category: "lash",
-    assistant: "Jasmine",
-    durationMin: 90,
-    price: 75,
-    status: "completed",
-    reviewLeft: true,
-  },
-  {
-    id: 6,
-    dateISO: "2025-12-07",
-    date: "Sat, Dec 7, 2025",
-    time: "10:00 AM",
-    service: "Permanent Jewelry — Chain Bracelet",
-    category: "jewelry",
-    assistant: "Jasmine",
-    durationMin: 30,
-    price: 65,
-    status: "completed",
-    reviewLeft: false,
-  },
-];
-
-/* ------------------------------------------------------------------ */
 /*  Status / category helpers                                           */
 /* ------------------------------------------------------------------ */
+
+type BookingStatus = ClientBookingRow["status"];
+type BookingCategory = ClientBookingRow["category"];
 
 function statusConfig(status: BookingStatus) {
   switch (status) {
@@ -192,16 +101,18 @@ function statusConfig(status: BookingStatus) {
   }
 }
 
-const CAT_DOT: Record<Booking["category"], string> = {
+const CAT_DOT: Record<BookingCategory, string> = {
   lash: "bg-[#c4907a]",
   jewelry: "bg-[#d4a574]",
   crochet: "bg-[#7ba3a3]",
+  consulting: "bg-[#8b7bb5]",
 };
 
-const CAT_COLOR: Record<Booking["category"], string> = {
+const CAT_COLOR: Record<BookingCategory, string> = {
   lash: "#c4907a",
   jewelry: "#d4a574",
   crochet: "#7ba3a3",
+  consulting: "#8b7bb5",
 };
 
 /* ------------------------------------------------------------------ */
@@ -209,12 +120,13 @@ const CAT_COLOR: Record<Booking["category"], string> = {
 /* ------------------------------------------------------------------ */
 
 interface ReviewModalProps {
-  booking: Booking;
+  booking: ClientBookingRow;
   onClose: () => void;
   onSubmit: (id: number, rating: number, text: string) => void;
+  isPending: boolean;
 }
 
-function ReviewModal({ booking, onClose, onSubmit }: ReviewModalProps) {
+function ReviewModal({ booking, onClose, onSubmit, isPending }: ReviewModalProps) {
   const [rating, setRating] = useState(5);
   const [text, setText] = useState("");
 
@@ -268,13 +180,63 @@ function ReviewModal({ booking, onClose, onSubmit }: ReviewModalProps) {
             Cancel
           </button>
           <button
-            onClick={() => {
-              onSubmit(booking.id, rating, text);
-              onClose();
-            }}
-            className="flex-1 py-2 rounded-lg bg-accent text-white text-sm font-medium hover:bg-accent/90 transition-colors"
+            onClick={() => onSubmit(booking.id, rating, text)}
+            disabled={isPending}
+            className="flex-1 py-2 rounded-lg bg-accent text-white text-sm font-medium hover:bg-accent/90 transition-colors disabled:opacity-40"
           >
             Submit
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Cancel confirmation modal                                          */
+/* ------------------------------------------------------------------ */
+
+function CancelModal({
+  booking,
+  onClose,
+  onConfirm,
+  isPending,
+}: {
+  booking: ClientBookingRow;
+  onClose: () => void;
+  onConfirm: (id: number) => void;
+  isPending: boolean;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-foreground/20 backdrop-blur-sm">
+      <div className="bg-background rounded-2xl border border-border shadow-xl w-full max-w-sm">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+          <p className="text-sm font-semibold text-foreground">Cancel Booking</p>
+          <button onClick={onClose} className="text-muted hover:text-foreground transition-colors">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <div className="px-5 py-4 space-y-2">
+          <p className="text-sm text-foreground">
+            Are you sure you want to cancel this appointment?
+          </p>
+          <p className="text-xs text-muted">
+            {booking.service} · {booking.date} at {booking.time}
+          </p>
+        </div>
+        <div className="px-5 py-3 border-t border-border flex gap-2">
+          <button
+            onClick={onClose}
+            className="flex-1 py-2 rounded-lg border border-border text-sm font-medium text-muted hover:text-foreground transition-colors"
+          >
+            Keep Booking
+          </button>
+          <button
+            onClick={() => onConfirm(booking.id)}
+            disabled={isPending}
+            className="flex-1 py-2 rounded-lg bg-destructive text-white text-sm font-medium hover:bg-destructive/90 transition-colors disabled:opacity-40"
+          >
+            Cancel Appointment
           </button>
         </div>
       </div>
@@ -291,18 +253,21 @@ function BookingsMiniCal({
   selected,
   onSelect,
 }: {
-  bookings: Booking[];
+  bookings: ClientBookingRow[];
   selected: string | null;
   onSelect: (d: string | null) => void;
 }) {
-  const [cursor, setCursor] = useState(() => new Date(2026, 1, 1)); // Feb 2026
+  const [cursor, setCursor] = useState(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  });
   const year = cursor.getFullYear();
   const month = cursor.getMonth();
   const grid = useMemo(() => getMonthGrid(year, month), [year, month]);
+  const today = todayISO();
 
-  // Map dateISO → unique categories for dot display
   const byDate = useMemo(() => {
-    const map: Record<string, Booking["category"][]> = {};
+    const map: Record<string, BookingCategory[]> = {};
     for (const b of bookings) {
       if (!map[b.dateISO]) map[b.dateISO] = [];
       if (!map[b.dateISO].includes(b.category)) {
@@ -310,6 +275,13 @@ function BookingsMiniCal({
       }
     }
     return map;
+  }, [bookings]);
+
+  // Determine which categories exist in the data
+  const activeCategories = useMemo(() => {
+    const cats = new Set<BookingCategory>();
+    for (const b of bookings) cats.add(b.category);
+    return cats;
   }, [bookings]);
 
   return (
@@ -341,7 +313,6 @@ function BookingsMiniCal({
       </CardHeader>
 
       <CardContent className="px-4 pb-4 pt-3">
-        {/* Day headers */}
         <div className="grid grid-cols-7 mb-1">
           {DAY_NAMES.map((d) => (
             <div key={d} className="text-center text-[10px] font-medium text-muted/60 py-1">
@@ -350,12 +321,11 @@ function BookingsMiniCal({
           ))}
         </div>
 
-        {/* Day grid */}
         <div className="grid grid-cols-7">
           {grid.map((day) => {
             const ds = fmtISO(day);
             const isCurrentMonth = day.getMonth() === month;
-            const isToday = ds === TODAY_ISO;
+            const isToday = ds === today;
             const isSelected = ds === selected;
             const cats = byDate[ds] || [];
             const hasBookings = cats.length > 0;
@@ -380,7 +350,6 @@ function BookingsMiniCal({
                 >
                   {day.getDate()}
                 </button>
-                {/* Category dots */}
                 <div className="flex gap-0.5 h-1.5 mt-0.5">
                   {cats.slice(0, 3).map((cat) => (
                     <span
@@ -395,14 +364,18 @@ function BookingsMiniCal({
           })}
         </div>
 
-        {/* Dot legend */}
         <div className="flex gap-4 mt-3 pt-3 border-t border-border/40">
-          {(["lash", "jewelry", "crochet"] as const).map((cat) => (
-            <span key={cat} className="flex items-center gap-1.5 text-[10px] text-muted capitalize">
-              <span className="w-2 h-2 rounded-full" style={{ background: CAT_COLOR[cat] }} />
-              {cat}
-            </span>
-          ))}
+          {(["lash", "jewelry", "crochet", "consulting"] as const)
+            .filter((cat) => activeCategories.has(cat))
+            .map((cat) => (
+              <span
+                key={cat}
+                className="flex items-center gap-1.5 text-[10px] text-muted capitalize"
+              >
+                <span className="w-2 h-2 rounded-full" style={{ background: CAT_COLOR[cat] }} />
+                {cat}
+              </span>
+            ))}
           {selected && (
             <button
               onClick={() => onSelect(null)}
@@ -421,29 +394,48 @@ function BookingsMiniCal({
 /*  Main export                                                         */
 /* ------------------------------------------------------------------ */
 
-export function ClientBookingsPage() {
+export function ClientBookingsPage({ data }: { data: ClientBookingsData }) {
   const [expanded, setExpanded] = useState<number | null>(null);
-  const [bookings, setBookings] = useState<Booking[]>(BOOKINGS);
-  const [reviewTarget, setReviewTarget] = useState<Booking | null>(null);
+  const [bookings, setBookings] = useState<ClientBookingRow[]>(data.bookings);
+  const [reviewTarget, setReviewTarget] = useState<ClientBookingRow | null>(null);
+  const [cancelTarget, setCancelTarget] = useState<ClientBookingRow | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
 
-  // Unfiltered totals for stats
   const allUpcoming = bookings.filter((b) => ["confirmed", "pending"].includes(b.status));
   const allCompleted = bookings.filter((b) => b.status === "completed");
 
-  // Filtered lists for display
   const upcoming = allUpcoming.filter((b) => !selectedDate || b.dateISO === selectedDate);
   const past = bookings
     .filter((b) => ["completed", "cancelled"].includes(b.status))
     .filter((b) => !selectedDate || b.dateISO === selectedDate);
 
-  function submitReview(id: number, _rating: number, _text: string) {
+  function handleSubmitReview(id: number, rating: number, text: string) {
+    // Optimistic update
     setBookings((prev) => prev.map((b) => (b.id === id ? { ...b, reviewLeft: true } : b)));
+    setReviewTarget(null);
+
+    startTransition(async () => {
+      await submitClientReview({ bookingId: id, rating, comment: text });
+    });
   }
 
-  function BookingCard({ booking }: { booking: Booking }) {
+  function handleCancelBooking(id: number) {
+    // Optimistic update
+    setBookings((prev) =>
+      prev.map((b) => (b.id === id ? { ...b, status: "cancelled" as const } : b)),
+    );
+    setCancelTarget(null);
+
+    startTransition(async () => {
+      await cancelClientBooking(id);
+    });
+  }
+
+  function BookingCard({ booking }: { booking: ClientBookingRow }) {
     const isExpanded = expanded === booking.id;
     const sts = statusConfig(booking.status);
+    const isCancellable = booking.status === "pending" || booking.status === "confirmed";
 
     return (
       <div className="border-b border-border/40 last:border-0">
@@ -506,12 +498,53 @@ export function ClientBookingsPage() {
                 <p className="text-muted font-medium">Price</p>
                 <p className="text-foreground font-semibold mt-0.5">${booking.price}</p>
               </div>
+              {booking.location && (
+                <div>
+                  <p className="text-muted font-medium">Location</p>
+                  <p className="text-foreground mt-0.5 flex items-center gap-1">
+                    <MapPin className="w-3 h-3 text-muted" />
+                    {booking.location}
+                  </p>
+                </div>
+              )}
             </div>
+
+            {/* Add-ons */}
+            {booking.addOns.length > 0 && (
+              <div className="text-xs">
+                <p className="text-muted font-medium mb-1">Add-ons</p>
+                <div className="space-y-0.5">
+                  {booking.addOns.map((a, i) => (
+                    <p key={i} className="text-foreground flex items-center gap-1.5">
+                      <Plus className="w-2.5 h-2.5 text-muted" />
+                      {a.name}
+                      <span className="text-muted">${(a.priceInCents / 100).toFixed(0)}</span>
+                    </p>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {booking.notes && (
               <p className="text-xs text-muted italic border-l-2 border-border pl-3">
                 {booking.notes}
               </p>
             )}
+
+            {/* Cancel button for upcoming bookings */}
+            {isCancellable && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setCancelTarget(booking);
+                }}
+                className="text-xs font-medium text-destructive hover:text-destructive/80 transition-colors"
+              >
+                Cancel appointment
+              </button>
+            )}
+
+            {/* Review actions for completed bookings */}
             {booking.status === "completed" && !booking.reviewLeft && (
               <button
                 onClick={(e) => {
@@ -543,7 +576,7 @@ export function ClientBookingsPage() {
         <p className="text-sm text-muted mt-0.5">Your appointment history with T Creative Studio</p>
       </div>
 
-      {/* Stats — always unfiltered */}
+      {/* Stats */}
       <div className="grid grid-cols-3 gap-3">
         {[
           { label: "Total Visits", value: allCompleted.length },
@@ -562,7 +595,7 @@ export function ClientBookingsPage() {
       {/* Calendar */}
       <BookingsMiniCal bookings={bookings} selected={selectedDate} onSelect={setSelectedDate} />
 
-      {/* Active date filter label */}
+      {/* Active date filter */}
       {selectedDate && (
         <div className="flex items-center gap-2">
           <p className="text-sm text-muted">
@@ -609,7 +642,7 @@ export function ClientBookingsPage() {
         </Card>
       )}
 
-      {/* Empty state when date selected but no bookings */}
+      {/* Empty state */}
       {selectedDate && upcoming.length === 0 && past.length === 0 && (
         <div className="text-center py-14 border border-dashed border-border rounded-xl">
           <p className="text-sm text-muted">No bookings on {fmtDateLabel(selectedDate)}.</p>
@@ -622,12 +655,32 @@ export function ClientBookingsPage() {
         </div>
       )}
 
+      {/* No bookings at all */}
+      {bookings.length === 0 && !selectedDate && (
+        <div className="text-center py-14 border border-dashed border-border rounded-xl">
+          <CalendarDays className="w-10 h-10 text-foreground/15 mx-auto mb-3" />
+          <p className="text-sm text-muted">No bookings yet.</p>
+          <p className="text-xs text-muted/60 mt-1">Your appointments will appear here.</p>
+        </div>
+      )}
+
       {/* Review modal */}
       {reviewTarget && (
         <ReviewModal
           booking={reviewTarget}
           onClose={() => setReviewTarget(null)}
-          onSubmit={submitReview}
+          onSubmit={handleSubmitReview}
+          isPending={isPending}
+        />
+      )}
+
+      {/* Cancel modal */}
+      {cancelTarget && (
+        <CancelModal
+          booking={cancelTarget}
+          onClose={() => setCancelTarget(null)}
+          onConfirm={handleCancelBooking}
+          isPending={isPending}
         />
       )}
     </div>

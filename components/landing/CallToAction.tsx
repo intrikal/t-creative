@@ -5,6 +5,7 @@
  */
 "use client";
 
+import Link from "next/link";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/Button";
 
@@ -28,9 +29,11 @@ export function CallToAction() {
         </p>
 
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
-          <Button href="/contact">Book a Session</Button>
-          <Button href="/services" variant="secondary">
-            Explore the Ecosystem
+          <Button asChild>
+            <Link href="/contact">Book a Session</Link>
+          </Button>
+          <Button asChild variant="secondary">
+            <Link href="/services">Explore the Ecosystem</Link>
           </Button>
         </div>
       </motion.div>

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import { Button } from "./Button";
@@ -35,8 +36,12 @@ describe("Button", () => {
     expect(btn).toHaveAttribute("type", "button");
   });
 
-  it('renders as link when href="/contact" provided', () => {
-    render(<Button href="/contact">Contact</Button>);
+  it("renders as link when used with asChild and Link", () => {
+    render(
+      <Button asChild>
+        <Link href="/contact">Contact</Link>
+      </Button>,
+    );
     const link = screen.getByRole("link", { name: "Contact" });
     expect(link).toBeInTheDocument();
     expect(link).toHaveAttribute("href", "/contact");

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { getPublishedProducts } from "./actions";
 import { PublicShopPage } from "./PublicShopPage";
 
 export const metadata: Metadata = {
@@ -8,6 +9,7 @@ export const metadata: Metadata = {
   robots: { index: true, follow: true },
 };
 
-export default function Page() {
-  return <PublicShopPage />;
+export default async function Page() {
+  const products = await getPublishedProducts();
+  return <PublicShopPage products={products} />;
 }

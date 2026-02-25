@@ -16,7 +16,7 @@
 import { createHmac } from "crypto";
 import { eq, and, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { payments, bookings, webhookEvents, syncLog } from "@/db/schema";
+import { payments, bookings, orders, webhookEvents, syncLog } from "@/db/schema";
 import { SQUARE_WEBHOOK_SIGNATURE_KEY, squareClient, isSquareConfigured } from "@/lib/square";
 
 /* ------------------------------------------------------------------ */
@@ -133,18 +133,26 @@ async function handlePaymentCompleted(data: any): Promise<string> {
     return `Auto-linked payment to booking #${booking.id}${isDeposit ? " (deposit)" : ""}`;
   }
 
-  // 3. No match — log for manual linking
+  // 3. Try product order lookup
+  const productOrder = await findProductOrderBySquareOrder(squareOrderId);
+  if (productOrder) {
+    await db.update(orders).set({ status: "in_progress" }).where(eq(orders.id, productOrder.id));
+
+    return `Auto-linked payment to product order #${productOrder.id}`;
+  }
+
+  // 4. No match — log for manual linking
   await db.insert(syncLog).values({
     provider: "square",
     direction: "inbound",
     status: "skipped",
     entityType: "payment",
     remoteId: squarePaymentId,
-    message: "Payment received but no matching booking found — needs manual linking",
+    message: "Payment received but no matching booking or order found — needs manual linking",
     payload: { squarePaymentId, squareOrderId, amount: squarePayment.amount_money },
   });
 
-  return "No matching booking — logged for manual linking";
+  return "No matching booking or order — logged for manual linking";
 }
 
 /**
@@ -188,6 +196,22 @@ async function findBookingByOrder(
   }
 
   return null;
+}
+
+/**
+ * Finds a product order by its Square order ID.
+ */
+async function findProductOrderBySquareOrder(
+  squareOrderId: string | null,
+): Promise<{ id: number; clientId: string } | null> {
+  if (!squareOrderId) return null;
+
+  const [row] = await db
+    .select({ id: orders.id, clientId: orders.clientId })
+    .from(orders)
+    .where(eq(orders.squareOrderId, squareOrderId));
+
+  return row ?? null;
 }
 
 async function handlePaymentUpdated(data: any): Promise<string> {

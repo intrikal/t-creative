@@ -69,6 +69,7 @@ export type ProductForm = {
   stock: string;
   status: ProductStatus;
   tags: string;
+  serviceId: string;
 };
 
 export function emptyProductForm(): ProductForm {
@@ -82,6 +83,7 @@ export function emptyProductForm(): ProductForm {
     stock: "",
     status: "active",
     tags: "",
+    serviceId: "",
   };
 }
 
@@ -96,6 +98,7 @@ export function productToForm(p: ProductRow): ProductForm {
     stock: p.stock != null ? String(p.stock) : "",
     status: p.status,
     tags: p.tags.join(", "),
+    serviceId: p.serviceId != null ? String(p.serviceId) : "",
   };
 }
 
@@ -110,6 +113,7 @@ export function formToData(form: ProductForm): ProductFormData {
     stock: form.stock !== "" ? Number(form.stock) : undefined,
     status: form.status,
     tags: form.tags,
+    serviceId: form.serviceId ? Number(form.serviceId) : null,
   };
 }
 

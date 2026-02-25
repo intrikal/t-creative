@@ -1,108 +1,169 @@
 /**
- * PublicShopPage — Browse products without an account.
- * Order CTA: logged-in clients → /client/shop; new visitors → /contact pre-filled.
+ * PublicShopPage — Browse products from the database.
+ * Supports add-to-cart for fixed-price items, inquiry links for custom quotes,
+ * and dual-listed items that are also bookable as services.
  */
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { Footer } from "@/components/landing/Footer";
+import { useCartStore, cartTotalInCents, cartItemCount } from "@/stores/useCartStore";
+import type { ShopProduct } from "./actions";
 
-type ProductCategory = "aftercare" | "jewelry" | "crochet" | "merch";
+/* ------------------------------------------------------------------ */
+/*  Helpers                                                            */
+/* ------------------------------------------------------------------ */
 
-interface PublicProduct {
-  id: number;
-  name: string;
-  category: ProductCategory;
-  description: string;
-  price: string;
-  inStock: boolean;
-  note?: string;
-  color: string;
-  dot: string;
+function formatPrice(product: ShopProduct): string {
+  if (product.pricingType === "contact_for_quote") return "Contact for quote";
+  if (product.pricingType === "price_range" && product.priceMinInCents && product.priceMaxInCents) {
+    return `$${(product.priceMinInCents / 100).toFixed(0)} – $${(product.priceMaxInCents / 100).toFixed(0)}`;
+  }
+  if (product.pricingType === "starting_at" && (product.priceInCents || product.priceMinInCents)) {
+    const price = product.priceInCents ?? product.priceMinInCents!;
+    return `From $${(price / 100).toFixed(0)}`;
+  }
+  if (product.priceInCents) return `$${(product.priceInCents / 100).toFixed(0)}`;
+  return "Contact for quote";
 }
 
-const PRODUCTS: PublicProduct[] = [
-  {
-    id: 1,
-    name: "Lash Aftercare Kit",
-    category: "aftercare",
-    description:
-      "Includes a 60ml oil-free lash foam cleanser, 5 disposable spoolies, and a printed aftercare card. Designed to extend the life of your extensions. Recommended for all new lash clients.",
-    price: "$18",
-    inStock: true,
-    color: "bg-[#c4907a]/10",
-    dot: "#c4907a",
-  },
-  {
-    id: 2,
-    name: "T Creative Lash Cleanser",
-    category: "aftercare",
-    description:
-      "Private label foaming cleanser formulated for lash extensions. Removes makeup and oil without weakening the adhesive bond. Fragrance-free, 60ml — approximately 60 uses.",
-    price: "$14",
-    inStock: true,
-    color: "bg-[#4e6b51]/10",
-    dot: "#4e6b51",
-  },
-  {
-    id: 3,
-    name: "Lash Spoolie Set (5pk)",
-    category: "aftercare",
-    description:
-      "5 disposable mascara wands — the exact style used in the studio. Use one per brushing session to keep lashes looking fresh.",
-    price: "$5",
-    inStock: false,
-    note: "Currently out of stock — check back soon.",
-    color: "bg-[#4e6b51]/8",
-    dot: "#4e6b51",
-  },
-  {
-    id: 4,
-    name: "Custom Permanent Jewelry",
-    category: "jewelry",
-    description:
-      "Choose your chain style and length — bracelets, anklets, or necklaces. 14k gold-filled, nickel-free, and waterproof. Welded on-site at the studio. Booking required.",
-    price: "From $55",
-    inStock: true,
-    note: "This is a service booked at the studio, not a shipped product.",
-    color: "bg-[#d4a574]/10",
-    dot: "#d4a574",
-  },
-  {
-    id: 5,
-    name: "Jewelry Matching Set",
-    category: "jewelry",
-    description:
-      "Coordinating bracelet and anklet in the same chain style, welded on-site in one session. 14k gold-filled. The perfect gift for yourself or someone special.",
-    price: "From $110",
-    inStock: true,
-    note: "Appointment required — book via the client portal.",
-    color: "bg-[#d4a574]/12",
-    dot: "#a07040",
-  },
-  {
-    id: 6,
-    name: "T Creative Tote Bag",
-    category: "merch",
-    description:
-      "Heavy-duty canvas tote in natural with the T Creative logo screen printed in muted black. 15″ × 16″ with 5″ gusset. Limited run.",
-    price: "$28",
-    inStock: true,
-    note: "Limited stock — once gone, gone.",
-    color: "bg-foreground/[0.04]",
-    dot: "#888",
-  },
-];
+function canAddToCart(product: ShopProduct): boolean {
+  return (
+    product.pricingType === "fixed_price" &&
+    !!product.priceInCents &&
+    product.availability !== "out_of_stock"
+  );
+}
 
-const CAT_LABELS: Record<ProductCategory, string> = {
-  aftercare: "Aftercare",
-  jewelry: "Jewelry",
-  crochet: "Crochet",
-  merch: "Merch",
-};
+/* ------------------------------------------------------------------ */
+/*  Cart Drawer                                                        */
+/* ------------------------------------------------------------------ */
 
-export function PublicShopPage() {
+function CartDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { items, removeItem, updateQuantity, clearCart } = useCartStore();
+  const total = cartTotalInCents(items);
+
+  return (
+    <AnimatePresence>
+      {open && (
+        <>
+          <motion.div
+            className="fixed inset-0 bg-black/30 z-40"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={onClose}
+          />
+          <motion.aside
+            className="fixed right-0 top-0 bottom-0 w-full max-w-md bg-background border-l border-foreground/8 z-50 flex flex-col"
+            initial={{ x: "100%" }}
+            animate={{ x: 0 }}
+            exit={{ x: "100%" }}
+            transition={{ type: "spring", damping: 30, stiffness: 300 }}
+          >
+            <div className="p-6 border-b border-foreground/8 flex items-center justify-between">
+              <h2 className="text-sm font-medium tracking-wide uppercase">Cart</h2>
+              <button onClick={onClose} className="text-xs text-muted hover:text-foreground">
+                Close
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6">
+              {items.length === 0 ? (
+                <p className="text-sm text-muted text-center py-12">Your cart is empty.</p>
+              ) : (
+                <div className="space-y-4">
+                  {items.map((item) => (
+                    <div
+                      key={item.productId}
+                      className="flex gap-4 py-3 border-b border-foreground/5"
+                    >
+                      {item.imageUrl ? (
+                        <img
+                          src={item.imageUrl}
+                          alt={item.title}
+                          className="w-16 h-16 object-cover bg-surface"
+                        />
+                      ) : (
+                        <div className="w-16 h-16 bg-surface flex items-center justify-center">
+                          <div className="w-3 h-3 rounded-full bg-muted/30" />
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-foreground truncate">{item.title}</p>
+                        <p className="text-xs text-muted mt-1">
+                          ${(item.priceInCents / 100).toFixed(2)}
+                        </p>
+                        <div className="flex items-center gap-2 mt-2">
+                          <button
+                            onClick={() => updateQuantity(item.productId, item.quantity - 1)}
+                            className="w-6 h-6 text-xs border border-foreground/10 hover:border-foreground/30"
+                          >
+                            −
+                          </button>
+                          <span className="text-xs w-6 text-center">{item.quantity}</span>
+                          <button
+                            onClick={() => updateQuantity(item.productId, item.quantity + 1)}
+                            className="w-6 h-6 text-xs border border-foreground/10 hover:border-foreground/30"
+                          >
+                            +
+                          </button>
+                          <button
+                            onClick={() => removeItem(item.productId)}
+                            className="text-[10px] text-muted hover:text-red-500 ml-auto"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {items.length > 0 && (
+              <div className="p-6 border-t border-foreground/8 space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted">Subtotal</span>
+                  <span className="text-sm font-medium">${(total / 100).toFixed(2)}</span>
+                </div>
+                <Link
+                  href="/shop/checkout"
+                  onClick={onClose}
+                  className="block w-full text-center py-3 text-xs tracking-widest uppercase bg-foreground text-background hover:bg-muted transition-colors"
+                >
+                  Checkout
+                </Link>
+                <button
+                  onClick={clearCart}
+                  className="block w-full text-center py-2 text-xs text-muted hover:text-foreground"
+                >
+                  Clear cart
+                </button>
+              </div>
+            )}
+          </motion.aside>
+        </>
+      )}
+    </AnimatePresence>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Main Page                                                          */
+/* ------------------------------------------------------------------ */
+
+export function PublicShopPage({ products }: { products: ShopProduct[] }) {
+  const [cartOpen, setCartOpen] = useState(false);
+  const { items, addItem } = useCartStore();
+  const count = cartItemCount(items);
+
+  // Derive categories from products
+  const categories = Array.from(new Set(products.map((p) => p.category)));
+
   return (
     <>
       <main id="main-content" className="pt-16">
@@ -131,8 +192,8 @@ export function PublicShopPage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.2 }}
             >
-              Aftercare products, permanent jewelry bookings, and studio merch. Browse below — no
-              account needed.
+              Aftercare products, handmade items, training packages, and studio merch. Browse below
+              — no account needed.
             </motion.p>
           </div>
         </section>
@@ -140,68 +201,106 @@ export function PublicShopPage() {
         {/* Products */}
         <section className="pb-24 px-6">
           <div className="mx-auto max-w-5xl">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {PRODUCTS.map((product, i) => (
-                <motion.div
-                  key={product.id}
-                  className={`border border-foreground/8 flex flex-col ${!product.inStock ? "opacity-60" : ""}`}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ duration: 0.5, delay: i * 0.07 }}
-                >
-                  {/* Placeholder image */}
-                  <div
-                    className={`w-full aspect-[4/3] flex items-center justify-center ${product.color}`}
+            {products.length === 0 ? (
+              <p className="text-center text-muted py-16">
+                No products available yet. Check back soon!
+              </p>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {products.map((product, i) => (
+                  <motion.div
+                    key={product.id}
+                    className={`border border-foreground/8 flex flex-col ${product.availability === "out_of_stock" ? "opacity-60" : ""}`}
+                    initial={{ opacity: 0, y: 20 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true }}
+                    transition={{ duration: 0.5, delay: i * 0.07 }}
                   >
-                    <div
-                      className="w-4 h-4 rounded-full"
-                      style={{ backgroundColor: product.dot }}
-                    />
-                  </div>
-
-                  <div className="p-6 flex flex-col gap-3 flex-1">
-                    <div className="flex items-start justify-between gap-3">
-                      <h3 className="text-sm font-medium text-foreground leading-snug">
-                        {product.name}
-                      </h3>
-                      <span className="text-[10px] tracking-wide uppercase text-muted bg-surface border border-foreground/8 px-2 py-0.5 shrink-0">
-                        {CAT_LABELS[product.category]}
-                      </span>
-                    </div>
-
-                    <p className="text-xs text-muted leading-relaxed flex-1">
-                      {product.description}
-                    </p>
-
-                    {product.note && (
-                      <p className="text-[11px] text-muted/70 italic">{product.note}</p>
+                    {/* Product image */}
+                    {product.imageUrl ? (
+                      <div className="w-full aspect-[4/3] overflow-hidden bg-surface">
+                        <img
+                          src={product.imageUrl}
+                          alt={product.title}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                    ) : (
+                      <div className="w-full aspect-[4/3] flex items-center justify-center bg-foreground/[0.03]">
+                        <div className="w-4 h-4 rounded-full bg-muted/20" />
+                      </div>
                     )}
 
-                    <div className="flex items-center justify-between pt-3 border-t border-foreground/5 mt-auto gap-3">
-                      <span className="text-sm font-medium text-accent">{product.price}</span>
-                      {!product.inStock ? (
-                        <span className="text-xs text-muted">Out of stock</span>
-                      ) : product.category === "jewelry" ? (
-                        <Link
-                          href="/dashboard/book"
-                          className="text-[10px] tracking-widest uppercase text-foreground hover:text-accent transition-colors border border-foreground/20 hover:border-accent/40 px-3 py-2"
-                        >
-                          Book Appointment
-                        </Link>
-                      ) : (
-                        <Link
-                          href={`/contact?interest=Shop+Products&product=${encodeURIComponent(product.name)}`}
-                          className="text-[10px] tracking-widest uppercase text-foreground hover:text-accent transition-colors border border-foreground/20 hover:border-accent/40 px-3 py-2"
-                        >
-                          Order
-                        </Link>
+                    <div className="p-6 flex flex-col gap-3 flex-1">
+                      <div className="flex items-start justify-between gap-3">
+                        <h3 className="text-sm font-medium text-foreground leading-snug">
+                          {product.title}
+                        </h3>
+                        <span className="text-[10px] tracking-wide uppercase text-muted bg-surface border border-foreground/8 px-2 py-0.5 shrink-0">
+                          {product.category}
+                        </span>
+                      </div>
+
+                      {product.description && (
+                        <p className="text-xs text-muted leading-relaxed flex-1">
+                          {product.description}
+                        </p>
                       )}
+
+                      {product.availability === "out_of_stock" && (
+                        <p className="text-[11px] text-muted/70 italic">
+                          Currently out of stock — check back soon.
+                        </p>
+                      )}
+
+                      <div className="flex items-center justify-between pt-3 border-t border-foreground/5 mt-auto gap-3">
+                        <span className="text-sm font-medium text-accent">
+                          {formatPrice(product)}
+                        </span>
+
+                        <div className="flex items-center gap-2">
+                          {/* Dual-listed: show Book Appointment link */}
+                          {product.serviceId && (
+                            <Link
+                              href={`/book/tcreativestudio`}
+                              className="text-[10px] tracking-widest uppercase text-foreground hover:text-accent transition-colors border border-foreground/20 hover:border-accent/40 px-3 py-2"
+                            >
+                              Book
+                            </Link>
+                          )}
+
+                          {/* Add to cart or inquiry */}
+                          {product.availability === "out_of_stock" ? (
+                            <span className="text-xs text-muted">Out of stock</span>
+                          ) : canAddToCart(product) ? (
+                            <button
+                              onClick={() =>
+                                addItem({
+                                  productId: product.id,
+                                  title: product.title,
+                                  priceInCents: product.priceInCents!,
+                                  imageUrl: product.imageUrl,
+                                })
+                              }
+                              className="text-[10px] tracking-widest uppercase text-foreground hover:text-accent transition-colors border border-foreground/20 hover:border-accent/40 px-3 py-2"
+                            >
+                              Add to Cart
+                            </button>
+                          ) : (
+                            <Link
+                              href={`/contact?interest=Shop+Products&product=${encodeURIComponent(product.title)}`}
+                              className="text-[10px] tracking-widest uppercase text-foreground hover:text-accent transition-colors border border-foreground/20 hover:border-accent/40 px-3 py-2"
+                            >
+                              Inquire
+                            </Link>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
+                  </motion.div>
+                ))}
+              </div>
+            )}
           </div>
         </section>
 
@@ -232,6 +331,19 @@ export function PublicShopPage() {
           </div>
         </section>
       </main>
+
+      {/* Floating cart button */}
+      {count > 0 && (
+        <button
+          onClick={() => setCartOpen(true)}
+          className="fixed bottom-6 right-6 z-30 w-14 h-14 rounded-full bg-foreground text-background flex items-center justify-center shadow-lg hover:bg-muted transition-colors"
+        >
+          <span className="text-sm font-medium">{count}</span>
+        </button>
+      )}
+
+      <CartDrawer open={cartOpen} onClose={() => setCartOpen(false)} />
+
       <Footer />
     </>
   );

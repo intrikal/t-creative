@@ -51,6 +51,7 @@ export type ProductRow = {
   status: ProductStatus;
   tags: string[];
   sales: number;
+  serviceId: number | null;
 };
 
 export type SupplyRow = {
@@ -131,6 +132,7 @@ export async function getProducts(): Promise<ProductRow[]> {
       availability: products.availability,
       isPublished: products.isPublished,
       tags: products.tags,
+      serviceId: products.serviceId,
     })
     .from(products)
     .orderBy(desc(products.createdAt));
@@ -180,6 +182,7 @@ export async function getProducts(): Promise<ProductRow[]> {
             .filter(Boolean)
         : [],
       sales: salesMap.get(r.id) ?? 0,
+      serviceId: r.serviceId ?? null,
     };
   });
 }
@@ -248,6 +251,7 @@ export type ProductFormData = {
   stock?: number;
   status: ProductStatus;
   tags: string;
+  serviceId?: number | null;
 };
 
 export async function createProduct(form: ProductFormData) {
@@ -279,6 +283,7 @@ export async function createProduct(form: ProductFormData) {
           : "made_to_order",
     isPublished: form.status !== "inactive",
     tags: form.tags || null,
+    serviceId: form.serviceId ?? null,
   });
 
   revalidatePath(PATH);
@@ -313,6 +318,7 @@ export async function updateProduct(id: number, form: ProductFormData) {
             : "made_to_order",
       isPublished: form.status !== "inactive",
       tags: form.tags || null,
+      serviceId: form.serviceId ?? null,
       updatedAt: new Date(),
     })
     .where(eq(products.id, id));

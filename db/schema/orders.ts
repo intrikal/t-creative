@@ -25,6 +25,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { orderStatusEnum, serviceCategoryEnum } from "./enums";
 import { products } from "./products";
+import { services } from "./services";
 import { profiles } from "./users";
 
 /* ------------------------------------------------------------------ */
@@ -81,6 +82,18 @@ export const orders = pgTable(
      * E.g. `{ "colors": ["sage", "ivory"], "size": "queen", "deadline": "2026-04-01" }`
      */
     metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+
+    /**
+     * How the client chose to pay/receive:
+     * - "pickup_online" — pay now via Square, pick up at studio
+     * - "pickup_cash" — pick up at studio, pay cash
+     */
+    fulfillmentMethod: varchar("fulfillment_method", { length: 50 }),
+
+    /** Link to service for dual-listed items (training/consulting packages). */
+    serviceId: integer("service_id").references(() => services.id, {
+      onDelete: "set null",
+    }),
 
     /** Square order/payment ID for paid orders. */
     squareOrderId: varchar("square_order_id", { length: 100 }),

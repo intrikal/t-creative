@@ -43,10 +43,12 @@ export function MarketplacePage({
   initialProducts,
   initialSupplies,
   stats,
+  serviceOptions = [],
 }: {
   initialProducts: ProductRow[];
   initialSupplies: SupplyRow[];
   stats: MarketplaceStats;
+  serviceOptions?: { id: number; name: string }[];
 }) {
   const [filter, setFilter] = useState<"all" | ProductCategory>("all");
   const [pageTab, setPageTab] = useState<PageTab>("Products");
@@ -284,6 +286,7 @@ export function MarketplacePage({
         initial={editingProduct ? productToForm(editingProduct) : emptyProductForm()}
         onSave={handleSaveProduct}
         saving={isPending}
+        serviceOptions={serviceOptions}
       />
 
       {/* Supply dialog */}

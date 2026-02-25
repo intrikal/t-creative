@@ -22,8 +22,9 @@ import {
   text,
   timestamp,
   varchar,
+  pgEnum,
 } from "drizzle-orm/pg-core";
-import { pgEnum } from "drizzle-orm/pg-core";
+import { services } from "./services";
 
 /* ------------------------------------------------------------------ */
 /*  Enums                                                              */
@@ -103,6 +104,15 @@ export const products = pgTable(
 
     /** Whether visible on the public marketplace. */
     isPublished: boolean("is_published").notNull().default(true),
+
+    /**
+     * Link to a service for dual-listed items (e.g. training programs,
+     * consulting packages). When set, the shop shows both "Add to Cart"
+     * and "Book Appointment" CTAs.
+     */
+    serviceId: integer("service_id").references(() => services.id, {
+      onDelete: "set null",
+    }),
 
     /** Square catalog item ID — synced for checkout via Square. */
     squareCatalogId: varchar("square_catalog_id", { length: 100 }),

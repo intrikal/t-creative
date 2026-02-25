@@ -1,242 +1,47 @@
 "use client";
 
 import { useState } from "react";
-import { TrendingUp, DollarSign, CalendarDays, Clock } from "lucide-react";
+import { TrendingUp, DollarSign, CalendarDays, Clock, Wallet } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import type { EarningsData } from "./actions";
 
 type Period = "week" | "month" | "all";
 
-interface EarningEntry {
-  id: number;
-  date: string;
-  service: string;
-  client: string;
-  clientInitials: string;
-  gross: number;
-  commission: number; // percentage
-  net: number;
-  status: "paid" | "pending";
-}
-
-const EARNINGS: EarningEntry[] = [
-  {
-    id: 1,
-    date: "Today",
-    service: "Classic Lash Fill",
-    client: "Maya R.",
-    clientInitials: "MR",
-    gross: 75,
-    commission: 60,
-    net: 45,
-    status: "pending",
-  },
-  {
-    id: 2,
-    date: "Today",
-    service: "Volume Lashes Full Set",
-    client: "Priya K.",
-    clientInitials: "PK",
-    gross: 140,
-    commission: 60,
-    net: 84,
-    status: "pending",
-  },
-  {
-    id: 3,
-    date: "Today",
-    service: "Classic Lash Fill",
-    client: "Chloe T.",
-    clientInitials: "CT",
-    gross: 75,
-    commission: 60,
-    net: 45,
-    status: "pending",
-  },
-  {
-    id: 4,
-    date: "Today",
-    service: "Lash Removal + Rebook",
-    client: "Amy L.",
-    clientInitials: "AL",
-    gross: 35,
-    commission: 60,
-    net: 21,
-    status: "pending",
-  },
-  {
-    id: 5,
-    date: "Feb 22",
-    service: "Classic Lash Fill",
-    client: "Dana W.",
-    clientInitials: "DW",
-    gross: 75,
-    commission: 60,
-    net: 45,
-    status: "pending",
-  },
-  {
-    id: 6,
-    date: "Feb 22",
-    service: "Volume Lashes Full Set",
-    client: "Nia B.",
-    clientInitials: "NB",
-    gross: 140,
-    commission: 60,
-    net: 84,
-    status: "pending",
-  },
-  {
-    id: 7,
-    date: "Feb 15",
-    service: "Volume Lashes Full Set",
-    client: "Lena P.",
-    clientInitials: "LP",
-    gross: 140,
-    commission: 60,
-    net: 84,
-    status: "paid",
-  },
-  {
-    id: 8,
-    date: "Feb 14",
-    service: "Classic Lash Fill",
-    client: "Tasha N.",
-    clientInitials: "TN",
-    gross: 75,
-    commission: 60,
-    net: 45,
-    status: "paid",
-  },
-  {
-    id: 9,
-    date: "Feb 12",
-    service: "Hybrid Lashes Full Set",
-    client: "Kira M.",
-    clientInitials: "KM",
-    gross: 130,
-    commission: 60,
-    net: 78,
-    status: "paid",
-  },
-  {
-    id: 10,
-    date: "Feb 10",
-    service: "Classic Lash Fill",
-    client: "Jordan L.",
-    clientInitials: "JL",
-    gross: 75,
-    commission: 60,
-    net: 45,
-    status: "paid",
-  },
-  {
-    id: 11,
-    date: "Feb 8",
-    service: "Lash Tint + Lift",
-    client: "Aisha R.",
-    clientInitials: "AR",
-    gross: 65,
-    commission: 60,
-    net: 39,
-    status: "paid",
-  },
-  {
-    id: 12,
-    date: "Feb 5",
-    service: "Classic Lash Fill",
-    client: "Sade O.",
-    clientInitials: "SO",
-    gross: 75,
-    commission: 60,
-    net: 45,
-    status: "paid",
-  },
-  {
-    id: 13,
-    date: "Feb 3",
-    service: "Volume Lashes Full Set",
-    client: "Camille F.",
-    clientInitials: "CF",
-    gross: 140,
-    commission: 60,
-    net: 84,
-    status: "paid",
-  },
-  {
-    id: 14,
-    date: "Feb 1",
-    service: "Classic Lash Fill",
-    client: "Dana W.",
-    clientInitials: "DW",
-    gross: 75,
-    commission: 60,
-    net: 45,
-    status: "paid",
-  },
-  {
-    id: 15,
-    date: "Jan 28",
-    service: "Volume Lashes Full Set",
-    client: "Nia B.",
-    clientInitials: "NB",
-    gross: 140,
-    commission: 60,
-    net: 84,
-    status: "paid",
-  },
-  {
-    id: 16,
-    date: "Jan 24",
-    service: "Volume Lashes Full Set",
-    client: "Amy L.",
-    clientInitials: "AL",
-    gross: 140,
-    commission: 60,
-    net: 84,
-    status: "paid",
-  },
-];
-
-const WEEKLY_BARS = [
-  { label: "Feb 10", amount: 159 },
-  { label: "Feb 11", amount: 0 },
-  { label: "Feb 12", amount: 78 },
-  { label: "Feb 13", amount: 0 },
-  { label: "Feb 14", amount: 45 },
-  { label: "Feb 15", amount: 84 },
-  { label: "Feb 16", amount: 0 },
-];
-
-export function AssistantEarningsPage() {
+export function AssistantEarningsPage({ data }: { data: EarningsData }) {
   const [period, setPeriod] = useState<Period>("week");
   const [hoveredBar, setHoveredBar] = useState<string | null>(null);
 
-  const pendingEarnings = EARNINGS.filter((e) => e.status === "pending");
+  const { entries, weeklyBars, commissionRate, stats, weekLabel } = data;
 
-  const thisWeekEntries = EARNINGS.filter((e) => ["Today", "Feb 22"].includes(e.date));
-  const thisWeekGross = thisWeekEntries.reduce((s, e) => s + e.gross, 0);
-  const thisWeekNet = thisWeekEntries.reduce((s, e) => s + e.net, 0);
-
-  const monthNet = EARNINGS.reduce((s, e) => s + e.net, 0);
-  const pendingTotal = pendingEarnings.reduce((s, e) => s + e.net, 0);
-
+  // Filter entries by period
+  const now = new Date();
   const displayEntries =
     period === "week"
-      ? thisWeekEntries
+      ? (() => {
+          const weekStart = new Date(now);
+          const day = weekStart.getDay();
+          const diff = day === 0 ? 6 : day - 1;
+          weekStart.setDate(weekStart.getDate() - diff);
+          weekStart.setHours(0, 0, 0, 0);
+          return entries.filter((e) => new Date(e.date) >= weekStart);
+        })()
       : period === "month"
-        ? EARNINGS.filter((e) => !["Jan 28", "Jan 24"].includes(e.date))
-        : EARNINGS;
+        ? (() => {
+            const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+            return entries.filter((e) => new Date(e.date) >= monthStart);
+          })()
+        : entries;
 
-  const maxBar = Math.max(...WEEKLY_BARS.map((b) => b.amount));
+  const maxBar = Math.max(...weeklyBars.map((b) => b.amount), 1);
 
   return (
     <div className="p-4 md:p-6 lg:p-8 space-y-6">
       <div>
         <h1 className="text-xl font-semibold text-foreground tracking-tight">Earnings</h1>
         <p className="text-sm text-muted mt-0.5">
-          Your commission breakdown — 60% of service price
+          Your commission breakdown — {commissionRate}% of service price
         </p>
       </div>
 
@@ -245,28 +50,28 @@ export function AssistantEarningsPage() {
         {[
           {
             label: "This Week (Net)",
-            value: `$${thisWeekNet}`,
+            value: `$${stats.weekNet.toLocaleString()}`,
             icon: TrendingUp,
             iconColor: "text-[#4e6b51]",
             iconBg: "bg-[#4e6b51]/10",
           },
           {
             label: "This Week (Gross)",
-            value: `$${thisWeekGross}`,
+            value: `$${stats.weekGross.toLocaleString()}`,
             icon: DollarSign,
             iconColor: "text-blush",
             iconBg: "bg-blush/10",
           },
           {
             label: "Pending Payout",
-            value: `$${pendingTotal}`,
+            value: `$${stats.pendingTotal.toLocaleString()}`,
             icon: Clock,
             iconColor: "text-[#7a5c10]",
             iconBg: "bg-[#7a5c10]/10",
           },
           {
             label: "Month to Date",
-            value: `$${monthNet}`,
+            value: `$${stats.monthNet.toLocaleString()}`,
             icon: CalendarDays,
             iconColor: "text-accent",
             iconBg: "bg-accent/10",
@@ -299,9 +104,9 @@ export function AssistantEarningsPage() {
             <div>
               <CardTitle className="text-sm font-semibold">Weekly Earnings (Net)</CardTitle>
               <p className="text-xs text-muted mt-0.5">
-                Feb 10 – 16 · Total:{" "}
+                {weekLabel} · Total:{" "}
                 <span className="font-medium text-foreground">
-                  ${WEEKLY_BARS.reduce((s, b) => s + b.amount, 0)}
+                  ${weeklyBars.reduce((s, b) => s + b.amount, 0).toLocaleString()}
                 </span>
               </p>
             </div>
@@ -309,7 +114,7 @@ export function AssistantEarningsPage() {
         </CardHeader>
         <CardContent className="px-5 pb-5 pt-4">
           <div className="flex items-end gap-2 h-28">
-            {WEEKLY_BARS.map((bar) => {
+            {weeklyBars.map((bar) => {
               const isHovered = hoveredBar === bar.label;
               return (
                 <div
@@ -318,7 +123,6 @@ export function AssistantEarningsPage() {
                   onMouseEnter={() => bar.amount > 0 && setHoveredBar(bar.label)}
                   onMouseLeave={() => setHoveredBar(null)}
                 >
-                  {/* Tooltip */}
                   {isHovered && (
                     <div className="absolute bottom-full mb-1.5 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
                       <div className="bg-foreground text-background text-[11px] font-medium px-2 py-1 rounded-md whitespace-nowrap shadow-md">
@@ -342,7 +146,7 @@ export function AssistantEarningsPage() {
                       }}
                     />
                   </div>
-                  <span className="text-[9px] text-muted">{bar.label.split(" ")[1]}</span>
+                  <span className="text-[9px] text-muted">{bar.dayNum}</span>
                 </div>
               );
             })}
@@ -374,62 +178,69 @@ export function AssistantEarningsPage() {
           </div>
         </CardHeader>
         <CardContent className="px-0 pb-0 pt-2">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border/60 bg-surface/30">
-                <th className="text-left text-[10px] font-semibold uppercase tracking-wide text-muted px-5 pb-2.5 pt-1">
-                  Service / Client
-                </th>
-                <th className="text-left text-[10px] font-semibold uppercase tracking-wide text-muted px-4 pb-2.5 pt-1 hidden sm:table-cell">
-                  Date
-                </th>
-                <th className="text-right text-[10px] font-semibold uppercase tracking-wide text-muted px-4 pb-2.5 pt-1 hidden md:table-cell">
-                  Gross
-                </th>
-                <th className="text-right text-[10px] font-semibold uppercase tracking-wide text-muted px-4 pb-2.5 pt-1">
-                  Your Cut
-                </th>
-                <th className="text-center text-[10px] font-semibold uppercase tracking-wide text-muted px-5 pb-2.5 pt-1">
-                  Status
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {displayEntries.map((e) => (
-                <tr
-                  key={e.id}
-                  className="border-b border-border/40 last:border-0 hover:bg-surface/60 transition-colors"
-                >
-                  <td className="px-5 py-3 align-middle">
-                    <p className="text-sm font-medium text-foreground">{e.service}</p>
-                    <p className="text-[10px] text-muted">{e.client}</p>
-                  </td>
-                  <td className="px-4 py-3 align-middle hidden sm:table-cell">
-                    <span className="text-xs text-muted">{e.date}</span>
-                  </td>
-                  <td className="px-4 py-3 text-right align-middle hidden md:table-cell">
-                    <span className="text-xs text-muted">${e.gross}</span>
-                  </td>
-                  <td className="px-4 py-3 text-right align-middle">
-                    <span className="text-sm font-semibold text-foreground">${e.net}</span>
-                    <span className="text-[10px] text-muted ml-1">({e.commission}%)</span>
-                  </td>
-                  <td className="px-5 py-3 text-center align-middle">
-                    <Badge
-                      className={cn(
-                        "border text-[10px] px-1.5 py-0.5",
-                        e.status === "paid"
-                          ? "bg-[#4e6b51]/12 text-[#4e6b51] border-[#4e6b51]/20"
-                          : "bg-[#7a5c10]/10 text-[#7a5c10] border-[#7a5c10]/20",
-                      )}
-                    >
-                      {e.status === "paid" ? "Paid" : "Pending"}
-                    </Badge>
-                  </td>
+          {displayEntries.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12">
+              <Wallet className="w-8 h-8 text-foreground/15 mb-2" />
+              <p className="text-sm text-muted">No earnings for this period.</p>
+            </div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border/60 bg-surface/30">
+                  <th className="text-left text-[10px] font-semibold uppercase tracking-wide text-muted px-5 pb-2.5 pt-1">
+                    Service / Client
+                  </th>
+                  <th className="text-left text-[10px] font-semibold uppercase tracking-wide text-muted px-4 pb-2.5 pt-1 hidden sm:table-cell">
+                    Date
+                  </th>
+                  <th className="text-right text-[10px] font-semibold uppercase tracking-wide text-muted px-4 pb-2.5 pt-1 hidden md:table-cell">
+                    Gross
+                  </th>
+                  <th className="text-right text-[10px] font-semibold uppercase tracking-wide text-muted px-4 pb-2.5 pt-1">
+                    Your Cut
+                  </th>
+                  <th className="text-center text-[10px] font-semibold uppercase tracking-wide text-muted px-5 pb-2.5 pt-1">
+                    Status
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {displayEntries.map((e) => (
+                  <tr
+                    key={e.id}
+                    className="border-b border-border/40 last:border-0 hover:bg-surface/60 transition-colors"
+                  >
+                    <td className="px-5 py-3 align-middle">
+                      <p className="text-sm font-medium text-foreground">{e.service}</p>
+                      <p className="text-[10px] text-muted">{e.client}</p>
+                    </td>
+                    <td className="px-4 py-3 align-middle hidden sm:table-cell">
+                      <span className="text-xs text-muted">{e.dayLabel}</span>
+                    </td>
+                    <td className="px-4 py-3 text-right align-middle hidden md:table-cell">
+                      <span className="text-xs text-muted">${e.gross}</span>
+                    </td>
+                    <td className="px-4 py-3 text-right align-middle">
+                      <span className="text-sm font-semibold text-foreground">${e.net}</span>
+                      <span className="text-[10px] text-muted ml-1">({e.commissionRate}%)</span>
+                    </td>
+                    <td className="px-5 py-3 text-center align-middle">
+                      <Badge
+                        className={cn(
+                          "border text-[10px] px-1.5 py-0.5",
+                          e.status === "paid"
+                            ? "bg-[#4e6b51]/12 text-[#4e6b51] border-[#4e6b51]/20"
+                            : "bg-[#7a5c10]/10 text-[#7a5c10] border-[#7a5c10]/20",
+                        )}
+                      >
+                        {e.status === "paid" ? "Paid" : "Pending"}
+                      </Badge>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </CardContent>
       </Card>
     </div>

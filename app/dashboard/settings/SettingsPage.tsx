@@ -140,7 +140,7 @@ export function SettingsPage({
 
         {/* Mobile horizontal tabs */}
         <div className="md:hidden w-full">
-          <div className="flex gap-0.5 border-b border-border mb-5 -mx-0">
+          <div className="flex gap-0.5 border-b border-border mb-5 -mx-0 overflow-x-auto">
             {TABS.map(({ id, label, icon: Icon }) => (
               <button
                 key={id}

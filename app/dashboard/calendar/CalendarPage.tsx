@@ -13,12 +13,70 @@ import {
   Users,
   Pencil,
   Trash2,
-  ExternalLink,
 } from "lucide-react";
+import { Calendar as DatePicker } from "@/components/ui/calendar";
 import { Dialog, Field, Input, Select, Textarea, DialogFooter } from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { createBooking, updateBooking, deleteBooking } from "../bookings/actions";
 import type { BookingRow, BookingInput } from "../bookings/actions";
+import type { EventRow } from "../events/actions";
+import type { BusinessHourRow, LunchBreak, TimeOffRow } from "../settings/hours-actions";
+import {
+  saveBusinessHours,
+  saveLunchBreak,
+  addTimeOff,
+  deleteTimeOff,
+} from "../settings/hours-actions";
+
+/* ------------------------------------------------------------------ */
+/*  Availability types & helpers                                       */
+/* ------------------------------------------------------------------ */
+
+/** Resolved availability for a single calendar day. */
+interface DayAvailability {
+  isOpen: boolean;
+  opensAt: string | null; // "HH:MM"
+  closesAt: string | null; // "HH:MM"
+  isBlocked: boolean;
+  blockLabel?: string;
+  lunchStart: string | null;
+  lunchEnd: string | null;
+}
+
+/**
+ * Given a JS Date, business hours (ISO weekday 1-7), time-off rows, and lunch
+ * config, return the resolved availability for that day.
+ */
+function getDayAvailability(
+  day: Date,
+  businessHours: BusinessHourRow[],
+  timeOffRows: TimeOffRow[],
+  lunchBreak: LunchBreak | null,
+): DayAvailability {
+  const ds = fmtDate(day);
+  // JS getDay() returns 0=Sun…6=Sat → convert to ISO 1=Mon…7=Sun
+  const jsDay = day.getDay();
+  const isoDay = jsDay === 0 ? 7 : jsDay;
+
+  const bh = businessHours.find((h) => h.dayOfWeek === isoDay);
+  const isOpen = bh?.isOpen ?? false;
+
+  // Check if date falls within any time-off range
+  const blocked = timeOffRows.find((t) => ds >= t.startDate && ds <= t.endDate);
+
+  return {
+    isOpen: blocked ? false : isOpen,
+    opensAt: isOpen ? (bh?.opensAt ?? null) : null,
+    closesAt: isOpen ? (bh?.closesAt ?? null) : null,
+    isBlocked: !!blocked,
+    blockLabel:
+      blocked?.label ??
+      (blocked ? (blocked.type === "vacation" ? "Vacation" : "Day Off") : undefined),
+    lunchStart: lunchBreak?.enabled ? lunchBreak.start : null,
+    lunchEnd: lunchBreak?.enabled ? lunchBreak.end : null,
+  };
+}
 
 /* ------------------------------------------------------------------ */
 /*  Constants                                                           */
@@ -162,6 +220,11 @@ function parseDate(s: string): Date {
   return new Date(y, mo - 1, d);
 }
 
+/** Format a Date as "YYYY-MM-DD" for DB storage. */
+function fmtDateISO(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 function addDays(d: Date, n: number): Date {
   const r = new Date(d);
   r.setDate(r.getDate() + n);
@@ -294,18 +357,97 @@ function DayColumn({
   events,
   onSelect,
   onSlotClick,
+  availability,
 }: {
   events: CalEvent[];
   onSelect: (e: CalEvent) => void;
   onSlotClick?: (h: number) => void;
+  availability?: DayAvailability;
 }) {
   const laid = useMemo(() => layoutDay(events), [events]);
+
+  // Compute overlay blocks for unavailable time
+  const overlays = useMemo(() => {
+    if (!availability) return [];
+    const blocks: { top: number; height: number; label?: string; type: "closed" | "lunch" }[] = [];
+
+    if (!availability.isOpen) {
+      // Whole day closed / blocked
+      blocks.push({
+        top: GRID_TOP_PAD,
+        height: TOTAL_HOURS * HOUR_H,
+        label: availability.isBlocked ? availability.blockLabel : "Closed",
+        type: "closed",
+      });
+      return blocks;
+    }
+
+    // Before opening
+    if (availability.opensAt) {
+      const openMin = timeToMin(availability.opensAt);
+      const startMin = DAY_START * 60;
+      if (openMin > startMin) {
+        const h = ((openMin - startMin) / 60) * HOUR_H;
+        blocks.push({ top: GRID_TOP_PAD, height: h, type: "closed" });
+      }
+    }
+
+    // After closing
+    if (availability.closesAt) {
+      const closeMin = timeToMin(availability.closesAt);
+      const endMin = DAY_END * 60;
+      if (closeMin < endMin) {
+        const topPx = ((closeMin - DAY_START * 60) / 60) * HOUR_H + GRID_TOP_PAD;
+        const h = ((endMin - closeMin) / 60) * HOUR_H;
+        blocks.push({ top: topPx, height: h, type: "closed" });
+      }
+    }
+
+    // Lunch break
+    if (availability.lunchStart && availability.lunchEnd) {
+      const lunchStartMin = timeToMin(availability.lunchStart);
+      const lunchEndMin = timeToMin(availability.lunchEnd);
+      if (lunchStartMin >= DAY_START * 60 && lunchEndMin <= DAY_END * 60) {
+        const topPx = ((lunchStartMin - DAY_START * 60) / 60) * HOUR_H + GRID_TOP_PAD;
+        const h = ((lunchEndMin - lunchStartMin) / 60) * HOUR_H;
+        blocks.push({ top: topPx, height: h, label: "Lunch", type: "lunch" });
+      }
+    }
+
+    return blocks;
+  }, [availability]);
 
   return (
     <div
       className="relative flex-1 min-w-0 border-r border-border/30 last:border-r-0"
       style={{ height: `${GRID_H}px` }}
     >
+      {/* Availability overlays */}
+      {overlays.map((block, i) => (
+        <div
+          key={i}
+          className={cn(
+            "absolute left-0 right-0 pointer-events-none z-[1]",
+            block.type === "closed" ? "bg-foreground/[0.04]" : "bg-foreground/[0.03]",
+          )}
+          style={{
+            top: `${block.top}px`,
+            height: `${block.height}px`,
+            ...(block.type === "lunch"
+              ? {
+                  backgroundImage:
+                    "repeating-linear-gradient(135deg, transparent, transparent 4px, rgba(0,0,0,0.03) 4px, rgba(0,0,0,0.03) 8px)",
+                }
+              : {}),
+          }}
+        >
+          {block.label && block.height > 20 && (
+            <span className="absolute inset-0 flex items-center justify-center text-[10px] font-medium text-muted/60 uppercase tracking-wide select-none">
+              {block.label}
+            </span>
+          )}
+        </div>
+      ))}
       {/* Clickable hour slots */}
       {Array.from({ length: TOTAL_HOURS }, (_, i) => DAY_START + i).map((h) => (
         <div
@@ -376,11 +518,17 @@ function MonthView({
   events,
   onDayClick,
   onEventClick,
+  businessHours,
+  timeOff,
+  lunchBreak,
 }: {
   cursor: Date;
   events: CalEvent[];
   onDayClick: (d: Date) => void;
   onEventClick: (e: CalEvent) => void;
+  businessHours: BusinessHourRow[];
+  timeOff: TimeOffRow[];
+  lunchBreak: LunchBreak | null;
 }) {
   const year = cursor.getFullYear();
   const month = cursor.getMonth();
@@ -415,6 +563,7 @@ function MonthView({
           const dayEvs = byDate[ds] || [];
           const isCurrentMonth = day.getMonth() === month;
           const today = isToday(ds);
+          const avail = getDayAvailability(day, businessHours, timeOff, lunchBreak);
           const MAX = 3;
           return (
             <div
@@ -422,21 +571,29 @@ function MonthView({
               className={cn(
                 "p-1.5 cursor-pointer hover:bg-foreground/[0.02] transition-colors overflow-hidden",
                 !isCurrentMonth && "bg-surface/50",
+                isCurrentMonth && !avail.isOpen && "bg-foreground/[0.03]",
               )}
               onClick={() => onDayClick(day)}
             >
-              <span
-                className={cn(
-                  "text-xs font-medium w-6 h-6 flex items-center justify-center rounded-full mb-1",
-                  today
-                    ? "bg-accent text-white font-semibold"
-                    : isCurrentMonth
-                      ? "text-foreground"
-                      : "text-muted/40",
+              <div className="flex items-center gap-1 mb-1">
+                <span
+                  className={cn(
+                    "text-xs font-medium w-6 h-6 flex items-center justify-center rounded-full",
+                    today
+                      ? "bg-accent text-white font-semibold"
+                      : isCurrentMonth
+                        ? "text-foreground"
+                        : "text-muted/40",
+                  )}
+                >
+                  {day.getDate()}
+                </span>
+                {isCurrentMonth && !avail.isOpen && (
+                  <span className="text-[8px] font-semibold text-muted/50 uppercase tracking-wide">
+                    {avail.blockLabel || "Closed"}
+                  </span>
                 )}
-              >
-                {day.getDate()}
-              </span>
+              </div>
               <div className="space-y-0.5">
                 {dayEvs.slice(0, MAX).map((ev) => {
                   const c = TYPE_C[ev.type];
@@ -491,11 +648,17 @@ function WeekView({
   events,
   onEventClick,
   onSlotClick,
+  businessHours,
+  timeOff,
+  lunchBreak,
 }: {
   cursor: Date;
   events: CalEvent[];
   onEventClick: (e: CalEvent) => void;
   onSlotClick: (date: string, h: number) => void;
+  businessHours: BusinessHourRow[];
+  timeOff: TimeOffRow[];
+  lunchBreak: LunchBreak | null;
 }) {
   const days = useMemo(() => getWeekDays(cursor), [cursor]);
 
@@ -516,8 +679,15 @@ function WeekView({
         {days.map((day) => {
           const ds = fmtDate(day);
           const today = isToday(ds);
+          const avail = getDayAvailability(day, businessHours, timeOff, lunchBreak);
           return (
-            <div key={ds} className="flex-1 py-2 text-center border-l border-border/30">
+            <div
+              key={ds}
+              className={cn(
+                "flex-1 py-2 text-center border-l border-border/30",
+                !avail.isOpen && "bg-surface/50",
+              )}
+            >
               <p className="text-[11px] text-muted">{DAY_NAMES_SHORT[day.getDay()]}</p>
               <p
                 className={cn(
@@ -545,6 +715,7 @@ function WeekView({
                   events={byDate[ds] || []}
                   onSelect={onEventClick}
                   onSlotClick={(h) => onSlotClick(ds, h)}
+                  availability={getDayAvailability(day, businessHours, timeOff, lunchBreak)}
                 />
               );
             })}
@@ -564,21 +735,36 @@ function DayView({
   events,
   onEventClick,
   onSlotClick,
+  businessHours,
+  timeOff,
+  lunchBreak,
 }: {
   cursor: Date;
   events: CalEvent[];
   onEventClick: (e: CalEvent) => void;
   onSlotClick: (date: string, h: number) => void;
+  businessHours: BusinessHourRow[];
+  timeOff: TimeOffRow[];
+  lunchBreak: LunchBreak | null;
 }) {
   const ds = fmtDate(cursor);
   const dayEvents = useMemo(() => events.filter((ev) => ev.date === ds), [events, ds]);
   const today = isToday(ds);
+  const avail = useMemo(
+    () => getDayAvailability(cursor, businessHours, timeOff, lunchBreak),
+    [cursor, businessHours, timeOff, lunchBreak],
+  );
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
       <div className="flex shrink-0 border-b border-border">
         <div className="w-14 shrink-0" />
-        <div className="flex-1 py-3 text-center border-l border-border/30">
+        <div
+          className={cn(
+            "flex-1 py-3 text-center border-l border-border/30",
+            !avail.isOpen && "bg-surface/50",
+          )}
+        >
           <p className="text-xs text-muted">{DAY_NAMES_SHORT[cursor.getDay()]}</p>
           <p
             className={cn(
@@ -588,6 +774,9 @@ function DayView({
           >
             {cursor.getDate()}
           </p>
+          {!avail.isOpen && (
+            <p className="text-[10px] text-muted/60 mt-1">{avail.blockLabel || "Closed"}</p>
+          )}
         </div>
       </div>
       <ScrollGrid>
@@ -599,6 +788,7 @@ function DayView({
               events={dayEvents}
               onSelect={onEventClick}
               onSlotClick={(h) => onSlotClick(ds, h)}
+              availability={avail}
             />
           </div>
         </div>
@@ -617,12 +807,18 @@ function StaffView({
   staffMembers,
   onEventClick,
   onSlotClick,
+  businessHours,
+  timeOff,
+  lunchBreak,
 }: {
   cursor: Date;
   events: CalEvent[];
   staffMembers: string[];
   onEventClick: (e: CalEvent) => void;
   onSlotClick: (date: string, h: number, staff: string) => void;
+  businessHours: BusinessHourRow[];
+  timeOff: TimeOffRow[];
+  lunchBreak: LunchBreak | null;
 }) {
   const ds = fmtDate(cursor);
 
@@ -666,6 +862,7 @@ function StaffView({
                 events={byStaff[s]}
                 onSelect={onEventClick}
                 onSlotClick={(h) => onSlotClick(ds, h, s)}
+                availability={getDayAvailability(cursor, businessHours, timeOff, lunchBreak)}
               />
             ))}
           </div>
@@ -1128,100 +1325,529 @@ function navigate(view: View, cursor: Date, dir: 1 | -1): Date {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Events tab (special events / parties)                              */
+/*  Availability tab (editable)                                        */
 /* ------------------------------------------------------------------ */
 
-type SpecialEventStatus = "upcoming" | "sold_out" | "past" | "draft";
+const AVAIL_DAY_NAMES = [
+  "",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+  "Sunday",
+] as const;
 
-interface SpecialEvent {
-  id: number;
-  title: string;
-  date: string;
-  time: string;
-  location: string;
-  capacity: number;
-  registered: number;
-  price: number | null;
-  status: SpecialEventStatus;
-  tags: string[];
-  description: string;
+/** Generate time options in 15-min increments from 06:00 to 22:00. */
+const TIME_OPTIONS = (() => {
+  const opts: { value: string; label: string }[] = [];
+  for (let h = 6; h <= 22; h++) {
+    for (const m of [0, 15, 30, 45]) {
+      if (h === 22 && m > 0) break;
+      const val = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+      const hour12 = h % 12 || 12;
+      const ampm = h < 12 ? "AM" : "PM";
+      const label = `${hour12}:${String(m).padStart(2, "0")} ${ampm}`;
+      opts.push({ value: val, label });
+    }
+  }
+  return opts;
+})();
+
+function TimeSelect({
+  value,
+  onChange,
+  className,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  className?: string;
+}) {
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className={cn(
+        "px-2.5 py-1.5 text-sm bg-surface border border-border rounded-lg text-foreground focus:outline-none focus:ring-1 focus:ring-accent/30 transition appearance-none cursor-pointer",
+        className,
+      )}
+    >
+      {TIME_OPTIONS.map((o) => (
+        <option key={o.value} value={o.value}>
+          {o.label}
+        </option>
+      ))}
+    </select>
+  );
 }
 
-const SPECIAL_EVENTS: SpecialEvent[] = [
-  {
-    id: 1,
-    title: "Permanent Jewelry Pop-Up Party",
-    date: "Mar 8, 2026",
-    time: "12:00 PM – 6:00 PM",
-    location: "T Creative Studio · Atlanta, GA",
-    capacity: 20,
-    registered: 14,
-    price: null,
-    status: "upcoming",
-    tags: ["jewelry", "pop-up"],
-    description:
-      "Walk-in permanent jewelry welding event. No appointment needed. Multiple chain styles and metals available.",
-  },
-  {
-    id: 2,
-    title: "Lash + Jewels Galentine's Day",
-    date: "Feb 13, 2026",
-    time: "11:00 AM – 4:00 PM",
-    location: "T Creative Studio · Atlanta, GA",
-    capacity: 12,
-    registered: 12,
-    price: 45,
-    status: "sold_out",
-    tags: ["lash", "jewelry", "event"],
-    description:
-      "Galentine's event — lash refresh + permanent bracelet combo for you and your bestie.",
-  },
-  {
-    id: 3,
-    title: "Beauty Business Workshop",
-    date: "Mar 22, 2026",
-    time: "10:00 AM – 2:00 PM",
-    location: "Atlanta (venue TBD)",
-    capacity: 30,
-    registered: 8,
-    price: 200,
-    status: "upcoming",
-    tags: ["consulting", "workshop"],
-    description:
-      "Half-day workshop: pricing strategy, client retention, and social media marketing for beauty entrepreneurs.",
-  },
-  {
-    id: 4,
-    title: "Lash Certification — Spring Cohort",
-    date: "Apr 5–6, 2026",
-    time: "9:00 AM – 5:00 PM",
-    location: "T Creative Studio · Atlanta, GA",
-    capacity: 6,
-    registered: 3,
-    price: 800,
-    status: "upcoming",
-    tags: ["training", "certification"],
-    description:
-      "2-day lash tech certification. Classic, hybrid, and volume techniques. Kit included.",
-  },
-  {
-    id: 5,
-    title: "Permanent Jewelry Course",
-    date: "Jan 18, 2026",
-    time: "10:00 AM – 4:00 PM",
-    location: "T Creative Studio · Atlanta, GA",
-    capacity: 4,
-    registered: 4,
-    price: 450,
-    status: "past",
-    tags: ["training", "jewelry"],
-    description:
-      "1-day hands-on jewelry welding course. Includes starter kit and business setup guide.",
-  },
-];
+function AvailToggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <button
+      onClick={() => onChange(!on)}
+      className={cn(
+        "relative w-10 h-[22px] rounded-full overflow-hidden transition-colors shrink-0",
+        on ? "bg-accent" : "bg-foreground/20",
+      )}
+    >
+      <span
+        className={cn(
+          "absolute left-0 top-[3px] w-4 h-4 bg-white rounded-full shadow-sm transition-transform duration-200",
+          on ? "translate-x-[22px]" : "translate-x-[3px]",
+        )}
+      />
+    </button>
+  );
+}
 
-const STATUS_CFG: Record<
-  SpecialEventStatus,
+function AvailabilityTab({
+  businessHours,
+  timeOff: initialTimeOff,
+  lunchBreak: initialLunchBreak,
+}: {
+  businessHours: BusinessHourRow[];
+  timeOff: TimeOffRow[];
+  lunchBreak: LunchBreak | null;
+}) {
+  const [days, setDays] = useState(() =>
+    [...businessHours]
+      .sort((a, b) => a.dayOfWeek - b.dayOfWeek)
+      .map((h) => ({
+        id: h.id,
+        dayOfWeek: h.dayOfWeek,
+        isOpen: h.isOpen,
+        opensAt: h.opensAt ?? "09:00",
+        closesAt: h.closesAt ?? "18:00",
+      })),
+  );
+  const [hoursSaving, setHoursSaving] = useState(false);
+  const [hoursSaved, setHoursSaved] = useState(false);
+
+  const [lunch, setLunch] = useState<LunchBreak>(
+    initialLunchBreak ?? { enabled: false, start: "12:00", end: "13:00" },
+  );
+  const [lunchSaving, setLunchSaving] = useState(false);
+  const [lunchSaved, setLunchSaved] = useState(false);
+
+  const [blocked, setBlocked] = useState(initialTimeOff);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [addType, setAddType] = useState<"day_off" | "vacation">("day_off");
+  const [addStart, setAddStart] = useState("");
+  const [addEnd, setAddEnd] = useState("");
+  const [addLabel, setAddLabel] = useState("");
+  const [adding, setAdding] = useState(false);
+
+  const openDays = days.filter((d) => d.isOpen);
+
+  async function handleSaveHours() {
+    setHoursSaving(true);
+    try {
+      await saveBusinessHours(
+        days.map((d) => ({
+          dayOfWeek: d.dayOfWeek,
+          isOpen: d.isOpen,
+          opensAt: d.isOpen ? d.opensAt : null,
+          closesAt: d.isOpen ? d.closesAt : null,
+        })),
+      );
+      setHoursSaved(true);
+      setTimeout(() => setHoursSaved(false), 2000);
+    } finally {
+      setHoursSaving(false);
+    }
+  }
+
+  async function handleSaveLunch() {
+    setLunchSaving(true);
+    try {
+      await saveLunchBreak(lunch);
+      setLunchSaved(true);
+      setTimeout(() => setLunchSaved(false), 2000);
+    } finally {
+      setLunchSaving(false);
+    }
+  }
+
+  async function handleAddBlocked() {
+    if (!addStart) return;
+    setAdding(true);
+    try {
+      const row = await addTimeOff({
+        type: addType,
+        startDate: addStart,
+        endDate: addType === "day_off" ? addStart : addEnd || addStart,
+        label: addLabel || undefined,
+      });
+      setBlocked((prev) => [...prev, row]);
+      setShowAddForm(false);
+      setAddStart("");
+      setAddEnd("");
+      setAddLabel("");
+    } finally {
+      setAdding(false);
+    }
+  }
+
+  async function handleDeleteBlocked(id: number) {
+    await deleteTimeOff(id);
+    setBlocked((prev) => prev.filter((b) => b.id !== id));
+  }
+
+  return (
+    <div className="flex-1 overflow-auto p-4 md:p-6 lg:p-8">
+      <div className="max-w-2xl mx-auto space-y-6">
+        <div>
+          <h2 className="text-base font-semibold text-foreground">Studio Availability</h2>
+          <p className="text-xs text-muted mt-0.5">
+            {openDays.length} day{openDays.length !== 1 ? "s" : ""} open per week
+          </p>
+        </div>
+
+        {/* Weekly Schedule */}
+        <div className="bg-background border border-border rounded-2xl overflow-hidden">
+          <div className="px-5 pt-4 pb-2">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
+              Weekly Schedule
+            </p>
+          </div>
+          <div className="px-5 pb-4 space-y-0.5">
+            {days.map((row, idx) => (
+              <div
+                key={row.dayOfWeek}
+                className="flex items-center gap-3 py-2.5 px-3 rounded-xl hover:bg-surface/60 transition-colors"
+              >
+                <span
+                  className={cn(
+                    "text-sm w-24 shrink-0 font-medium",
+                    row.isOpen ? "text-foreground" : "text-muted/50",
+                  )}
+                >
+                  {AVAIL_DAY_NAMES[row.dayOfWeek]}
+                </span>
+                <div className="flex-1 flex items-center gap-2">
+                  {row.isOpen ? (
+                    <>
+                      <TimeSelect
+                        value={row.opensAt}
+                        onChange={(v) =>
+                          setDays((prev) =>
+                            prev.map((d, i) => (i === idx ? { ...d, opensAt: v } : d)),
+                          )
+                        }
+                      />
+                      <span className="text-muted text-xs shrink-0">to</span>
+                      <TimeSelect
+                        value={row.closesAt}
+                        onChange={(v) =>
+                          setDays((prev) =>
+                            prev.map((d, i) => (i === idx ? { ...d, closesAt: v } : d)),
+                          )
+                        }
+                      />
+                    </>
+                  ) : (
+                    <span className="text-sm text-muted/40 italic">Closed</span>
+                  )}
+                </div>
+                <AvailToggle
+                  on={row.isOpen}
+                  onChange={() =>
+                    setDays((prev) =>
+                      prev.map((d, i) => (i === idx ? { ...d, isOpen: !d.isOpen } : d)),
+                    )
+                  }
+                />
+              </div>
+            ))}
+            <div className="flex justify-end pt-3 border-t border-border/50 mt-2">
+              <button
+                onClick={handleSaveHours}
+                disabled={hoursSaving}
+                className="px-4 py-2 rounded-lg bg-accent text-white text-sm font-medium hover:bg-accent/90 transition-colors flex items-center gap-1.5 disabled:opacity-60"
+              >
+                {hoursSaved ? "Saved!" : hoursSaving ? "Saving…" : "Save Hours"}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Lunch Break */}
+        <div className="bg-background border border-border rounded-2xl overflow-hidden">
+          <div className="px-5 pt-4 pb-2">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
+              Lunch Break
+            </p>
+          </div>
+          <div className="px-5 pb-4 space-y-3">
+            <div className="flex items-center justify-between gap-4 py-0.5">
+              <div className="min-w-0">
+                <p className="text-sm text-foreground">Block lunch break</p>
+                <p className="text-xs text-muted mt-0.5">
+                  Prevent bookings during your lunch window
+                </p>
+              </div>
+              <AvailToggle
+                on={lunch.enabled}
+                onChange={(v) => setLunch((prev) => ({ ...prev, enabled: v }))}
+              />
+            </div>
+            {lunch.enabled && (
+              <div className="flex items-center gap-3 pl-1">
+                <TimeSelect
+                  value={lunch.start}
+                  onChange={(v) => setLunch((prev) => ({ ...prev, start: v }))}
+                />
+                <span className="text-muted text-xs shrink-0">to</span>
+                <TimeSelect
+                  value={lunch.end}
+                  onChange={(v) => setLunch((prev) => ({ ...prev, end: v }))}
+                />
+              </div>
+            )}
+            <div className="flex justify-end pt-2 border-t border-border/50">
+              <button
+                onClick={handleSaveLunch}
+                disabled={lunchSaving}
+                className="px-4 py-2 rounded-lg bg-accent text-white text-sm font-medium hover:bg-accent/90 transition-colors flex items-center gap-1.5 disabled:opacity-60"
+              >
+                {lunchSaved ? "Saved!" : lunchSaving ? "Saving…" : "Save Lunch Break"}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Blocked Dates */}
+        <div className="bg-background border border-border rounded-2xl overflow-hidden">
+          <div className="px-5 pt-4 pb-2">
+            <div className="flex items-center justify-between">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
+                Blocked Dates
+              </p>
+              <button
+                onClick={() => setShowAddForm((v) => !v)}
+                className="flex items-center gap-1 text-xs text-muted hover:text-foreground transition-colors px-2 py-1 rounded-lg hover:bg-foreground/5"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Add
+              </button>
+            </div>
+          </div>
+          <div className="px-5 pb-4 space-y-3">
+            {showAddForm && (
+              <div className="bg-surface border border-border rounded-xl p-4 space-y-4">
+                {/* Type toggle */}
+                <div className="flex gap-2">
+                  {(["day_off", "vacation"] as const).map((t) => (
+                    <button
+                      key={t}
+                      onClick={() => {
+                        setAddType(t);
+                        if (t === "day_off") setAddEnd("");
+                      }}
+                      className={cn(
+                        "px-3 py-1.5 text-xs font-medium rounded-lg transition-colors",
+                        addType === t
+                          ? "bg-accent text-white"
+                          : "bg-foreground/5 text-muted hover:text-foreground",
+                      )}
+                    >
+                      {t === "day_off" ? "Day Off" : "Vacation"}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Calendar picker */}
+                <div className="flex justify-center">
+                  {addType === "day_off" ? (
+                    <DatePicker
+                      mode="single"
+                      selected={addStart ? parseDate(addStart) : undefined}
+                      onSelect={(day) => {
+                        setAddStart(day ? fmtDateISO(day) : "");
+                        setAddEnd("");
+                      }}
+                      disabled={{ before: new Date() }}
+                      className="!bg-transparent"
+                    />
+                  ) : (
+                    <DatePicker
+                      mode="range"
+                      selected={
+                        addStart
+                          ? {
+                              from: parseDate(addStart),
+                              to: addEnd ? parseDate(addEnd) : undefined,
+                            }
+                          : undefined
+                      }
+                      onSelect={(range) => {
+                        setAddStart(range?.from ? fmtDateISO(range.from) : "");
+                        setAddEnd(range?.to ? fmtDateISO(range.to) : "");
+                      }}
+                      disabled={{ before: new Date() }}
+                      className="!bg-transparent"
+                    />
+                  )}
+                </div>
+
+                {/* Selected date display + label */}
+                {addStart && (
+                  <div className="space-y-3">
+                    <p className="text-sm text-foreground text-center">
+                      {addType === "day_off"
+                        ? parseDate(addStart).toLocaleDateString("en-US", {
+                            weekday: "short",
+                            month: "short",
+                            day: "numeric",
+                            year: "numeric",
+                          })
+                        : addEnd
+                          ? `${parseDate(addStart).toLocaleDateString("en-US", { month: "short", day: "numeric" })} – ${parseDate(addEnd).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`
+                          : `Starting ${parseDate(addStart).toLocaleDateString("en-US", { month: "short", day: "numeric" })} — select end date`}
+                    </p>
+                    <input
+                      type="text"
+                      value={addLabel}
+                      onChange={(e) => setAddLabel(e.target.value)}
+                      placeholder="Label (optional) — e.g. Hawaii trip"
+                      className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-1 focus:ring-accent/30"
+                    />
+                  </div>
+                )}
+
+                {/* Actions */}
+                <div className="flex gap-2 justify-end">
+                  <button
+                    onClick={() => {
+                      setShowAddForm(false);
+                      setAddStart("");
+                      setAddEnd("");
+                      setAddLabel("");
+                    }}
+                    className="px-3 py-1.5 text-xs font-medium text-muted rounded-lg hover:bg-foreground/5 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleAddBlocked}
+                    disabled={!addStart || (addType === "vacation" && !addEnd) || adding}
+                    className="px-3 py-1.5 text-xs font-medium bg-accent text-white rounded-lg hover:bg-accent/90 transition-colors disabled:opacity-60"
+                  >
+                    {adding ? "Adding…" : addType === "day_off" ? "Block Day" : "Block Dates"}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {blocked.length === 0 && !showAddForm && (
+              <p className="text-sm text-muted/50 italic text-center py-4">
+                No blocked dates — your schedule is fully open.
+              </p>
+            )}
+
+            {blocked.map((entry) => {
+              const startD = parseDate(entry.startDate);
+              const endD = parseDate(entry.endDate);
+              const sameDay = entry.startDate === entry.endDate;
+              const fmtD = (d: Date) =>
+                d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+              return (
+                <div
+                  key={entry.id}
+                  className="flex items-center justify-between gap-3 py-2.5 px-3 rounded-xl bg-surface/60"
+                >
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span
+                        className={cn(
+                          "text-[10px] font-semibold px-1.5 py-0.5 rounded-full shrink-0",
+                          entry.type === "day_off"
+                            ? "bg-amber-50 text-amber-600"
+                            : "bg-blue-50 text-blue-600",
+                        )}
+                      >
+                        {entry.type === "day_off" ? "Day Off" : "Vacation"}
+                      </span>
+                      {entry.label && (
+                        <span className="text-sm font-medium text-foreground truncate">
+                          {entry.label}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted mt-0.5">
+                      {sameDay ? fmtD(startD) : `${fmtD(startD)} – ${fmtD(endD)}`}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => handleDeleteBlocked(entry.id)}
+                    className="text-muted hover:text-destructive transition-colors shrink-0 p-1.5 rounded-lg hover:bg-destructive/10"
+                    title="Remove blocked date"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Events tab (DB-backed)                                             */
+/* ------------------------------------------------------------------ */
+
+const EVENT_TYPE_CFG: Record<string, { label: string; color: string; bg: string; border: string }> =
+  {
+    bridal: {
+      label: "Bridal Party",
+      color: "text-pink-700",
+      bg: "bg-pink-50",
+      border: "border-pink-100",
+    },
+    pop_up: {
+      label: "Pop-Up",
+      color: "text-[#a07040]",
+      bg: "bg-[#d4a574]/10",
+      border: "border-[#d4a574]/25",
+    },
+    travel: {
+      label: "Travel",
+      color: "text-blue-700",
+      bg: "bg-blue-50",
+      border: "border-blue-100",
+    },
+    private_party: {
+      label: "Private Party",
+      color: "text-purple-700",
+      bg: "bg-purple-50",
+      border: "border-purple-100",
+    },
+    workshop: {
+      label: "Workshop",
+      color: "text-[#4e6b51]",
+      bg: "bg-[#4e6b51]/10",
+      border: "border-[#4e6b51]/20",
+    },
+    birthday: {
+      label: "Birthday",
+      color: "text-orange-700",
+      bg: "bg-orange-50",
+      border: "border-orange-100",
+    },
+    corporate: {
+      label: "Corporate",
+      color: "text-slate-700",
+      bg: "bg-slate-50",
+      border: "border-slate-200",
+    },
+  };
+
+const EVENT_STATUS_CFG: Record<
+  string,
   { label: string; color: string; bg: string; border: string }
 > = {
   upcoming: {
@@ -1230,17 +1856,23 @@ const STATUS_CFG: Record<
     bg: "bg-[#5b8a8a]/10",
     border: "border-[#5b8a8a]/20",
   },
-  sold_out: {
-    label: "Sold Out",
-    color: "text-[#a07040]",
-    bg: "bg-[#a07040]/10",
-    border: "border-[#a07040]/20",
+  confirmed: {
+    label: "Confirmed",
+    color: "text-[#4e6b51]",
+    bg: "bg-[#4e6b51]/10",
+    border: "border-[#4e6b51]/20",
   },
-  past: {
-    label: "Past",
+  completed: {
+    label: "Completed",
     color: "text-muted",
     bg: "bg-foreground/8",
     border: "border-foreground/15",
+  },
+  cancelled: {
+    label: "Cancelled",
+    color: "text-destructive",
+    bg: "bg-destructive/10",
+    border: "border-destructive/20",
   },
   draft: {
     label: "Draft",
@@ -1250,98 +1882,118 @@ const STATUS_CFG: Record<
   },
 };
 
-function EventsTab() {
-  const upcoming = SPECIAL_EVENTS.filter((e) => e.status === "upcoming" || e.status === "sold_out");
-  const past = SPECIAL_EVENTS.filter((e) => e.status === "past");
+function fmtEventDate(iso: string) {
+  return new Date(iso).toLocaleDateString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
 
-  function EventCard({ ev }: { ev: SpecialEvent }) {
-    const cfg = STATUS_CFG[ev.status];
-    const fillPct = ev.capacity > 0 ? Math.round((ev.registered / ev.capacity) * 100) : 0;
+function fmtEventTime(iso: string) {
+  return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+}
+
+function fmtEventRange(startsAt: string, endsAt: string | null) {
+  const date = fmtEventDate(startsAt);
+  const start = fmtEventTime(startsAt);
+  if (!endsAt) return `${date} · ${start}`;
+  return `${date} · ${start} – ${fmtEventTime(endsAt)}`;
+}
+
+function EventsTab({ events }: { events: EventRow[] }) {
+  const upcoming = events.filter(
+    (e) => e.status === "upcoming" || e.status === "confirmed" || e.status === "draft",
+  );
+  const past = events.filter((e) => e.status === "completed" || e.status === "cancelled");
+
+  const totalGuests = upcoming.reduce((s, e) => s + e.guests.length, 0);
+  const totalRevenue = upcoming.reduce((s, e) => s + (e.expectedRevenueInCents ?? 0), 0);
+
+  function EventCard({ ev }: { ev: EventRow }) {
+    const typeCfg = EVENT_TYPE_CFG[ev.eventType] ?? EVENT_TYPE_CFG.workshop;
+    const statusCfg = EVENT_STATUS_CFG[ev.status] ?? EVENT_STATUS_CFG.draft;
+    const guestCount = ev.guests.length;
+    const maxAtt = ev.maxAttendees ?? 0;
+    const fillPct = maxAtt > 0 ? Math.round((guestCount / maxAtt) * 100) : 0;
+
     return (
       <div className="group bg-background border border-border rounded-2xl p-4 flex flex-col gap-3 hover:shadow-sm transition-all">
-        <div className="flex items-start justify-between gap-2">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap mb-1">
-              <span
-                className={cn(
-                  "text-[10px] font-medium px-1.5 py-0.5 rounded-full border",
-                  cfg.color,
-                  cfg.bg,
-                  cfg.border,
-                )}
-              >
-                {cfg.label}
-              </span>
-              {ev.tags.map((t) => (
-                <span
-                  key={t}
-                  className="text-[10px] text-muted bg-surface border border-border px-1.5 py-0.5 rounded-full"
-                >
-                  {t}
-                </span>
-              ))}
-            </div>
-            <h3 className="text-sm font-semibold text-foreground leading-tight">{ev.title}</h3>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap mb-1">
+            <span
+              className={cn(
+                "text-[10px] font-medium px-1.5 py-0.5 rounded-full border",
+                statusCfg.color,
+                statusCfg.bg,
+                statusCfg.border,
+              )}
+            >
+              {statusCfg.label}
+            </span>
+            <span
+              className={cn(
+                "text-[10px] font-medium px-1.5 py-0.5 rounded-full border",
+                typeCfg.color,
+                typeCfg.bg,
+                typeCfg.border,
+              )}
+            >
+              {typeCfg.label}
+            </span>
           </div>
-          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-            <button className="p-1.5 rounded-lg text-muted hover:text-foreground hover:bg-foreground/8 transition-colors">
-              <Pencil className="w-3.5 h-3.5" />
-            </button>
-          </div>
+          <h3 className="text-sm font-semibold text-foreground leading-tight">{ev.title}</h3>
         </div>
 
-        <p className="text-xs text-muted leading-relaxed line-clamp-2">{ev.description}</p>
+        {ev.description && (
+          <p className="text-xs text-muted leading-relaxed line-clamp-2">{ev.description}</p>
+        )}
 
         <div className="space-y-1.5 text-xs text-muted">
           <div className="flex items-center gap-1.5">
             <CalendarDays className="w-3.5 h-3.5 shrink-0" />
-            <span>
-              {ev.date} · {ev.time}
-            </span>
+            <span>{fmtEventRange(ev.startsAt, ev.endsAt)}</span>
           </div>
-          <div className="flex items-center gap-1.5">
-            <MapPin className="w-3.5 h-3.5 shrink-0" />
-            <span className="truncate">{ev.location}</span>
-          </div>
-        </div>
-
-        <div className="flex items-center justify-between gap-3 pt-1 border-t border-border/40">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center justify-between text-[10px] text-muted mb-1">
-              <span className="flex items-center gap-1">
-                <Users className="w-3 h-3" />
-                {ev.registered}/{ev.capacity} registered
+          {ev.location && (
+            <div className="flex items-center gap-1.5">
+              <MapPin className="w-3.5 h-3.5 shrink-0" />
+              <span className="truncate">
+                {ev.location}
+                {ev.address ? ` · ${ev.address}` : ""}
               </span>
-              <span>{fillPct}%</span>
             </div>
-            <div className="w-full h-1.5 bg-foreground/8 rounded-full overflow-hidden">
-              <div
-                className={cn(
-                  "h-full rounded-full transition-all",
-                  fillPct >= 100 ? "bg-[#a07040]" : "bg-[#4e6b51]",
-                )}
-                style={{ width: `${Math.min(fillPct, 100)}%` }}
-              />
-            </div>
-          </div>
-          <div className="shrink-0 text-right">
-            <p className="text-sm font-semibold text-foreground">
-              {ev.price === null ? "Free" : `$${ev.price}`}
-            </p>
-            <p className="text-[10px] text-muted">per person</p>
-          </div>
+          )}
         </div>
 
-        {ev.status === "upcoming" && (
-          <div className="flex gap-2">
-            <button className="flex-1 flex items-center justify-center gap-1.5 py-1.5 text-xs font-medium text-foreground bg-surface border border-border rounded-lg hover:bg-foreground/5 transition-colors">
-              <ExternalLink className="w-3 h-3" />
-              Share Link
-            </button>
-            <button className="flex-1 flex items-center justify-center gap-1.5 py-1.5 text-xs font-medium text-foreground bg-surface border border-border rounded-lg hover:bg-foreground/5 transition-colors">
-              <Users className="w-3 h-3" />
-              View RSVPs
-            </button>
+        {maxAtt > 0 && (
+          <div className="flex items-center justify-between gap-3 pt-1 border-t border-border/40">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between text-[10px] text-muted mb-1">
+                <span className="flex items-center gap-1">
+                  <Users className="w-3 h-3" />
+                  {guestCount}/{maxAtt} guests
+                </span>
+                <span>{fillPct}%</span>
+              </div>
+              <div className="w-full h-1.5 bg-foreground/8 rounded-full overflow-hidden">
+                <div
+                  className={cn(
+                    "h-full rounded-full transition-all",
+                    fillPct >= 100 ? "bg-[#a07040]" : "bg-[#4e6b51]",
+                  )}
+                  style={{ width: `${Math.min(fillPct, 100)}%` }}
+                />
+              </div>
+            </div>
+            {ev.expectedRevenueInCents != null && ev.expectedRevenueInCents > 0 && (
+              <div className="shrink-0 text-right">
+                <p className="text-sm font-semibold text-foreground">
+                  ${(ev.expectedRevenueInCents / 100).toLocaleString()}
+                </p>
+                <p className="text-[10px] text-muted">expected</p>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -1352,15 +2004,11 @@ function EventsTab() {
     <div className="p-4 md:p-6 lg:p-8 space-y-6">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h2 className="text-sm font-semibold text-foreground">Special Events</h2>
+          <h2 className="text-sm font-semibold text-foreground">Events</h2>
           <p className="text-xs text-muted mt-0.5">
             Pop-ups, workshops, training days, and parties.
           </p>
         </div>
-        <button className="flex items-center gap-2 px-3 py-2 bg-accent text-white text-sm font-medium rounded-xl hover:bg-accent/90 transition-colors">
-          <Plus className="w-4 h-4" />
-          New Event
-        </button>
       </div>
 
       {/* Stats */}
@@ -1370,26 +2018,24 @@ function EventsTab() {
           <p className="text-2xl font-semibold text-foreground mt-1">{upcoming.length}</p>
         </div>
         <div className="bg-background border border-border rounded-xl p-3">
-          <p className="text-[10px] text-muted uppercase tracking-wide font-medium">
-            Total Registered
-          </p>
-          <p className="text-2xl font-semibold text-foreground mt-1">
-            {upcoming.reduce((s, e) => s + e.registered, 0)}
-          </p>
+          <p className="text-[10px] text-muted uppercase tracking-wide font-medium">Total Guests</p>
+          <p className="text-2xl font-semibold text-foreground mt-1">{totalGuests}</p>
         </div>
         <div className="bg-background border border-border rounded-xl p-3">
           <p className="text-[10px] text-muted uppercase tracking-wide font-medium">
-            Potential Revenue
+            Expected Revenue
           </p>
           <p className="text-2xl font-semibold text-foreground mt-1">
-            $
-            {upcoming
-              .filter((e) => e.price)
-              .reduce((s, e) => s + (e.price ?? 0) * e.registered, 0)
-              .toLocaleString()}
+            ${(totalRevenue / 100).toLocaleString()}
           </p>
         </div>
       </div>
+
+      {events.length === 0 && (
+        <div className="flex items-center justify-center py-12">
+          <p className="text-sm text-muted">No events yet. Create one from the Events page.</p>
+        </div>
+      )}
 
       {upcoming.length > 0 && (
         <div>
@@ -1430,6 +2076,7 @@ const VIEWS: { key: View; label: string }[] = [
 
 const CAL_PAGE_TABS = [
   { id: "calendar", label: "Calendar" },
+  { id: "availability", label: "Availability" },
   { id: "events", label: "Events" },
 ] as const;
 type CalPageTab = (typeof CAL_PAGE_TABS)[number]["id"];
@@ -1443,6 +2090,10 @@ export function CalendarPage({
   clients,
   serviceOptions,
   staffOptions,
+  businessHours,
+  timeOff,
+  lunchBreak,
+  events: initialEventRows,
 }: {
   initialBookings: BookingRow[];
   clients: { id: string; name: string; phone: string | null }[];
@@ -1454,6 +2105,10 @@ export function CalendarPage({
     priceInCents: number;
   }[];
   staffOptions: { id: string; name: string }[];
+  businessHours: BusinessHourRow[];
+  timeOff: TimeOffRow[];
+  lunchBreak: LunchBreak | null;
+  events: EventRow[];
 }) {
   const router = useRouter();
   const staffMembers = useMemo(() => staffOptions.map((s) => s.name), [staffOptions]);
@@ -1564,9 +2219,9 @@ export function CalendarPage({
     setView("day");
   };
 
-  if (calPageTab === "events") {
+  if (calPageTab === "availability" || calPageTab === "events") {
     return (
-      <div className="flex flex-col h-screen overflow-y-auto">
+      <div className="flex flex-col min-h-full">
         {/* Top tab bar */}
         <div className="flex gap-1 border-b border-border px-4 md:px-6 lg:px-8 pt-4 shrink-0">
           {CAL_PAGE_TABS.map(({ id, label }) => (
@@ -1584,7 +2239,15 @@ export function CalendarPage({
             </button>
           ))}
         </div>
-        <EventsTab />
+        {calPageTab === "availability" ? (
+          <AvailabilityTab
+            businessHours={businessHours}
+            timeOff={timeOff}
+            lunchBreak={lunchBreak}
+          />
+        ) : (
+          <EventsTab events={initialEventRows} />
+        )}
       </div>
     );
   }
@@ -1670,6 +2333,9 @@ export function CalendarPage({
             events={events}
             onDayClick={handleDayClick}
             onEventClick={setSelectedEvent}
+            businessHours={businessHours}
+            timeOff={timeOff}
+            lunchBreak={lunchBreak}
           />
         )}
         {view === "week" && (
@@ -1678,6 +2344,9 @@ export function CalendarPage({
             events={events}
             onEventClick={setSelectedEvent}
             onSlotClick={handleSlotClick}
+            businessHours={businessHours}
+            timeOff={timeOff}
+            lunchBreak={lunchBreak}
           />
         )}
         {view === "day" && (
@@ -1686,6 +2355,9 @@ export function CalendarPage({
             events={events}
             onEventClick={setSelectedEvent}
             onSlotClick={handleSlotClick}
+            businessHours={businessHours}
+            timeOff={timeOff}
+            lunchBreak={lunchBreak}
           />
         )}
         {view === "staff" && (
@@ -1695,6 +2367,9 @@ export function CalendarPage({
             staffMembers={staffMembers}
             onEventClick={setSelectedEvent}
             onSlotClick={handleSlotClick}
+            businessHours={businessHours}
+            timeOff={timeOff}
+            lunchBreak={lunchBreak}
           />
         )}
         {view === "agenda" && (

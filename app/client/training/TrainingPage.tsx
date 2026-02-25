@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import {
   GraduationCap,
   Users,
@@ -12,150 +12,26 @@ import {
   CheckCircle2,
   CalendarDays,
   MapPin,
+  Download,
+  BookOpen,
+  TrendingUp,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import type {
+  ClientProgram,
+  ClientEnrollment,
+  ClientCertificate,
+  ClientTrainingData,
+  ProgramType,
+  EnrollStatus,
+} from "./actions";
+import { clientEnroll, clientJoinWaitlist } from "./actions";
 
 /* ------------------------------------------------------------------ */
-/*  Types & data                                                        */
+/*  Styling                                                             */
 /* ------------------------------------------------------------------ */
-
-type ProgramType = "lash" | "jewelry" | "business" | "crochet";
-type EnrollStatus = "enrolled" | "waitlist" | "completed" | null;
-
-interface Program {
-  id: number;
-  name: string;
-  type: ProgramType;
-  price: number;
-  sessions: number;
-  description: string;
-  spotsLeft: number;
-  maxSpots: number;
-  waitlistOpen: boolean;
-  whatYouLearn: string[];
-  includes: string[];
-  instructor: string;
-  startDate: string;
-  schedule: string;
-  location: string;
-}
-
-const PROGRAMS: Program[] = [
-  {
-    id: 1,
-    name: "Classic Lash Certification",
-    type: "lash",
-    price: 800,
-    sessions: 4,
-    description:
-      "Full classic application, mapping, isolation, and aftercare. The foundation course for aspiring lash technicians.",
-    spotsLeft: 1,
-    maxSpots: 4,
-    waitlistOpen: true,
-    whatYouLearn: [
-      "Natural lash anatomy and health assessment",
-      "Classic lash mapping and curl selection",
-      "Isolation technique and adhesive chemistry",
-      "Full set application and speed drills",
-    ],
-    includes: [
-      "Starter kit (lashes, glue, tools)",
-      "Digital manual",
-      "Practice mannequin time",
-      "Certificate upon completion",
-    ],
-    instructor: "Trini",
-    startDate: "Mar 15, 2026",
-    schedule: "Sat & Sun, 9am–5pm (2 weekends)",
-    location: "T Creative Studio",
-  },
-  {
-    id: 2,
-    name: "Volume Lash Masterclass",
-    type: "lash",
-    price: 1200,
-    sessions: 6,
-    description:
-      "Pre-made fans, handmade fans, and mega volume. For certified lash technicians ready to level up.",
-    spotsLeft: 2,
-    maxSpots: 3,
-    waitlistOpen: true,
-    whatYouLearn: [
-      "Pre-made fan application and selection",
-      "Handmade fan technique — 2D to 10D",
-      "Mega volume and retention strategies",
-      "Troubleshooting and client assessment",
-    ],
-    includes: [
-      "Volume lash kit",
-      "Advanced digital workbook",
-      "Live model sessions",
-      "Certificate upon completion",
-    ],
-    instructor: "Trini",
-    startDate: "Apr 5, 2026",
-    schedule: "Sat & Sun, 9am–5pm (3 weekends)",
-    location: "T Creative Studio",
-  },
-  {
-    id: 3,
-    name: "Permanent Jewelry Training",
-    type: "jewelry",
-    price: 450,
-    sessions: 2,
-    description:
-      "1-day hands-on training covering welding technique, chain selection, client safety, and business setup.",
-    spotsLeft: 3,
-    maxSpots: 5,
-    waitlistOpen: false,
-    whatYouLearn: [
-      "Welder equipment setup and safety",
-      "Chain sizing and material selection",
-      "Live model welding practice",
-      "Client consultation and pricing",
-    ],
-    includes: [
-      "Jewelry kit (welder, chains, clasps)",
-      "Safety documentation templates",
-      "Pricing guide",
-      "Certificate upon completion",
-    ],
-    instructor: "Jade & Trini",
-    startDate: "Mar 8, 2026",
-    schedule: "Sat, 10am–4pm (1 day)",
-    location: "T Creative Studio",
-  },
-  {
-    id: 4,
-    name: "Beauty Business Bootcamp",
-    type: "business",
-    price: 600,
-    sessions: 3,
-    description:
-      "Pricing strategy, client retention, and brand building for beauty professionals ready to grow.",
-    spotsLeft: 6,
-    maxSpots: 6,
-    waitlistOpen: false,
-    whatYouLearn: [
-      "How to price services for profitability",
-      "Client retention and rebooking systems",
-      "Instagram and content marketing for beauty",
-      "Hiring, team building, and HR basics",
-    ],
-    includes: [
-      "Workbooks and templates",
-      "Pricing calculator spreadsheet",
-      "Private community access",
-      "Certificate of completion",
-    ],
-    instructor: "Trini",
-    startDate: "Mar 29, 2026",
-    schedule: "Sat, 10am–4pm (3 sessions)",
-    location: "Virtual + In-person",
-  },
-];
 
 const PROG_STYLE: Record<
   ProgramType,
@@ -191,6 +67,12 @@ const PROG_STYLE: Record<
   },
 };
 
+const FORMAT_LABEL: Record<string, string> = {
+  in_person: "In-person",
+  hybrid: "Hybrid",
+  online: "Online",
+};
+
 /* ------------------------------------------------------------------ */
 /*  Enroll modal                                                        */
 /* ------------------------------------------------------------------ */
@@ -200,13 +82,16 @@ function EnrollModal({
   isWaitlist,
   onClose,
   onConfirm,
+  isPending,
 }: {
-  program: Program;
+  program: ClientProgram;
   isWaitlist: boolean;
   onClose: () => void;
   onConfirm: () => void;
+  isPending: boolean;
 }) {
   const style = PROG_STYLE[program.type];
+  const deposit = Math.round(program.price * 0.5);
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-foreground/20 backdrop-blur-sm">
       <div className="bg-background rounded-2xl border border-border shadow-xl w-full max-w-sm">
@@ -222,8 +107,8 @@ function EnrollModal({
           <div className={cn("p-3 rounded-xl border", style.bg, style.border)}>
             <p className={cn("text-sm font-semibold", style.text)}>{program.name}</p>
             <p className="text-xs text-muted mt-0.5">
-              ${program.price.toLocaleString()} · {program.sessions} sessions · with{" "}
-              {program.instructor}
+              ${program.price.toLocaleString()} · {program.modules.length} modules ·{" "}
+              {FORMAT_LABEL[program.format] ?? program.format}
             </p>
           </div>
           {isWaitlist ? (
@@ -235,15 +120,13 @@ function EnrollModal({
             <div className="space-y-2">
               <p className="text-xs text-muted leading-relaxed">
                 A 50% deposit of{" "}
-                <span className="font-semibold text-foreground">
-                  ${Math.round(program.price * 0.5).toLocaleString()}
-                </span>{" "}
+                <span className="font-semibold text-foreground">${deposit.toLocaleString()}</span>{" "}
                 is required to secure your spot. The remaining balance is due before your first
                 session.
               </p>
               <p className="text-xs text-muted leading-relaxed">
                 T Creative Studio will reach out within 24–48 hours to confirm your enrollment and
-                schedule your first session.
+                share prep details.
               </p>
             </div>
           )}
@@ -256,11 +139,9 @@ function EnrollModal({
             Cancel
           </button>
           <button
-            onClick={() => {
-              onConfirm();
-              onClose();
-            }}
-            className="flex-1 py-2 rounded-lg bg-accent text-white text-sm font-medium hover:bg-accent/90 transition-colors"
+            onClick={onConfirm}
+            disabled={isPending}
+            className="flex-1 py-2 rounded-lg bg-accent text-white text-sm font-medium hover:bg-accent/90 transition-colors disabled:opacity-40"
           >
             {isWaitlist ? "Join Waitlist" : "Confirm & Pay Deposit"}
           </button>
@@ -280,7 +161,7 @@ function ProgramCard({
   onEnroll,
   onWaitlist,
 }: {
-  program: Program;
+  program: ClientProgram;
   enrollStatus: EnrollStatus;
   onEnroll: () => void;
   onWaitlist: () => void;
@@ -323,6 +204,11 @@ function ProgramCard({
                       Enrolled
                     </Badge>
                   )}
+                  {enrollStatus === "in_progress" && (
+                    <Badge className="border text-[10px] px-1.5 py-0.5 bg-accent/12 text-accent border-accent/20">
+                      In Progress
+                    </Badge>
+                  )}
                   {enrollStatus === "waitlist" && (
                     <Badge className="border text-[10px] px-1.5 py-0.5 bg-accent/12 text-accent border-accent/20">
                       On Waitlist
@@ -331,6 +217,11 @@ function ProgramCard({
                   {enrollStatus === "completed" && (
                     <Badge className="border text-[10px] px-1.5 py-0.5 bg-[#d4a574]/12 text-[#a07040] border-[#d4a574]/20 flex items-center gap-0.5">
                       <Award className="w-2.5 h-2.5" /> Certified
+                    </Badge>
+                  )}
+                  {program.certificationProvided && !enrollStatus && (
+                    <Badge className="border text-[10px] px-1.5 py-0.5 bg-foreground/5 text-muted border-border">
+                      Certificate
                     </Badge>
                   )}
                 </div>
@@ -348,25 +239,37 @@ function ProgramCard({
         <div className="flex flex-col gap-1.5 text-xs text-muted">
           <div className="flex items-center gap-4 flex-wrap">
             <span className="flex items-center gap-1">
+              <BookOpen className="w-3 h-3" />
+              {program.modules.length} module{program.modules.length !== 1 ? "s" : ""}
+            </span>
+            <span className="flex items-center gap-1">
               <Clock className="w-3 h-3" />
-              {program.sessions} sessions
+              {FORMAT_LABEL[program.format] ?? program.format}
             </span>
-            <span className="flex items-center gap-1">
-              <Users className="w-3 h-3" />
-              with {program.instructor}
-            </span>
+            {program.kitIncluded && (
+              <span className="flex items-center gap-1 text-accent">
+                <CheckCircle2 className="w-3 h-3" />
+                Kit included
+              </span>
+            )}
           </div>
-          <div className="flex items-center gap-4 flex-wrap">
-            <span className="flex items-center gap-1 font-medium text-foreground/80">
-              <CalendarDays className="w-3 h-3" />
-              Starts {program.startDate}
-            </span>
-            <span className="flex items-center gap-1">
-              <MapPin className="w-3 h-3" />
-              {program.location}
-            </span>
-          </div>
-          <p className="text-[11px] text-muted/70">{program.schedule}</p>
+          {program.nextSession && (
+            <div className="flex items-center gap-4 flex-wrap">
+              <span className="flex items-center gap-1 font-medium text-foreground/80">
+                <CalendarDays className="w-3 h-3" />
+                {program.nextSession.startsAt}
+              </span>
+              {program.nextSession.location && (
+                <span className="flex items-center gap-1">
+                  <MapPin className="w-3 h-3" />
+                  {program.nextSession.location}
+                </span>
+              )}
+            </div>
+          )}
+          {program.nextSession?.schedule && (
+            <p className="text-[11px] text-muted/70">{program.nextSession.schedule}</p>
+          )}
           {!isFull && (
             <span
               className={cn(
@@ -402,44 +305,42 @@ function ProgramCard({
           </p>
         </div>
 
-        {/* Expand what you learn */}
-        <button
-          onClick={() => setExpanded(!expanded)}
-          className="flex items-center gap-1.5 text-xs font-medium text-accent hover:text-accent/80 transition-colors"
-        >
-          {expanded ? (
-            <ChevronUp className="w-3.5 h-3.5" />
-          ) : (
-            <ChevronDown className="w-3.5 h-3.5" />
-          )}
-          {expanded ? "Hide details" : "What you&apos;ll learn"}
-        </button>
+        {/* Expand modules */}
+        {program.modules.length > 0 && (
+          <>
+            <button
+              onClick={() => setExpanded(!expanded)}
+              className="flex items-center gap-1.5 text-xs font-medium text-accent hover:text-accent/80 transition-colors"
+            >
+              {expanded ? (
+                <ChevronUp className="w-3.5 h-3.5" />
+              ) : (
+                <ChevronDown className="w-3.5 h-3.5" />
+              )}
+              {expanded ? "Hide details" : "What you\u2019ll learn"}
+            </button>
 
-        {expanded && (
-          <div className="space-y-3 pt-1 border-t border-border/40">
-            <div>
-              <p className="text-xs font-semibold text-foreground mb-1.5">What you&apos;ll learn</p>
-              <ul className="space-y-1">
-                {program.whatYouLearn.map((item, i) => (
-                  <li key={i} className="flex items-start gap-2 text-xs text-muted">
+            {expanded && (
+              <div className="space-y-2 pt-1 border-t border-border/40">
+                {program.modules.map((mod, i) => (
+                  <div key={i} className="flex items-start gap-2 text-xs">
                     <CheckCircle2 className="w-3 h-3 text-[#4e6b51] shrink-0 mt-0.5" />
-                    {item}
-                  </li>
+                    <div>
+                      <span className="text-foreground font-medium">{mod.name}</span>
+                      {mod.description && (
+                        <span className="text-muted ml-1">— {mod.description}</span>
+                      )}
+                      {mod.lessonCount > 0 && (
+                        <span className="text-muted/60 ml-1">
+                          ({mod.lessonCount} lesson{mod.lessonCount !== 1 ? "s" : ""})
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 ))}
-              </ul>
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-foreground mb-1.5">What&apos;s included</p>
-              <ul className="space-y-1">
-                {program.includes.map((item, i) => (
-                  <li key={i} className="flex items-start gap-2 text-xs text-muted">
-                    <span className="w-1 h-1 rounded-full bg-muted/50 shrink-0 mt-1.5" />
-                    {item}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
+              </div>
+            )}
+          </>
         )}
 
         {/* CTA */}
@@ -478,17 +379,40 @@ function ProgramCard({
 /*  Main export                                                         */
 /* ------------------------------------------------------------------ */
 
-export function ClientTrainingPage() {
-  const [enrollStatuses, setEnrollStatuses] = useState<Record<number, EnrollStatus>>({});
-  const [modalTarget, setModalTarget] = useState<{ program: Program; isWaitlist: boolean } | null>(
-    null,
+export function ClientTrainingPage({ data }: { data: ClientTrainingData }) {
+  const [enrollmentMap, setEnrollmentMap] = useState<Record<number, EnrollStatus>>(() => {
+    const map: Record<number, EnrollStatus> = {};
+    for (const e of data.enrollments) {
+      map[e.programId] = e.status;
+    }
+    return map;
+  });
+  const [modalTarget, setModalTarget] = useState<{
+    program: ClientProgram;
+    isWaitlist: boolean;
+  } | null>(null);
+  const [isPending, startTransition] = useTransition();
+
+  const activeEnrollments = data.enrollments.filter(
+    (e) => e.status === "enrolled" || e.status === "in_progress",
   );
 
   function handleConfirm(programId: number, isWaitlist: boolean) {
-    setEnrollStatuses((prev) => ({ ...prev, [programId]: isWaitlist ? "waitlist" : "enrolled" }));
-  }
+    // Optimistic update
+    setEnrollmentMap((prev) => ({
+      ...prev,
+      [programId]: isWaitlist ? "waitlist" : "enrolled",
+    }));
+    setModalTarget(null);
 
-  const totalEnrolled = Object.values(enrollStatuses).filter((s) => s === "enrolled").length;
+    startTransition(async () => {
+      if (isWaitlist) {
+        await clientJoinWaitlist(programId);
+      } else {
+        await clientEnroll(programId);
+      }
+    });
+  }
 
   return (
     <div className="p-4 md:p-6 lg:p-8 space-y-6">
@@ -499,25 +423,114 @@ export function ClientTrainingPage() {
         </p>
       </div>
 
-      {totalEnrolled > 0 && (
+      {/* Certificates */}
+      {data.certificates.length > 0 && (
+        <Card className="gap-0">
+          <CardHeader className="pb-0 pt-4 px-5">
+            <div className="flex items-center gap-2">
+              <Award className="w-4 h-4 text-[#d4a574]" />
+              <CardTitle className="text-sm font-semibold">My Certificates</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent className="px-5 pb-4 pt-3 space-y-2">
+            {data.certificates.map((cert) => {
+              const style = PROG_STYLE[cert.programType];
+              return (
+                <div
+                  key={cert.id}
+                  className="flex items-center justify-between gap-3 py-2 border-b border-border/30 last:border-0"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div
+                      className={cn(
+                        "w-8 h-8 rounded-lg flex items-center justify-center shrink-0",
+                        style.bg,
+                      )}
+                    >
+                      <Award className={cn("w-4 h-4", style.text)} />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-foreground truncate">
+                        {cert.programName}
+                      </p>
+                      <p className="text-[11px] text-muted">
+                        {cert.certificateCode} · Issued {cert.issuedAt}
+                      </p>
+                    </div>
+                  </div>
+                  {cert.pdfUrl && (
+                    <a
+                      href={cert.pdfUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-1.5 rounded-lg text-muted hover:text-foreground hover:bg-foreground/5 transition-colors shrink-0"
+                      title="Download certificate"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                    </a>
+                  )}
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Active enrollment banner */}
+      {activeEnrollments.length > 0 && (
         <div className="bg-[#4e6b51]/8 border border-[#4e6b51]/20 rounded-xl px-4 py-4 space-y-2">
           <div className="flex items-center gap-2">
             <Award className="w-4 h-4 text-[#4e6b51] shrink-0" />
             <p className="text-sm font-semibold text-foreground">
-              You&apos;re enrolled in {totalEnrolled} program{totalEnrolled !== 1 ? "s" : ""}
+              You&apos;re enrolled in {activeEnrollments.length} program
+              {activeEnrollments.length !== 1 ? "s" : ""}
             </p>
           </div>
-          {PROGRAMS.filter((p) => enrollStatuses[p.id] === "enrolled").map((p) => (
-            <div key={p.id} className="pl-6 flex items-start gap-3 text-xs text-muted">
-              <div className="flex-1">
-                <span className="font-medium text-foreground">{p.name}</span>
-                <span className="mx-1.5">·</span>
-                <span>Starts {p.startDate}</span>
-                <span className="mx-1.5">·</span>
-                <span>{p.location}</span>
+          {activeEnrollments.map((e) => {
+            const style = PROG_STYLE[e.programType];
+            const paidPct =
+              e.totalPriceCents > 0 ? Math.round((e.amountPaidCents / e.totalPriceCents) * 100) : 0;
+            return (
+              <div key={e.id} className="pl-6 space-y-1">
+                <div className="flex items-start gap-3 text-xs text-muted">
+                  <div className="flex-1">
+                    <span className="font-medium text-foreground">{e.programName}</span>
+                    {e.sessionStartsAt && (
+                      <>
+                        <span className="mx-1.5">·</span>
+                        <span>{e.sessionStartsAt}</span>
+                      </>
+                    )}
+                    {e.sessionLocation && (
+                      <>
+                        <span className="mx-1.5">·</span>
+                        <span>{e.sessionLocation}</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+                {/* Progress bar */}
+                {e.progressPercent > 0 && (
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 h-1 rounded-full bg-foreground/8">
+                      <div
+                        className={cn("h-full rounded-full", style.dot)}
+                        style={{ width: `${e.progressPercent}%` }}
+                      />
+                    </div>
+                    <span className="text-[10px] text-muted">{e.progressPercent}%</span>
+                  </div>
+                )}
+                {/* Payment status */}
+                {e.amountPaidCents > 0 && e.totalPriceCents > 0 && paidPct < 100 && (
+                  <p className="text-[11px] text-muted">
+                    ${(e.amountPaidCents / 100).toFixed(0)} / $
+                    {(e.totalPriceCents / 100).toFixed(0)} paid ({paidPct}%)
+                  </p>
+                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
           <p className="pl-6 text-xs text-muted">
             T Creative will reach out within 24–48 hours to confirm and share prep details. A 50%
             deposit secures your spot — remaining balance due before session 1.
@@ -525,17 +538,26 @@ export function ClientTrainingPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-        {PROGRAMS.map((program) => (
-          <ProgramCard
-            key={program.id}
-            program={program}
-            enrollStatus={enrollStatuses[program.id] ?? null}
-            onEnroll={() => setModalTarget({ program, isWaitlist: false })}
-            onWaitlist={() => setModalTarget({ program, isWaitlist: true })}
-          />
-        ))}
-      </div>
+      {/* Program grid */}
+      {data.programs.length === 0 ? (
+        <div className="py-16 text-center border border-dashed border-border rounded-2xl">
+          <GraduationCap className="w-10 h-10 text-foreground/15 mx-auto mb-3" />
+          <p className="text-sm text-muted">No training programs available right now.</p>
+          <p className="text-xs text-muted/60 mt-1">Check back soon for upcoming courses.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+          {data.programs.map((program) => (
+            <ProgramCard
+              key={program.id}
+              program={program}
+              enrollStatus={enrollmentMap[program.id] ?? null}
+              onEnroll={() => setModalTarget({ program, isWaitlist: false })}
+              onWaitlist={() => setModalTarget({ program, isWaitlist: true })}
+            />
+          ))}
+        </div>
+      )}
 
       {modalTarget && (
         <EnrollModal
@@ -543,6 +565,7 @@ export function ClientTrainingPage() {
           isWaitlist={modalTarget.isWaitlist}
           onClose={() => setModalTarget(null)}
           onConfirm={() => handleConfirm(modalTarget.program.id, modalTarget.isWaitlist)}
+          isPending={isPending}
         />
       )}
     </div>

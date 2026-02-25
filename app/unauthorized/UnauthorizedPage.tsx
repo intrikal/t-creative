@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { motion } from "framer-motion";
 import { LuLock } from "react-icons/lu";
 import { AuthBrandingPanel } from "@/components/auth/AuthBrandingPanel";
@@ -40,8 +41,8 @@ export function UnauthorizedPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.5, duration: 0.4 }}
         >
-          <Button href="/" variant="primary">
-            Go Home
+          <Button asChild variant="default">
+            <Link href="/">Go Home</Link>
           </Button>
         </motion.div>
       </div>

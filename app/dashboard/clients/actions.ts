@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { eq, sql, desc } from "drizzle-orm";
+import { eq, sql, desc, and, gte, asc } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
 import { profiles, bookings, services, loyaltyTransactions } from "@/db/schema";
@@ -226,4 +226,183 @@ export async function issueLoyaltyReward(
   });
 
   revalidatePath("/dashboard/clients");
+}
+
+/* ------------------------------------------------------------------ */
+/*  Assistant-scoped clients                                           */
+/* ------------------------------------------------------------------ */
+
+export type AssistantClientRow = {
+  id: string;
+  name: string;
+  initials: string;
+  phone: string | null;
+  email: string;
+  lastService: string | null;
+  lastServiceDate: string | null;
+  categories: string[];
+  totalVisits: number;
+  totalSpent: number;
+  vip: boolean;
+  notes: string | null;
+  nextAppointment: string | null;
+};
+
+export type AssistantClientStats = {
+  totalClients: number;
+  vipClients: number;
+  totalRevenue: number;
+};
+
+function getInitials(first: string, last: string): string {
+  return [first?.[0], last?.[0]].filter(Boolean).join("").toUpperCase() || "?";
+}
+
+function formatShortDate(d: Date): string {
+  const now = new Date();
+  const todayKey = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}`;
+  const dKey = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+  if (todayKey === dKey) return "Today";
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+function formatApptLabel(d: Date): string {
+  const now = new Date();
+  const todayKey = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}`;
+  const dKey = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+  const time = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+  if (todayKey === dKey) return `Today ${time}`;
+  return `${d.toLocaleDateString("en-US", { month: "short", day: "numeric" })} ${time}`;
+}
+
+export async function getAssistantClients(): Promise<{
+  clients: AssistantClientRow[];
+  stats: AssistantClientStats;
+}> {
+  const user = await getUser();
+  const now = new Date();
+
+  // Fetch all bookings for this assistant, joined with client profile + service
+  const clientProfile = alias(profiles, "client");
+
+  const rows = await db
+    .select({
+      bookingId: bookings.id,
+      status: bookings.status,
+      startsAt: bookings.startsAt,
+      totalInCents: bookings.totalInCents,
+      clientId: bookings.clientId,
+      clientFirstName: clientProfile.firstName,
+      clientLastName: clientProfile.lastName,
+      clientEmail: clientProfile.email,
+      clientPhone: clientProfile.phone,
+      clientIsVip: clientProfile.isVip,
+      clientNotes: clientProfile.internalNotes,
+      serviceName: services.name,
+      serviceCategory: services.category,
+    })
+    .from(bookings)
+    .innerJoin(clientProfile, eq(bookings.clientId, clientProfile.id))
+    .innerJoin(services, eq(bookings.serviceId, services.id))
+    .where(eq(bookings.staffId, user.id))
+    .orderBy(desc(bookings.startsAt));
+
+  // Group by client
+  const clientMap = new Map<
+    string,
+    {
+      id: string;
+      firstName: string;
+      lastName: string;
+      email: string;
+      phone: string | null;
+      isVip: boolean;
+      notes: string | null;
+      categories: Set<string>;
+      completedVisits: number;
+      completedSpent: number;
+      lastCompletedAt: Date | null;
+      lastCompletedService: string | null;
+      nextUpcomingAt: Date | null;
+    }
+  >();
+
+  for (const r of rows) {
+    let entry = clientMap.get(r.clientId);
+    if (!entry) {
+      entry = {
+        id: r.clientId,
+        firstName: r.clientFirstName ?? "",
+        lastName: r.clientLastName ?? "",
+        email: r.clientEmail,
+        phone: r.clientPhone,
+        isVip: r.clientIsVip,
+        notes: r.clientNotes,
+        categories: new Set(),
+        completedVisits: 0,
+        completedSpent: 0,
+        lastCompletedAt: null,
+        lastCompletedService: null,
+        nextUpcomingAt: null,
+      };
+      clientMap.set(r.clientId, entry);
+    }
+
+    if (r.serviceCategory) entry.categories.add(r.serviceCategory);
+
+    if (r.status === "completed") {
+      entry.completedVisits++;
+      entry.completedSpent += r.totalInCents;
+      const d = new Date(r.startsAt);
+      if (!entry.lastCompletedAt || d > entry.lastCompletedAt) {
+        entry.lastCompletedAt = d;
+        entry.lastCompletedService = r.serviceName;
+      }
+    }
+
+    // Track next upcoming (confirmed/pending/in_progress, in the future)
+    if (["confirmed", "pending", "in_progress"].includes(r.status)) {
+      const d = new Date(r.startsAt);
+      if (d >= now && (!entry.nextUpcomingAt || d < entry.nextUpcomingAt)) {
+        entry.nextUpcomingAt = d;
+      }
+    }
+  }
+
+  const clients: AssistantClientRow[] = Array.from(clientMap.values())
+    .sort((a, b) => {
+      // Sort: clients with upcoming appointments first, then by last visit desc
+      if (a.nextUpcomingAt && !b.nextUpcomingAt) return -1;
+      if (!a.nextUpcomingAt && b.nextUpcomingAt) return 1;
+      const aLast = a.lastCompletedAt?.getTime() ?? 0;
+      const bLast = b.lastCompletedAt?.getTime() ?? 0;
+      return bLast - aLast;
+    })
+    .map((c) => ({
+      id: c.id,
+      name: `${c.firstName} ${c.lastName.charAt(0)}.`.trim(),
+      initials: getInitials(c.firstName, c.lastName),
+      phone: c.phone,
+      email: c.email,
+      lastService: c.lastCompletedService,
+      lastServiceDate: c.lastCompletedAt ? formatShortDate(c.lastCompletedAt) : null,
+      categories: Array.from(c.categories),
+      totalVisits: c.completedVisits,
+      totalSpent: c.completedSpent / 100,
+      vip: c.isVip,
+      notes: c.notes,
+      nextAppointment: c.nextUpcomingAt ? formatApptLabel(c.nextUpcomingAt) : null,
+    }));
+
+  const vipClients = clients.filter((c) => c.vip).length;
+  const totalRevenue = clients.reduce((s, c) => s + c.totalSpent, 0);
+
+  return {
+    clients,
+    stats: {
+      totalClients: clients.length,
+      vipClients,
+      totalRevenue,
+    },
+  };
 }

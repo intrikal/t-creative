@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { getCurrentUser } from "@/lib/auth";
-import { getClients, getClientLoyalty } from "./actions";
+import { getClients, getClientLoyalty, getAssistantClients } from "./actions";
 import { AssistantClientsPage } from "./AssistantClientsPage";
 import { ClientsPage } from "./ClientsPage";
 
@@ -16,7 +16,8 @@ export default async function Page() {
   if (!user) redirect("/login");
 
   if (user.profile?.role === "assistant") {
-    return <AssistantClientsPage />;
+    const { clients, stats } = await getAssistantClients();
+    return <AssistantClientsPage initialClients={clients} stats={stats} />;
   }
 
   const [initialClients, initialLoyalty] = await Promise.all([getClients(), getClientLoyalty()]);

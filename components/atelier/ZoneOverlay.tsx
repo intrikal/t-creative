@@ -8,6 +8,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/Button";
 import { ZONES } from "@/lib/zones";
@@ -112,7 +113,9 @@ export function ZoneOverlay() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.35 }}
             >
-              <Button href={zone.cta.href}>{zone.cta.label}</Button>
+              <Button asChild>
+                <Link href={zone.cta.href}>{zone.cta.label}</Link>
+              </Button>
               <Button variant="secondary" onClick={unfocusZone}>
                 Back
               </Button>

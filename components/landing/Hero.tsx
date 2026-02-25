@@ -53,9 +53,11 @@ export function Hero() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.45 }}
           >
-            <Button href="/contact">Book Appointment</Button>
-            <Button variant="secondary" href="#studio">
-              Enter the Studio
+            <Button asChild>
+              <Link href="/contact">Book Appointment</Link>
+            </Button>
+            <Button asChild variant="secondary">
+              <Link href="#studio">Enter the Studio</Link>
             </Button>
           </motion.div>
 

@@ -48,6 +48,7 @@
  * - app/onboarding/actions.ts                       — the server action being awaited
  */
 import { useState } from "react";
+import Link from "next/link";
 import { motion } from "framer-motion";
 import { LuCopy, LuCheck } from "react-icons/lu";
 import { Button } from "@/components/ui/Button";
@@ -321,7 +322,7 @@ export function StepComplete({
                       window.location.href = "/dashboard";
                     }
               }
-              variant="primary"
+              variant="default"
               className={isSaving || saveError ? "opacity-50 pointer-events-none" : ""}
             >
               {isSaving ? (
@@ -346,11 +347,11 @@ export function StepComplete({
           </>
         ) : role === "assistant" ? (
           <>
-            <Button href="/dashboard/schedule" variant="primary">
-              View your schedule
+            <Button asChild variant="default">
+              <Link href="/dashboard/schedule">View your schedule</Link>
             </Button>
-            <Button href="/dashboard" variant="secondary">
-              Go to Dashboard
+            <Button asChild variant="secondary">
+              <Link href="/dashboard">Go to Dashboard</Link>
             </Button>
           </>
         ) : (
@@ -375,7 +376,7 @@ export function StepComplete({
                       window.location.href = "/dashboard";
                     }
               }
-              variant="primary"
+              variant="default"
               className={isSaving || saveError ? "opacity-50 pointer-events-none" : ""}
             >
               {isSaving ? (

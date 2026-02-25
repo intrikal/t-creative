@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { LuCircleAlert } from "react-icons/lu";
@@ -44,8 +45,8 @@ function AuthErrorContent() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.5, duration: 0.4 }}
         >
-          <Button href="/login" variant="primary">
-            Try Again
+          <Button asChild variant="default">
+            <Link href="/login">Try Again</Link>
           </Button>
         </motion.div>
       </div>

@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { getCurrentUser } from "@/lib/auth";
-import { getServices } from "./actions";
+import { getServices, getAssistantServices } from "./actions";
 import { AssistantServicesPage } from "./AssistantServicesPage";
 import { getBundles } from "./bundle-actions";
 import { getForms } from "./form-actions";
@@ -18,7 +18,8 @@ export default async function Page() {
   if (!user) redirect("/login");
 
   if (user.profile?.role === "assistant") {
-    return <AssistantServicesPage />;
+    const { services: svcList, stats } = await getAssistantServices();
+    return <AssistantServicesPage initialServices={svcList} stats={stats} />;
   }
 
   const [initialServices, initialBundles, initialForms] = await Promise.all([

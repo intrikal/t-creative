@@ -25,9 +25,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, sql, desc } from "drizzle-orm";
 import { db } from "@/db";
-import { services } from "@/db/schema";
+import { bookings, services } from "@/db/schema";
 import { createClient } from "@/utils/supabase/server";
 
 /* ------------------------------------------------------------------ */
@@ -338,4 +338,93 @@ export async function toggleServiceActive(id: number, isActive: boolean): Promis
   await getUser();
   await db.update(services).set({ isActive }).where(eq(services.id, id));
   revalidatePath("/dashboard/services");
+}
+
+/* ------------------------------------------------------------------ */
+/*  Assistant-scoped services                                          */
+/* ------------------------------------------------------------------ */
+
+export type AssistantServiceRow = {
+  id: number;
+  name: string;
+  category: string;
+  description: string | null;
+  durationMin: number | null;
+  price: number;
+  deposit: number | null;
+  certified: boolean;
+  certDate: string | null;
+  timesPerformed: number;
+};
+
+export type AssistantServiceStats = {
+  totalServices: number;
+  certifiedCount: number;
+  avgDuration: number;
+};
+
+export async function getAssistantServices(): Promise<{
+  services: AssistantServiceRow[];
+  stats: AssistantServiceStats;
+}> {
+  const user = await getUser();
+
+  // Get all active services
+  const allServices = await db
+    .select()
+    .from(services)
+    .where(eq(services.isActive, true))
+    .orderBy(services.category, services.sortOrder);
+
+  // Get services this assistant has completed (certification + times performed)
+  const completedServices = await db
+    .select({
+      serviceId: bookings.serviceId,
+      firstCompleted: sql<Date>`min(${bookings.startsAt})`.as("first_completed"),
+      timesPerformed: sql<number>`count(*)`.as("times_performed"),
+    })
+    .from(bookings)
+    .where(sql`${bookings.staffId} = ${user.id} AND ${bookings.status} = 'completed'`)
+    .groupBy(bookings.serviceId);
+
+  const certMap = new Map(
+    completedServices.map((r) => [
+      r.serviceId,
+      { firstDate: new Date(r.firstCompleted), count: Number(r.timesPerformed) },
+    ]),
+  );
+
+  const mapped: AssistantServiceRow[] = allServices.map((s) => {
+    const cert = certMap.get(s.id);
+    return {
+      id: s.id,
+      name: s.name,
+      category: s.category,
+      description: s.description,
+      durationMin: s.durationMinutes,
+      price: (s.priceInCents ?? 0) / 100,
+      deposit: s.depositInCents ? s.depositInCents / 100 : null,
+      certified: !!cert,
+      certDate: cert
+        ? cert.firstDate.toLocaleDateString("en-US", { month: "short", year: "numeric" })
+        : null,
+      timesPerformed: cert?.count ?? 0,
+    };
+  });
+
+  const certifiedCount = mapped.filter((s) => s.certified).length;
+  const withDuration = mapped.filter((s) => s.durationMin != null);
+  const avgDuration =
+    withDuration.length > 0
+      ? Math.round(withDuration.reduce((sum, s) => sum + s.durationMin!, 0) / withDuration.length)
+      : 0;
+
+  return {
+    services: mapped,
+    stats: {
+      totalServices: mapped.length,
+      certifiedCount,
+      avgDuration,
+    },
+  };
 }

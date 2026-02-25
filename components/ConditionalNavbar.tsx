@@ -52,7 +52,6 @@ export function ConditionalNavbar({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   if (
     pathname.startsWith("/dashboard") ||
-    pathname.startsWith("/assistant") ||
     pathname.startsWith("/client") ||
     pathname.startsWith("/book")
   )

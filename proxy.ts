@@ -121,13 +121,13 @@ export async function proxy(request: NextRequest) {
       return NextResponse.redirect(url);
     }
 
-    // Protect /assistant routes — only assistants (and admins) may access them.
+    // Protect /dashboard routes — only admins and assistants may access them.
     // Same null-profile rationale as the /admin guard above.
     if (
-      request.nextUrl.pathname.startsWith("/assistant") &&
+      request.nextUrl.pathname.startsWith("/dashboard") &&
       profile &&
-      profile.role !== "assistant" &&
-      profile.role !== "admin"
+      profile.role !== "admin" &&
+      profile.role !== "assistant"
     ) {
       const url = request.nextUrl.clone();
       url.pathname = "/";
@@ -136,7 +136,7 @@ export async function proxy(request: NextRequest) {
     }
   } else if (
     request.nextUrl.pathname.startsWith("/admin") ||
-    request.nextUrl.pathname.startsWith("/assistant")
+    request.nextUrl.pathname.startsWith("/dashboard")
   ) {
     // Unauthenticated users hitting protected routes go to the home page
     const url = request.nextUrl.clone();

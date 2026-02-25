@@ -1,15 +1,19 @@
 import type { ReactNode } from "react";
+import { redirect } from "next/navigation";
+import { getCurrentUser } from "@/lib/auth";
 import { DashboardSidebar } from "./DashboardSidebar";
 
-export default function DashboardLayout({ children }: { children: ReactNode }) {
+export default async function DashboardLayout({ children }: { children: ReactNode }) {
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+
+  const role = (user.profile?.role === "assistant" ? "assistant" : "admin") as
+    | "admin"
+    | "assistant";
+
   return (
     <div className="flex h-screen overflow-hidden bg-background">
-      <DashboardSidebar />
-      {/*
-       * lg:pl-56  — clears the fixed sidebar (w-60) on desktop.
-       * pb-16 lg:pb-0 — clears the mobile bottom nav.
-       * flex flex-col — lets full-height children (Messages, Calendar) use flex-1.
-       */}
+      <DashboardSidebar role={role} />
       <main
         id="main-content"
         className="flex-1 flex flex-col min-w-0 overflow-y-auto lg:pl-56 pb-16 lg:pb-0"

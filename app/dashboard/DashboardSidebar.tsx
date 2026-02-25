@@ -18,6 +18,7 @@ import {
   CalendarCheck,
   Inbox,
   Scissors,
+  HeartHandshake,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -32,7 +33,9 @@ type NavGroup = {
   items: NavItem[];
 };
 
-const NAV_GROUPS: NavGroup[] = [
+/* ── Admin navigation ───────────────────────────────────────────────── */
+
+const ADMIN_NAV_GROUPS: NavGroup[] = [
   {
     label: "Daily",
     items: [
@@ -69,15 +72,55 @@ const NAV_GROUPS: NavGroup[] = [
   },
 ];
 
-const SECONDARY_NAV: NavItem[] = [
-  { href: "/dashboard/settings", label: "Settings", icon: Settings },
-];
-
-const MOBILE_NAV: NavItem[] = [
+const ADMIN_MOBILE_NAV: NavItem[] = [
   { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
   { href: "/dashboard/bookings", label: "Bookings", icon: CalendarCheck },
   { href: "/dashboard/messages", label: "Messages", icon: MessageSquare },
   { href: "/dashboard/clients", label: "Clients", icon: Users },
+  { href: "/dashboard/settings", label: "Settings", icon: Settings },
+];
+
+/* ── Assistant navigation ───────────────────────────────────────────── */
+
+const ASSISTANT_NAV_GROUPS: NavGroup[] = [
+  {
+    label: "Daily",
+    items: [
+      { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
+      { href: "/dashboard/schedule", label: "Schedule", icon: CalendarRange },
+      { href: "/dashboard/bookings", label: "Bookings", icon: CalendarCheck },
+      { href: "/dashboard/messages", label: "Messages", icon: MessageSquare },
+    ],
+  },
+  {
+    label: "Work",
+    items: [
+      { href: "/dashboard/clients", label: "My Clients", icon: Users },
+      { href: "/dashboard/services", label: "Services", icon: Scissors },
+      { href: "/dashboard/aftercare", label: "Aftercare", icon: HeartHandshake },
+    ],
+  },
+  {
+    label: "Growth",
+    items: [
+      { href: "/dashboard/earnings", label: "Earnings", icon: DollarSign },
+      { href: "/dashboard/training", label: "Training", icon: GraduationCap },
+      { href: "/dashboard/reviews", label: "Reviews", icon: Star },
+    ],
+  },
+];
+
+const ASSISTANT_MOBILE_NAV: NavItem[] = [
+  { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
+  { href: "/dashboard/schedule", label: "Schedule", icon: CalendarRange },
+  { href: "/dashboard/messages", label: "Messages", icon: MessageSquare },
+  { href: "/dashboard/earnings", label: "Earnings", icon: DollarSign },
+  { href: "/dashboard/settings", label: "Settings", icon: Settings },
+];
+
+/* ── Shared ─────────────────────────────────────────────────────────── */
+
+const SECONDARY_NAV: NavItem[] = [
   { href: "/dashboard/settings", label: "Settings", icon: Settings },
 ];
 
@@ -86,8 +129,10 @@ function useIsActive() {
   return (href: string) => (href === "/dashboard" ? pathname === href : pathname.startsWith(href));
 }
 
-export function DashboardSidebar() {
+export function DashboardSidebar({ role }: { role: "admin" | "assistant" }) {
   const isActive = useIsActive();
+  const navGroups = role === "assistant" ? ASSISTANT_NAV_GROUPS : ADMIN_NAV_GROUPS;
+  const mobileNav = role === "assistant" ? ASSISTANT_MOBILE_NAV : ADMIN_MOBILE_NAV;
 
   return (
     <>
@@ -102,13 +147,15 @@ export function DashboardSidebar() {
             <p className="text-xs font-semibold text-foreground tracking-tight leading-none">
               T Creative
             </p>
-            <p className="text-[9px] text-muted mt-0.5 leading-none">Admin</p>
+            <p className="text-[9px] text-muted mt-0.5 leading-none">
+              {role === "assistant" ? "Assistant" : "Admin"}
+            </p>
           </div>
         </div>
 
         {/* Nav groups */}
         <nav className="flex-1 px-2 py-2 flex flex-col gap-3 overflow-hidden">
-          {NAV_GROUPS.map((group) => (
+          {navGroups.map((group) => (
             <div key={group.label}>
               <p className="px-2 mb-0.5 text-[9px] font-semibold uppercase tracking-widest text-muted/50">
                 {group.label}
@@ -156,7 +203,7 @@ export function DashboardSidebar() {
 
       {/* ── Mobile bottom nav ─────────────────────────────────────── */}
       <nav className="fixed bottom-0 left-0 right-0 lg:hidden bg-background/95 backdrop-blur-sm border-t border-border z-40 flex">
-        {MOBILE_NAV.map(({ href, label, icon: Icon }) => (
+        {mobileNav.map(({ href, label, icon: Icon }) => (
           <Link
             key={href}
             href={href}

@@ -89,11 +89,11 @@ interface AssistantHomePageProps {
 /* ------------------------------------------------------------------ */
 
 const QUICK_ACTIONS = [
-  { label: "My Schedule", icon: CalendarCheck, href: "/assistant/schedule" },
-  { label: "Messages", icon: MessageSquare, href: "/assistant/messages" },
-  { label: "My Clients", icon: Users, href: "/assistant/clients" },
-  { label: "Earnings", icon: DollarSign, href: "/assistant/earnings" },
-  { label: "Training", icon: GraduationCap, href: "/assistant/training" },
+  { label: "My Schedule", icon: CalendarCheck, href: "/dashboard/schedule" },
+  { label: "Messages", icon: MessageSquare, href: "/dashboard/messages" },
+  { label: "My Clients", icon: Users, href: "/dashboard/clients" },
+  { label: "Earnings", icon: DollarSign, href: "/dashboard/earnings" },
+  { label: "Training", icon: GraduationCap, href: "/dashboard/training" },
 ];
 
 function bookingStatusConfig(status: BookingStatus) {
@@ -384,7 +384,7 @@ export function AssistantHomePage({
             <div className="flex items-center justify-between">
               <CardTitle className="text-sm font-semibold">My Schedule Today</CardTitle>
               <Link
-                href="/assistant/schedule"
+                href="/dashboard/schedule"
                 className="text-xs text-accent hover:underline flex items-center gap-0.5"
               >
                 Full schedule <ChevronRight className="w-3 h-3" />
@@ -412,7 +412,7 @@ export function AssistantHomePage({
             <div className="flex items-center justify-between">
               <CardTitle className="text-sm font-semibold">Messages</CardTitle>
               <Link
-                href="/assistant/messages"
+                href="/dashboard/messages"
                 className="text-xs text-accent hover:underline flex items-center gap-0.5"
               >
                 All <ChevronRight className="w-3 h-3" />
@@ -486,7 +486,7 @@ export function AssistantHomePage({
               )}
             </div>
             <Link
-              href="/assistant/training"
+              href="/dashboard/training"
               className="text-xs text-accent hover:underline flex items-center gap-0.5"
             >
               View all <ChevronRight className="w-3 h-3" />

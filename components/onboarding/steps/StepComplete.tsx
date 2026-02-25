@@ -343,10 +343,10 @@ export function StepComplete({
           </>
         ) : role === "assistant" ? (
           <>
-            <Button href="/assistant" variant="primary">
+            <Button href="/dashboard/schedule" variant="primary">
               View your schedule
             </Button>
-            <Button href="/assistant" variant="secondary">
+            <Button href="/dashboard" variant="secondary">
               Go to Dashboard
             </Button>
           </>

@@ -125,7 +125,14 @@ export {
 } from "./training";
 
 /* Events */
-export { eventTypeEnum, eventStatusEnum, events, eventsRelations } from "./events";
+export {
+  eventTypeEnum,
+  eventStatusEnum,
+  events,
+  eventGuests,
+  eventsRelations,
+  eventGuestsRelations,
+} from "./events";
 
 /* Aftercare & policies */
 export { policyTypeEnum, policies } from "./policies";

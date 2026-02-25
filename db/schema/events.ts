@@ -13,6 +13,7 @@
  */
 import { relations } from "drizzle-orm";
 import {
+  boolean,
   index,
   integer,
   jsonb,
@@ -37,11 +38,15 @@ export const eventTypeEnum = pgEnum("event_type", [
   "corporate",
   "bridal",
   "birthday",
+  "travel",
+  "workshop",
 ]);
 
 /** Event lifecycle status — separate from booking status. */
 export const eventStatusEnum = pgEnum("event_status", [
+  "draft",
   "upcoming",
+  "confirmed",
   "in_progress",
   "completed",
   "cancelled",
@@ -99,6 +104,9 @@ export const events = pgTable(
     /** Expected total revenue in cents (price + per-guest fees + add-ons). */
     expectedRevenueInCents: integer("expected_revenue_in_cents"),
 
+    /** Deposit collected in cents. */
+    depositInCents: integer("deposit_in_cents"),
+
     /* ------ Contact info (may differ from host profile) ------ */
 
     /** Point of contact name for the event. */
@@ -147,20 +155,45 @@ export const events = pgTable(
 );
 
 /* ------------------------------------------------------------------ */
+/*  Event guests                                                       */
+/* ------------------------------------------------------------------ */
+
+export const eventGuests = pgTable(
+  "event_guests",
+  {
+    id: serial("id").primaryKey(),
+    eventId: integer("event_id")
+      .notNull()
+      .references(() => events.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 200 }).notNull(),
+    service: varchar("service", { length: 200 }),
+    paid: boolean("paid").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("event_guests_event_idx").on(t.eventId)],
+);
+
+/* ------------------------------------------------------------------ */
 /*  Relations                                                          */
 /* ------------------------------------------------------------------ */
 
-export const eventsRelations = relations(events, ({ one }) => ({
-  /** Many-to-one: many events belong to one host (events.host_id → profiles.id). */
+export const eventsRelations = relations(events, ({ one, many }) => ({
   host: one(profiles, {
     fields: [events.hostId],
     references: [profiles.id],
     relationName: "eventHost",
   }),
-  /** Many-to-one: many events can be assigned to one staff member (events.staff_id → profiles.id, nullable). */
   staff: one(profiles, {
     fields: [events.staffId],
     references: [profiles.id],
     relationName: "eventStaff",
+  }),
+  guests: many(eventGuests),
+}));
+
+export const eventGuestsRelations = relations(eventGuests, ({ one }) => ({
+  event: one(events, {
+    fields: [eventGuests.eventId],
+    references: [events.id],
   }),
 }));

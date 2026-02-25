@@ -36,6 +36,13 @@
       "when": 1771912405046,
       "tag": "0004_large_black_widow",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1772004644476,
+      "tag": "0005_freezing_quasar",
+      "breakpoints": true
     }
   ]
 }

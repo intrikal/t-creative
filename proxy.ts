@@ -121,17 +121,26 @@ export async function proxy(request: NextRequest) {
       return NextResponse.redirect(url);
     }
 
-    // Protect /dashboard routes — only admins and assistants may access them.
+    // Protect /dashboard routes — admins, assistants, and clients may access them.
+    // Each role sees different content via role-based rendering in the layout.
     // Same null-profile rationale as the /admin guard above.
     if (
       request.nextUrl.pathname.startsWith("/dashboard") &&
       profile &&
       profile.role !== "admin" &&
-      profile.role !== "assistant"
+      profile.role !== "assistant" &&
+      profile.role !== "client"
     ) {
       const url = request.nextUrl.clone();
       url.pathname = "/";
       url.search = "";
+      return NextResponse.redirect(url);
+    }
+
+    // Redirect authenticated users from the landing page to their dashboard
+    if (request.nextUrl.pathname === "/") {
+      const url = request.nextUrl.clone();
+      url.pathname = "/dashboard";
       return NextResponse.redirect(url);
     }
   } else if (

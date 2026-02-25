@@ -1,117 +1,23 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
-  Download,
   Receipt,
   ShoppingBag,
   GraduationCap,
   CalendarCheck,
-  Filter,
   Search,
-  ChevronDown,
+  FileText,
+  AlertCircle,
+  ExternalLink,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import type { ClientInvoiceRow, ClientInvoicesData, InvoiceType, InvoiceStatus } from "./actions";
 
 /* ------------------------------------------------------------------ */
-/*  Types & data                                                        */
+/*  Config                                                              */
 /* ------------------------------------------------------------------ */
-
-type InvoiceType = "appointment" | "shop" | "training" | "deposit";
-type InvoiceStatus = "paid" | "pending" | "refunded";
-
-interface Invoice {
-  id: string;
-  date: string;
-  type: InvoiceType;
-  description: string;
-  amount: string;
-  status: InvoiceStatus;
-}
-
-const INVOICES: Invoice[] = [
-  {
-    id: "INV-0041",
-    date: "Feb 14, 2026",
-    type: "appointment",
-    description: "Full Set — Classic Lashes · Tanya",
-    amount: "$120.00",
-    status: "paid",
-  },
-  {
-    id: "INV-0039",
-    date: "Jan 25, 2026",
-    type: "shop",
-    description: "Lash Aftercare Kit × 1",
-    amount: "$18.00",
-    status: "paid",
-  },
-  {
-    id: "INV-0037",
-    date: "Jan 10, 2026",
-    type: "appointment",
-    description: "Lash Fill — Classic · Tanya",
-    amount: "$65.00",
-    status: "paid",
-  },
-  {
-    id: "INV-0035",
-    date: "Dec 22, 2025",
-    type: "appointment",
-    description: "Permanent Jewelry — Bracelet · Tanya",
-    amount: "$55.00",
-    status: "paid",
-  },
-  {
-    id: "INV-0031",
-    date: "Dec 2, 2025",
-    type: "shop",
-    description: "T Creative Lash Cleanser × 2",
-    amount: "$28.00",
-    status: "paid",
-  },
-  {
-    id: "INV-0028",
-    date: "Nov 15, 2025",
-    type: "training",
-    description: "Classic Lash Certification — Deposit",
-    amount: "$100.00",
-    status: "paid",
-  },
-  {
-    id: "INV-0027",
-    date: "Nov 15, 2025",
-    type: "appointment",
-    description: "Lash Fill — Classic · Tanya",
-    amount: "$65.00",
-    status: "paid",
-  },
-  {
-    id: "INV-0022",
-    date: "Oct 14, 2025",
-    type: "shop",
-    description: "Lash Spoolie Set × 1 · Lash Cleanser × 1",
-    amount: "$19.00",
-    status: "paid",
-  },
-  {
-    id: "INV-0018",
-    date: "Oct 1, 2025",
-    type: "appointment",
-    description: "Full Set — Classic Lashes · Tanya",
-    amount: "$120.00",
-    status: "paid",
-  },
-  {
-    id: "INV-0015",
-    date: "Sep 12, 2025",
-    type: "deposit",
-    description: "Appointment Deposit — Permanent Jewelry",
-    amount: "$25.00",
-    status: "refunded",
-  },
-];
 
 const TYPE_CONFIG: Record<
   InvoiceType,
@@ -146,6 +52,12 @@ const TYPE_CONFIG: Record<
     iconBg: "bg-[#d4a574]/10",
     iconColor: "text-[#a07040]",
   },
+  invoice: {
+    label: "Invoice",
+    icon: FileText,
+    iconBg: "bg-foreground/5",
+    iconColor: "text-muted",
+  },
 };
 
 const STATUS_CONFIG: Record<
@@ -163,6 +75,18 @@ const STATUS_CONFIG: Record<
     color: "text-[#a07040]",
     bg: "bg-[#d4a574]/10",
     border: "border-[#d4a574]/20",
+  },
+  overdue: {
+    label: "Overdue",
+    color: "text-destructive",
+    bg: "bg-destructive/10",
+    border: "border-destructive/20",
+  },
+  draft: {
+    label: "Draft",
+    color: "text-muted",
+    bg: "bg-foreground/5",
+    border: "border-border",
   },
   refunded: {
     label: "Refunded",
@@ -190,29 +114,45 @@ function StatPill({ label, value, sub }: { label: string; value: string; sub?: s
 /*  Main export                                                         */
 /* ------------------------------------------------------------------ */
 
-export function ClientInvoicesPage() {
+export function ClientInvoicesPage({ data }: { data: ClientInvoicesData }) {
   const [filterType, setFilterType] = useState<"all" | InvoiceType>("all");
   const [search, setSearch] = useState("");
 
-  const filtered = INVOICES.filter((inv) => {
-    if (filterType !== "all" && inv.type !== filterType) return false;
-    if (
-      search &&
-      !inv.description.toLowerCase().includes(search.toLowerCase()) &&
-      !inv.id.toLowerCase().includes(search.toLowerCase())
-    )
-      return false;
-    return true;
-  });
+  const allInvoices = data.invoiceRows;
 
-  const totalPaid = INVOICES.filter((i) => i.status === "paid").reduce(
-    (sum, i) => sum + parseFloat(i.amount.replace("$", "")),
-    0,
+  const filtered = useMemo(
+    () =>
+      allInvoices.filter((inv) => {
+        if (filterType !== "all" && inv.type !== filterType) return false;
+        if (
+          search &&
+          !inv.description.toLowerCase().includes(search.toLowerCase()) &&
+          !inv.id.toLowerCase().includes(search.toLowerCase())
+        )
+          return false;
+        return true;
+      }),
+    [allInvoices, filterType, search],
   );
 
-  const totalVisits = INVOICES.filter(
+  const totalPaid = allInvoices
+    .filter((i) => i.status === "paid")
+    .reduce((sum, i) => sum + i.amount, 0);
+
+  const totalVisits = allInvoices.filter(
     (i) => i.type === "appointment" && i.status === "paid",
   ).length;
+
+  const pendingCount = allInvoices.filter(
+    (i) => i.status === "pending" || i.status === "overdue",
+  ).length;
+
+  // Which filter types actually have data
+  const activeTypes = useMemo(() => {
+    const types = new Set<InvoiceType>();
+    for (const inv of allInvoices) types.add(inv.type);
+    return types;
+  }, [allInvoices]);
 
   return (
     <div className="p-4 md:p-6 lg:p-8 space-y-6">
@@ -229,14 +169,33 @@ export function ClientInvoicesPage() {
             <div className="w-px bg-border" />
             <StatPill label="Appointments" value={String(totalVisits)} sub="Paid visits" />
             <div className="w-px bg-border" />
-            <StatPill label="Invoices" value={String(INVOICES.length)} sub="Total records" />
+            <StatPill label="Invoices" value={String(allInvoices.length)} sub="Total records" />
+            {pendingCount > 0 && (
+              <>
+                <div className="w-px bg-border" />
+                <StatPill
+                  label="Outstanding"
+                  value={String(pendingCount)}
+                  sub="Pending / overdue"
+                />
+              </>
+            )}
           </div>
         </CardContent>
       </Card>
 
+      {/* Overdue banner */}
+      {allInvoices.some((i) => i.status === "overdue") && (
+        <div className="flex items-center gap-3 px-4 py-3 rounded-xl border border-destructive/20 bg-destructive/5">
+          <AlertCircle className="w-4 h-4 text-destructive shrink-0" />
+          <p className="text-xs text-destructive font-medium">
+            You have overdue invoices. Please contact T Creative Studio for assistance.
+          </p>
+        </div>
+      )}
+
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-2">
-        {/* Search */}
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted" />
           <input
@@ -248,22 +207,34 @@ export function ClientInvoicesPage() {
           />
         </div>
 
-        {/* Type filter */}
         <div className="flex gap-1 flex-wrap">
-          {(["all", "appointment", "shop", "training", "deposit"] as const).map((f) => (
-            <button
-              key={f}
-              onClick={() => setFilterType(f)}
-              className={cn(
-                "px-3 py-1.5 rounded-lg text-xs font-medium transition-colors",
-                filterType === f
-                  ? "bg-foreground/8 text-foreground"
-                  : "text-muted hover:text-foreground",
-              )}
-            >
-              {f === "all" ? "All" : TYPE_CONFIG[f].label}
-            </button>
-          ))}
+          <button
+            onClick={() => setFilterType("all")}
+            className={cn(
+              "px-3 py-1.5 rounded-lg text-xs font-medium transition-colors",
+              filterType === "all"
+                ? "bg-foreground/8 text-foreground"
+                : "text-muted hover:text-foreground",
+            )}
+          >
+            All
+          </button>
+          {(["appointment", "shop", "training", "deposit", "invoice"] as const)
+            .filter((f) => activeTypes.has(f))
+            .map((f) => (
+              <button
+                key={f}
+                onClick={() => setFilterType(f)}
+                className={cn(
+                  "px-3 py-1.5 rounded-lg text-xs font-medium transition-colors",
+                  filterType === f
+                    ? "bg-foreground/8 text-foreground"
+                    : "text-muted hover:text-foreground",
+                )}
+              >
+                {TYPE_CONFIG[f].label}
+              </button>
+            ))}
         </div>
       </div>
 
@@ -271,7 +242,14 @@ export function ClientInvoicesPage() {
       {filtered.length === 0 ? (
         <div className="py-16 text-center border border-dashed border-border rounded-2xl">
           <Receipt className="w-8 h-8 text-muted/40 mx-auto mb-2" />
-          <p className="text-sm text-muted">No invoices found</p>
+          <p className="text-sm text-muted">
+            {allInvoices.length === 0 ? "No invoices yet" : "No invoices found"}
+          </p>
+          {allInvoices.length === 0 && (
+            <p className="text-xs text-muted/60 mt-1">
+              Your payment history will appear here after your first appointment.
+            </p>
+          )}
         </div>
       ) : (
         <div className="space-y-2">
@@ -279,7 +257,7 @@ export function ClientInvoicesPage() {
             const t = TYPE_CONFIG[invoice.type];
             const s = STATUS_CONFIG[invoice.status];
             return (
-              <Card key={invoice.id} className="gap-0">
+              <Card key={`${invoice.id}-${invoice.dateKey}`} className="gap-0">
                 <CardContent className="px-5 py-3.5 flex items-center gap-3">
                   {/* Icon */}
                   <div
@@ -309,18 +287,35 @@ export function ClientInvoicesPage() {
                     <p className="text-xs text-muted mt-0.5 truncate">{invoice.description}</p>
                     <p className="text-[11px] text-muted/60 mt-0.5">
                       {invoice.date} · {t.label}
+                      {invoice.dueDate && invoice.status !== "paid" && (
+                        <span className="text-destructive/70"> · Due {invoice.dueDate}</span>
+                      )}
                     </p>
                   </div>
 
-                  {/* Amount + download */}
-                  <div className="flex items-center gap-3 shrink-0">
-                    <p className="text-sm font-bold text-foreground">{invoice.amount}</p>
-                    <button
-                      className="p-1.5 rounded-lg text-muted hover:text-foreground hover:bg-foreground/5 transition-colors"
-                      title="Download receipt"
+                  {/* Amount + actions */}
+                  <div className="flex items-center gap-2 shrink-0">
+                    <p
+                      className={cn(
+                        "text-sm font-bold",
+                        invoice.status === "refunded"
+                          ? "text-muted line-through"
+                          : "text-foreground",
+                      )}
                     >
-                      <Download className="w-3.5 h-3.5" />
-                    </button>
+                      ${invoice.amount.toFixed(2)}
+                    </p>
+                    {invoice.receiptUrl && (
+                      <a
+                        href={invoice.receiptUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-1.5 rounded-lg text-muted hover:text-foreground hover:bg-foreground/5 transition-colors"
+                        title="View receipt"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </a>
+                    )}
                   </div>
                 </CardContent>
               </Card>

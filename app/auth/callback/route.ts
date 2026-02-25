@@ -187,7 +187,7 @@ export async function GET(request: Request) {
 
   // Route each role to their home base after sign-in
   if (assignedAssistant || profile?.role === "assistant") {
-    return NextResponse.redirect(`${origin}/assistant`);
+    return NextResponse.redirect(`${origin}/dashboard`);
   }
 
   return NextResponse.redirect(`${origin}/`);

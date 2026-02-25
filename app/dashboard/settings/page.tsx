@@ -1,19 +1,7 @@
-/**
- * Server component for `/dashboard/settings`.
- *
- * Fetches 7 datasets in parallel via `Promise.all`:
- * - Business hours, time-off blocks, lunch break (from `hours-actions`)
- * - Business profile, policies, loyalty config, notifications (from `settings-actions`)
- *
- * All data is passed as serialised props to the client-side `SettingsPage` shell,
- * which delegates to individual tab components.
- *
- * @module settings/page
- * @see {@link ./hours-actions.ts} — schedule-related server actions
- * @see {@link ./settings-actions.ts} — key-value settings server actions
- * @see {@link ./SettingsPage.tsx} — client component (tab shell)
- */
+import { redirect } from "next/navigation";
 import type { Metadata } from "next";
+import { getCurrentUser } from "@/lib/auth";
+import { AssistantSettingsPage } from "./AssistantSettingsPage";
 import { getBusinessHours, getTimeOff, getLunchBreak } from "./hours-actions";
 import {
   getBusinessProfile,
@@ -31,6 +19,13 @@ export const metadata: Metadata = {
 };
 
 export default async function Page() {
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+
+  if (user.profile?.role === "assistant") {
+    return <AssistantSettingsPage />;
+  }
+
   const [
     initialHours,
     initialTimeOff,

@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { getCurrentUser } from "@/lib/auth";
+import { getAssistantSettings } from "./assistant-settings-actions";
 import { AssistantSettingsPage } from "./AssistantSettingsPage";
 import { getBusinessHours, getTimeOff, getLunchBreak } from "./hours-actions";
 import {
@@ -23,7 +24,8 @@ export default async function Page() {
   if (!user) redirect("/login");
 
   if (user.profile?.role === "assistant") {
-    return <AssistantSettingsPage />;
+    const data = await getAssistantSettings();
+    return <AssistantSettingsPage data={data} />;
   }
 
   const [

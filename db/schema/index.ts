@@ -113,6 +113,7 @@ export {
   enrollments,
   sessionAttendance,
   certificates,
+  lessonCompletions,
   trainingProgramsRelations,
   trainingSessionsRelations,
   trainingModulesRelations,
@@ -120,6 +121,7 @@ export {
   enrollmentsRelations,
   sessionAttendanceRelations,
   certificatesRelations,
+  lessonCompletionsRelations,
 } from "./training";
 
 /* Events */

@@ -15,9 +15,12 @@ import { db } from "@/db";
 import {
   trainingPrograms,
   trainingSessions,
+  trainingModules,
+  trainingLessons,
   enrollments,
   certificates,
   sessionAttendance,
+  lessonCompletions,
   profiles,
 } from "@/db/schema";
 import { createClient } from "@/utils/supabase/server";
@@ -551,5 +554,256 @@ export async function createEnrollment(form: EnrollmentFormData) {
 export async function deleteEnrollment(id: number) {
   await getUser();
   await db.delete(enrollments).where(eq(enrollments.id, id));
+  revalidatePath(PATH);
+}
+
+/* ------------------------------------------------------------------ */
+/*  Assistant training types                                           */
+/* ------------------------------------------------------------------ */
+
+export type AssistantLesson = {
+  id: number;
+  title: string;
+  content: string | null;
+  resourceUrl: string | null;
+  durationMin: number;
+  completed: boolean;
+};
+
+export type AssistantModule = {
+  id: number;
+  title: string;
+  description: string;
+  category: string;
+  status: "completed" | "in_progress" | "available" | "locked";
+  lessons: AssistantLesson[];
+  dueDate?: string;
+  completedDate?: string;
+};
+
+export type AssistantTrainingData = {
+  modules: AssistantModule[];
+  stats: {
+    modulesCompleted: number;
+    modulesTotal: number;
+    lessonsCompleted: number;
+    lessonsTotal: number;
+    certificates: number;
+  };
+};
+
+/* ------------------------------------------------------------------ */
+/*  Assistant training queries                                         */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Fetches all training modules + lessons for the logged-in assistant,
+ * enriched with their per-lesson completion status.
+ *
+ * Enrolled programs → available/in_progress/completed.
+ * Non-enrolled programs → locked.
+ */
+export async function getAssistantTraining(): Promise<AssistantTrainingData> {
+  const user = await getUser();
+
+  // 1. Get all programs with their modules and lessons
+  const allPrograms = await db
+    .select({
+      programId: trainingPrograms.id,
+      programName: trainingPrograms.name,
+      programCategory: trainingPrograms.category,
+      moduleId: trainingModules.id,
+      moduleName: trainingModules.name,
+      moduleDescription: trainingModules.description,
+      moduleSortOrder: trainingModules.sortOrder,
+      lessonId: trainingLessons.id,
+      lessonTitle: trainingLessons.title,
+      lessonContent: trainingLessons.content,
+      lessonResourceUrl: trainingLessons.resourceUrl,
+      lessonDurationMin: trainingLessons.durationMinutes,
+      lessonSortOrder: trainingLessons.sortOrder,
+    })
+    .from(trainingPrograms)
+    .innerJoin(trainingModules, eq(trainingModules.programId, trainingPrograms.id))
+    .innerJoin(trainingLessons, eq(trainingLessons.moduleId, trainingModules.id))
+    .where(eq(trainingPrograms.isActive, true))
+    .orderBy(
+      asc(trainingPrograms.sortOrder),
+      asc(trainingModules.sortOrder),
+      asc(trainingLessons.sortOrder),
+    );
+
+  // 2. Get assistant's enrollments
+  const assistantEnrollments = await db
+    .select({
+      programId: enrollments.programId,
+      status: enrollments.status,
+      completedAt: enrollments.completedAt,
+    })
+    .from(enrollments)
+    .where(eq(enrollments.clientId, user.id));
+
+  const enrollmentMap = new Map(assistantEnrollments.map((e) => [e.programId, e]));
+
+  // 3. Get assistant's lesson completions
+  const completions = await db
+    .select({ lessonId: lessonCompletions.lessonId })
+    .from(lessonCompletions)
+    .where(eq(lessonCompletions.profileId, user.id));
+
+  const completedLessonIds = new Set(completions.map((c) => c.lessonId));
+
+  // 4. Get next session date per program (for due date)
+  const now = new Date();
+  const upcomingSessions = await db
+    .select({
+      programId: trainingSessions.programId,
+      startsAt: sql<Date>`min(${trainingSessions.startsAt})`.as("next_session"),
+    })
+    .from(trainingSessions)
+    .where(
+      and(
+        eq(trainingSessions.status, "scheduled"),
+        sql`${trainingSessions.startsAt} >= ${now.toISOString()}`,
+      ),
+    )
+    .groupBy(trainingSessions.programId);
+
+  const nextSessionMap = new Map(upcomingSessions.map((s) => [s.programId, new Date(s.startsAt)]));
+
+  // 5. Get certificates for this assistant
+  const certs = await db
+    .select({ programId: certificates.programId })
+    .from(certificates)
+    .where(eq(certificates.clientId, user.id));
+
+  const certProgramIds = new Set(certs.map((c) => c.programId));
+
+  // 6. Group rows into modules
+  const moduleMap = new Map<
+    number,
+    {
+      programId: number;
+      category: string;
+      title: string;
+      description: string;
+      sortOrder: number;
+      lessons: AssistantLesson[];
+    }
+  >();
+
+  for (const row of allPrograms) {
+    if (!row.moduleId || !row.lessonId) continue;
+
+    if (!moduleMap.has(row.moduleId)) {
+      moduleMap.set(row.moduleId, {
+        programId: row.programId,
+        category: row.programCategory ?? "lash",
+        title: row.moduleName,
+        description: row.moduleDescription ?? "",
+        sortOrder: row.moduleSortOrder,
+        lessons: [],
+      });
+    }
+
+    moduleMap.get(row.moduleId)!.lessons.push({
+      id: row.lessonId,
+      title: row.lessonTitle,
+      content: row.lessonContent,
+      resourceUrl: row.lessonResourceUrl,
+      durationMin: row.lessonDurationMin ?? 10,
+      completed: completedLessonIds.has(row.lessonId),
+    });
+  }
+
+  // 7. Build final module list
+  const modules: AssistantModule[] = [];
+  for (const [moduleId, mod] of moduleMap) {
+    const enrollment = enrollmentMap.get(mod.programId);
+    const allLessonsDone = mod.lessons.every((l) => l.completed);
+    const anyStarted = mod.lessons.some((l) => l.completed);
+    const nextSession = nextSessionMap.get(mod.programId);
+
+    let status: AssistantModule["status"];
+    if (!enrollment) {
+      status = "locked";
+    } else if (allLessonsDone) {
+      status = "completed";
+    } else if (anyStarted) {
+      status = "in_progress";
+    } else {
+      status = "available";
+    }
+
+    const completedDate =
+      allLessonsDone && enrollment?.completedAt
+        ? new Date(enrollment.completedAt).toLocaleDateString("en-US", {
+            month: "short",
+            year: "numeric",
+          })
+        : allLessonsDone
+          ? new Date().toLocaleDateString("en-US", { month: "short", year: "numeric" })
+          : undefined;
+
+    modules.push({
+      id: moduleId,
+      title: mod.title,
+      description: mod.description,
+      category: CATEGORY_TO_TYPE[mod.category] ?? mod.category,
+      status,
+      lessons: mod.lessons,
+      dueDate: nextSession
+        ? nextSession.toLocaleDateString("en-US", { month: "short", day: "numeric" })
+        : undefined,
+      completedDate,
+    });
+  }
+
+  // Sort: available/in_progress first, then completed, then locked
+  const statusOrder = { in_progress: 0, available: 1, completed: 2, locked: 3 };
+  modules.sort((a, b) => statusOrder[a.status] - statusOrder[b.status]);
+
+  const totalLessons = modules.flatMap((m) => m.lessons).length;
+  const totalCompletedLessons = modules.flatMap((m) => m.lessons).filter((l) => l.completed).length;
+  const completedModules = modules.filter((m) => m.status === "completed").length;
+
+  return {
+    modules,
+    stats: {
+      modulesCompleted: completedModules,
+      modulesTotal: modules.length,
+      lessonsCompleted: totalCompletedLessons,
+      lessonsTotal: totalLessons,
+      certificates: certProgramIds.size,
+    },
+  };
+}
+
+/* ------------------------------------------------------------------ */
+/*  Assistant lesson completion mutation                               */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Toggles a lesson's completion status for the logged-in assistant.
+ * Inserts a `lessonCompletions` row if not completed, deletes it if already completed.
+ */
+export async function toggleLessonCompletion(lessonId: number) {
+  const user = await getUser();
+
+  const existing = await db
+    .select({ id: lessonCompletions.id })
+    .from(lessonCompletions)
+    .where(and(eq(lessonCompletions.profileId, user.id), eq(lessonCompletions.lessonId, lessonId)))
+    .limit(1);
+
+  if (existing.length > 0) {
+    await db.delete(lessonCompletions).where(eq(lessonCompletions.id, existing[0].id));
+  } else {
+    await db.insert(lessonCompletions).values({
+      profileId: user.id,
+      lessonId,
+    });
+  }
+
   revalidatePath(PATH);
 }

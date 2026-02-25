@@ -15,7 +15,7 @@
 import { revalidatePath } from "next/cache";
 import { eq, desc, sql, and } from "drizzle-orm";
 import { db } from "@/db";
-import { reviews, profiles } from "@/db/schema";
+import { reviews, profiles, bookings } from "@/db/schema";
 import { createClient } from "@/utils/supabase/server";
 
 /* ------------------------------------------------------------------ */
@@ -218,5 +218,180 @@ export async function saveReply(reviewId: number, reply: string) {
       updatedAt: new Date(),
     })
     .where(eq(reviews.id, reviewId));
+  revalidatePath("/dashboard/reviews");
+}
+
+/* ------------------------------------------------------------------ */
+/*  Assistant reviews types                                            */
+/* ------------------------------------------------------------------ */
+
+export type AssistantReviewRow = {
+  id: number;
+  client: string;
+  clientInitials: string;
+  rating: number;
+  service: string;
+  source: string | null;
+  date: string;
+  dateKey: string;
+  comment: string;
+  replied: boolean;
+  replyText: string | null;
+};
+
+export type AssistantReviewStats = {
+  totalReviews: number;
+  avgRating: number;
+  fiveStarCount: number;
+  fourStarCount: number;
+  thisMonthCount: number;
+  responseRate: number;
+  repliedCount: number;
+  ratingDist: { stars: number; count: number }[];
+};
+
+export type AssistantReviewsData = {
+  reviews: AssistantReviewRow[];
+  stats: AssistantReviewStats;
+};
+
+/* ------------------------------------------------------------------ */
+/*  Assistant reviews queries                                          */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Fetches approved reviews where the logged-in assistant was the
+ * assigned staff on the booking. Assistants only see approved/featured
+ * reviews — not pending or rejected ones.
+ */
+export async function getAssistantReviews(): Promise<AssistantReviewsData> {
+  const user = await getUser();
+
+  // Fetch approved + featured reviews for this assistant's bookings in one query
+  const allRows = await db
+    .select({
+      id: reviews.id,
+      firstName: profiles.firstName,
+      lastName: profiles.lastName,
+      rating: reviews.rating,
+      serviceName: reviews.serviceName,
+      source: reviews.source,
+      body: reviews.body,
+      staffResponse: reviews.staffResponse,
+      createdAt: reviews.createdAt,
+    })
+    .from(reviews)
+    .innerJoin(bookings, eq(reviews.bookingId, bookings.id))
+    .leftJoin(profiles, eq(reviews.clientId, profiles.id))
+    .where(
+      and(
+        eq(bookings.staffId, user.id),
+        sql`(${reviews.status} = 'approved' OR ${reviews.isFeatured} = true)`,
+      ),
+    )
+    .orderBy(desc(reviews.createdAt));
+
+  const now = new Date();
+  const currentMonth = now.getMonth();
+  const currentYear = now.getFullYear();
+
+  const reviewList: AssistantReviewRow[] = allRows.map((r) => {
+    const first = r.firstName ?? "";
+    const last = r.lastName ?? "";
+    const name = `${first} ${last.charAt(0)}.`.trim();
+    const initials = [first[0], last[0]].filter(Boolean).join("").toUpperCase() || "?";
+    const d = new Date(r.createdAt);
+
+    return {
+      id: r.id,
+      client: name,
+      clientInitials: initials,
+      rating: r.rating,
+      service: r.serviceName ?? "General",
+      source: r.source,
+      date: d.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+      dateKey: d.toISOString(),
+      comment: r.body ?? "",
+      replied: !!r.staffResponse,
+      replyText: r.staffResponse,
+    };
+  });
+
+  // Stats
+  const total = reviewList.length;
+  const avg =
+    total > 0 ? Math.round((reviewList.reduce((s, r) => s + r.rating, 0) / total) * 10) / 10 : 0;
+  const fiveStarCount = reviewList.filter((r) => r.rating === 5).length;
+  const fourStarCount = reviewList.filter((r) => r.rating === 4).length;
+  const repliedCount = reviewList.filter((r) => r.replied).length;
+  const responseRate = total > 0 ? Math.round((repliedCount / total) * 100) : 0;
+  const thisMonthCount = allRows.filter((r) => {
+    const d = new Date(r.createdAt);
+    return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+  }).length;
+
+  const ratingMap = new Map<number, number>();
+  for (const r of reviewList) {
+    ratingMap.set(r.rating, (ratingMap.get(r.rating) ?? 0) + 1);
+  }
+  const ratingDist = [5, 4, 3, 2, 1].map((stars) => ({
+    stars,
+    count: ratingMap.get(stars) ?? 0,
+  }));
+
+  return {
+    reviews: reviewList,
+    stats: {
+      totalReviews: total,
+      avgRating: avg,
+      fiveStarCount,
+      fourStarCount,
+      thisMonthCount,
+      responseRate,
+      repliedCount,
+      ratingDist,
+    },
+  };
+}
+
+/* ------------------------------------------------------------------ */
+/*  Assistant reply mutation                                           */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Lets an assistant save a reply to a review on one of their bookings.
+ * Verifies the review belongs to one of the assistant's bookings.
+ */
+export async function assistantSaveReply(reviewId: number, reply: string) {
+  const user = await getUser();
+
+  // Verify this review is on one of the assistant's bookings
+  const [review] = await db
+    .select({ bookingId: reviews.bookingId })
+    .from(reviews)
+    .where(eq(reviews.id, reviewId))
+    .limit(1);
+
+  if (!review?.bookingId) throw new Error("Review not found");
+
+  const [booking] = await db
+    .select({ staffId: bookings.staffId })
+    .from(bookings)
+    .where(eq(bookings.id, review.bookingId))
+    .limit(1);
+
+  if (booking?.staffId !== user.id) {
+    throw new Error("Not authorized to reply to this review");
+  }
+
+  await db
+    .update(reviews)
+    .set({
+      staffResponse: reply.trim() || null,
+      staffRespondedAt: reply.trim() ? new Date() : null,
+      updatedAt: new Date(),
+    })
+    .where(eq(reviews.id, reviewId));
+
   revalidatePath("/dashboard/reviews");
 }

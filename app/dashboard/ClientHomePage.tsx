@@ -188,14 +188,14 @@ function fillReminderDaysAway(lastVisit: Date | null): number | null {
 /* ------------------------------------------------------------------ */
 
 const QUICK_ACTIONS = [
-  { label: "Book a Service", icon: CalendarPlus, href: "/client/book" },
-  { label: "My Bookings", icon: CalendarCheck, href: "/client/bookings" },
-  { label: "Shop", icon: ShoppingBag, href: "/client/shop" },
-  { label: "Gallery", icon: Images, href: "/client/gallery" },
-  { label: "Training", icon: GraduationCap, href: "/client/training" },
-  { label: "Aftercare", icon: HeartHandshake, href: "/client/aftercare" },
-  { label: "Messages", icon: MessageSquare, href: "/client/messages" },
-  { label: "Invoices", icon: Receipt, href: "/client/invoices" },
+  { label: "Book a Service", icon: CalendarPlus, href: "/dashboard/book" },
+  { label: "My Bookings", icon: CalendarCheck, href: "/dashboard/bookings" },
+  { label: "Shop", icon: ShoppingBag, href: "/dashboard/shop" },
+  { label: "Gallery", icon: Images, href: "/dashboard/gallery" },
+  { label: "Training", icon: GraduationCap, href: "/dashboard/training" },
+  { label: "Aftercare", icon: HeartHandshake, href: "/dashboard/aftercare" },
+  { label: "Messages", icon: MessageSquare, href: "/dashboard/messages" },
+  { label: "Invoices", icon: Receipt, href: "/dashboard/invoices" },
 ];
 
 /* ------------------------------------------------------------------ */
@@ -355,7 +355,7 @@ export function ClientHomePage({
             )}
           </div>
           <Link
-            href="/client/book"
+            href="/dashboard/book"
             className="text-xs font-semibold text-[#96604a] hover:text-[#c4907a] transition-colors shrink-0 flex items-center gap-0.5 border border-[#c4907a]/30 rounded-lg px-3 py-1.5"
           >
             Book fill <ChevronRight className="w-3 h-3" />
@@ -373,7 +373,7 @@ export function ClientHomePage({
               <div className="flex items-center justify-between">
                 <CardTitle className="text-sm font-semibold">Upcoming Appointment</CardTitle>
                 <Link
-                  href="/client/bookings"
+                  href="/dashboard/bookings"
                   className="text-xs text-accent hover:underline flex items-center gap-0.5"
                 >
                   All bookings <ChevronRight className="w-3 h-3" />
@@ -386,7 +386,7 @@ export function ClientHomePage({
                   <Sparkles className="w-6 h-6 text-muted/40 mx-auto mb-2" />
                   <p className="text-sm text-muted">No upcoming appointments</p>
                   <Link
-                    href="/client/book"
+                    href="/dashboard/book"
                     className="text-xs text-accent hover:underline mt-1 inline-block"
                   >
                     Book a service
@@ -469,7 +469,7 @@ export function ClientHomePage({
                   <CardTitle className="text-sm font-semibold">Visit History</CardTitle>
                 </div>
                 <Link
-                  href="/client/bookings"
+                  href="/dashboard/bookings"
                   className="text-xs text-accent hover:underline flex items-center gap-0.5"
                 >
                   View all <ChevronRight className="w-3 h-3" />
@@ -482,7 +482,7 @@ export function ClientHomePage({
                   <Sparkles className="w-6 h-6 text-muted/40 mx-auto mb-2" />
                   <p className="text-sm text-muted">No visits yet</p>
                   <Link
-                    href="/client/book"
+                    href="/dashboard/book"
                     className="text-xs text-accent hover:underline mt-1 inline-block"
                   >
                     Book your first service
@@ -574,7 +574,7 @@ export function ClientHomePage({
                 Earn 1 point per $1 spent. Redeem at checkout for discounts.
               </p>
               <Link
-                href="/client/shop"
+                href="/dashboard/shop"
                 className="flex items-center gap-1 text-xs font-medium text-accent hover:text-accent/80 transition-colors"
               >
                 Shop now <ChevronRight className="w-3 h-3" />
@@ -595,7 +595,7 @@ export function ClientHomePage({
                   instructions after each visit to keep your lashes looking their best.
                 </p>
                 <Link
-                  href="/client/aftercare"
+                  href="/dashboard/aftercare"
                   className="text-xs text-accent hover:underline mt-1.5 inline-flex items-center gap-0.5"
                 >
                   View aftercare guide <ChevronRight className="w-3 h-3" />

@@ -8,11 +8,18 @@ import {
   getAssistantTraining,
 } from "./actions";
 import { AssistantTrainingPage } from "./AssistantTrainingPage";
+import { getClientTraining } from "./client-actions";
+import { ClientTrainingPage } from "./ClientTrainingPage";
 import { TrainingPage } from "./TrainingPage";
 
 export default async function Page() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
+
+  if (user.profile?.role === "client") {
+    const data = await getClientTraining();
+    return <ClientTrainingPage data={data} />;
+  }
 
   if (user.profile?.role === "assistant") {
     const data = await getAssistantTraining();

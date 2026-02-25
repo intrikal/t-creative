@@ -7,7 +7,7 @@ import { db } from "@/db";
 import { bookings, bookingAddOns, services, profiles, reviews } from "@/db/schema";
 import { createClient } from "@/utils/supabase/server";
 
-const PATH = "/client/bookings";
+const PATH = "/dashboard/bookings";
 
 /* ------------------------------------------------------------------ */
 /*  Auth guard                                                         */

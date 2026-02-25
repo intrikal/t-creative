@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { getCurrentUser } from "@/lib/auth";
 import { getAssistantSettings } from "./assistant-settings-actions";
 import { AssistantSettingsPage } from "./AssistantSettingsPage";
+import { ClientSettingsPage } from "./ClientSettingsPage";
 import { getBusinessHours, getTimeOff, getLunchBreak } from "./hours-actions";
 import {
   getBusinessProfile,
@@ -22,6 +23,10 @@ export const metadata: Metadata = {
 export default async function Page() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
+
+  if (user.profile?.role === "client") {
+    return <ClientSettingsPage />;
+  }
 
   if (user.profile?.role === "assistant") {
     const data = await getAssistantSettings();

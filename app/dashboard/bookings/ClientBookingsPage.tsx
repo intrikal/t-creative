@@ -16,8 +16,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import type { ClientBookingRow, ClientBookingsData } from "./actions";
-import { submitClientReview, cancelClientBooking } from "./actions";
+import type { ClientBookingRow, ClientBookingsData } from "./client-actions";
+import { submitClientReview, cancelClientBooking } from "./client-actions";
 
 /* ------------------------------------------------------------------ */
 /*  Date helpers                                                        */

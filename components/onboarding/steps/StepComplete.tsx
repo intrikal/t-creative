@@ -315,6 +315,9 @@ export function StepComplete({
                 isSaving || saveError
                   ? undefined
                   : () => {
+                      // Hard navigation (not router.push) — forces a full reload so
+                      // the server re-runs getCurrentUser() and picks up the freshly
+                      // saved profile & role. Client-side nav would use stale cache.
                       window.location.href = "/dashboard";
                     }
               }
@@ -366,7 +369,10 @@ export function StepComplete({
                 isSaving || saveError
                   ? undefined
                   : () => {
-                      window.location.href = "/client";
+                      // Hard navigation (not router.push) — forces a full reload so
+                      // the server re-runs getCurrentUser() and picks up the freshly
+                      // saved profile & role. Client-side nav would use stale cache.
+                      window.location.href = "/dashboard";
                     }
               }
               variant="primary"

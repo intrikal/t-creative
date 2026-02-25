@@ -4,6 +4,8 @@ import { getCurrentUser } from "@/lib/auth";
 import { getAftercareSections, getPolicies, seedAftercareDefaults } from "./actions";
 import { AftercarePage } from "./AftercarePage";
 import { AssistantAftercarePage } from "./AssistantAftercarePage";
+import { getClientAftercare } from "./client-actions";
+import { ClientAftercarePage } from "./ClientAftercarePage";
 
 export const metadata: Metadata = {
   title: "Aftercare & Policies — T Creative Studio",
@@ -14,6 +16,11 @@ export const metadata: Metadata = {
 export default async function Page() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
+
+  if (user.profile?.role === "client") {
+    const sections = await getClientAftercare();
+    return <ClientAftercarePage sections={sections} />;
+  }
 
   // Seed defaults on first visit if the table is empty
   await seedAftercareDefaults();

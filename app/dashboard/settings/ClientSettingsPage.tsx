@@ -27,11 +27,11 @@ import { useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { AccountSection } from "./components/AccountSection";
-import { NotificationsSection } from "./components/NotificationsSection";
-import { PaymentsSection } from "./components/PaymentsSection";
-import { ProfileSection } from "./components/ProfileSection";
-import { SECTIONS, type Section } from "./types";
+import { AccountSection } from "./client-components/AccountSection";
+import { NotificationsSection } from "./client-components/NotificationsSection";
+import { PaymentsSection } from "./client-components/PaymentsSection";
+import { ProfileSection } from "./client-components/ProfileSection";
+import { SECTIONS, type Section } from "./client-types";
 
 /** Map of section id → rendered panel. Evaluated once per render cycle. */
 const PANELS: Record<Section, React.ReactNode> = {

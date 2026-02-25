@@ -10,78 +10,23 @@ import {
   Droplets,
   Sparkles,
   Gem,
+  Scissors,
+  Users,
   ShoppingBag,
   ArrowRight,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import type { ClientAftercareSection } from "./client-actions";
 
-type Tab = "lash" | "jewelry";
+type IconComponent = React.ComponentType<{ className?: string }>;
 
-interface AftercareTip {
-  text: string;
-  type: "do" | "dont";
-}
-
-const LASH_TIPS: AftercareTip[] = [
-  { text: "Keep lashes dry for the first 24 hours after your appointment", type: "do" },
-  { text: "Gently brush lashes daily with a clean spoolie wand", type: "do" },
-  { text: "Sleep on your back or use a silk pillowcase", type: "do" },
-  { text: "Come in for fills every 2–3 weeks to maintain fullness", type: "do" },
-  { text: "Use lash-safe, oil-free makeup and cleanser", type: "do" },
-  { text: "Avoid rubbing, picking, or pulling your lashes", type: "dont" },
-  { text: "Avoid oil-based products near your eyes — they dissolve the bond", type: "dont" },
-  { text: "Don't use a regular mascara on extensions", type: "dont" },
-  { text: "Avoid steam rooms, saunas, and heavy sweating for 48 hours", type: "dont" },
-  { text: "Don't sleep face-down — this will crimp and damage your lashes", type: "dont" },
-];
-
-const JEWELRY_TIPS: AftercareTip[] = [
-  { text: "Keep the area clean and dry for the first 48 hours", type: "do" },
-  { text: "Pat dry gently after showering — don't rub", type: "do" },
-  { text: "Apply a small amount of unscented lotion if skin feels dry", type: "do" },
-  {
-    text: "Contact the studio if the clasp feels loose — do not attempt to re-weld at home",
-    type: "do",
-  },
-  { text: "Avoid submerging in pools, hot tubs, or the ocean for 72 hours", type: "dont" },
-  { text: "Don't use harsh soaps or scrubs directly on the chain", type: "dont" },
-  { text: "Avoid applying perfume or lotion directly on the chain", type: "dont" },
-  { text: "Don't try to remove or cut the chain yourself", type: "dont" },
-];
-
-const LASH_COPY_TEXT = `T Creative Studio — Lash Extension Aftercare
-
-DO:
-• Keep lashes dry for the first 24 hours
-• Gently brush lashes daily with a spoolie
-• Sleep on your back or use a silk pillowcase
-• Come in for fills every 2–3 weeks
-• Use lash-safe, oil-free products
-
-DON'T:
-• Rub, pick, or pull your lashes
-• Use oil-based products near your eyes
-• Use regular mascara on extensions
-• Steam rooms or saunas for 48 hours
-• Sleep face-down
-
-Questions? Message us at T Creative Studio.`;
-
-const JEWELRY_COPY_TEXT = `T Creative Studio — Permanent Jewelry Aftercare
-
-DO:
-• Keep the area clean and dry for 48 hours
-• Pat dry gently after showering
-• Contact us if the clasp feels loose
-
-DON'T:
-• Submerge in pools or hot tubs for 72 hours
-• Use harsh soaps or scrubs on the chain
-• Apply perfume directly on the chain
-• Remove or cut the chain yourself
-
-Questions? Message us at T Creative Studio.`;
+const CATEGORY_ICONS: Record<string, IconComponent> = {
+  lash: Sparkles,
+  jewelry: Gem,
+  crochet: Scissors,
+  consulting: Users,
+};
 
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
@@ -108,13 +53,17 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
-export function ClientAftercarePage() {
-  const [tab, setTab] = useState<Tab>("lash");
+export function ClientAftercarePage({ sections }: { sections: ClientAftercareSection[] }) {
+  const categories = sections.map((s) => s.category).filter(Boolean) as string[];
+  const uniqueCategories = [...new Set(categories)];
+  const [activeCategory, setActiveCategory] = useState(uniqueCategories[0] ?? "lash");
 
-  const tips = tab === "lash" ? LASH_TIPS : JEWELRY_TIPS;
-  const doTips = tips.filter((t) => t.type === "do");
-  const dontTips = tips.filter((t) => t.type === "dont");
-  const copyText = tab === "lash" ? LASH_COPY_TEXT : JEWELRY_COPY_TEXT;
+  const activeSection = sections.find((s) => s.category === activeCategory);
+  const doTips = activeSection?.dos ?? [];
+  const dontTips = activeSection?.donts ?? [];
+  const copyText = activeSection
+    ? `T Creative Studio — ${activeSection.title} Aftercare\n\nDO:\n${activeSection.dos.map((d) => `• ${d}`).join("\n")}\n\nDON'T:\n${activeSection.donts.map((d) => `• ${d}`).join("\n")}\n\nQuestions? Message us at T Creative Studio.`
+    : "";
 
   return (
     <div className="p-4 md:p-6 lg:p-8 space-y-6">
@@ -126,28 +75,30 @@ export function ClientAftercarePage() {
       </div>
 
       {/* Tab toggle */}
-      <div className="flex items-center gap-1 bg-surface border border-border rounded-lg p-0.5 w-fit">
-        {(
-          [
-            { value: "lash", label: "Lash Extensions", icon: Sparkles },
-            { value: "jewelry", label: "Permanent Jewelry", icon: Gem },
-          ] as { value: Tab; label: string; icon: React.ComponentType<{ className?: string }> }[]
-        ).map(({ value, label, icon: Icon }) => (
-          <button
-            key={value}
-            onClick={() => setTab(value)}
-            className={cn(
-              "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors",
-              tab === value
-                ? "bg-background text-foreground shadow-sm"
-                : "text-muted hover:text-foreground",
-            )}
-          >
-            <Icon className="w-3 h-3" />
-            {label}
-          </button>
-        ))}
-      </div>
+      {uniqueCategories.length > 1 && (
+        <div className="flex items-center gap-1 bg-surface border border-border rounded-lg p-0.5 w-fit">
+          {sections
+            .filter((s) => s.category)
+            .map((section) => {
+              const Icon = CATEGORY_ICONS[section.category!] ?? Sparkles;
+              return (
+                <button
+                  key={section.category}
+                  onClick={() => setActiveCategory(section.category!)}
+                  className={cn(
+                    "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors",
+                    activeCategory === section.category
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted hover:text-foreground",
+                  )}
+                >
+                  <Icon className="w-3 h-3" />
+                  {section.title}
+                </button>
+              );
+            })}
+        </div>
+      )}
 
       {/* Timeline */}
       <Card className="gap-0">
@@ -156,7 +107,7 @@ export function ClientAftercarePage() {
         </CardHeader>
         <CardContent className="px-5 pb-5 pt-3">
           <div className="space-y-0">
-            {(tab === "lash"
+            {(activeCategory === "lash"
               ? [
                   {
                     phase: "First 24 hours",
@@ -267,7 +218,7 @@ export function ClientAftercarePage() {
             {doTips.map((tip, i) => (
               <div key={i} className="flex items-start gap-2.5">
                 <CheckCircle2 className="w-3.5 h-3.5 text-[#4e6b51] shrink-0 mt-0.5" />
-                <p className="text-xs text-foreground leading-relaxed">{tip.text}</p>
+                <p className="text-xs text-foreground leading-relaxed">{tip}</p>
               </div>
             ))}
           </CardContent>
@@ -287,7 +238,7 @@ export function ClientAftercarePage() {
             {dontTips.map((tip, i) => (
               <div key={i} className="flex items-start gap-2.5">
                 <XCircle className="w-3.5 h-3.5 text-destructive shrink-0 mt-0.5" />
-                <p className="text-xs text-foreground leading-relaxed">{tip.text}</p>
+                <p className="text-xs text-foreground leading-relaxed">{tip}</p>
               </div>
             ))}
           </CardContent>
@@ -311,20 +262,20 @@ export function ClientAftercarePage() {
           <div>
             <p className="text-sm font-semibold text-foreground">Recommended Products</p>
             <p className="text-xs text-muted mt-0.5">
-              {tab === "lash"
+              {activeCategory === "lash"
                 ? "Keep these on hand for the best lash care routine"
                 : "Gentle products safe for your new jewelry"}
             </p>
           </div>
           <Link
-            href="/client/shop"
+            href="/dashboard/shop"
             className="flex items-center gap-1 text-xs font-medium text-accent hover:text-accent/80 transition-colors"
           >
             View shop <ArrowRight className="w-3 h-3" />
           </Link>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {(tab === "lash"
+          {(activeCategory === "lash"
             ? [
                 {
                   name: "Lash Aftercare Kit",
@@ -368,7 +319,7 @@ export function ClientAftercarePage() {
           ).map((product) => (
             <Link
               key={product.name}
-              href="/client/shop"
+              href="/dashboard/shop"
               className="flex items-start gap-3 p-3.5 rounded-xl border border-border bg-surface hover:bg-foreground/[0.03] transition-colors group"
             >
               <div

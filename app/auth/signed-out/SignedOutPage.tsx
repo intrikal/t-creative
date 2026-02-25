@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { motion } from "framer-motion";
 import { AuthBrandingPanel } from "@/components/auth/AuthBrandingPanel";
 import { AuthLayout } from "@/components/auth/AuthLayout";
@@ -50,8 +51,8 @@ export function SignedOutPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.6, duration: 0.4 }}
         >
-          <Button href="/login" variant="primary">
-            Sign back in
+          <Button asChild variant="default">
+            <Link href="/login">Sign back in</Link>
           </Button>
         </motion.div>
       </div>

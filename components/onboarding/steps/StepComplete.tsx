@@ -322,7 +322,7 @@ export function StepComplete({
                       window.location.href = "/dashboard";
                     }
               }
-              variant="primary"
+              variant="default"
               className={isSaving || saveError ? "opacity-50 pointer-events-none" : ""}
             >
               {isSaving ? (
@@ -376,7 +376,7 @@ export function StepComplete({
                       window.location.href = "/dashboard";
                     }
               }
-              variant="primary"
+              variant="default"
               className={isSaving || saveError ? "opacity-50 pointer-events-none" : ""}
             >
               {isSaving ? (

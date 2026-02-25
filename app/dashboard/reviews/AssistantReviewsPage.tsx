@@ -1,165 +1,34 @@
 "use client";
 
-import { useState } from "react";
-import { Star, Reply, X, Send } from "lucide-react";
+import { useState, useTransition } from "react";
+import { Star, Reply, X, Send, MessageSquare } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import type { AssistantReviewsData, AssistantReviewRow } from "./actions";
+import { assistantSaveReply } from "./actions";
 
-interface Review {
-  id: number;
-  client: string;
-  clientInitials: string;
-  rating: number;
-  service: string;
-  date: string;
-  comment: string;
-  replied: boolean;
-  replyText?: string;
-}
+type Period = "week" | "month" | "all";
 
-const INITIAL_REVIEWS: Review[] = [
-  {
-    id: 1,
-    client: "Maya R.",
-    clientInitials: "MR",
-    rating: 5,
-    service: "Classic Lash Fill",
-    date: "Feb 18",
-    comment:
-      "Jasmine is absolutely amazing! My lashes have never looked better. She's so precise and really listens to what I want.",
-    replied: false,
+const SOURCE_CONFIG: Record<string, { label: string; className: string }> = {
+  google: {
+    label: "Google",
+    className: "bg-[#4285f4]/10 text-[#4285f4] border-[#4285f4]/20",
   },
-  {
-    id: 2,
-    client: "Lena P.",
-    clientInitials: "LP",
-    rating: 5,
-    service: "Volume Lashes Full Set",
-    date: "Feb 15",
-    comment:
-      "Best lash tech I've had. Always consistent, my retention is incredible. Definitely coming back every 3 weeks!",
-    replied: true,
-    replyText:
-      "Thank you so much Lena! You're always such a joy to have in the chair. See you in 3 weeks! 💕",
+  website: {
+    label: "Website",
+    className: "bg-[#4e6b51]/10 text-[#4e6b51] border-[#4e6b51]/20",
   },
-  {
-    id: 3,
-    client: "Kira M.",
-    clientInitials: "KM",
-    rating: 5,
-    service: "Hybrid Lashes Full Set",
-    date: "Feb 12",
-    comment:
-      "I was nervous to try hybrid but Jasmine walked me through it and the result was SO pretty. Highly recommend!",
-    replied: false,
+  instagram: {
+    label: "Instagram",
+    className: "bg-[#c13584]/10 text-[#c13584] border-[#c13584]/20",
   },
-  {
-    id: 4,
-    client: "Aisha R.",
-    clientInitials: "AR",
-    rating: 5,
-    service: "Lash Tint + Lift",
-    date: "Feb 5",
-    comment:
-      "Clean, efficient, and my natural lashes look incredible. Jasmine is super professional.",
-    replied: true,
-    replyText:
-      "Aisha, I'm so glad you loved your lift! Your natural lashes are gorgeous — the tint really made them pop. 🌟",
+  yelp: {
+    label: "Yelp",
+    className: "bg-[#d32323]/10 text-[#d32323] border-[#d32323]/20",
   },
-  {
-    id: 5,
-    client: "Tasha N.",
-    clientInitials: "TN",
-    rating: 4,
-    service: "Classic Lash Fill",
-    date: "Feb 14",
-    comment:
-      "Great experience overall! Only thing was the appointment ran a little long but my lashes look beautiful.",
-    replied: false,
-  },
-  {
-    id: 6,
-    client: "Jordan L.",
-    clientInitials: "JL",
-    rating: 5,
-    service: "Classic Lash Fill",
-    date: "Jan 30",
-    comment: "5 stars every time. Jasmine is my go-to. Always on time, always perfect.",
-    replied: true,
-    replyText: "Jordan you are TOO sweet! Always love having you 💗 See you next fill!",
-  },
-  {
-    id: 7,
-    client: "Dana W.",
-    clientInitials: "DW",
-    rating: 5,
-    service: "Classic Lash Fill",
-    date: "Feb 1",
-    comment:
-      "My lashes are everything. Jasmine takes her time and makes sure everything is perfect before I leave. 10/10!",
-    replied: false,
-  },
-  {
-    id: 8,
-    client: "Amy L.",
-    clientInitials: "AL",
-    rating: 5,
-    service: "Volume Lashes Full Set",
-    date: "Jan 24",
-    comment:
-      "I drive 40 mins just to see Jasmine and it's always worth it. She's the best in San Jose imo.",
-    replied: true,
-    replyText:
-      "Amy! 40 mins each way means the world to me. You deserve the best and I've got you every time! 🙏",
-  },
-  {
-    id: 9,
-    client: "Nia B.",
-    clientInitials: "NB",
-    rating: 5,
-    service: "Volume Lashes Full Set",
-    date: "Jan 28",
-    comment:
-      "Absolutely love my lashes every single time. You can tell Jasmine genuinely cares about her craft.",
-    replied: false,
-  },
-  {
-    id: 10,
-    client: "Camille F.",
-    clientInitials: "CF",
-    rating: 4,
-    service: "Volume Lashes Full Set",
-    date: "Feb 3",
-    comment:
-      "Really happy with the result! Would love if there were more booking windows on weekdays.",
-    replied: true,
-    replyText:
-      "Thanks Camille! Totally hear you on weekday availability — I'm working on adding more slots soon! 🗓️",
-  },
-  {
-    id: 11,
-    client: "Sade O.",
-    clientInitials: "SO",
-    rating: 5,
-    service: "Classic Lash Fill",
-    date: "Feb 5",
-    comment:
-      "Jasmine's eye for detail is unreal. My fills always look like a fresh set. So talented!",
-    replied: false,
-  },
-  {
-    id: 12,
-    client: "Chloe T.",
-    clientInitials: "CT",
-    rating: 5,
-    service: "Classic Lash Fill",
-    date: "Feb 8",
-    comment:
-      "My lashes have never felt so natural and looked so full at the same time. Jasmine nailed exactly what I described.",
-    replied: false,
-  },
-];
+};
 
 function StarRow({ rating, max = 5 }: { rating: number; max?: number }) {
   return (
@@ -177,19 +46,33 @@ function StarRow({ rating, max = 5 }: { rating: number; max?: number }) {
   );
 }
 
-export function AssistantReviewsPage() {
-  const [reviews, setReviews] = useState<Review[]>(INITIAL_REVIEWS);
+export function AssistantReviewsPage({ data }: { data: AssistantReviewsData }) {
+  const [reviews, setReviews] = useState<AssistantReviewRow[]>(data.reviews);
   const [replyingTo, setReplyingTo] = useState<number | null>(null);
   const [replyDraft, setReplyDraft] = useState("");
+  const [period, setPeriod] = useState<Period>("all");
+  const [isPending, startTransition] = useTransition();
 
-  const avg = (reviews.reduce((s, r) => s + r.rating, 0) / reviews.length).toFixed(1);
-  const fiveStars = reviews.filter((r) => r.rating === 5).length;
-  const fourStars = reviews.filter((r) => r.rating === 4).length;
+  const { stats } = data;
 
-  const ratingDist = [5, 4, 3, 2, 1].map((n) => ({
-    n,
-    count: reviews.filter((r) => r.rating === n).length,
-  }));
+  // Filter reviews by period
+  const now = new Date();
+  const displayReviews =
+    period === "week"
+      ? (() => {
+          const weekStart = new Date(now);
+          const day = weekStart.getDay();
+          const diff = day === 0 ? 6 : day - 1;
+          weekStart.setDate(weekStart.getDate() - diff);
+          weekStart.setHours(0, 0, 0, 0);
+          return reviews.filter((r) => new Date(r.dateKey) >= weekStart);
+        })()
+      : period === "month"
+        ? (() => {
+            const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+            return reviews.filter((r) => new Date(r.dateKey) >= monthStart);
+          })()
+        : reviews;
 
   function openReply(id: number) {
     const r = reviews.find((r) => r.id === id);
@@ -199,11 +82,19 @@ export function AssistantReviewsPage() {
 
   function submitReply(id: number) {
     if (!replyDraft.trim()) return;
+
+    // Optimistic update
     setReviews((prev) =>
       prev.map((r) => (r.id === id ? { ...r, replied: true, replyText: replyDraft.trim() } : r)),
     );
     setReplyingTo(null);
+
+    const draft = replyDraft.trim();
     setReplyDraft("");
+
+    startTransition(async () => {
+      await assistantSaveReply(id, draft);
+    });
   }
 
   function cancelReply() {
@@ -223,25 +114,29 @@ export function AssistantReviewsPage() {
         {/* Avg rating */}
         <Card className="gap-0 py-5 sm:col-span-1">
           <CardContent className="px-5 text-center">
-            <p className="text-5xl font-bold text-foreground tracking-tight">{avg}</p>
+            <p className="text-5xl font-bold text-foreground tracking-tight">
+              {stats.avgRating.toFixed(1)}
+            </p>
             <div className="flex justify-center mt-2">
-              <StarRow rating={Math.round(parseFloat(avg))} />
+              <StarRow rating={Math.round(stats.avgRating)} />
             </div>
-            <p className="text-xs text-muted mt-1.5">{reviews.length} reviews</p>
+            <p className="text-xs text-muted mt-1.5">{stats.totalReviews} reviews</p>
           </CardContent>
         </Card>
 
         {/* Distribution */}
         <Card className="gap-0 py-5 sm:col-span-2">
           <CardContent className="px-5 space-y-1.5">
-            {ratingDist.map(({ n, count }) => (
-              <div key={n} className="flex items-center gap-2">
-                <span className="text-xs text-muted w-3 text-right">{n}</span>
+            {stats.ratingDist.map(({ stars, count }) => (
+              <div key={stars} className="flex items-center gap-2">
+                <span className="text-xs text-muted w-3 text-right">{stars}</span>
                 <Star className="w-3 h-3 fill-[#d4a574] text-[#d4a574] shrink-0" />
                 <div className="flex-1 h-1.5 rounded-full bg-foreground/8">
                   <div
                     className="h-full rounded-full bg-[#d4a574] transition-all"
-                    style={{ width: `${reviews.length > 0 ? (count / reviews.length) * 100 : 0}%` }}
+                    style={{
+                      width: `${stats.totalReviews > 0 ? (count / stats.totalReviews) * 100 : 0}%`,
+                    }}
                   />
                 </div>
                 <span className="text-xs text-muted w-5 text-right tabular-nums">{count}</span>
@@ -252,11 +147,12 @@ export function AssistantReviewsPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {[
-          { label: "5-Star Reviews", value: fiveStars },
-          { label: "4-Star Reviews", value: fourStars },
-          { label: "This Month", value: reviews.filter((r) => r.date.startsWith("Feb")).length },
+          { label: "5-Star Reviews", value: stats.fiveStarCount },
+          { label: "4-Star Reviews", value: stats.fourStarCount },
+          { label: "This Month", value: stats.thisMonthCount },
+          { label: "Response Rate", value: `${stats.responseRate}%` },
         ].map((s) => (
           <Card key={s.label} className="gap-0 py-4">
             <CardContent className="px-4 text-center">
@@ -270,81 +166,120 @@ export function AssistantReviewsPage() {
       {/* Review list */}
       <div className="space-y-3">
         <CardHeader className="p-0">
-          <CardTitle className="text-sm font-semibold">All Reviews</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm font-semibold">All Reviews</CardTitle>
+            <div className="flex gap-1">
+              {(["week", "month", "all"] as Period[]).map((p) => (
+                <button
+                  key={p}
+                  onClick={() => setPeriod(p)}
+                  className={cn(
+                    "px-2.5 py-1 rounded-md text-xs font-medium transition-colors capitalize",
+                    period === p
+                      ? "bg-foreground/8 text-foreground"
+                      : "text-muted hover:text-foreground",
+                  )}
+                >
+                  {p === "all" ? "All time" : `This ${p}`}
+                </button>
+              ))}
+            </div>
+          </div>
         </CardHeader>
-        {reviews.map((r) => (
-          <Card key={r.id} className="gap-0">
-            <CardContent className="px-5 py-4">
-              <div className="flex items-start gap-3">
-                <Avatar size="sm">
-                  <AvatarFallback className="text-[10px] bg-surface text-muted font-semibold">
-                    {r.clientInitials}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between gap-2 flex-wrap">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-semibold text-foreground">{r.client}</span>
-                      <StarRow rating={r.rating} />
-                    </div>
-                    <span className="text-xs text-muted">{r.date}</span>
-                  </div>
-                  <p className="text-xs text-muted mt-0.5">{r.service}</p>
-                  <p className="text-sm text-foreground mt-2 leading-relaxed">
-                    &ldquo;{r.comment}&rdquo;
-                  </p>
 
-                  {/* Existing reply */}
-                  {r.replied && r.replyText && replyingTo !== r.id && (
-                    <div className="mt-3 pl-3 border-l-2 border-accent/30">
-                      <p className="text-[10px] text-accent font-semibold mb-1 flex items-center gap-1">
-                        <Reply className="w-3 h-3" /> Your reply
-                      </p>
-                      <p className="text-xs text-foreground leading-relaxed">{r.replyText}</p>
-                    </div>
-                  )}
-
-                  {/* Reply composer */}
-                  {replyingTo === r.id ? (
-                    <div className="mt-3 space-y-2">
-                      <textarea
-                        autoFocus
-                        value={replyDraft}
-                        onChange={(e) => setReplyDraft(e.target.value)}
-                        rows={3}
-                        placeholder="Write your reply…"
-                        className="w-full px-3 py-2 text-sm bg-surface border border-border rounded-lg text-foreground placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-accent/40 resize-none transition"
-                      />
-                      <div className="flex items-center gap-2 justify-end">
-                        <button
-                          onClick={cancelReply}
-                          className="flex items-center gap-1 px-3 py-1.5 text-xs text-muted hover:text-foreground transition-colors"
-                        >
-                          <X className="w-3 h-3" /> Cancel
-                        </button>
-                        <button
-                          onClick={() => submitReply(r.id)}
-                          disabled={!replyDraft.trim()}
-                          className="flex items-center gap-1.5 px-3 py-1.5 bg-accent text-white text-xs font-medium rounded-lg hover:bg-accent/90 transition-colors disabled:opacity-40"
-                        >
-                          <Send className="w-3 h-3" /> Send reply
-                        </button>
+        {displayReviews.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16">
+            <MessageSquare className="w-10 h-10 text-foreground/15 mb-3" />
+            <p className="text-sm text-muted">No reviews for this period.</p>
+            {period !== "all" && (
+              <p className="text-xs text-muted/60 mt-1">Try selecting a longer time range.</p>
+            )}
+          </div>
+        ) : (
+          displayReviews.map((r) => (
+            <Card key={r.id} className="gap-0">
+              <CardContent className="px-5 py-4">
+                <div className="flex items-start gap-3">
+                  <Avatar size="sm">
+                    <AvatarFallback className="text-[10px] bg-surface text-muted font-semibold">
+                      {r.clientInitials}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-semibold text-foreground">{r.client}</span>
+                        <StarRow rating={r.rating} />
+                        {r.source && SOURCE_CONFIG[r.source] && (
+                          <Badge
+                            className={cn(
+                              "border text-[9px] px-1.5 py-0",
+                              SOURCE_CONFIG[r.source].className,
+                            )}
+                          >
+                            {SOURCE_CONFIG[r.source].label}
+                          </Badge>
+                        )}
                       </div>
+                      <span className="text-xs text-muted">{r.date}</span>
                     </div>
-                  ) : (
-                    <button
-                      onClick={() => openReply(r.id)}
-                      className="mt-2 flex items-center gap-1 text-[11px] text-muted hover:text-accent transition-colors"
-                    >
-                      <Reply className="w-3 h-3" />
-                      {r.replied ? "Edit reply" : "Reply"}
-                    </button>
-                  )}
+                    <p className="text-xs text-muted mt-0.5">{r.service}</p>
+                    <p className="text-sm text-foreground mt-2 leading-relaxed">
+                      &ldquo;{r.comment}&rdquo;
+                    </p>
+
+                    {/* Existing reply */}
+                    {r.replied && r.replyText && replyingTo !== r.id && (
+                      <div className="mt-3 pl-3 border-l-2 border-accent/30">
+                        <p className="text-[10px] text-accent font-semibold mb-1 flex items-center gap-1">
+                          <Reply className="w-3 h-3" /> Your reply
+                        </p>
+                        <p className="text-xs text-foreground leading-relaxed">{r.replyText}</p>
+                      </div>
+                    )}
+
+                    {/* Reply composer */}
+                    {replyingTo === r.id ? (
+                      <div className="mt-3 space-y-2">
+                        <textarea
+                          autoFocus
+                          value={replyDraft}
+                          onChange={(e) => setReplyDraft(e.target.value)}
+                          rows={3}
+                          placeholder="Write your reply…"
+                          className="w-full px-3 py-2 text-sm bg-surface border border-border rounded-lg text-foreground placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-accent/40 resize-none transition"
+                        />
+                        <div className="flex items-center gap-2 justify-end">
+                          <button
+                            onClick={cancelReply}
+                            className="flex items-center gap-1 px-3 py-1.5 text-xs text-muted hover:text-foreground transition-colors"
+                          >
+                            <X className="w-3 h-3" /> Cancel
+                          </button>
+                          <button
+                            onClick={() => submitReply(r.id)}
+                            disabled={!replyDraft.trim() || isPending}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-accent text-white text-xs font-medium rounded-lg hover:bg-accent/90 transition-colors disabled:opacity-40"
+                          >
+                            <Send className="w-3 h-3" /> Send reply
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => openReply(r.id)}
+                        className="mt-2 flex items-center gap-1 text-[11px] text-muted hover:text-accent transition-colors"
+                      >
+                        <Reply className="w-3 h-3" />
+                        {r.replied ? "Edit reply" : "Reply"}
+                      </button>
+                    )}
+                  </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+              </CardContent>
+            </Card>
+          ))
+        )}
       </div>
     </div>
   );

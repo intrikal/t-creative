@@ -23,6 +23,7 @@ import {
   Receipt,
   Images,
   Sparkles,
+  Gift,
   LogOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -131,6 +132,7 @@ const CLIENT_NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
       { href: "/dashboard/bookings", label: "My Bookings", icon: CalendarCheck },
+      { href: "/dashboard/loyalty", label: "Loyalty & Rewards", icon: Gift },
       { href: "/dashboard/invoices", label: "Invoices", icon: Receipt },
       { href: "/dashboard/messages", label: "Messages", icon: MessageSquare },
     ],
@@ -250,13 +252,15 @@ export function DashboardSidebar({ role }: { role: "admin" | "assistant" | "clie
             </Link>
           ))}
           {role === "client" && (
-            <Link
-              href="/auth/signout"
-              className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md text-[13px] font-medium text-muted hover:bg-destructive/8 hover:text-destructive transition-colors"
-            >
-              <LogOut className="w-3.5 h-3.5 shrink-0" />
-              Log Out
-            </Link>
+            <form action="/auth/signout" method="POST" className="w-full">
+              <button
+                type="submit"
+                className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md text-[13px] font-medium text-muted hover:bg-destructive/8 hover:text-destructive transition-colors"
+              >
+                <LogOut className="w-3.5 h-3.5 shrink-0" />
+                Log Out
+              </button>
+            </form>
           )}
         </div>
       </aside>

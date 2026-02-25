@@ -76,6 +76,13 @@ export const assistantProfiles = pgTable("assistant_profiles", {
   hourlyRateInCents: integer("hourly_rate_in_cents"),
 
   /**
+   * Commission rate as a whole-number percentage (e.g. 60 = 60%).
+   * Applied to the booking total to compute the assistant's cut.
+   * Defaults to 60% if null.
+   */
+  commissionRatePercent: integer("commission_rate_percent"),
+
+  /**
    * Cached average rating (0.00–5.00) from client reviews where this
    * assistant was the assigned staff. Recomputed in the app layer
    * whenever a new review is approved for one of their bookings.

@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { getCurrentUser } from "@/lib/auth";
 import { getAssistantSettings } from "./assistant-settings-actions";
 import { AssistantSettingsPage } from "./AssistantSettingsPage";
+import { getClientSettings } from "./client-settings-actions";
 import { ClientSettingsPage } from "./ClientSettingsPage";
 import { getBusinessHours, getTimeOff, getLunchBreak } from "./hours-actions";
 import {
@@ -25,7 +26,8 @@ export default async function Page() {
   if (!user) redirect("/login");
 
   if (user.profile?.role === "client") {
-    return <ClientSettingsPage />;
+    const data = await getClientSettings();
+    return <ClientSettingsPage data={data} />;
   }
 
   if (user.profile?.role === "assistant") {

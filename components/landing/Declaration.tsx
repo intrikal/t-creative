@@ -86,7 +86,7 @@ export function Declaration() {
           >
             <p className="text-xs tracking-[0.3em] uppercase text-muted">San Jose · Bay Area</p>
             <p className="text-sm text-muted max-w-sm text-center leading-relaxed">
-              She builds systems — for lashes, for chains, for hair, for businesses.
+              She builds systems — for lashes, for skin, for jewelry, for craft, for businesses.
             </p>
           </motion.div>
         </div>

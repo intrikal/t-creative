@@ -1,7 +1,7 @@
 /**
  * zones — Zone definitions and camera presets for the 3D studio.
  *
- * Each zone maps to a business vertical (lash, jewelry, crochet, consulting)
+ * Each zone maps to a business vertical (lash & skin, jewelry, craft, consulting)
  * with associated camera positions, platform sizes, and marketing copy.
  * All spatial units are meters (1 unit ≈ 1 meter).
  */
@@ -58,12 +58,12 @@ export const CENTER_CAMERA = {
 export const ZONES: Record<ZoneId, ZoneDefinition> = {
   lash: {
     id: "lash",
-    label: "Lash Extensions",
+    label: "Lash & Skin Studio",
     subtitle: "Precision. Patience. Artistry.",
-    heading: "Lash Extensions",
+    heading: "Lash Extensions & Skin Treatments",
     description:
-      "Full sets, fills, and removals — each appointment structured around technique and care. Classic, hybrid, and volume sets tailored to your eye shape and lifestyle.",
-    cta: { label: "Book Appointment", href: "#booking" },
+      "Full sets, fills, and removals — each appointment structured around technique and care. Classic, hybrid, and volume sets tailored to your eye shape and lifestyle. Personalized skin consultations and treatments designed to restore, protect, and reveal your best skin.",
+    cta: { label: "Book Your Appointment", href: "/book/tcreativestudio" },
     color: "#C4907A",
     cameraPosition: [-2, 2.0, -4.8],
     cameraLookAt: [-4, 0.5, -7.5],
@@ -74,11 +74,11 @@ export const ZONES: Record<ZoneId, ZoneDefinition> = {
   jewelry: {
     id: "jewelry",
     label: "Permanent Jewelry",
-    subtitle: "Welded. Worn. Kept.",
-    heading: "Permanent Jewelry",
+    subtitle: "14k gold-filled and sterling silver, sealed with intention.",
+    heading: "Welded. Worn. Kept.",
     description:
-      "14k gold-filled and sterling silver chains, custom-fit and welded on. No clasp. Bracelets, anklets, and necklaces sized to you and sealed with intention.",
-    cta: { label: "Book Session", href: "#booking" },
+      "Custom-fit chains welded on-site. No clasp. Bracelets, anklets, and necklaces sized to you — a single, permanent gesture. Perfect for couples, best friends, or a promise to yourself.",
+    cta: { label: "Book a Welding Session", href: "/book/tcreativestudio" },
     color: "#D4A574",
     cameraPosition: [2.2, 2.0, -0.3],
     cameraLookAt: [4, 0.6, -2.5],
@@ -88,12 +88,12 @@ export const ZONES: Record<ZoneId, ZoneDefinition> = {
   },
   crochet: {
     id: "crochet",
-    label: "Crochet Marketplace",
-    subtitle: "Handmade. Made to order.",
-    heading: "Custom Crochet",
+    label: "Creative Craftsmanship",
+    subtitle: "Handmade. Designed. Made to order.",
+    heading: "Custom Crochet & 3D Printing",
     description:
-      "Handcrafted crochet pieces — bags, accessories, home goods, and custom commissions. Each item made to order with care and precision.",
-    cta: { label: "Browse Collection", href: "#marketplace" },
+      "From handcrafted crochet pieces — bags, accessories, home goods — to custom 3D-printed designs and creative commissions. Every piece is made with intention, built to be one-of-a-kind. If you can imagine it, we can craft it.",
+    cta: { label: "Browse the Collection", href: "/shop" },
     color: "#7BA3A3",
     cameraPosition: [2.2, 2.0, -5],
     cameraLookAt: [4, 0.6, -7.5],
@@ -103,12 +103,12 @@ export const ZONES: Record<ZoneId, ZoneDefinition> = {
   },
   consulting: {
     id: "consulting",
-    label: "HR & Consulting",
+    label: "Business Consulting",
     subtitle: "Structure. Clarity. Growth.",
-    heading: "HR & Business Consulting",
+    heading: "HR & Business Infrastructure",
     description:
-      "Operational strategy, HR infrastructure, and business consulting for small businesses and creative entrepreneurs. Systems that work so you can focus on the work.",
-    cta: { label: "Request Consultation", href: "#consulting" },
+      "Operational strategy, HR systems, and business consulting for small businesses and creative entrepreneurs. We build the systems that let you focus on the work that matters.",
+    cta: { label: "Request a Consultation", href: "/contact" },
     color: "#5B8A8A",
     cameraPosition: [-2.2, 2.0, -0.3],
     cameraLookAt: [-4, 0.6, -2.5],

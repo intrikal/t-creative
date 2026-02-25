@@ -68,17 +68,17 @@ export function Founder() {
           />
 
           <p className="text-base text-muted leading-relaxed max-w-sm mb-4">
-            Lash artist. Jeweler. Maker. Consultant.
+            Lash artist. Skin specialist. Jeweler. Maker. Consultant.
           </p>
           <p className="text-sm text-muted leading-relaxed max-w-sm mb-10">
-            Based in San Jose, Trini built T Creative Studio around a single idea: that precision
-            and care — whether in lash placement or business infrastructure — produce work worth
-            keeping.
+            Based in San Jose, Trini built T Creative Studio around a belief that precision and
+            intention — whether placing a lash, designing a 3D-printed piece, or restructuring a
+            business — produce work that endures.
           </p>
 
           <div className="flex flex-col gap-3">
             <Link
-              href="/contact"
+              href="/book/tcreativestudio"
               className="inline-flex items-center gap-3 text-xs tracking-[0.2em] uppercase text-foreground w-fit group"
             >
               <span className="nav-link-reveal pb-px">Book an Appointment</span>

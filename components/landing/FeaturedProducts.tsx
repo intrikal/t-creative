@@ -2,6 +2,7 @@
  * FeaturedProducts — Bestseller product strip on the landing page.
  *
  * Browse without an account. Order CTA links to the public /shop page.
+ * Cards feature a hover-lift effect with subtle shadow for premium feel.
  */
 "use client";
 
@@ -32,6 +33,13 @@ const FEATURED = [
     dot: "#d4a574",
   },
   {
+    name: "Custom 3D-Printed Accessory",
+    desc: "Design-forward 3D-printed accessories. Upload your idea or choose from our collection.",
+    price: "From $35",
+    color: "bg-[#7BA3A3]/10",
+    dot: "#7BA3A3",
+  },
+  {
     name: "T Creative Tote Bag",
     desc: "Heavy canvas tote with TC logo. Limited run — only a few left.",
     price: "$28",
@@ -43,7 +51,7 @@ const FEATURED = [
 export function FeaturedProducts() {
   return (
     <SectionWrapper id="shop" className="py-32 md:py-48 px-6">
-      <div className="mx-auto max-w-5xl">
+      <div className="mx-auto max-w-6xl">
         <motion.div
           className="mb-16 md:mb-20 flex items-end justify-between gap-4 flex-wrap"
           initial={{ opacity: 0, y: 30 }}
@@ -54,10 +62,11 @@ export function FeaturedProducts() {
           <div>
             <span className="text-xs tracking-widest uppercase text-muted mb-4 block">Shop</span>
             <h2 className="text-3xl md:text-5xl font-light tracking-tight text-foreground">
-              Take the studio home.
+              Take the studio with you.
             </h2>
             <p className="mt-3 text-muted text-base max-w-md">
-              Aftercare products, permanent jewelry, and studio merch — no account needed to browse.
+              Aftercare essentials, permanent jewelry, 3D-printed pieces, and studio merch — no
+              account needed.
             </p>
           </div>
           <Link
@@ -68,13 +77,14 @@ export function FeaturedProducts() {
           </Link>
         </motion.div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
           {FEATURED.map((product, i) => (
             <motion.div
               key={product.name}
-              className="border border-foreground/8 flex flex-col hover:border-foreground/20 transition-colors duration-200"
+              className="border border-foreground/8 flex flex-col transition-all duration-300 hover:border-foreground/20 hover:shadow-[0_8px_30px_-12px_rgba(0,0,0,0.12)]"
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
+              whileHover={{ y: -6 }}
               viewport={{ once: true }}
               transition={{ duration: 0.5, delay: i * 0.08 }}
             >

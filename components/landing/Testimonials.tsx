@@ -5,22 +5,24 @@
  * beneath the quote in small uppercase — the typography hierarchy lets
  * the words do the work, not the chrome.
  *
- * Reviews are pulled from the shared mock data in `lib/data/reviews.ts`.
- * Only reviews with `status === "featured"` appear here. Trini controls
- * which reviews are featured from the admin Reviews dashboard.
+ * Features:
+ * - Auto-advance every 6 seconds (pauses on hover/focus)
+ * - Progress bar under dots fills over the interval
+ * - Parallax quote mark drifts at 0.5x scroll speed
  *
- * When the backend is ready, replace the MOCK_REVIEWS import with a server
- * action / DB query that returns the same `Review[]` shape filtered by
- * `status = 'featured'`.
+ * Reviews are pulled from the shared mock data in `lib/data/reviews.ts`.
+ * Only reviews with `status === "featured"` appear here.
  *
  * Client Component — Framer Motion AnimatePresence cross-fade.
  */
 "use client";
 
-import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { motion, AnimatePresence, useScroll, useTransform } from "framer-motion";
 import { SectionWrapper } from "@/components/ui/SectionWrapper";
 import { MOCK_REVIEWS } from "@/lib/data/reviews";
+
+const AUTO_ADVANCE_MS = 6000;
 
 const serviceLabel: Record<string, string> = {
   lash: "Lash",
@@ -35,6 +37,42 @@ const featuredReviews = MOCK_REVIEWS.filter((r) => r.status === "featured");
 
 export function Testimonials() {
   const [active, setActive] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const sectionRef = useRef<HTMLDivElement>(null);
+
+  const { scrollYProgress } = useScroll({
+    target: sectionRef,
+    offset: ["start end", "end start"],
+  });
+
+  // Parallax quote mark — drifts at 0.5x scroll speed
+  const quoteY = useTransform(scrollYProgress, [0, 1], ["0px", "-40px"]);
+
+  const advance = useCallback(() => {
+    setActive((prev) => (prev + 1) % featuredReviews.length);
+    setProgress(0);
+  }, []);
+
+  // Auto-advance timer
+  useEffect(() => {
+    if (isPaused || featuredReviews.length <= 1) return;
+
+    const startTime = Date.now();
+    timerRef.current = setInterval(() => {
+      const elapsed = Date.now() - startTime;
+      const pct = Math.min(elapsed / AUTO_ADVANCE_MS, 1);
+      setProgress(pct);
+      if (pct >= 1) {
+        advance();
+      }
+    }, 50);
+
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [active, isPaused, advance]);
 
   if (featuredReviews.length === 0) return null;
 
@@ -42,7 +80,14 @@ export function Testimonials() {
 
   return (
     <SectionWrapper id="testimonials" className="py-32 md:py-48 px-6 bg-background">
-      <div className="mx-auto max-w-3xl">
+      <div
+        ref={sectionRef}
+        className="mx-auto max-w-3xl"
+        onMouseEnter={() => setIsPaused(true)}
+        onMouseLeave={() => setIsPaused(false)}
+        onFocus={() => setIsPaused(true)}
+        onBlur={() => setIsPaused(false)}
+      >
         {/* Section label */}
         <motion.span
           className="text-[10px] tracking-[0.3em] uppercase text-muted mb-16 md:mb-24 block text-center"
@@ -65,13 +110,14 @@ export function Testimonials() {
               transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
               className="text-center"
             >
-              {/* Opening mark */}
-              <span
+              {/* Opening mark — parallax drift */}
+              <motion.span
+                style={{ y: quoteY }}
                 className="font-display text-7xl md:text-9xl text-accent/15 font-light leading-none select-none block -mb-6 md:-mb-10"
                 aria-hidden
               >
                 &ldquo;
-              </span>
+              </motion.span>
 
               <blockquote className="font-display text-2xl md:text-3xl lg:text-4xl font-light italic text-foreground leading-[1.4] tracking-tight max-w-2xl mx-auto">
                 {review.text}
@@ -87,27 +133,40 @@ export function Testimonials() {
           </AnimatePresence>
         </div>
 
-        {/* Dot navigation */}
+        {/* Dot navigation with progress indicator */}
         {featuredReviews.length > 1 && (
-          <div className="flex items-center justify-center gap-3 mt-14">
-            {featuredReviews.map((_, i) => (
-              <button
-                key={i}
-                onClick={() => setActive(i)}
-                aria-label={`Review ${i + 1}`}
-                className="group p-1"
-              >
-                <motion.div
-                  animate={{
-                    width: i === active ? 24 : 6,
-                    backgroundColor: i === active ? "#96604a" : "#6b5d52",
-                    opacity: i === active ? 1 : 0.35,
+          <div className="flex flex-col items-center gap-4 mt-14">
+            <div className="flex items-center justify-center gap-3">
+              {featuredReviews.map((_, i) => (
+                <button
+                  key={i}
+                  onClick={() => {
+                    setActive(i);
+                    setProgress(0);
                   }}
-                  transition={{ duration: 0.3, ease: "easeInOut" }}
-                  className="h-px rounded-full"
-                />
-              </button>
-            ))}
+                  aria-label={`Review ${i + 1}`}
+                  className="group p-1"
+                >
+                  <motion.div
+                    animate={{
+                      width: i === active ? 24 : 6,
+                      backgroundColor: i === active ? "#96604a" : "#6b5d52",
+                      opacity: i === active ? 1 : 0.35,
+                    }}
+                    transition={{ duration: 0.3, ease: "easeInOut" }}
+                    className="h-px rounded-full relative overflow-hidden"
+                  >
+                    {/* Progress fill on active dot */}
+                    {i === active && (
+                      <motion.div
+                        className="absolute inset-y-0 left-0 bg-[#96604a]"
+                        style={{ width: `${progress * 100}%` }}
+                      />
+                    )}
+                  </motion.div>
+                </button>
+              ))}
+            </div>
           </div>
         )}
       </div>

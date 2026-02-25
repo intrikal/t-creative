@@ -14,8 +14,9 @@ const columns = [
     title: "Services",
     links: [
       { label: "Lash Extensions", href: "/services" },
+      { label: "Skin Treatments", href: "/services" },
       { label: "Permanent Jewelry", href: "/services" },
-      { label: "Custom Crochet", href: "/services" },
+      { label: "Custom Craft & 3D Printing", href: "/services" },
       { label: "Consulting", href: "/consulting" },
     ],
   },
@@ -23,6 +24,7 @@ const columns = [
     title: "Studio",
     links: [
       { label: "Portfolio", href: "/portfolio" },
+      { label: "Shop", href: "/shop" },
       { label: "Training", href: "/training" },
       { label: "About", href: "/about" },
       { label: "Contact", href: "/contact" },
@@ -47,8 +49,8 @@ export function Footer() {
               T Creative Studio
             </p>
             <p className="text-sm text-muted leading-relaxed max-w-sm mb-4">
-              Premium lash extensions, permanent jewelry, custom crochet, and business consulting.
-              Crafted with intention and care in San Jose.
+              Premium lash extensions, skin treatments, permanent jewelry, custom craft, and
+              business consulting. Made with intention in San Jose.
             </p>
             <p className="text-sm text-muted mb-6">hello@tcreativestudio.com</p>
             {/* Social icons row */}

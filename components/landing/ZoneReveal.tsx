@@ -6,15 +6,18 @@
  * left/right for visual rhythm.
  *
  * Each band reveals on scroll with a whileInView entrance. The large verb
- * ("Extend.", "Weld.", "Build.", "Transform.") anchors the brand language
+ * ("Elevate.", "Weld.", "Create.", "Transform.") anchors the brand language
  * defined in the design system — parallel grammar, equal weight.
+ *
+ * Includes an animated stat counter per band that counts up on viewport entry.
  *
  * Client Component — Framer Motion scroll-reveal animations.
  */
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { motion, useInView, useMotionValue, useSpring } from "framer-motion";
 import { ZONES, type ZoneId } from "@/lib/zones";
 
 interface ZoneBand {
@@ -22,14 +25,76 @@ interface ZoneBand {
   verb: string;
   /** Which side the colour panel is on */
   side: "left" | "right";
+  /** Stat to display as animated counter */
+  stat: { value: number; prefix?: string; suffix: string; label: string };
 }
 
 const BANDS: ZoneBand[] = [
-  { id: "lash", verb: "Extend.", side: "left" },
-  { id: "jewelry", verb: "Weld.", side: "right" },
-  { id: "crochet", verb: "Build.", side: "left" },
-  { id: "consulting", verb: "Transform.", side: "right" },
+  {
+    id: "lash",
+    verb: "Elevate.",
+    side: "left",
+    stat: { value: 500, suffix: "+", label: "lash sets completed" },
+  },
+  {
+    id: "jewelry",
+    verb: "Weld.",
+    side: "right",
+    stat: { value: 1000, suffix: "+", label: "chains welded" },
+  },
+  {
+    id: "crochet",
+    verb: "Create.",
+    side: "left",
+    stat: { value: 200, suffix: "+", label: "custom commissions" },
+  },
+  {
+    id: "consulting",
+    verb: "Transform.",
+    side: "right",
+    stat: { value: 50, suffix: "+", label: "businesses transformed" },
+  },
 ];
+
+/** Animated number counter that counts up when in view */
+function AnimatedCounter({
+  value,
+  suffix = "",
+  label,
+}: {
+  value: number;
+  suffix?: string;
+  label: string;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const isInView = useInView(ref, { once: true, margin: "-40px" });
+  const motionVal = useMotionValue(0);
+  const spring = useSpring(motionVal, { stiffness: 50, damping: 30 });
+  const [display, setDisplay] = useState(0);
+
+  useEffect(() => {
+    if (isInView) {
+      motionVal.set(value);
+    }
+  }, [isInView, motionVal, value]);
+
+  useEffect(() => {
+    const unsubscribe = spring.on("change", (v) => {
+      setDisplay(Math.round(v));
+    });
+    return unsubscribe;
+  }, [spring]);
+
+  return (
+    <div ref={ref} className="mt-10 pt-6 border-t border-foreground/8">
+      <span className="text-2xl md:text-3xl font-light text-foreground tabular-nums">
+        {display.toLocaleString()}
+        {suffix}
+      </span>
+      <span className="block text-[10px] tracking-[0.2em] uppercase text-muted mt-1">{label}</span>
+    </div>
+  );
+}
 
 function ZoneBandSection({ band }: { band: ZoneBand }) {
   const zone = ZONES[band.id];
@@ -102,6 +167,13 @@ function ZoneBandSection({ band }: { band: ZoneBand }) {
             →
           </motion.span>
         </Link>
+
+        {/* Animated stat counter */}
+        <AnimatedCounter
+          value={band.stat.value}
+          suffix={band.stat.suffix}
+          label={band.stat.label}
+        />
       </motion.div>
     </motion.div>
   );

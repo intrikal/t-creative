@@ -49,9 +49,12 @@ export function Arrival() {
       <div className="sticky top-0 h-screen flex items-center justify-center overflow-hidden">
         <motion.p
           style={{ opacity: textOpacity, y: textY }}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 1.4, ease: [0.16, 1, 0.3, 1] }}
+          initial={{ opacity: 0, scale: 1 }}
+          animate={{ opacity: 1, scale: [1, 1.015, 1] }}
+          transition={{
+            opacity: { duration: 1.4, ease: [0.16, 1, 0.3, 1] },
+            scale: { duration: 4, repeat: Infinity, ease: "easeInOut" },
+          }}
           className="font-display text-[72px] sm:text-[100px] md:text-[132px] lg:text-[160px] font-light tracking-[0.05em] text-[#faf6f1] select-none leading-none"
           aria-hidden
         >

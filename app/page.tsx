@@ -7,14 +7,17 @@
  *   II.5 Founder          — Trini's editorial portrait and introduction
  *   III StudioPortal      — Scroll-pinned 3D interactive studio (300vh)
  *   IV  ZoneReveal        — Four business verticals as full-bleed editorial bands
- *   V   EditorialPortfolio — Asymmetric 3-column parallax grid
+ *   IV.5 HowItWorks       — Three-step booking process with animated connectors
+ *   V   EditorialPortfolio — Asymmetric 3-column parallax grid with category filters
  *   V.5 FeaturedProducts  — Shop entry strip
- *   VI  Testimonials      — Single featured review with dot navigation
- *   VII TheInvitation     — Final CTA; full viewport, one headline
+ *   VI  Testimonials      — Single featured review with auto-advance + dot navigation
+ *   VII TheInvitation     — Final CTA; full viewport, magnetic button
  *       Footer
  *
  * Studio overlays (StudioNav + ZoneOverlay) are rendered at root level so their
  * fixed positioning is never affected by a transform-based stacking context.
+ *
+ * StickyMobileCTA renders a fixed bottom bar on mobile for persistent booking access.
  *
  * Server Component — all sections are client components imported here.
  */
@@ -25,6 +28,8 @@ import { EditorialPortfolio } from "@/components/landing/EditorialPortfolio";
 import { FeaturedProducts } from "@/components/landing/FeaturedProducts";
 import { Footer } from "@/components/landing/Footer";
 import { Founder } from "@/components/landing/Founder";
+import { HowItWorks } from "@/components/landing/HowItWorks";
+import { StickyMobileCTA } from "@/components/landing/StickyMobileCTA";
 import { StudioOverlays } from "@/components/landing/StudioOverlays";
 import { StudioPortal } from "@/components/landing/StudioPortal";
 import { Testimonials } from "@/components/landing/Testimonials";
@@ -39,6 +44,7 @@ export default function Home() {
       <Founder />
       <StudioPortal />
       <ZoneReveal />
+      <HowItWorks />
       <EditorialPortfolio />
       <FeaturedProducts />
       <Testimonials />
@@ -51,6 +57,9 @@ export default function Home() {
        * Zustand when mode === "landing".
        */}
       <StudioOverlays />
+
+      {/* Sticky mobile booking CTA — appears after scroll, hides at final CTA */}
+      <StickyMobileCTA />
     </main>
   );
 }

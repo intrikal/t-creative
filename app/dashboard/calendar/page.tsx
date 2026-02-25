@@ -5,6 +5,8 @@ import {
   getServicesForSelect,
   getStaffForSelect,
 } from "../bookings/actions";
+import { getEvents } from "../events/actions";
+import { getBusinessHours, getTimeOff, getLunchBreak } from "../settings/hours-actions";
 import { CalendarPage } from "./CalendarPage";
 
 export const metadata: Metadata = {
@@ -14,11 +16,24 @@ export const metadata: Metadata = {
 };
 
 export default async function Page() {
-  const [initialBookings, clients, serviceOptions, staffOptions] = await Promise.all([
+  const [
+    initialBookings,
+    clients,
+    serviceOptions,
+    staffOptions,
+    businessHours,
+    timeOffRows,
+    lunchBreak,
+    eventRows,
+  ] = await Promise.all([
     getBookings(),
     getClientsForSelect(),
     getServicesForSelect(),
     getStaffForSelect(),
+    getBusinessHours(),
+    getTimeOff(),
+    getLunchBreak(),
+    getEvents(),
   ]);
 
   return (
@@ -27,6 +42,10 @@ export default async function Page() {
       clients={clients}
       serviceOptions={serviceOptions}
       staffOptions={staffOptions}
+      businessHours={businessHours}
+      timeOff={timeOffRows}
+      lunchBreak={lunchBreak}
+      events={eventRows}
     />
   );
 }

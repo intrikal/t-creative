@@ -91,6 +91,9 @@ export const bookings = pgTable(
     /** Square Bookings API appointment ID. Source of truth for scheduling/SMS. */
     squareAppointmentId: varchar("square_appointment_id", { length: 100 }),
 
+    /** Square Order ID — created at booking confirmation for POS payment matching. */
+    squareOrderId: varchar("square_order_id", { length: 100 }),
+
     /** Zoho CRM project/deal ID for consulting engagements. */
     zohoProjectId: varchar("zoho_project_id", { length: 100 }),
 
@@ -124,6 +127,7 @@ export const bookings = pgTable(
     index("bookings_status_idx").on(t.status),
     index("bookings_starts_at_idx").on(t.startsAt),
     index("bookings_square_id_idx").on(t.squareAppointmentId),
+    index("bookings_square_order_idx").on(t.squareOrderId),
     index("bookings_gift_card_idx").on(t.giftCardId),
     index("bookings_promotion_idx").on(t.promotionId),
   ],

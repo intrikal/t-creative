@@ -56,6 +56,8 @@ export type PaymentRow = {
   tip: number;
   method: string | null;
   status: string;
+  refundedAmount: number;
+  squarePaymentId: string | null;
 };
 
 export type RevenueStats = {
@@ -99,12 +101,22 @@ export type ProductSalesStats = {
   avgOrderValue: number;
 };
 
+export type PendingDeposit = {
+  bookingId: number;
+  clientName: string;
+  serviceName: string;
+  depositRequiredInCents: number;
+  depositPaidInCents: number;
+  date: string;
+};
+
 export type DepositStats = {
   totalExpected: number;
   totalCollected: number;
   collectionRate: number;
   bookingsNeedingDeposit: number;
   bookingsWithDeposit: number;
+  pendingDeposits: PendingDeposit[];
 };
 
 export type TipTrendItem = {
@@ -144,8 +156,10 @@ export async function getPayments(): Promise<PaymentRow[]> {
       serviceCategory: services.category,
       amountInCents: payments.amountInCents,
       tipInCents: payments.tipInCents,
+      refundedInCents: payments.refundedInCents,
       method: payments.method,
       status: payments.status,
+      squarePaymentId: payments.squarePaymentId,
     })
     .from(payments)
     .leftJoin(bookings, eq(payments.bookingId, bookings.id))
@@ -170,6 +184,8 @@ export async function getPayments(): Promise<PaymentRow[]> {
       tip: Math.round((r.tipInCents ?? 0) / 100),
       method: r.method,
       status: r.status,
+      refundedAmount: Math.round((r.refundedInCents ?? 0) / 100),
+      squarePaymentId: r.squarePaymentId ?? null,
     };
   });
 }
@@ -892,12 +908,51 @@ export async function getDepositStats(): Promise<DepositStats> {
   const needing = Number(row.needingDeposit);
   const withDep = Number(row.withDeposit);
 
+  // Pending deposits — individual bookings still awaiting deposit
+  const depositClient = alias(profiles, "depositClient");
+  const pendingRows = await db
+    .select({
+      bookingId: bookings.id,
+      clientFirstName: depositClient.firstName,
+      clientLastName: depositClient.lastName,
+      serviceName: services.name,
+      depositRequired: services.depositInCents,
+      depositPaid: bookings.depositPaidInCents,
+      startsAt: bookings.startsAt,
+    })
+    .from(bookings)
+    .innerJoin(services, eq(bookings.serviceId, services.id))
+    .innerJoin(depositClient, eq(bookings.clientId, depositClient.id))
+    .where(
+      and(
+        sql`${services.depositInCents} > 0`,
+        sql`coalesce(${bookings.depositPaidInCents}, 0) < ${services.depositInCents}`,
+        sql`${bookings.status} in ('pending', 'confirmed')`,
+      ),
+    )
+    .orderBy(bookings.startsAt)
+    .limit(10);
+
+  const pendingDeposits: PendingDeposit[] = pendingRows.map((r) => ({
+    bookingId: r.bookingId,
+    clientName: [r.clientFirstName, r.clientLastName].filter(Boolean).join(" ") || "Unknown",
+    serviceName: r.serviceName,
+    depositRequiredInCents: r.depositRequired ?? 0,
+    depositPaidInCents: r.depositPaid ?? 0,
+    date: r.startsAt.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    }),
+  }));
+
   return {
     totalExpected: expected,
     totalCollected: collected,
     collectionRate: expected > 0 ? Math.round((collected / expected) * 100) : 0,
     bookingsNeedingDeposit: needing,
     bookingsWithDeposit: withDep,
+    pendingDeposits,
   };
 }
 

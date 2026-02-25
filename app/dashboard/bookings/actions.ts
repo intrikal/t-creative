@@ -31,7 +31,8 @@ import { revalidatePath } from "next/cache";
 import { eq, desc, ne, and, gte, sum } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
-import { bookings, profiles, services } from "@/db/schema";
+import { bookings, profiles, services, syncLog } from "@/db/schema";
+import { isSquareConfigured, createSquareOrder } from "@/lib/square";
 import { createClient } from "@/utils/supabase/server";
 
 export type BookingStatus =
@@ -137,22 +138,48 @@ export async function updateBookingStatus(
   }
 
   await db.update(bookings).set(updates).where(eq(bookings.id, id));
+
+  // Create Square order when confirming (if not already created)
+  if (status === "confirmed") {
+    const [booking] = await db
+      .select({
+        squareOrderId: bookings.squareOrderId,
+        serviceId: bookings.serviceId,
+        totalInCents: bookings.totalInCents,
+      })
+      .from(bookings)
+      .where(eq(bookings.id, id));
+
+    if (booking && !booking.squareOrderId) {
+      await tryCreateSquareOrder(id, booking.serviceId, booking.totalInCents);
+    }
+  }
+
   revalidatePath("/dashboard/bookings");
 }
 
 export async function createBooking(input: BookingInput): Promise<void> {
   await getUser();
-  await db.insert(bookings).values({
-    clientId: input.clientId,
-    serviceId: input.serviceId,
-    staffId: input.staffId ?? undefined,
-    startsAt: input.startsAt,
-    durationMinutes: input.durationMinutes,
-    totalInCents: input.totalInCents,
-    location: input.location ?? undefined,
-    clientNotes: input.clientNotes ?? undefined,
-    status: "confirmed",
-  });
+
+  const [newBooking] = await db
+    .insert(bookings)
+    .values({
+      clientId: input.clientId,
+      serviceId: input.serviceId,
+      staffId: input.staffId ?? undefined,
+      startsAt: input.startsAt,
+      durationMinutes: input.durationMinutes,
+      totalInCents: input.totalInCents,
+      location: input.location ?? undefined,
+      clientNotes: input.clientNotes ?? undefined,
+      status: "confirmed",
+      confirmedAt: new Date(),
+    })
+    .returning({ id: bookings.id });
+
+  // Create Square order for POS payment matching
+  await tryCreateSquareOrder(newBooking.id, input.serviceId, input.totalInCents);
+
   revalidatePath("/dashboard/bookings");
 }
 
@@ -257,6 +284,48 @@ export async function getStaffForSelect(): Promise<{ id: string; name: string }[
     id: r.id,
     name: [r.firstName, r.lastName].filter(Boolean).join(" "),
   }));
+}
+
+/* ------------------------------------------------------------------ */
+/*  Square order creation (non-fatal)                                  */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Creates a Square Order for a confirmed booking so the POS tablet can
+ * take payment against it and the webhook handler can auto-link it.
+ * Failures are non-fatal — logged to sync_log, booking still works.
+ */
+async function tryCreateSquareOrder(
+  bookingId: number,
+  serviceId: number,
+  totalInCents: number,
+): Promise<void> {
+  if (!isSquareConfigured()) return;
+
+  try {
+    const [service] = await db
+      .select({ name: services.name })
+      .from(services)
+      .where(eq(services.id, serviceId));
+
+    const squareOrderId = await createSquareOrder({
+      bookingId,
+      serviceName: service?.name ?? "Appointment",
+      amountInCents: totalInCents,
+    });
+
+    await db.update(bookings).set({ squareOrderId }).where(eq(bookings.id, bookingId));
+  } catch (err) {
+    await db.insert(syncLog).values({
+      provider: "square",
+      direction: "outbound",
+      status: "failed",
+      entityType: "order",
+      localId: String(bookingId),
+      message: "Failed to create Square order for booking",
+      errorMessage: err instanceof Error ? err.message : "Unknown error",
+    });
+  }
 }
 
 /* ------------------------------------------------------------------ */

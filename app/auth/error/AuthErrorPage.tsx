@@ -44,7 +44,7 @@ function AuthErrorContent() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.5, duration: 0.4 }}
         >
-          <Button href="/login" variant="primary">
+          <Button href="/login" variant="default">
             Try Again
           </Button>
         </motion.div>

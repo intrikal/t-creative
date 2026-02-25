@@ -339,7 +339,7 @@ export function ServicesPage() {
             </p>
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <Link
-                href="/client/book"
+                href="/dashboard/book"
                 className="inline-flex items-center justify-center px-8 py-3.5 text-xs tracking-wide uppercase bg-accent text-background hover:bg-accent/80 transition-colors"
               >
                 Book via Client Portal

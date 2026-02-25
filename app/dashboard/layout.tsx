@@ -7,9 +7,13 @@ export default async function DashboardLayout({ children }: { children: ReactNod
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const role = (user.profile?.role === "assistant" ? "assistant" : "admin") as
-    | "admin"
-    | "assistant";
+  const role = (
+    user.profile?.role === "assistant"
+      ? "assistant"
+      : user.profile?.role === "client"
+        ? "client"
+        : "admin"
+  ) as "admin" | "assistant" | "client";
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">

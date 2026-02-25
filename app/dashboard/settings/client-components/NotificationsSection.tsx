@@ -10,7 +10,7 @@
 
 import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { INITIAL_NOTIFS, type NotifPref } from "../types";
+import { INITIAL_NOTIFS, type NotifPref } from "../client-types";
 import { Toggle } from "./Toggle";
 
 /**

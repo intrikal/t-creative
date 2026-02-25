@@ -13,7 +13,7 @@ import {
 } from "@/db/schema";
 import { createClient } from "@/utils/supabase/server";
 
-const PATH = "/client/training";
+const PATH = "/dashboard/training";
 
 /* ------------------------------------------------------------------ */
 /*  Auth guard                                                         */

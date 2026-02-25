@@ -184,7 +184,7 @@ export function PublicShopPage() {
                         <span className="text-xs text-muted">Out of stock</span>
                       ) : product.category === "jewelry" ? (
                         <Link
-                          href="/client/book"
+                          href="/dashboard/book"
                           className="text-[10px] tracking-widest uppercase text-foreground hover:text-accent transition-colors border border-foreground/20 hover:border-accent/40 px-3 py-2"
                         >
                           Book Appointment
@@ -223,7 +223,7 @@ export function PublicShopPage() {
                 them up at your next appointment.
               </p>
               <Link
-                href="/client/shop"
+                href="/dashboard/shop"
                 className="inline-flex items-center justify-center px-8 py-3.5 text-xs tracking-wide uppercase bg-foreground text-background hover:bg-muted transition-colors"
               >
                 Shop via Client Portal

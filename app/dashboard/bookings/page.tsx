@@ -10,6 +10,8 @@ import {
 } from "./actions";
 import { AssistantBookingsPage } from "./AssistantBookingsPage";
 import { BookingsPage } from "./BookingsPage";
+import { getClientBookings } from "./client-actions";
+import { ClientBookingsPage } from "./ClientBookingsPage";
 
 export const metadata: Metadata = {
   title: "Bookings — T Creative Studio",
@@ -20,6 +22,11 @@ export const metadata: Metadata = {
 export default async function Page() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
+
+  if (user.profile?.role === "client") {
+    const data = await getClientBookings();
+    return <ClientBookingsPage data={data} />;
+  }
 
   if (user.profile?.role === "assistant") {
     const { bookings, stats } = await getAssistantBookings();

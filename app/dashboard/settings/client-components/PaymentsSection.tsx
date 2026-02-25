@@ -14,7 +14,7 @@
 import { useState } from "react";
 import { CreditCard, Plus, Trash2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import { INITIAL_CARDS, type PaymentMethod } from "../types";
+import { INITIAL_CARDS, type PaymentMethod } from "../client-types";
 
 /**
  * PaymentsSection — lists saved cards with set-default + remove controls.

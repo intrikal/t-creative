@@ -239,7 +239,7 @@ export function TrainingPage() {
                       Request Info
                     </Link>
                     <Link
-                      href="/client/training"
+                      href="/dashboard/training"
                       className="inline-flex items-center justify-center px-6 py-3 text-xs tracking-widest uppercase bg-accent text-white hover:bg-accent/90 transition-colors duration-200"
                     >
                       Enroll via Client Portal

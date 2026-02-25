@@ -26,8 +26,8 @@ import type {
   ClientTrainingData,
   ProgramType,
   EnrollStatus,
-} from "./actions";
-import { clientEnroll, clientJoinWaitlist } from "./actions";
+} from "./client-actions";
+import { clientEnroll, clientJoinWaitlist } from "./client-actions";
 
 /* ------------------------------------------------------------------ */
 /*  Styling                                                             */

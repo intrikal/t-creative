@@ -19,6 +19,11 @@ import {
   Inbox,
   Scissors,
   HeartHandshake,
+  CalendarPlus,
+  Receipt,
+  Images,
+  Sparkles,
+  LogOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -118,6 +123,38 @@ const ASSISTANT_MOBILE_NAV: NavItem[] = [
   { href: "/dashboard/settings", label: "Settings", icon: Settings },
 ];
 
+/* ── Client navigation ────────────────────────────────────────────── */
+
+const CLIENT_NAV_GROUPS: NavGroup[] = [
+  {
+    label: "My Account",
+    items: [
+      { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
+      { href: "/dashboard/bookings", label: "My Bookings", icon: CalendarCheck },
+      { href: "/dashboard/invoices", label: "Invoices", icon: Receipt },
+      { href: "/dashboard/messages", label: "Messages", icon: MessageSquare },
+    ],
+  },
+  {
+    label: "Studio",
+    items: [
+      { href: "/dashboard/book", label: "Book a Service", icon: CalendarPlus },
+      { href: "/dashboard/shop", label: "Shop", icon: ShoppingBag },
+      { href: "/dashboard/gallery", label: "Gallery", icon: Images },
+      { href: "/dashboard/training", label: "Training", icon: GraduationCap },
+      { href: "/dashboard/aftercare", label: "Aftercare", icon: HeartHandshake },
+    ],
+  },
+];
+
+const CLIENT_MOBILE_NAV: NavItem[] = [
+  { href: "/dashboard", label: "Home", icon: LayoutDashboard },
+  { href: "/dashboard/book", label: "Book", icon: CalendarPlus },
+  { href: "/dashboard/shop", label: "Shop", icon: ShoppingBag },
+  { href: "/dashboard/bookings", label: "Bookings", icon: CalendarCheck },
+  { href: "/dashboard/settings", label: "Settings", icon: Settings },
+];
+
 /* ── Shared ─────────────────────────────────────────────────────────── */
 
 const SECONDARY_NAV: NavItem[] = [
@@ -129,10 +166,20 @@ function useIsActive() {
   return (href: string) => (href === "/dashboard" ? pathname === href : pathname.startsWith(href));
 }
 
-export function DashboardSidebar({ role }: { role: "admin" | "assistant" }) {
+export function DashboardSidebar({ role }: { role: "admin" | "assistant" | "client" }) {
   const isActive = useIsActive();
-  const navGroups = role === "assistant" ? ASSISTANT_NAV_GROUPS : ADMIN_NAV_GROUPS;
-  const mobileNav = role === "assistant" ? ASSISTANT_MOBILE_NAV : ADMIN_MOBILE_NAV;
+  const navGroups =
+    role === "assistant"
+      ? ASSISTANT_NAV_GROUPS
+      : role === "client"
+        ? CLIENT_NAV_GROUPS
+        : ADMIN_NAV_GROUPS;
+  const mobileNav =
+    role === "assistant"
+      ? ASSISTANT_MOBILE_NAV
+      : role === "client"
+        ? CLIENT_MOBILE_NAV
+        : ADMIN_MOBILE_NAV;
 
   return (
     <>
@@ -141,14 +188,18 @@ export function DashboardSidebar({ role }: { role: "admin" | "assistant" }) {
         {/* Brand */}
         <div className="px-4 h-12 flex items-center gap-2.5 border-b border-border shrink-0">
           <div className="w-6 h-6 rounded-md bg-accent/15 flex items-center justify-center shrink-0">
-            <span className="text-accent font-bold text-[10px] tracking-tight">TC</span>
+            {role === "client" ? (
+              <Sparkles className="w-3.5 h-3.5 text-accent" />
+            ) : (
+              <span className="text-accent font-bold text-[10px] tracking-tight">TC</span>
+            )}
           </div>
           <div>
             <p className="text-xs font-semibold text-foreground tracking-tight leading-none">
               T Creative
             </p>
             <p className="text-[9px] text-muted mt-0.5 leading-none">
-              {role === "assistant" ? "Assistant" : "Admin"}
+              {role === "assistant" ? "Assistant" : role === "client" ? "Client Portal" : "Admin"}
             </p>
           </div>
         </div>
@@ -181,8 +232,8 @@ export function DashboardSidebar({ role }: { role: "admin" | "assistant" }) {
           ))}
         </nav>
 
-        {/* Settings */}
-        <div className="px-2 py-2 border-t border-border shrink-0">
+        {/* Settings + logout */}
+        <div className="px-2 py-2 border-t border-border shrink-0 space-y-px">
           {SECONDARY_NAV.map(({ href, label, icon: Icon }) => (
             <Link
               key={href}
@@ -198,6 +249,15 @@ export function DashboardSidebar({ role }: { role: "admin" | "assistant" }) {
               {label}
             </Link>
           ))}
+          {role === "client" && (
+            <Link
+              href="/auth/signout"
+              className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md text-[13px] font-medium text-muted hover:bg-destructive/8 hover:text-destructive transition-colors"
+            >
+              <LogOut className="w-3.5 h-3.5 shrink-0" />
+              Log Out
+            </Link>
+          )}
         </div>
       </aside>
 

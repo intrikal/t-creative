@@ -17,7 +17,17 @@ export default async function DashboardLayout({ children }: { children: ReactNod
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
-      <DashboardSidebar role={role} />
+      <DashboardSidebar
+        role={role}
+        userName={
+          user.profile?.firstName
+            ? `${user.profile.firstName} ${user.profile.lastName ?? ""}`.trim()
+            : user.profile?.displayName
+              ? user.profile.displayName
+              : user.email.split("@")[0]
+        }
+        userAvatarUrl={user.profile?.avatarUrl ?? null}
+      />
       <main
         id="main-content"
         className="flex-1 flex flex-col min-w-0 overflow-y-auto lg:pl-56 pb-16 lg:pb-0"

@@ -13,10 +13,17 @@
  * `React.ComponentType<{ className?: string }>`.
  */
 
-import { LuEye, LuGem, LuScissors, LuLightbulb } from "react-icons/lu";
+import { LuEye, LuGem, LuScissors, LuLightbulb, LuPrinter, LuSparkles } from "react-icons/lu";
 
 /** Ordered list of service categories rendered as tabs on the booking page. */
-export const CATEGORIES = ["lash", "jewelry", "crochet", "consulting"] as const;
+export const CATEGORIES = [
+  "lash",
+  "jewelry",
+  "crochet",
+  "consulting",
+  "3d_printing",
+  "aesthetics",
+] as const;
 
 /** Union of the four supported category slugs. */
 export type CategorySlug = (typeof CATEGORIES)[number];
@@ -59,9 +66,9 @@ export const CATEGORY_META = {
     label: "Crochet",
     shortLabel: "Crochet",
     description:
-      "Custom protective styles using crochet braids and twists. Low manipulation, high impact.",
+      "Handmade crocheted stuffed animals, amigurumi, and custom plushies. Each piece is one-of-a-kind.",
     note: null,
-    faqQuestion: "How do I prepare for a crochet appointment?",
+    faqQuestion: "How long does a custom crochet order take?",
     icon: LuScissors,
     color: "text-violet-600",
     bg: "bg-violet-50",
@@ -80,6 +87,32 @@ export const CATEGORY_META = {
     bg: "bg-teal-50",
     border: "border-l-teal-400",
     tabActive: "data-[state=active]:text-teal-600",
+  },
+  "3d_printing": {
+    label: "3D Printing",
+    shortLabel: "3D Print",
+    description:
+      "Custom 3D-printed accessories, décor, and beauty tools made to order. From concept to creation.",
+    note: null,
+    faqQuestion: "How does the 3D printing process work?",
+    icon: LuPrinter,
+    color: "text-purple-600",
+    bg: "bg-purple-50",
+    border: "border-l-purple-400",
+    tabActive: "data-[state=active]:text-purple-600",
+  },
+  aesthetics: {
+    label: "Aesthetics",
+    shortLabel: "Aesthetics",
+    description:
+      "Skincare treatments, facials, and beauty enhancements for a refreshed, glowing look.",
+    note: null,
+    faqQuestion: "How should I prepare for my aesthetics appointment?",
+    icon: LuSparkles,
+    color: "text-pink-600",
+    bg: "bg-pink-50",
+    border: "border-l-pink-400",
+    tabActive: "data-[state=active]:text-pink-600",
   },
 } satisfies Record<
   CategorySlug,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -25,12 +25,15 @@ import {
   CalendarPlus,
   Receipt,
   Images,
-  Sparkles,
   Gift,
   LogOut,
   Menu,
   X,
+  ChevronUp,
+  UsersRound,
 } from "lucide-react";
+import { TCLogo } from "@/components/TCLogo";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 
 type NavItem = {
@@ -164,9 +167,120 @@ const CLIENT_MOBILE_TAB_NAV: NavItem[] = [
 
 /* ── Shared ─────────────────────────────────────────────────────────── */
 
-const SECONDARY_NAV: NavItem[] = [
-  { href: "/dashboard/settings", label: "Settings", icon: Settings },
-];
+function getProfileMenuItems(role: "admin" | "assistant" | "client"): NavItem[] {
+  const items: NavItem[] = [
+    { href: "/dashboard/settings", label: "Profile & Settings", icon: Settings },
+  ];
+  if (role === "admin") {
+    items.push({ href: "/dashboard/assistants", label: "Team", icon: UsersRound });
+  }
+  if (role === "client") {
+    items.push({ href: "/dashboard/bookings", label: "My Bookings", icon: CalendarCheck });
+  }
+  return items;
+}
+
+/* ── Profile popover ──────────────────────────────────────────────── */
+
+function ProfileMenu({
+  role,
+  isActive,
+  userName,
+  userAvatarUrl,
+  compact = false,
+}: {
+  role: "admin" | "assistant" | "client";
+  isActive: (href: string) => boolean;
+  userName: string;
+  userAvatarUrl: string | null;
+  compact?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [open]);
+
+  const menuItems = getProfileMenuItems(role);
+  const roleLabel = role === "assistant" ? "Assistant" : role === "client" ? "Client" : "Admin";
+  const initials =
+    userName
+      .split(" ")
+      .map((w) => w[0])
+      .join("")
+      .slice(0, 2)
+      .toUpperCase() || "??";
+
+  return (
+    <div ref={ref} className="relative">
+      {/* Popover */}
+      {open && (
+        <div className="absolute bottom-full left-0 right-0 mb-1 bg-background border border-border rounded-xl shadow-lg py-1 z-50">
+          {menuItems.map(({ href, label, icon: Icon }) => (
+            <Link
+              key={href}
+              href={href}
+              onClick={() => setOpen(false)}
+              className={cn(
+                "flex items-center gap-2.5 px-3 py-2 text-[13px] font-medium transition-colors",
+                isActive(href)
+                  ? "bg-foreground/8 text-foreground"
+                  : "text-muted hover:bg-foreground/5 hover:text-foreground",
+              )}
+            >
+              <Icon className={cn("shrink-0", compact ? "w-3.5 h-3.5" : "w-4 h-4")} />
+              {label}
+            </Link>
+          ))}
+          <div className="my-1 border-t border-border" />
+          <form action="/auth/signout" method="POST" className="w-full">
+            <button
+              type="submit"
+              className={cn(
+                "w-full flex items-center gap-2.5 px-3 py-2 text-[13px] font-medium text-muted hover:bg-destructive/8 hover:text-destructive transition-colors",
+              )}
+            >
+              <LogOut className={cn("shrink-0", compact ? "w-3.5 h-3.5" : "w-4 h-4")} />
+              Sign Out
+            </button>
+          </form>
+        </div>
+      )}
+
+      {/* Trigger */}
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center gap-2.5 px-2 py-2 rounded-lg hover:bg-foreground/5 transition-colors"
+      >
+        <Avatar size="sm">
+          {userAvatarUrl ? (
+            <AvatarImage src={userAvatarUrl} alt={userName} />
+          ) : (
+            <AvatarFallback className="text-[10px] bg-accent/10 text-accent font-semibold">
+              {initials}
+            </AvatarFallback>
+          )}
+        </Avatar>
+        <div className="flex-1 min-w-0 text-left">
+          <p className="text-xs font-medium text-foreground truncate leading-none">{userName}</p>
+          <p className="text-[9px] text-muted mt-0.5 leading-none truncate">{roleLabel}</p>
+        </div>
+        <ChevronUp
+          className={cn(
+            "w-3.5 h-3.5 text-muted shrink-0 transition-transform",
+            open && "rotate-180",
+          )}
+        />
+      </button>
+    </div>
+  );
+}
 
 function useIsActive() {
   const pathname = usePathname();
@@ -181,12 +295,16 @@ function MobileDrawer({
   navGroups,
   isActive,
   role,
+  userName,
+  userAvatarUrl,
 }: {
   open: boolean;
   onClose: () => void;
   navGroups: NavGroup[];
   isActive: (href: string) => boolean;
   role: "admin" | "assistant" | "client";
+  userName: string;
+  userAvatarUrl: string | null;
 }) {
   useEffect(() => {
     if (!open) return;
@@ -232,19 +350,17 @@ function MobileDrawer({
         {/* Header */}
         <div className="px-4 h-12 flex items-center justify-between border-b border-border shrink-0">
           <div className="flex items-center gap-2.5">
-            <div className="w-6 h-6 rounded-md bg-accent/15 flex items-center justify-center shrink-0">
-              {role === "client" ? (
-                <Sparkles className="w-3.5 h-3.5 text-accent" />
-              ) : (
-                <span className="text-accent font-bold text-[10px] tracking-tight">TC</span>
-              )}
-            </div>
+            <TCLogo size={24} className="text-accent shrink-0" />
             <div>
               <p className="text-xs font-semibold text-foreground tracking-tight leading-none">
                 T Creative
               </p>
               <p className="text-[9px] text-muted mt-0.5 leading-none">
-                {role === "assistant" ? "Assistant" : role === "client" ? "Client Portal" : "Admin"}
+                {role === "assistant"
+                  ? "Assistant"
+                  : role === "client"
+                    ? "Client Portal"
+                    : "Studio"}
               </p>
             </div>
           </div>
@@ -284,34 +400,14 @@ function MobileDrawer({
           ))}
         </nav>
 
-        {/* Settings + logout */}
-        <div className="px-2 py-2 border-t border-border shrink-0 space-y-px">
-          {SECONDARY_NAV.map(({ href, label, icon: Icon }) => (
-            <Link
-              key={href}
-              href={href}
-              className={cn(
-                "flex items-center gap-2.5 px-2 py-2 rounded-md text-[13px] font-medium transition-colors",
-                isActive(href)
-                  ? "bg-foreground/8 text-foreground"
-                  : "text-muted hover:bg-foreground/5 hover:text-foreground",
-              )}
-            >
-              <Icon className="w-4 h-4 shrink-0" />
-              {label}
-            </Link>
-          ))}
-          {role === "client" && (
-            <form action="/auth/signout" method="POST" className="w-full">
-              <button
-                type="submit"
-                className="w-full flex items-center gap-2.5 px-2 py-2 rounded-md text-[13px] font-medium text-muted hover:bg-destructive/8 hover:text-destructive transition-colors"
-              >
-                <LogOut className="w-4 h-4 shrink-0" />
-                Log Out
-              </button>
-            </form>
-          )}
+        {/* Profile menu */}
+        <div className="px-2 py-2 border-t border-border shrink-0">
+          <ProfileMenu
+            role={role}
+            isActive={isActive}
+            userName={userName}
+            userAvatarUrl={userAvatarUrl}
+          />
         </div>
       </aside>
     </>
@@ -320,7 +416,15 @@ function MobileDrawer({
 
 /* ── Main export ────────────────────────────────────────────────────── */
 
-export function DashboardSidebar({ role }: { role: "admin" | "assistant" | "client" }) {
+export function DashboardSidebar({
+  role,
+  userName,
+  userAvatarUrl,
+}: {
+  role: "admin" | "assistant" | "client";
+  userName: string;
+  userAvatarUrl: string | null;
+}) {
   const isActive = useIsActive();
   const [drawerOpen, setDrawerOpen] = useState(false);
 
@@ -345,19 +449,13 @@ export function DashboardSidebar({ role }: { role: "admin" | "assistant" | "clie
       <aside className="fixed top-0 left-0 bottom-0 w-56 hidden lg:flex flex-col bg-background border-r border-border z-40">
         {/* Brand */}
         <div className="px-4 h-12 flex items-center gap-2.5 border-b border-border shrink-0">
-          <div className="w-6 h-6 rounded-md bg-accent/15 flex items-center justify-center shrink-0">
-            {role === "client" ? (
-              <Sparkles className="w-3.5 h-3.5 text-accent" />
-            ) : (
-              <span className="text-accent font-bold text-[10px] tracking-tight">TC</span>
-            )}
-          </div>
+          <TCLogo size={24} className="text-accent shrink-0" />
           <div>
             <p className="text-xs font-semibold text-foreground tracking-tight leading-none">
               T Creative
             </p>
             <p className="text-[9px] text-muted mt-0.5 leading-none">
-              {role === "assistant" ? "Assistant" : role === "client" ? "Client Portal" : "Admin"}
+              {role === "assistant" ? "Assistant" : role === "client" ? "Client Portal" : "Studio"}
             </p>
           </div>
         </div>
@@ -390,34 +488,15 @@ export function DashboardSidebar({ role }: { role: "admin" | "assistant" | "clie
           ))}
         </nav>
 
-        {/* Settings + logout */}
-        <div className="px-2 py-2 border-t border-border shrink-0 space-y-px">
-          {SECONDARY_NAV.map(({ href, label, icon: Icon }) => (
-            <Link
-              key={href}
-              href={href}
-              className={cn(
-                "flex items-center gap-2.5 px-2 py-1.5 rounded-md text-[13px] font-medium transition-colors",
-                isActive(href)
-                  ? "bg-foreground/8 text-foreground"
-                  : "text-muted hover:bg-foreground/5 hover:text-foreground",
-              )}
-            >
-              <Icon className="w-3.5 h-3.5 shrink-0" />
-              {label}
-            </Link>
-          ))}
-          {role === "client" && (
-            <form action="/auth/signout" method="POST" className="w-full">
-              <button
-                type="submit"
-                className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md text-[13px] font-medium text-muted hover:bg-destructive/8 hover:text-destructive transition-colors"
-              >
-                <LogOut className="w-3.5 h-3.5 shrink-0" />
-                Log Out
-              </button>
-            </form>
-          )}
+        {/* Profile menu */}
+        <div className="px-2 py-2 border-t border-border shrink-0">
+          <ProfileMenu
+            role={role}
+            isActive={isActive}
+            userName={userName}
+            userAvatarUrl={userAvatarUrl}
+            compact
+          />
         </div>
       </aside>
 
@@ -456,6 +535,8 @@ export function DashboardSidebar({ role }: { role: "admin" | "assistant" | "clie
         navGroups={navGroups}
         isActive={isActive}
         role={role}
+        userName={userName}
+        userAvatarUrl={userAvatarUrl}
       />
     </>
   );

@@ -25,10 +25,26 @@
  */
 
 import { useState } from "react";
-import { Dialog, Field, Input, Textarea, Select, DialogFooter } from "@/components/ui/dialog";
+import { Check, ChevronsUpDown } from "lucide-react";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { Dialog, Field, Input, Textarea, DialogFooter } from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 import { CAT_CONFIG, BLANK_SERVICE_FORM } from "../types";
 import type { Category, ServiceFormData } from "../types";
 import { Toggle } from "./Toggle";
+
+/** Categories available in the service form (training excluded — managed separately). */
+const CATEGORY_OPTIONS = (Object.keys(CAT_CONFIG) as Category[])
+  .filter((c) => c !== "training")
+  .map((c) => ({ value: c, label: CAT_CONFIG[c].label }));
 
 /**
  * ServiceFormDialog — modal form for adding or editing a service.
@@ -51,6 +67,7 @@ export function ServiceFormDialog({
   onSave: (data: ServiceFormData) => void;
 }) {
   const [form, setForm] = useState<ServiceFormData>(initial ?? BLANK_SERVICE_FORM);
+  const [catOpen, setCatOpen] = useState(false);
 
   // Early return keeps the component out of the DOM when closed (saves memory, resets state).
   if (!open) return null;
@@ -80,19 +97,54 @@ export function ServiceFormDialog({
             />
           </Field>
           <Field label="Category" required>
-            <Select
-              value={form.category}
-              onChange={(e) => set("category", e.target.value as Category)}
-            >
-              {/* Training is excluded — courses are not standard bookable services */}
-              {(Object.keys(CAT_CONFIG) as Category[])
-                .filter((c) => c !== "training")
-                .map((c) => (
-                  <option key={c} value={c}>
-                    {CAT_CONFIG[c].label}
-                  </option>
-                ))}
-            </Select>
+            <Popover open={catOpen} onOpenChange={setCatOpen}>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  role="combobox"
+                  aria-controls="category-listbox"
+                  aria-expanded={catOpen}
+                  className="w-full px-3 py-2 text-sm bg-surface border border-border rounded-lg text-foreground focus:outline-none focus:ring-1 focus:ring-accent/40 transition flex items-center justify-between"
+                >
+                  <span className="flex items-center gap-2">
+                    <span className={cn("w-2 h-2 rounded-full", CAT_CONFIG[form.category].dot)} />
+                    {CAT_CONFIG[form.category].label}
+                  </span>
+                  <ChevronsUpDown className="w-3.5 h-3.5 text-muted shrink-0" />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                <Command>
+                  <CommandInput placeholder="Search categories..." />
+                  <CommandList>
+                    <CommandEmpty>No category found.</CommandEmpty>
+                    <CommandGroup>
+                      {CATEGORY_OPTIONS.map((opt) => (
+                        <CommandItem
+                          key={opt.value}
+                          value={opt.label}
+                          onSelect={() => {
+                            set("category", opt.value);
+                            setCatOpen(false);
+                          }}
+                        >
+                          <span
+                            className={cn(
+                              "w-2 h-2 rounded-full shrink-0",
+                              CAT_CONFIG[opt.value].dot,
+                            )}
+                          />
+                          {opt.label}
+                          {form.category === opt.value && (
+                            <Check className="ml-auto w-4 h-4 text-accent" />
+                          )}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
           </Field>
         </div>
 

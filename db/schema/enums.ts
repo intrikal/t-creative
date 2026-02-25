@@ -73,6 +73,8 @@ export const serviceCategoryEnum = pgEnum("service_category", [
   "jewelry",
   "crochet",
   "consulting",
+  "3d_printing",
+  "aesthetics",
 ]);
 
 /* ------------------------------------------------------------------ */

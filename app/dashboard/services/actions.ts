@@ -25,7 +25,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { eq, inArray, sql, desc } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { bookings, services } from "@/db/schema";
 import { createClient } from "@/utils/supabase/server";
@@ -35,7 +35,7 @@ import { createClient } from "@/utils/supabase/server";
 /* ------------------------------------------------------------------ */
 
 type CatalogEntry = {
-  category: "lash" | "jewelry" | "crochet" | "consulting";
+  category: "lash" | "jewelry" | "crochet" | "consulting" | "3d_printing" | "aesthetics";
   name: string;
   description: string;
   durationMinutes: number | null;
@@ -169,34 +169,35 @@ const FULL_CATALOG: CatalogEntry[] = [
     depositInCents: null,
     sortOrder: 4,
   },
-  // ── Crochet ─────────────────────────────────────────────────────
+  // ── Crochet (stuffed animals / amigurumi) ───────────────────────
   {
     category: "crochet",
-    name: "Crochet Braid Install",
+    name: "Mini Amigurumi (3–5 in)",
     description:
-      "Full crochet braid install. Hair not included unless add-on is selected at booking.",
-    durationMinutes: 180,
-    priceInCents: 12000,
-    depositInCents: 7500,
+      "Tiny handmade crocheted stuffed animal. Perfect keychain size. Choose any animal or character.",
+    durationMinutes: null,
+    priceInCents: 2500,
+    depositInCents: null,
     sortOrder: 1,
   },
   {
     category: "crochet",
-    name: "Crochet Updo",
+    name: "Standard Amigurumi (6–10 in)",
     description:
-      "Elegant crochet updo for special events. Consultation required for bridal styles.",
-    durationMinutes: 120,
-    priceInCents: 9500,
-    depositInCents: 5000,
+      "Classic-sized crocheted stuffed animal. Bears, bunnies, cats, dogs, and more. Fully customizable colors.",
+    durationMinutes: null,
+    priceInCents: 4500,
+    depositInCents: 2000,
     sortOrder: 2,
   },
   {
     category: "crochet",
-    name: "Takedown & Detangle",
-    description: "Professional removal of crochet or protective style with gentle detangling.",
-    durationMinutes: 60,
-    priceInCents: 4500,
-    depositInCents: null,
+    name: "Large Amigurumi (11–16 in)",
+    description:
+      "Huggable-sized crocheted plushie. Great as a nursery gift or display piece. Custom colors and outfits available.",
+    durationMinutes: null,
+    priceInCents: 7500,
+    depositInCents: 3500,
     sortOrder: 3,
   },
   // ── Consulting ───────────────────────────────────────────────────
@@ -236,6 +237,98 @@ const FULL_CATALOG: CatalogEntry[] = [
     priceInCents: 50000,
     depositInCents: 15000,
     sortOrder: 4,
+  },
+  // ── 3D Printing ──────────────────────────────────────────────────
+  {
+    category: "3d_printing",
+    name: "Custom Phone Case",
+    description:
+      "Personalized 3D-printed phone case with your choice of design, text, or logo. Available for all major models.",
+    durationMinutes: null,
+    priceInCents: 3500,
+    depositInCents: null,
+    sortOrder: 1,
+  },
+  {
+    category: "3d_printing",
+    name: "3D-Printed Earrings",
+    description:
+      "Lightweight, custom-designed statement earrings. Choose from geometric, floral, or abstract styles.",
+    durationMinutes: null,
+    priceInCents: 2500,
+    depositInCents: null,
+    sortOrder: 2,
+  },
+  {
+    category: "3d_printing",
+    name: "Custom Décor Piece",
+    description:
+      "One-of-a-kind 3D-printed décor — nameplates, figurines, planters, and more. Send us your idea!",
+    durationMinutes: null,
+    priceInCents: 5000,
+    depositInCents: 2500,
+    sortOrder: 3,
+  },
+  {
+    category: "3d_printing",
+    name: "Beauty Tool Holder",
+    description:
+      "Custom-fit organizer for lash tweezers, brushes, or jewelry tools. Designed for your exact setup.",
+    durationMinutes: null,
+    priceInCents: 4000,
+    depositInCents: null,
+    sortOrder: 4,
+  },
+  // ── Aesthetics ────────────────────────────────────────────────────
+  {
+    category: "aesthetics",
+    name: "Signature Facial",
+    description:
+      "Customized facial treatment including cleanse, exfoliation, extraction, and hydrating mask. Tailored to your skin type.",
+    durationMinutes: 60,
+    priceInCents: 8500,
+    depositInCents: null,
+    sortOrder: 1,
+  },
+  {
+    category: "aesthetics",
+    name: "LED Light Therapy",
+    description:
+      "Non-invasive LED treatment targeting acne, inflammation, or anti-aging. Standalone or add to any facial.",
+    durationMinutes: 30,
+    priceInCents: 4500,
+    depositInCents: null,
+    sortOrder: 2,
+  },
+  {
+    category: "aesthetics",
+    name: "Chemical Peel",
+    description:
+      "Professional-grade chemical peel for brightening, texture refinement, and acne scarring. Consultation included.",
+    durationMinutes: 45,
+    priceInCents: 12000,
+    depositInCents: 6000,
+    sortOrder: 3,
+  },
+  {
+    category: "aesthetics",
+    name: "Brow Lamination & Tint",
+    description:
+      "Fuller, sculpted brows with lamination treatment plus a custom tint for a polished finish.",
+    durationMinutes: 45,
+    priceInCents: 6500,
+    depositInCents: null,
+    sortOrder: 4,
+  },
+  {
+    category: "aesthetics",
+    name: "Lash Lift & Tint",
+    description:
+      "Natural lash lift with semi-permanent tint for a mascara-free, wide-awake look. Lasts 6–8 weeks.",
+    durationMinutes: 60,
+    priceInCents: 7500,
+    depositInCents: null,
+    sortOrder: 5,
   },
 ];
 

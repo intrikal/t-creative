@@ -36,7 +36,6 @@ import {
   CheckCheck,
   Archive,
   ChevronRight,
-  DollarSign,
   Instagram,
   Globe,
   Users,
@@ -60,7 +59,7 @@ import { ProductDetailDialog } from "./components/ProductDetailDialog";
 
 type InquiryStatus = "new" | "read" | "replied" | "archived";
 type ProductInquiryStatus = "new" | "contacted" | "quote_sent" | "in_progress" | "completed";
-type ServiceCategory = "lash" | "jewelry" | "crochet" | "consulting";
+type ServiceCategory = "lash" | "jewelry" | "crochet" | "consulting" | "3d_printing" | "aesthetics";
 type InquirySource = "instagram" | "google" | "referral" | "website" | "word_of_mouth" | "tiktok";
 
 export interface GeneralInquiry {
@@ -102,6 +101,8 @@ export const CATEGORY_COLOR: Record<ServiceCategory, { bg: string; text: string;
   jewelry: { bg: "bg-[#d4a574]/15", text: "text-[#a07040]", dot: "bg-[#d4a574]" },
   crochet: { bg: "bg-[#7ba3a3]/15", text: "text-[#5b8a8a]", dot: "bg-[#7ba3a3]" },
   consulting: { bg: "bg-[#5b8a8a]/15", text: "text-[#3d6464]", dot: "bg-[#5b8a8a]" },
+  "3d_printing": { bg: "bg-[#6b5b95]/15", text: "text-[#4a3d6e]", dot: "bg-[#6b5b95]" },
+  aesthetics: { bg: "bg-[#d4768a]/15", text: "text-[#a0506a]", dot: "bg-[#d4768a]" },
 };
 
 const AVATAR_COLOR: Record<ServiceCategory, string> = {
@@ -109,6 +110,8 @@ const AVATAR_COLOR: Record<ServiceCategory, string> = {
   jewelry: "bg-[#d4a574] text-white",
   crochet: "bg-[#7ba3a3] text-white",
   consulting: "bg-[#5b8a8a] text-white",
+  "3d_printing": "bg-[#6b5b95] text-white",
+  aesthetics: "bg-[#d4768a] text-white",
 };
 
 export function statusBadge(status: InquiryStatus) {
@@ -165,6 +168,8 @@ export const CATEGORY_LABEL: Record<ServiceCategory, string> = {
   jewelry: "Jewelry",
   crochet: "Crochet",
   consulting: "Consulting",
+  "3d_printing": "3D Printing",
+  aesthetics: "Aesthetics",
 };
 
 /* ------------------------------------------------------------------ */
@@ -234,6 +239,9 @@ function mapProductCategory(cat: string): ServiceCategory | null {
   if (lower.includes("jewel")) return "jewelry";
   if (lower.includes("crochet")) return "crochet";
   if (lower.includes("consult") || lower.includes("train")) return "consulting";
+  if (lower.includes("3d") || lower.includes("print")) return "3d_printing";
+  if (lower.includes("aesthet") || lower.includes("facial") || lower.includes("skin"))
+    return "aesthetics";
   return null;
 }
 

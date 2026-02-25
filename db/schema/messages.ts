@@ -27,6 +27,7 @@ import {
   serial,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
   varchar,
 } from "drizzle-orm/pg-core";
@@ -77,10 +78,13 @@ export const threads = pgTable(
     /** Subject line (e.g. "Booking Request: Volume Lash Set"). */
     subject: varchar("subject", { length: 300 }).notNull(),
 
-    /** The client participant. Staff members access all threads via role. */
-    clientId: uuid("client_id")
-      .notNull()
-      .references(() => profiles.id, { onDelete: "cascade" }),
+    /** The client participant (nullable for group threads). */
+    clientId: uuid("client_id").references(() => profiles.id, {
+      onDelete: "cascade",
+    }),
+
+    /** Whether this is a group thread with multiple participants. */
+    isGroup: boolean("is_group").notNull().default(false),
 
     /** Thread category — shown as a badge (request/inquiry/confirmation/etc). */
     threadType: threadTypeEnum("thread_type").notNull().default("general"),
@@ -191,6 +195,30 @@ export const quickReplies = pgTable("quick_replies", {
 });
 
 /* ------------------------------------------------------------------ */
+/*  Thread Participants (for group threads)                            */
+/* ------------------------------------------------------------------ */
+
+/** Tracks which profiles participate in a thread. */
+export const threadParticipants = pgTable(
+  "thread_participants",
+  {
+    id: serial("id").primaryKey(),
+    threadId: integer("thread_id")
+      .notNull()
+      .references(() => threads.id, { onDelete: "cascade" }),
+    profileId: uuid("profile_id")
+      .notNull()
+      .references(() => profiles.id, { onDelete: "cascade" }),
+    joinedAt: timestamp("joined_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("thread_participants_thread_idx").on(t.threadId),
+    index("thread_participants_profile_idx").on(t.profileId),
+    uniqueIndex("thread_participants_unique_idx").on(t.threadId, t.profileId),
+  ],
+);
+
+/* ------------------------------------------------------------------ */
 /*  Relations                                                          */
 /* ------------------------------------------------------------------ */
 
@@ -208,6 +236,19 @@ export const threadsRelations = relations(threads, ({ one, many }) => ({
   }),
   /** One-to-many: threads.id → messages.thread_id (all messages in this conversation). */
   messages: many(messages),
+  /** One-to-many: threads.id → thread_participants.thread_id. */
+  participants: many(threadParticipants),
+}));
+
+export const threadParticipantsRelations = relations(threadParticipants, ({ one }) => ({
+  thread: one(threads, {
+    fields: [threadParticipants.threadId],
+    references: [threads.id],
+  }),
+  profile: one(profiles, {
+    fields: [threadParticipants.profileId],
+    references: [profiles.id],
+  }),
 }));
 
 export const messagesRelations = relations(messages, ({ one }) => ({

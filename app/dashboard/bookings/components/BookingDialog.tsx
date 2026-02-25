@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Dialog, Field, Input, Textarea, Select, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogFooter, Field, Input, Textarea, Select } from "@/components/ui/dialog";
 import type { Booking, BookingStatus } from "../BookingsPage";
 
 export type BookingFormState = {

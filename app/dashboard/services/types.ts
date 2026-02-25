@@ -27,8 +27,15 @@ import type { FormRow } from "./form-actions";
 /*  Domain enumerations                                                 */
 /* ------------------------------------------------------------------ */
 
-/** The five service categories recognised by the system. */
-export type Category = "lash" | "jewelry" | "crochet" | "consulting" | "training";
+/** The service categories recognised by the system. */
+export type Category =
+  | "lash"
+  | "jewelry"
+  | "crochet"
+  | "consulting"
+  | "training"
+  | "3d_printing"
+  | "aesthetics";
 
 /**
  * How the service price is presented to clients on the booking page.
@@ -219,6 +226,20 @@ export const CAT_CONFIG: Record<
     dot: "bg-[#4e6b51]",
     border: "border-[#4e6b51]/20",
   },
+  "3d_printing": {
+    label: "3D Printing",
+    bg: "bg-[#6b5b95]/12",
+    text: "text-[#4a3d6e]",
+    dot: "bg-[#6b5b95]",
+    border: "border-[#6b5b95]/20",
+  },
+  aesthetics: {
+    label: "Aesthetics",
+    bg: "bg-[#d4768a]/12",
+    text: "text-[#a0506a]",
+    dot: "bg-[#d4768a]",
+    border: "border-[#d4768a]/20",
+  },
 };
 
 /** Background + text colour tokens for staff avatar chips, keyed by first name. */
@@ -281,7 +302,16 @@ export const DEFAULT_FIELDS: Record<FormType, FormField[]> = {
 };
 
 /** Category filter options shown in the "Applies To" multi-select of NewFormDialog. */
-export const APPLIES_TO_OPTIONS = ["All", "Lash", "Jewelry", "Crochet", "Consulting", "Training"];
+export const APPLIES_TO_OPTIONS = [
+  "All",
+  "Lash",
+  "Jewelry",
+  "Crochet",
+  "Consulting",
+  "Training",
+  "3D Printing",
+  "Aesthetics",
+];
 
 /** Empty ServiceFormData — used as the initial state when adding a new service. */
 export const BLANK_SERVICE_FORM: ServiceFormData = {

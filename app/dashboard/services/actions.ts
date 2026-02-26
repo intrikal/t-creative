@@ -355,6 +355,7 @@ export async function seedServiceCatalog(): Promise<ServiceRow[]> {
   const rows = toInsert.length > 0 ? await db.insert(services).values(toInsert).returning() : [];
 
   revalidatePath("/dashboard/services");
+  revalidatePath("/services");
   return rows;
 }
 
@@ -399,6 +400,7 @@ export async function createService(input: ServiceInput): Promise<ServiceRow> {
     })
     .returning();
   revalidatePath("/dashboard/services");
+  revalidatePath("/services");
   return row;
 }
 
@@ -418,6 +420,7 @@ export async function updateService(id: number, input: ServiceInput): Promise<Se
     .where(eq(services.id, id))
     .returning();
   revalidatePath("/dashboard/services");
+  revalidatePath("/services");
   return row;
 }
 
@@ -425,12 +428,14 @@ export async function deleteService(id: number): Promise<void> {
   await getUser();
   await db.delete(services).where(eq(services.id, id));
   revalidatePath("/dashboard/services");
+  revalidatePath("/services");
 }
 
 export async function toggleServiceActive(id: number, isActive: boolean): Promise<void> {
   await getUser();
   await db.update(services).set({ isActive }).where(eq(services.id, id));
   revalidatePath("/dashboard/services");
+  revalidatePath("/services");
 }
 
 /* ------------------------------------------------------------------ */

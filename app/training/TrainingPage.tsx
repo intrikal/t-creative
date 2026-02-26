@@ -1,23 +1,86 @@
 /**
- * TrainingPage — All four certification programs with dates, deposits, and enrollment CTAs.
+ * TrainingPage — Certification programs with dates, deposits, and enrollment CTAs.
+ * Driven by database with hardcoded fallback.
  */
 "use client";
 
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { Footer } from "@/components/landing/Footer";
+import type { PublicProgram } from "./actions";
 
-const programs = [
+/* ------------------------------------------------------------------ */
+/*  Category → color mapping                                           */
+/* ------------------------------------------------------------------ */
+
+const CATEGORY_COLORS: Record<string, string> = {
+  lash: "#C4907A",
+  jewelry: "#D4A574",
+  crochet: "#9BB8B8",
+  consulting: "#5B8A8A",
+  "3d_printing": "#8B7DAF",
+  aesthetics: "#B8927A",
+};
+
+/* ------------------------------------------------------------------ */
+/*  Format helpers                                                     */
+/* ------------------------------------------------------------------ */
+
+function formatPrice(cents: number | null): string {
+  if (cents == null) return "Contact for pricing";
+  if (cents === 0) return "Free";
+  const dollars = cents / 100;
+  return `Starting at $${dollars % 1 === 0 ? dollars.toLocaleString() : dollars.toFixed(2)}`;
+}
+
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function formatDuration(hours: number | null, days: number | null): string {
+  const parts: string[] = [];
+  if (hours) parts.push(`${hours} hours`);
+  if (days) parts.push(`${days} day${days > 1 ? "s" : ""}`);
+  return parts.join(" / ") || "";
+}
+
+const FORMAT_LABELS: Record<string, string> = {
+  in_person: "In Person",
+  hybrid: "Hybrid (Virtual + In-Person)",
+  online: "Online",
+};
+
+/* ------------------------------------------------------------------ */
+/*  Hardcoded fallback (shown when DB is empty)                        */
+/* ------------------------------------------------------------------ */
+
+type ProgramDisplay = {
+  title: string;
+  color: string;
+  format: string;
+  location: string | null;
+  nextDate: string | null;
+  duration: string;
+  price: string;
+  certificationProvided: boolean;
+  description: string;
+  curriculum: string[];
+};
+
+const FALLBACK_PROGRAMS: ProgramDisplay[] = [
   {
     title: "Classic Lash Certification",
     color: "#C4907A",
     format: "In Person",
-    schedule: "Sat & Sun, 9am–5pm (2 weekends)",
     location: "T Creative Studio — San Jose, CA",
     nextDate: "Mar 15, 2026",
     duration: "16 hours",
     price: "Starting at $1,800",
-    deposit: "$500 deposit to secure your seat",
+    certificationProvided: true,
     description:
       "Master classic lash application from the ground up. Covers lash mapping, client consultation, adhesive chemistry, isolation technique, and retention. You'll leave with hands-on experience, a certificate, and a professional-grade take-home kit.",
     curriculum: [
@@ -28,20 +91,18 @@ const programs = [
       "Aftercare protocols and client education",
       "Business basics and pricing your services",
     ],
-    ideal: "Beginners with no prior lash experience, or those self-taught looking to fill gaps.",
   },
   {
     title: "Volume Lash Certification",
     color: "#b07d6a",
     format: "In Person",
-    schedule: "Sat & Sun, 9am–5pm (3 weekends)",
     location: "T Creative Studio — San Jose, CA",
     nextDate: "Apr 5, 2026",
     duration: "24 hours",
     price: "Starting at $2,200",
-    deposit: "$500 deposit to secure your seat",
+    certificationProvided: true,
     description:
-      "An advanced course building on classic foundations — 2D through 6D fan construction, mega volume, wispy and textured styles, and advanced mapping. Prerequisite: Classic Lash Certification or 6 months of active lash experience.",
+      "An advanced course building on classic foundations — 2D through 6D fan construction, mega volume, wispy and textured styles, and advanced mapping.",
     curriculum: [
       "2D–6D handmade fan construction",
       "Pre-made and promade fan techniques",
@@ -50,19 +111,16 @@ const programs = [
       "Advanced retention and lash health",
       "Managing difficult eye shapes",
     ],
-    ideal: "Certified classic lash artists ready to expand their service menu.",
-    prereq: "Classic Lash Certification or 6+ months of active experience required.",
   },
   {
     title: "Permanent Jewelry Certification",
     color: "#D4A574",
     format: "In Person",
-    schedule: "Saturday, 10am–4pm (1 day)",
     location: "T Creative Studio — San Jose, CA",
     nextDate: "Mar 8, 2026",
     duration: "8 hours",
     price: "Starting at $1,200",
-    deposit: "$300 deposit to secure your seat",
+    certificationProvided: true,
     description:
       "Learn the full permanent jewelry process — welding technique, chain types and sizing, application, and client aftercare. Includes hands-on practice with a pulse arc welder and a full jewelry start kit to take home.",
     curriculum: [
@@ -73,18 +131,16 @@ const programs = [
       "Contraindications and client screening",
       "Client consultation and aftercare education",
     ],
-    ideal: "Beauty professionals looking to add permanent jewelry to their service menu.",
   },
   {
     title: "Beauty Business Bootcamp",
     color: "#5B8A8A",
     format: "Hybrid (Virtual + In-Person)",
-    schedule: "Saturdays, 10am–4pm (3 sessions)",
     location: "Virtual + T Creative Studio",
     nextDate: "Mar 29, 2026",
     duration: "18 hours",
     price: "Starting at $450",
-    deposit: "$150 deposit to secure your seat",
+    certificationProvided: true,
     description:
       "The operational and business side of running a beauty studio — taught by someone who built one. Covers pricing, client management, social media, booking systems, and the mindset behind sustainable growth.",
     curriculum: [
@@ -95,11 +151,36 @@ const programs = [
       "Building a referral-based clientele",
       "When and how to hire your first assistant",
     ],
-    ideal: "Beauty professionals at any stage who want to run their business with more intention.",
   },
 ];
 
-export function TrainingPage() {
+/* ------------------------------------------------------------------ */
+/*  Transform DB programs to display format                            */
+/* ------------------------------------------------------------------ */
+
+function toDisplay(programs: PublicProgram[]): ProgramDisplay[] {
+  return programs.map((p) => ({
+    title: p.name,
+    color: CATEGORY_COLORS[p.category ?? ""] ?? "#888",
+    format: FORMAT_LABELS[p.format] ?? p.format,
+    location: p.nextSession?.location ?? null,
+    nextDate: p.nextSession ? formatDate(p.nextSession.startsAt) : null,
+    duration: formatDuration(p.durationHours, p.durationDays),
+    price: formatPrice(p.priceInCents),
+    certificationProvided: p.certificationProvided,
+    description: p.description ?? "",
+    curriculum: p.curriculum,
+  }));
+}
+
+/* ------------------------------------------------------------------ */
+/*  Component                                                          */
+/* ------------------------------------------------------------------ */
+
+export function TrainingPage({ programs }: { programs: PublicProgram[] }) {
+  const displayPrograms: ProgramDisplay[] =
+    programs.length > 0 ? toDisplay(programs) : FALLBACK_PROGRAMS;
+
   return (
     <>
       <main id="main-content" className="pt-16">
@@ -137,7 +218,7 @@ export function TrainingPage() {
         {/* Programs */}
         <section className="pb-32 px-6">
           <div className="mx-auto max-w-4xl flex flex-col gap-8">
-            {programs.map((program, i) => (
+            {displayPrograms.map((program, i) => (
               <motion.div
                 key={program.title}
                 className="border border-foreground/10 overflow-hidden"
@@ -160,75 +241,67 @@ export function TrainingPage() {
                         <span className="text-xs tracking-wide uppercase px-3 py-1 bg-surface text-muted">
                           {program.format}
                         </span>
-                        <span className="text-xs tracking-wide uppercase px-3 py-1 bg-surface text-muted">
-                          {program.duration}
-                        </span>
-                        <span className="text-xs tracking-wide uppercase px-3 py-1 bg-surface text-muted">
-                          Certification
-                        </span>
+                        {program.duration && (
+                          <span className="text-xs tracking-wide uppercase px-3 py-1 bg-surface text-muted">
+                            {program.duration}
+                          </span>
+                        )}
+                        {program.certificationProvided && (
+                          <span className="text-xs tracking-wide uppercase px-3 py-1 bg-surface text-muted">
+                            Certification
+                          </span>
+                        )}
                       </div>
                     </div>
                     <div className="text-right shrink-0">
                       <span className="text-lg font-medium text-accent block">{program.price}</span>
-                      <span className="text-xs text-muted mt-1 block">{program.deposit}</span>
                     </div>
                   </div>
 
                   {/* Next date + location */}
-                  <div className="flex flex-wrap gap-4 mb-6 text-sm text-muted border border-foreground/8 bg-surface px-4 py-3">
-                    <div>
-                      <span className="text-[10px] uppercase tracking-widest text-muted/60 block mb-0.5">
-                        Next Date
-                      </span>
-                      <span className="font-medium text-foreground">{program.nextDate}</span>
+                  {(program.nextDate || program.location) && (
+                    <div className="flex flex-wrap gap-4 mb-6 text-sm text-muted border border-foreground/8 bg-surface px-4 py-3">
+                      {program.nextDate && (
+                        <div>
+                          <span className="text-[10px] uppercase tracking-widest text-muted/60 block mb-0.5">
+                            Next Date
+                          </span>
+                          <span className="font-medium text-foreground">{program.nextDate}</span>
+                        </div>
+                      )}
+                      {program.nextDate && program.location && (
+                        <div className="w-px bg-foreground/10 self-stretch" />
+                      )}
+                      {program.location && (
+                        <div>
+                          <span className="text-[10px] uppercase tracking-widest text-muted/60 block mb-0.5">
+                            Location
+                          </span>
+                          <span>{program.location}</span>
+                        </div>
+                      )}
                     </div>
-                    <div className="w-px bg-foreground/10 self-stretch" />
-                    <div>
-                      <span className="text-[10px] uppercase tracking-widest text-muted/60 block mb-0.5">
-                        Schedule
-                      </span>
-                      <span>{program.schedule}</span>
-                    </div>
-                    <div className="w-px bg-foreground/10 self-stretch hidden sm:block" />
-                    <div className="hidden sm:block">
-                      <span className="text-[10px] uppercase tracking-widest text-muted/60 block mb-0.5">
-                        Location
-                      </span>
-                      <span>{program.location}</span>
-                    </div>
-                  </div>
+                  )}
 
                   {/* Description */}
                   <p className="text-sm text-muted leading-relaxed mb-6">{program.description}</p>
 
-                  {/* Prerequisite */}
-                  {"prereq" in program && program.prereq && (
-                    <div className="mb-6 text-xs text-muted border-l-2 border-accent/40 pl-3 leading-relaxed">
-                      <span className="font-semibold text-foreground">Prerequisite: </span>
-                      {program.prereq}
+                  {/* Curriculum */}
+                  {program.curriculum.length > 0 && (
+                    <div className="mb-8">
+                      <h3 className="text-xs tracking-widest uppercase text-foreground mb-4">
+                        What You&apos;ll Learn
+                      </h3>
+                      <ul className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                        {program.curriculum.map((item) => (
+                          <li key={item} className="text-sm text-muted flex items-start gap-2">
+                            <span className="text-accent mt-0.5">+</span>
+                            {item}
+                          </li>
+                        ))}
+                      </ul>
                     </div>
                   )}
-
-                  {/* Who it's for */}
-                  <p className="text-xs text-muted mb-6">
-                    <span className="font-medium text-foreground">Ideal for: </span>
-                    {program.ideal}
-                  </p>
-
-                  {/* Curriculum */}
-                  <div className="mb-8">
-                    <h3 className="text-xs tracking-widest uppercase text-foreground mb-4">
-                      What You&apos;ll Learn
-                    </h3>
-                    <ul className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                      {program.curriculum.map((item) => (
-                        <li key={item} className="text-sm text-muted flex items-start gap-2">
-                          <span className="text-accent mt-0.5">+</span>
-                          {item}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
 
                   {/* CTA */}
                   <div className="flex flex-wrap gap-3">

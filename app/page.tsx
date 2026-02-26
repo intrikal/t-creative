@@ -2,22 +2,20 @@
  * Home — Landing page as a cinematic, narrative-driven experience.
  *
  * Page structure (Acts):
- *   I   Arrival           — Atmospheric dark opener; single word, scroll to warm
- *   II  Declaration       — Three words revealed sequentially; brand identity
- *   II.5 Founder          — Trini's editorial portrait and introduction
- *   III StudioPortal      — Scroll-pinned 3D interactive studio (300vh)
- *   IV  ZoneReveal        — Four business verticals as full-bleed editorial bands
- *   IV.5 HowItWorks       — Three-step booking process with animated connectors
- *   V   EditorialPortfolio — Asymmetric 3-column parallax grid with category filters
- *   V.5 FeaturedProducts  — Shop entry strip
- *   VI  Testimonials      — Single featured review with auto-advance + dot navigation
- *   VII TheInvitation     — Final CTA; full viewport, magnetic button
- *       Footer
- *
- * Studio overlays (StudioNav + ZoneOverlay) are rendered at root level so their
- * fixed positioning is never affected by a transform-based stacking context.
- *
- * StickyMobileCTA renders a fixed bottom bar on mobile for persistent booking access.
+ *   I    Arrival            — Atmospheric dark opener; single word, scroll to warm
+ *   II   Declaration        — Three words + typewriter thesis; brand identity
+ *   II.5 Founder            — Trini's editorial portrait and introduction
+ *        ─── SectionDivider (grid → organic morph)
+ *   III  StudioPortal       — Scroll-pinned 3D interactive studio (300vh)
+ *   IV   ZoneReveal         — Four transformation arcs (Raw → Process → Result)
+ *   IV.5 HowItWorks         — Three-step booking process with animated connectors
+ *   IV.6 TrainingTeaser     — Certification programs preview
+ *        ─── SectionDivider
+ *   V    EditorialPortfolio  — Asymmetric 3-column grid with loupe interaction
+ *   V.5  FeaturedProducts    — Shop entry strip
+ *   VI   Testimonials        — Full-bleed typographic with word-stagger transitions
+ *   VII  TheInvitation       — Final CTA; ambient gradient, magnetic button
+ *        Footer
  *
  * Server Component — all sections are client components imported here.
  */
@@ -34,7 +32,9 @@ import { StudioOverlays } from "@/components/landing/StudioOverlays";
 import { StudioPortal } from "@/components/landing/StudioPortal";
 import { Testimonials } from "@/components/landing/Testimonials";
 import { TheInvitation } from "@/components/landing/TheInvitation";
+import { TrainingTeaser } from "@/components/landing/TrainingTeaser";
 import { ZoneReveal } from "@/components/landing/ZoneReveal";
+import { SectionDivider } from "@/components/ui/SectionDivider";
 
 export default function Home() {
   return (
@@ -42,23 +42,28 @@ export default function Home() {
       <Arrival />
       <Declaration />
       <Founder />
+
+      {/* Grid-to-organic morphing transition — structure becoming beauty */}
+      <SectionDivider className="bg-background" color="#6b5d52" />
+
       <StudioPortal />
       <ZoneReveal />
       <HowItWorks />
+      <TrainingTeaser />
+
+      {/* Second divider before the dark portfolio section */}
+      <SectionDivider className="bg-background" color="#96604a" />
+
       <EditorialPortfolio />
       <FeaturedProducts />
       <Testimonials />
       <TheInvitation />
       <Footer />
 
-      {/*
-       * Studio overlays — rendered outside all scroll containers.
-       * StudioNav and ZoneOverlay are fixed-positioned and self-hide via
-       * Zustand when mode === "landing".
-       */}
+      {/* Studio overlays — rendered outside all scroll containers */}
       <StudioOverlays />
 
-      {/* Sticky mobile booking CTA — appears after scroll, hides at final CTA */}
+      {/* Sticky mobile booking CTA */}
       <StickyMobileCTA />
     </main>
   );

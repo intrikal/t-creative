@@ -1,14 +1,9 @@
 /**
  * TheInvitation — The final moment. Act VII.
  *
- * One headline. Two paths. Nothing else.
- *
- * The brand name sits behind the headline as an enormous watermark —
- * low opacity, display serif, so it reads as texture rather than text.
- * The blush background (#F0E0D6) is warm and final without being loud.
- *
- * Features a magnetic button effect on the primary CTA — the button
- * subtly tracks the cursor position for a premium, alive feel.
+ * Closes the narrative arc with a single philosophical line, then the CTA.
+ * Features a magnetic button on the primary CTA and a slow ambient
+ * gradient animation on the background.
  *
  * Client Component — Framer Motion scroll-triggered entrance + magnetic CTA.
  */
@@ -66,12 +61,17 @@ export function TheInvitation() {
   return (
     <section
       id="booking"
-      className="relative overflow-hidden bg-hover min-h-screen flex items-center justify-center px-6 py-32"
+      className="relative overflow-hidden min-h-screen flex items-center justify-center px-6 py-32"
       aria-label="Book a session"
+      style={{
+        background: "linear-gradient(135deg, #f0e0d6 0%, #faf6f1 50%, #f3ece4 100%)",
+        backgroundSize: "200% 200%",
+        animation: "ambientGradient 20s ease infinite",
+      }}
     >
       {/* Watermark — brand name as background texture */}
       <p
-        className="absolute inset-0 flex items-center justify-center font-display text-[120px] sm:text-[180px] md:text-[240px] lg:text-[300px] font-light text-foreground/[0.04] leading-none select-none whitespace-nowrap pointer-events-none tracking-tight"
+        className="absolute inset-0 flex items-center justify-center font-display text-[120px] sm:text-[180px] md:text-[240px] lg:text-[300px] font-light text-foreground/[0.03] leading-none select-none whitespace-nowrap pointer-events-none tracking-tight"
         aria-hidden
       >
         T Creative
@@ -85,30 +85,37 @@ export function TheInvitation() {
         transition={{ duration: 1, ease: [0.16, 1, 0.3, 1] }}
       >
         <span className="text-[10px] tracking-[0.3em] uppercase text-muted mb-8 block">
-          Your Move.
+          Your Move
         </span>
 
-        <h2 className="font-display text-5xl sm:text-6xl md:text-7xl font-light tracking-tight text-foreground mb-8 leading-[1.05]">
+        <h2 className="font-display text-5xl sm:text-6xl md:text-7xl font-light tracking-tight text-foreground mb-6 leading-[1.05]">
           The studio is yours.
         </h2>
 
-        <p className="text-sm text-muted leading-relaxed mb-14 max-w-md mx-auto">
-          Whether you&apos;re booking your first lash set, designing a custom piece, or building the
-          systems your business needs — there&apos;s a place here, already made for you.
+        {/* Closing thesis — completes the narrative arc */}
+        <p className="font-display text-lg md:text-xl text-foreground/60 italic leading-relaxed mb-14 max-w-lg mx-auto">
+          Every transformation starts with a decision to begin.
         </p>
 
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
           <MagneticButton
             href="/book/tcreativestudio"
-            className="inline-flex items-center justify-center px-8 py-3.5 text-xs tracking-[0.2em] uppercase bg-foreground text-background hover:bg-foreground/85 transition-colors duration-300"
+            className="inline-flex items-center justify-center px-10 py-4 text-xs tracking-[0.2em] uppercase bg-foreground text-background hover:bg-foreground/85 transition-colors duration-300"
           >
-            Book a Session
+            Enter the Studio
           </MagneticButton>
           <Link
-            href="/services"
-            className="inline-flex items-center justify-center px-8 py-3.5 text-xs tracking-[0.2em] uppercase border border-foreground/20 text-foreground hover:border-foreground/50 transition-colors duration-300"
+            href="/portfolio"
+            className="inline-flex items-center gap-2 justify-center px-8 py-4 text-xs tracking-[0.2em] uppercase text-foreground hover:text-accent transition-colors duration-300 group"
           >
-            Explore the Ecosystem
+            See What&apos;s Possible
+            <motion.span
+              className="inline-block"
+              animate={{ x: [0, 4, 0] }}
+              transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+            >
+              →
+            </motion.span>
           </Link>
         </div>
       </motion.div>

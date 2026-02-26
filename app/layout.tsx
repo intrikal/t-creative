@@ -16,6 +16,9 @@ import { ConditionalNavbar } from "@/components/ConditionalNavbar";
 import { NavbarWrapper } from "@/components/NavbarWrapper";
 import { PostHogProvider } from "@/components/providers/PostHogProvider";
 import { SmoothScroll } from "@/components/providers/SmoothScroll";
+import { GrainOverlay } from "@/components/ui/GrainOverlay";
+import { LoadingScreen } from "@/components/ui/LoadingScreen";
+import { ScrollProgress } from "@/components/ui/ScrollProgress";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -106,6 +109,9 @@ export default function RootLayout({
           Skip to main content
         </a>
         <PostHogProvider>
+          <LoadingScreen />
+          <GrainOverlay />
+          <ScrollProgress />
           <ConditionalNavbar>
             <NavbarWrapper />
           </ConditionalNavbar>

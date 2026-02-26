@@ -1,24 +1,17 @@
 /**
- * EditorialPortfolio — Asymmetric 3-column portfolio grid with category filters. Act V.
+ * EditorialPortfolio — Asymmetric 3-column portfolio grid with loupe interaction. Act V.
  *
- * Layout philosophy:
- * - Three columns with deliberately different vertical offsets break the
- *   uniform grid template feeling.
- * - The centre column drifts upward as the user scrolls (subtle parallax),
- *   creating a sense of depth and motion.
- * - Images are 4:5 portrait ratio — editorial, not product thumbnail.
- * - Captions are hidden by default; they slide up on hover so the work
- *   speaks first.
- * - The section sits on a dark background (foreground colour) to echo
- *   the original Portfolio.tsx and visually punctuate the page rhythm.
- * - Category filter pills allow browsing by service type with layout
- *   animations via AnimatePresence.
+ * Layout: three columns with staggered vertical offsets. Centre column drifts
+ * upward on scroll. On hover, images scale within a circular mask that follows
+ * the cursor — like a jeweler's loupe — reinforcing "precision" and "craft."
+ *
+ * Category filters use a shared layoutId underline that slides between options.
  *
  * Client Component — Framer Motion scroll parallax + hover + layout animations.
  */
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, useCallback } from "react";
 import Link from "next/link";
 import { motion, useScroll, useTransform, AnimatePresence, LayoutGroup } from "framer-motion";
 
@@ -45,23 +38,66 @@ const WORK: WorkItem[] = [
 
 const CATEGORIES: Category[] = ["All", "Lash", "Skin", "Jewelry", "Craft"];
 
+/** Loupe interaction — circular magnification follows cursor on hover */
 function WorkCard({ item, delay = 0 }: { item: WorkItem; delay?: number }) {
+  const cardRef = useRef<HTMLDivElement>(null);
+  const [loupePos, setLoupePos] = useState({ x: 50, y: 50 });
+  const [isHovering, setIsHovering] = useState(false);
+
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    if (!cardRef.current) return;
+    const rect = cardRef.current.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
+    setLoupePos({ x, y });
+  }, []);
+
   return (
     <motion.div
+      ref={cardRef}
       layout
-      className="group relative overflow-hidden"
+      className="group relative overflow-hidden cursor-crosshair"
       initial={{ opacity: 0, scale: 0.96 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.96 }}
       transition={{ duration: 0.5, delay, ease: [0.16, 1, 0.3, 1] }}
+      onMouseEnter={() => setIsHovering(true)}
+      onMouseLeave={() => setIsHovering(false)}
+      onMouseMove={handleMouseMove}
     >
-      {/* Image placeholder — replace src with real <Image> when assets are ready */}
+      {/* Base image */}
       <div
-        className="aspect-[4/5] w-full transition-transform duration-700 ease-out group-hover:scale-[1.03]"
+        className="aspect-[4/5] w-full"
         style={{
           background: `linear-gradient(160deg, ${item.color}44 0%, ${item.color}18 60%, ${item.color}28 100%)`,
         }}
       />
+
+      {/* Loupe effect — circular magnified area following cursor */}
+      {isHovering && (
+        <div
+          className="absolute pointer-events-none transition-opacity duration-200"
+          style={{
+            left: `${loupePos.x}%`,
+            top: `${loupePos.y}%`,
+            transform: "translate(-50%, -50%)",
+            width: 120,
+            height: 120,
+            borderRadius: "50%",
+            border: "1px solid rgba(255,255,255,0.3)",
+            overflow: "hidden",
+            boxShadow: "0 0 24px rgba(0,0,0,0.15)",
+          }}
+        >
+          <div
+            className="w-full h-full"
+            style={{
+              background: `linear-gradient(160deg, ${item.color}88 0%, ${item.color}44 60%, ${item.color}58 100%)`,
+              transform: "scale(1.5)",
+            }}
+          />
+        </div>
+      )}
 
       {/* Caption — hidden, slides up on hover */}
       <div className="absolute inset-0 flex flex-col justify-end p-5 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-400 ease-out">
@@ -83,13 +119,11 @@ export function EditorialPortfolio() {
     offset: ["start end", "end start"],
   });
 
-  // Centre column drifts upward slightly as the section passes through viewport
   const centreY = useTransform(scrollYProgress, [0, 1], ["0px", "-48px"]);
 
   const filtered =
     activeCategory === "All" ? WORK : WORK.filter((w) => w.category === activeCategory);
 
-  // Distribute items into 3 columns
   const col1 = filtered.filter((_, i) => i % 3 === 0);
   const col2 = filtered.filter((_, i) => i % 3 === 1);
   const col3 = filtered.filter((_, i) => i % 3 === 2);
@@ -117,7 +151,7 @@ export function EditorialPortfolio() {
           </h2>
         </motion.div>
 
-        {/* Category filter pills */}
+        {/* Category filters with sliding underline */}
         <motion.div
           className="flex flex-wrap gap-2 mb-16 md:mb-24"
           initial={{ opacity: 0, y: 16 }}
@@ -129,13 +163,20 @@ export function EditorialPortfolio() {
             <button
               key={cat}
               onClick={() => setActiveCategory(cat)}
-              className={`px-4 py-2 text-[10px] tracking-[0.2em] uppercase transition-all duration-300 border ${
+              className={`relative px-4 py-2 text-[10px] tracking-[0.2em] uppercase transition-colors duration-300 ${
                 activeCategory === cat
-                  ? "border-background/60 text-background bg-background/10"
-                  : "border-background/15 text-background/40 hover:text-background/70 hover:border-background/30"
+                  ? "text-background"
+                  : "text-background/40 hover:text-background/70"
               }`}
             >
               {cat}
+              {activeCategory === cat && (
+                <motion.div
+                  layoutId="portfolio-filter-underline"
+                  className="absolute bottom-0 left-0 right-0 h-px bg-accent"
+                  transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                />
+              )}
             </button>
           ))}
         </motion.div>
@@ -143,7 +184,6 @@ export function EditorialPortfolio() {
         {/* Asymmetric 3-column grid */}
         <LayoutGroup>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
-            {/* Column 1 — standard vertical offset */}
             <div className="flex flex-col gap-3 md:gap-4">
               <AnimatePresence mode="popLayout">
                 {col1.map((item, i) => (
@@ -152,7 +192,6 @@ export function EditorialPortfolio() {
               </AnimatePresence>
             </div>
 
-            {/* Column 2 — offset down + scroll parallax */}
             <motion.div style={{ y: centreY }} className="flex flex-col gap-3 md:gap-4 md:mt-16">
               <AnimatePresence mode="popLayout">
                 {col2.map((item, i) => (
@@ -161,7 +200,6 @@ export function EditorialPortfolio() {
               </AnimatePresence>
             </motion.div>
 
-            {/* Column 3 — half-step offset (hidden on mobile) */}
             <div className="hidden md:flex flex-col gap-4 mt-8">
               <AnimatePresence mode="popLayout">
                 {col3.map((item, i) => (

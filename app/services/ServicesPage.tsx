@@ -1,13 +1,72 @@
 /**
- * ServicesPage — Full service catalog with corrected pricing and crochet hair installs.
+ * ServicesPage — Full service catalog, driven by database with hardcoded fallback.
  */
 "use client";
 
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { Footer } from "@/components/landing/Footer";
+import type { PublicService } from "./actions";
 
-const categories = [
+/* ------------------------------------------------------------------ */
+/*  Category display config                                            */
+/* ------------------------------------------------------------------ */
+
+const CATEGORY_META: Record<string, { label: string; color: string; note?: string }> = {
+  lash: { label: "Lash Extensions", color: "#C4907A" },
+  jewelry: {
+    label: "Permanent Jewelry",
+    color: "#D4A574",
+    note: "All chains are 14k gold-filled, nickel-free, and waterproof. No clasp — welded on-site.",
+  },
+  crochet: { label: "Custom Crochet Crafts", color: "#9BB8B8" },
+  consulting: {
+    label: "Business Consulting",
+    color: "#5B8A8A",
+    note: "All consulting services are available remotely. Contact for scheduling and quote.",
+  },
+  "3d_printing": { label: "3D Printing", color: "#8B7DAF" },
+  aesthetics: { label: "Aesthetics", color: "#B8927A" },
+};
+
+/** Display order for categories on the public page. */
+const CATEGORY_ORDER = ["lash", "jewelry", "crochet", "consulting", "3d_printing", "aesthetics"];
+
+/* ------------------------------------------------------------------ */
+/*  Price formatting                                                   */
+/* ------------------------------------------------------------------ */
+
+function formatCents(cents: number): string {
+  const dollars = cents / 100;
+  return dollars % 1 === 0 ? `$${dollars}` : `$${dollars.toFixed(2)}`;
+}
+
+function formatPrice(service: PublicService): string {
+  const { priceInCents, priceMinInCents, priceMaxInCents } = service;
+
+  if (priceMinInCents != null && priceMaxInCents != null) {
+    return `${formatCents(priceMinInCents)}–${formatCents(priceMaxInCents)}`;
+  }
+  if (priceMinInCents != null) {
+    return `From ${formatCents(priceMinInCents)}`;
+  }
+  if (priceInCents != null) {
+    if (priceInCents === 0) return "Free";
+    return formatCents(priceInCents);
+  }
+  return "Quote";
+}
+
+function formatDuration(minutes: number | null): string {
+  if (!minutes) return "";
+  return `${minutes} min`;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Hardcoded fallback (shown when DB is empty)                        */
+/* ------------------------------------------------------------------ */
+
+const FALLBACK_CATEGORIES = [
   {
     name: "Lash Extensions",
     color: "#C4907A",
@@ -117,52 +176,6 @@ const categories = [
     ],
   },
   {
-    name: "Crochet Hair",
-    color: "#7BA3A3",
-    note: "All installs use high-quality crochet hair. Price depends on style, length, and density. Book a consultation to confirm.",
-    services: [
-      {
-        name: "Box Braids Install",
-        description:
-          "Classic box braids in any size — small, medium, or jumbo. Shoulder to waist length.",
-        price: "$80–$180",
-        duration: "",
-      },
-      {
-        name: "Knotless Box Braids",
-        description:
-          "Feed-in style for a lighter, more natural-looking root. Less tension, longer wear.",
-        price: "$100–$200",
-        duration: "",
-      },
-      {
-        name: "Goddess Locs",
-        description: "Wavy bohemian locs with soft, flowing ends. Customizable length and density.",
-        price: "$100–$220",
-        duration: "",
-      },
-      {
-        name: "Havana Twists",
-        description: "Full, chunky twists with a natural matte texture. Bold and long-lasting.",
-        price: "$80–$160",
-        duration: "",
-      },
-      {
-        name: "Faux Locs",
-        description:
-          "Distressed or smooth faux locs in various lengths. Can be styled up or worn down.",
-        price: "$100–$200",
-        duration: "",
-      },
-      {
-        name: "Spring Twists / Passion Twists",
-        description: "Lightweight, springy twists with a bohemian feel. Great for summer.",
-        price: "$80–$160",
-        duration: "",
-      },
-    ],
-  },
-  {
     name: "Custom Crochet Crafts",
     color: "#9BB8B8",
     services: [
@@ -228,7 +241,47 @@ const categories = [
   },
 ];
 
-export function ServicesPage() {
+/* ------------------------------------------------------------------ */
+/*  Component                                                          */
+/* ------------------------------------------------------------------ */
+
+type ServiceCategory = {
+  name: string;
+  color: string;
+  note?: string;
+  services: { name: string; description: string; price: string; duration: string }[];
+};
+
+function groupByCategory(dbServices: PublicService[]): ServiceCategory[] {
+  const grouped = new Map<string, PublicService[]>();
+
+  for (const s of dbServices) {
+    const list = grouped.get(s.category) ?? [];
+    list.push(s);
+    grouped.set(s.category, list);
+  }
+
+  return CATEGORY_ORDER.filter((cat) => grouped.has(cat)).map((cat) => {
+    const meta = CATEGORY_META[cat] ?? { label: cat, color: "#888" };
+    const items = grouped.get(cat)!;
+    return {
+      name: meta.label,
+      color: meta.color,
+      note: meta.note,
+      services: items.map((s) => ({
+        name: s.name,
+        description: s.description ?? "",
+        price: formatPrice(s),
+        duration: formatDuration(s.durationMinutes),
+      })),
+    };
+  });
+}
+
+export function ServicesPage({ services }: { services: PublicService[] }) {
+  const categories: ServiceCategory[] =
+    services.length > 0 ? groupByCategory(services) : FALLBACK_CATEGORIES;
+
   return (
     <>
       <main id="main-content" className="pt-16">
@@ -257,8 +310,8 @@ export function ServicesPage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.2 }}
             >
-              From lash extensions to permanent jewelry, crochet hair installs, handcrafted pieces,
-              and business consulting — every service is crafted with intention and care.
+              From lash extensions to permanent jewelry, handcrafted pieces, and business consulting
+              — every service is crafted with intention and care.
             </motion.p>
           </div>
         </section>
@@ -288,13 +341,13 @@ export function ServicesPage() {
                     </h2>
                     <span className="text-xs text-muted">{category.services.length} services</span>
                   </div>
-                  {"note" in category && category.note && (
+                  {category.note && (
                     <p className="text-xs text-muted mb-8 max-w-xl">{category.note}</p>
                   )}
                 </div>
               </motion.div>
 
-              {!("note" in category && category.note) && <div className="mb-12" />}
+              {!category.note && <div className="mb-12" />}
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {category.services.map((service, i) => (

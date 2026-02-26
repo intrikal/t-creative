@@ -1,25 +1,18 @@
 /**
- * Testimonials — Editorial single-quote display with dot navigation. Act VI.
+ * Testimonials — Full-bleed typographic quote display. Act VI.
  *
- * One featured review shown at a time. The client name and service sit
- * beneath the quote in small uppercase — the typography hierarchy lets
- * the words do the work, not the chrome.
+ * One review fills 70% of viewport width in editorial serif. Transitions
+ * between quotes use a word-by-word stagger — each word fades out in sequence
+ * (left to right), then the new quote assembles the same way.
  *
- * Features:
- * - Auto-advance every 6 seconds (pauses on hover/focus)
- * - Progress bar under dots fills over the interval
- * - Parallax quote mark drifts at 0.5x scroll speed
+ * Auto-advance every 6 seconds. Pauses on hover/focus.
  *
- * Reviews are pulled from the shared mock data in `lib/data/reviews.ts`.
- * Only reviews with `status === "featured"` appear here.
- *
- * Client Component — Framer Motion AnimatePresence cross-fade.
+ * Client Component — Framer Motion AnimatePresence word-stagger.
  */
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { motion, AnimatePresence, useScroll, useTransform } from "framer-motion";
-import { SectionWrapper } from "@/components/ui/SectionWrapper";
+import { motion, AnimatePresence } from "framer-motion";
 import { MOCK_REVIEWS } from "@/lib/data/reviews";
 
 const AUTO_ADVANCE_MS = 6000;
@@ -32,30 +25,44 @@ const serviceLabel: Record<string, string> = {
   training: "Training",
 };
 
-// TODO: replace with DB query — fetch reviews where status = 'featured'
 const featuredReviews = MOCK_REVIEWS.filter((r) => r.status === "featured");
+
+/** Split text into words, preserving spaces for natural flow */
+function WordStagger({ text }: { text: string }) {
+  const words = text.split(" ");
+  return (
+    <>
+      {words.map((word, i) => (
+        <motion.span
+          key={`${word}-${i}`}
+          className="inline-block mr-[0.3em]"
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -8 }}
+          transition={{
+            duration: 0.4,
+            delay: i * 0.03,
+            ease: [0.16, 1, 0.3, 1],
+          }}
+        >
+          {word}
+        </motion.span>
+      ))}
+    </>
+  );
+}
 
 export function Testimonials() {
   const [active, setActive] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const [progress, setProgress] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const sectionRef = useRef<HTMLDivElement>(null);
-
-  const { scrollYProgress } = useScroll({
-    target: sectionRef,
-    offset: ["start end", "end start"],
-  });
-
-  // Parallax quote mark — drifts at 0.5x scroll speed
-  const quoteY = useTransform(scrollYProgress, [0, 1], ["0px", "-40px"]);
 
   const advance = useCallback(() => {
     setActive((prev) => (prev + 1) % featuredReviews.length);
     setProgress(0);
   }, []);
 
-  // Auto-advance timer
   useEffect(() => {
     if (isPaused || featuredReviews.length <= 1) return;
 
@@ -79,10 +86,13 @@ export function Testimonials() {
   const review = featuredReviews[active];
 
   return (
-    <SectionWrapper id="testimonials" className="py-32 md:py-48 px-6 bg-background">
+    <section
+      id="testimonials"
+      className="py-32 md:py-48 px-6 bg-background overflow-hidden"
+      aria-label="Client testimonials"
+    >
       <div
-        ref={sectionRef}
-        className="mx-auto max-w-3xl"
+        className="mx-auto max-w-5xl"
         onMouseEnter={() => setIsPaused(true)}
         onMouseLeave={() => setIsPaused(false)}
         onFocus={() => setIsPaused(true)}
@@ -99,77 +109,78 @@ export function Testimonials() {
           What clients say
         </motion.span>
 
-        {/* Single quote with cross-fade */}
-        <div className="relative min-h-[200px] flex items-center justify-center">
+        {/* Full-bleed typographic quote */}
+        <div className="relative min-h-[280px] md:min-h-[320px] flex items-center justify-center">
           <AnimatePresence mode="wait">
             <motion.div
               key={review.id}
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -16 }}
-              transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
-              className="text-center"
+              className="text-center w-full"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.3 }}
             >
-              {/* Opening mark — parallax drift */}
-              <motion.span
-                style={{ y: quoteY }}
-                className="font-display text-7xl md:text-9xl text-accent/15 font-light leading-none select-none block -mb-6 md:-mb-10"
-                aria-hidden
-              >
-                &ldquo;
-              </motion.span>
-
-              <blockquote className="font-display text-2xl md:text-3xl lg:text-4xl font-light italic text-foreground leading-[1.4] tracking-tight max-w-2xl mx-auto">
-                {review.text}
+              <blockquote className="font-display text-2xl sm:text-3xl md:text-4xl lg:text-[42px] font-light italic text-foreground leading-[1.35] tracking-tight max-w-4xl mx-auto mb-10">
+                <span className="text-accent/20 font-display text-5xl md:text-6xl not-italic leading-none mr-1">
+                  &ldquo;
+                </span>
+                <WordStagger text={review.text} />
+                <span className="text-accent/20 font-display text-5xl md:text-6xl not-italic leading-none ml-1">
+                  &rdquo;
+                </span>
               </blockquote>
 
-              <div className="mt-8 flex flex-col items-center gap-1">
-                <p className="text-sm font-medium tracking-wide text-foreground">{review.client}</p>
-                <p className="text-[10px] tracking-[0.25em] uppercase text-muted">
+              <motion.div
+                className="flex flex-col items-center gap-1"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: 0.4 }}
+              >
+                <p className="text-xs tracking-[0.25em] uppercase text-foreground font-medium">
+                  {review.client}
+                </p>
+                <p className="text-[10px] tracking-[0.3em] uppercase text-muted">
                   {serviceLabel[review.service] ?? review.service}
                 </p>
-              </div>
+              </motion.div>
             </motion.div>
           </AnimatePresence>
         </div>
 
-        {/* Dot navigation with progress indicator */}
+        {/* Dot navigation with progress */}
         {featuredReviews.length > 1 && (
-          <div className="flex flex-col items-center gap-4 mt-14">
-            <div className="flex items-center justify-center gap-3">
-              {featuredReviews.map((_, i) => (
-                <button
-                  key={i}
-                  onClick={() => {
-                    setActive(i);
-                    setProgress(0);
+          <div className="flex items-center justify-center gap-3 mt-16">
+            {featuredReviews.map((_, i) => (
+              <button
+                key={i}
+                onClick={() => {
+                  setActive(i);
+                  setProgress(0);
+                }}
+                aria-label={`Review ${i + 1}`}
+                className="group p-1"
+              >
+                <motion.div
+                  animate={{
+                    width: i === active ? 32 : 6,
+                    backgroundColor: i === active ? "#96604a" : "#6b5d52",
+                    opacity: i === active ? 1 : 0.3,
                   }}
-                  aria-label={`Review ${i + 1}`}
-                  className="group p-1"
+                  transition={{ duration: 0.3, ease: "easeInOut" }}
+                  className="h-[2px] rounded-full relative overflow-hidden"
                 >
-                  <motion.div
-                    animate={{
-                      width: i === active ? 24 : 6,
-                      backgroundColor: i === active ? "#96604a" : "#6b5d52",
-                      opacity: i === active ? 1 : 0.35,
-                    }}
-                    transition={{ duration: 0.3, ease: "easeInOut" }}
-                    className="h-px rounded-full relative overflow-hidden"
-                  >
-                    {/* Progress fill on active dot */}
-                    {i === active && (
-                      <motion.div
-                        className="absolute inset-y-0 left-0 bg-[#96604a]"
-                        style={{ width: `${progress * 100}%` }}
-                      />
-                    )}
-                  </motion.div>
-                </button>
-              ))}
-            </div>
+                  {i === active && (
+                    <motion.div
+                      className="absolute inset-y-0 left-0 bg-accent"
+                      style={{ width: `${progress * 100}%` }}
+                    />
+                  )}
+                </motion.div>
+              </button>
+            ))}
           </div>
         )}
       </div>
-    </SectionWrapper>
+    </section>
   );
 }

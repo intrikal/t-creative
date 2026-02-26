@@ -1,8 +1,11 @@
 /**
- * Training — Server Component route wrapper with metadata.
+ * Training — Server Component route wrapper with metadata and ISR.
  */
 import type { Metadata } from "next";
+import { getPublishedPrograms } from "./actions";
 import { TrainingPage } from "./TrainingPage";
+
+export const revalidate = 3600;
 
 export const metadata: Metadata = {
   title: "Training Programs | Lash & Permanent Jewelry Certification | T Creative Studio",
@@ -24,6 +27,7 @@ export const metadata: Metadata = {
   },
 };
 
-export default function Page() {
-  return <TrainingPage />;
+export default async function Page() {
+  const programs = await getPublishedPrograms();
+  return <TrainingPage programs={programs} />;
 }

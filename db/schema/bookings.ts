@@ -97,6 +97,9 @@ export const bookings = pgTable(
     /** Zoho CRM project/deal ID for consulting engagements. */
     zohoProjectId: varchar("zoho_project_id", { length: 100 }),
 
+    /** Zoho Books invoice ID for accounting reconciliation. */
+    zohoInvoiceId: varchar("zoho_invoice_id", { length: 100 }),
+
     /* ------ Lifecycle timestamps ------ */
 
     confirmedAt: timestamp("confirmed_at", { withTimezone: true }),

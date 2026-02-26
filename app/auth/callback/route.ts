@@ -35,6 +35,7 @@ import { profiles } from "@/db/schema";
 import { isOnboardingComplete } from "@/lib/auth";
 import { verifyInviteToken } from "@/lib/invite";
 import { identifyUser, trackEvent } from "@/lib/posthog";
+import { upsertZohoContact } from "@/lib/zoho";
 import { createClient } from "@/utils/supabase/server";
 
 /**
@@ -181,6 +182,18 @@ export async function GET(request: Request) {
     method: "oauth",
     hasInvite: !!invite,
   });
+
+  // Zoho CRM: create/update contact on sign-up
+  if (isNewUser) {
+    upsertZohoContact({
+      profileId: user.id,
+      email: user.email!,
+      firstName: profile?.firstName || user.email!.split("@")[0],
+      role: effectiveRole,
+      isVip: profile?.isVip ?? false,
+      source: profile?.source ?? undefined,
+    });
+  }
 
   // Admins need minimal onboarding (just name) before accessing the dashboard
   if (assignedAdmin || profile?.role === "admin") {

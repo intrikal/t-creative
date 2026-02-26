@@ -40,6 +40,7 @@ import { BookingReschedule } from "@/emails/BookingReschedule";
 import { trackEvent } from "@/lib/posthog";
 import { sendEmail } from "@/lib/resend";
 import { isSquareConfigured, createSquareOrder } from "@/lib/square";
+import { createZohoDeal, updateZohoDeal } from "@/lib/zoho";
 import { createClient } from "@/utils/supabase/server";
 
 export type BookingStatus =
@@ -183,6 +184,15 @@ export async function updateBookingStatus(
     ...(cancellationReason ? { cancellationReason } : {}),
   });
 
+  // Zoho CRM: update deal stage
+  if (status === "completed") {
+    updateZohoDeal(id, "Closed Won");
+  } else if (status === "cancelled") {
+    updateZohoDeal(id, "Closed Lost");
+  } else if (status === "confirmed") {
+    updateZohoDeal(id, "Confirmed");
+  }
+
   revalidatePath("/dashboard/bookings");
 }
 
@@ -217,6 +227,29 @@ export async function createBooking(input: BookingInput): Promise<void> {
     totalInCents: input.totalInCents,
     location: input.location ?? null,
   });
+
+  // Zoho CRM: create deal for admin-created booking
+  const [clientForZoho] = await db
+    .select({ email: profiles.email, firstName: profiles.firstName })
+    .from(profiles)
+    .where(eq(profiles.id, input.clientId))
+    .limit(1);
+
+  const [serviceForZoho] = await db
+    .select({ name: services.name })
+    .from(services)
+    .where(eq(services.id, input.serviceId))
+    .limit(1);
+
+  if (clientForZoho) {
+    createZohoDeal({
+      contactEmail: clientForZoho.email,
+      dealName: `${serviceForZoho?.name ?? "Appointment"} — ${clientForZoho.firstName}`,
+      stage: "Confirmed",
+      amountInCents: input.totalInCents,
+      bookingId: newBooking.id,
+    });
+  }
 
   revalidatePath("/dashboard/bookings");
 }

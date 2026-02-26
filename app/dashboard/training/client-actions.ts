@@ -10,8 +10,10 @@ import {
   trainingLessons,
   enrollments,
   certificates,
+  profiles,
 } from "@/db/schema";
 import { trackEvent } from "@/lib/posthog";
+import { createZohoDeal } from "@/lib/zoho";
 import { createClient } from "@/utils/supabase/server";
 
 const PATH = "/dashboard/training";
@@ -380,6 +382,29 @@ export async function clientEnroll(programId: number) {
   });
 
   trackEvent(user.id, "training_enrolled", { programId });
+
+  // Zoho CRM: create deal for training enrollment
+  const [program] = await db
+    .select({ name: trainingPrograms.name, priceInCents: trainingPrograms.priceInCents })
+    .from(trainingPrograms)
+    .where(eq(trainingPrograms.id, programId))
+    .limit(1);
+
+  const [clientProfile] = await db
+    .select({ email: profiles.email, firstName: profiles.firstName })
+    .from(profiles)
+    .where(eq(profiles.id, user.id))
+    .limit(1);
+
+  if (clientProfile) {
+    createZohoDeal({
+      contactEmail: clientProfile.email,
+      dealName: `Training: ${program?.name ?? "Program"} — ${clientProfile.firstName}`,
+      stage: "Enrolled",
+      amountInCents: program?.priceInCents ?? undefined,
+      pipeline: "Training",
+    });
+  }
 
   revalidatePath(PATH);
 }

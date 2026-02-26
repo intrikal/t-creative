@@ -6,6 +6,7 @@ import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
 import { bookings, bookingAddOns, services, profiles, reviews } from "@/db/schema";
 import { trackEvent } from "@/lib/posthog";
+import { updateZohoDeal, logZohoNote } from "@/lib/zoho";
 import { createClient } from "@/utils/supabase/server";
 
 const PATH = "/dashboard/bookings";
@@ -215,6 +216,13 @@ export async function submitClientReview(data: {
     hasComment: !!data.comment,
   });
 
+  // Zoho CRM: add review as note on contact
+  logZohoNote(
+    user.id,
+    `Review: ${service?.name ?? "Service"} (${data.rating}/5)`,
+    data.comment || "(No comment)",
+  );
+
   revalidatePath(PATH);
 }
 
@@ -253,6 +261,9 @@ export async function cancelClientBooking(bookingId: number) {
     bookingId,
     previousStatus: booking.status,
   });
+
+  // Zoho CRM: mark deal as lost
+  updateZohoDeal(bookingId, "Closed Lost");
 
   revalidatePath(PATH);
 }

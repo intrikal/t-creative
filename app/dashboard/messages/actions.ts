@@ -24,6 +24,7 @@ import {
 import { MessageNotification } from "@/emails/MessageNotification";
 import { trackEvent } from "@/lib/posthog";
 import { sendEmail } from "@/lib/resend";
+import { createZohoDeal } from "@/lib/zoho";
 import { createClient } from "@/utils/supabase/server";
 
 /* ------------------------------------------------------------------ */
@@ -671,6 +672,15 @@ export async function createBookingRequest(input: {
     serviceName: service.name,
     bookingId: booking.id,
     hasPreferredDates: !!input.preferredDates,
+  });
+
+  // Zoho CRM: create deal for the booking request
+  createZohoDeal({
+    contactEmail: user.email!,
+    dealName: `${service.name} — Booking Request`,
+    stage: "Request Submitted",
+    amountInCents: service.priceInCents ?? undefined,
+    bookingId: booking.id,
   });
 
   revalidatePath("/dashboard/messages");

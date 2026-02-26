@@ -16,6 +16,7 @@ import { OrderConfirmation } from "@/emails/OrderConfirmation";
 import { trackEvent } from "@/lib/posthog";
 import { sendEmail } from "@/lib/resend";
 import { isSquareConfigured, createSquareOrderPaymentLink } from "@/lib/square";
+import { createZohoDeal } from "@/lib/zoho";
 import { createClient } from "@/utils/supabase/server";
 
 /* ------------------------------------------------------------------ */
@@ -293,6 +294,19 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
     fulfillmentMethod: input.fulfillmentMethod,
     hasPaymentLink: !!paymentUrl,
   });
+
+  // Zoho CRM: create deal for shop order
+  if (clientProfile?.email) {
+    const itemNames = lineItems.map((i) => i.name).join(", ");
+    createZohoDeal({
+      contactEmail: clientProfile.email,
+      dealName: `Shop Order ${orderNumber} — ${itemNames}`,
+      stage: "Closed Won",
+      amountInCents: totalInCents,
+      pipeline: "Shop",
+      externalId: orderNumber,
+    });
+  }
 
   revalidatePath("/shop");
   revalidatePath("/dashboard/marketplace");

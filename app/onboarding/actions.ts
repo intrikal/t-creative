@@ -59,6 +59,7 @@ import {
 } from "@/lib/onboarding-schema";
 import { trackEvent } from "@/lib/posthog";
 import { sendEmail } from "@/lib/resend";
+import { upsertZohoContact } from "@/lib/zoho";
 import { createClient } from "@/utils/supabase/server";
 
 export async function saveOnboardingData(
@@ -729,6 +730,24 @@ export async function saveOnboardingData(
       source,
       hasReferral: !!referredBy,
       hasBirthday: !!birthday?.trim(),
+    });
+
+    // Zoho CRM: enrich contact with full onboarding data
+    upsertZohoContact({
+      profileId: user.id,
+      email,
+      firstName,
+      lastName: lastName || undefined,
+      phone: phone || undefined,
+      source: source ?? undefined,
+      role: "client",
+      description: [
+        interests.length > 0 ? `Interests: ${interests.join(", ")}` : null,
+        birthday?.trim() ? `Birthday: ${birthday}` : null,
+        referredBy ? "Referred client" : null,
+      ]
+        .filter(Boolean)
+        .join(" | "),
     });
   }
 }

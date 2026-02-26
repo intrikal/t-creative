@@ -137,12 +137,8 @@ export async function proxy(request: NextRequest) {
       return NextResponse.redirect(url);
     }
 
-    // Redirect authenticated users from the landing page to their dashboard
-    if (request.nextUrl.pathname === "/") {
-      const url = request.nextUrl.clone();
-      url.pathname = "/dashboard";
-      return NextResponse.redirect(url);
-    }
+    // Allow authenticated users to browse the marketing landing page.
+    // The Navbar shows their avatar + a "Dashboard" link instead of "Sign In".
   } else if (
     request.nextUrl.pathname.startsWith("/admin") ||
     request.nextUrl.pathname.startsWith("/dashboard")

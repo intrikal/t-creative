@@ -25,11 +25,12 @@
  */
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
+import { TCLogo } from "./TCLogo";
 
 /** All top-level navigation destinations. Update this array to add/remove links. */
 const navLinks = [
@@ -52,8 +53,22 @@ type NavbarProps = {
 };
 
 export function Navbar({ user = null }: NavbarProps) {
-  /** Controls whether the mobile drawer is visible. Toggled by the hamburger button. */
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const profileRef = useRef<HTMLDivElement>(null);
+
+  // Close profile menu when clicking outside
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (profileRef.current && !profileRef.current.contains(e.target as Node)) {
+        setProfileOpen(false);
+      }
+    }
+    if (profileOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [profileOpen]);
 
   /**
    * The current URL path (e.g. "/services").
@@ -66,8 +81,11 @@ export function Navbar({ user = null }: NavbarProps) {
     <nav className="fixed top-0 left-0 right-0 z-50 bg-background/90 backdrop-blur-md border-b border-foreground/5">
       <div className="mx-auto max-w-7xl px-6 flex items-center justify-between h-16">
         {/* Brand — always visible, links back to home */}
-        <Link href="/" className="text-sm font-medium tracking-wide text-foreground">
-          T Creative Studio
+        <Link href="/" className="flex items-center gap-2 text-foreground">
+          <TCLogo size={32} />
+          <span className="text-sm font-medium tracking-wide hidden sm:inline">
+            T Creative Studio
+          </span>
         </Link>
 
         {/* Desktop links — hidden on mobile (< lg), visible on large screens */}
@@ -88,23 +106,67 @@ export function Navbar({ user = null }: NavbarProps) {
         {/* Desktop CTA + auth — hidden on mobile */}
         <div className="hidden lg:flex items-center gap-4">
           {user ? (
-            // Logged-in state: show the user's name and a sign-out button
-            <>
-              <span className="text-xs text-muted">{user.name}</span>
-              {/*
-               * Sign out uses a native HTML form POST to /auth/signout.
-               * This avoids client-side JS for the sign-out action and works even
-               * if JavaScript is disabled, improving reliability.
-               */}
-              <form action="/auth/signout" method="POST">
-                <button
-                  type="submit"
-                  className="text-xs tracking-wide text-muted hover:text-foreground transition-colors duration-200"
-                >
-                  Sign Out
-                </button>
-              </form>
-            </>
+            <div className="relative" ref={profileRef}>
+              <button
+                onClick={() => setProfileOpen(!profileOpen)}
+                className="flex-shrink-0 rounded-full focus:outline-none focus:ring-2 focus:ring-foreground/20"
+                aria-label="Profile menu"
+              >
+                {user.avatarUrl ? (
+                  <Image
+                    src={user.avatarUrl}
+                    alt={user.name}
+                    width={32}
+                    height={32}
+                    className="rounded-full object-cover"
+                  />
+                ) : (
+                  <div className="w-8 h-8 rounded-full bg-foreground/10 flex items-center justify-center text-xs font-medium text-foreground">
+                    {user.name.charAt(0).toUpperCase()}
+                  </div>
+                )}
+              </button>
+              <AnimatePresence>
+                {profileOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 4 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute right-0 mt-2 w-48 bg-background border border-foreground/10 shadow-lg rounded-md py-1 z-50"
+                  >
+                    <div className="px-4 py-2 border-b border-foreground/10">
+                      <p className="text-xs font-medium text-foreground truncate">{user.name}</p>
+                    </div>
+                    {[
+                      { label: "Dashboard", href: "/dashboard" },
+                      { label: "My Bookings", href: "/dashboard/bookings" },
+                      { label: "Messages", href: "/dashboard/messages" },
+                      { label: "Account Settings", href: "/dashboard/settings" },
+                    ].map((item) => (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        className="block px-4 py-2 text-xs text-muted hover:text-foreground hover:bg-foreground/5 transition-colors"
+                        onClick={() => setProfileOpen(false)}
+                      >
+                        {item.label}
+                      </Link>
+                    ))}
+                    <div className="border-t border-foreground/10">
+                      <form action="/auth/signout" method="POST">
+                        <button
+                          type="submit"
+                          className="w-full text-left px-4 py-2 text-xs text-muted hover:text-foreground hover:bg-foreground/5 transition-colors"
+                        >
+                          Sign Out
+                        </button>
+                      </form>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           ) : (
             <Link
               href="/login"
@@ -187,14 +249,47 @@ export function Navbar({ user = null }: NavbarProps) {
               {/* Auth and CTA section, visually separated by a top border */}
               <div className="pt-4 border-t border-foreground/10 flex flex-col gap-3">
                 {user ? (
-                  <form action="/auth/signout" method="POST">
-                    <button
-                      type="submit"
-                      className="w-full text-left text-sm text-muted hover:text-foreground transition-colors"
-                    >
-                      Sign Out ({user.name})
-                    </button>
-                  </form>
+                  <div className="flex flex-col gap-3">
+                    <div className="flex items-center gap-3 pb-2">
+                      {user.avatarUrl ? (
+                        <Image
+                          src={user.avatarUrl}
+                          alt={user.name}
+                          width={28}
+                          height={28}
+                          className="rounded-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-7 h-7 rounded-full bg-foreground/10 flex items-center justify-center text-xs font-medium text-foreground">
+                          {user.name.charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                      <span className="text-sm font-medium text-foreground">{user.name}</span>
+                    </div>
+                    {[
+                      { label: "Dashboard", href: "/dashboard" },
+                      { label: "My Bookings", href: "/dashboard/bookings" },
+                      { label: "Messages", href: "/dashboard/messages" },
+                      { label: "Account Settings", href: "/dashboard/settings" },
+                    ].map((item) => (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        className="text-sm text-muted hover:text-foreground transition-colors pl-10"
+                        onClick={() => setMobileOpen(false)}
+                      >
+                        {item.label}
+                      </Link>
+                    ))}
+                    <form action="/auth/signout" method="POST">
+                      <button
+                        type="submit"
+                        className="w-full text-left text-sm text-muted hover:text-foreground transition-colors pl-10"
+                      >
+                        Sign Out
+                      </button>
+                    </form>
+                  </div>
                 ) : (
                   <Link
                     href="/login"

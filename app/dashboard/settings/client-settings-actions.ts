@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { profiles } from "@/db/schema";
+import { syncCampaignsSubscriber, unsubscribeFromCampaigns } from "@/lib/zoho-campaigns";
 import { createClient } from "@/utils/supabase/server";
 
 const PATH = "/dashboard/settings";
@@ -162,6 +163,48 @@ export async function saveClientNotifications(prefs: ClientNotifications) {
       notifyMarketing: prefs.notifyMarketing,
     })
     .where(eq(profiles.id, user.id));
+
+  // Zoho Campaigns: sync or unsub based on marketing preference
+  if (prefs.notifyMarketing) {
+    const [profile] = await db
+      .select({
+        email: profiles.email,
+        firstName: profiles.firstName,
+        lastName: profiles.lastName,
+        isVip: profiles.isVip,
+        source: profiles.source,
+        tags: profiles.tags,
+        onboardingData: profiles.onboardingData,
+      })
+      .from(profiles)
+      .where(eq(profiles.id, user.id))
+      .limit(1);
+
+    if (profile) {
+      const onboarding = (profile.onboardingData ?? {}) as Record<string, unknown>;
+      const interests = Array.isArray(onboarding.interests)
+        ? (onboarding.interests as string[]).join(", ")
+        : undefined;
+      const birthday =
+        typeof onboarding.birthday === "string" && onboarding.birthday.trim()
+          ? onboarding.birthday
+          : undefined;
+
+      syncCampaignsSubscriber({
+        profileId: user.id,
+        email: profile.email,
+        firstName: profile.firstName,
+        lastName: profile.lastName || undefined,
+        isVip: profile.isVip,
+        source: profile.source ?? undefined,
+        tags: profile.tags ?? undefined,
+        interests,
+        birthday,
+      });
+    }
+  } else {
+    unsubscribeFromCampaigns(user.id);
+  }
 
   revalidatePath(PATH);
 }

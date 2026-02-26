@@ -60,6 +60,7 @@ import {
 import { trackEvent } from "@/lib/posthog";
 import { sendEmail } from "@/lib/resend";
 import { upsertZohoContact } from "@/lib/zoho";
+import { syncCampaignsSubscriber } from "@/lib/zoho-campaigns";
 import { createClient } from "@/utils/supabase/server";
 
 export async function saveOnboardingData(
@@ -749,5 +750,18 @@ export async function saveOnboardingData(
         .filter(Boolean)
         .join(" | "),
     });
+
+    // Zoho Campaigns: sync subscriber if marketing opt-in
+    if (notifications.marketing) {
+      syncCampaignsSubscriber({
+        profileId: user.id,
+        email,
+        firstName,
+        lastName: lastName || undefined,
+        source: source ?? undefined,
+        interests: interests.join(", "),
+        birthday: birthday?.trim() || undefined,
+      });
+    }
   }
 }

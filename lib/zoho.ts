@@ -11,60 +11,17 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { profiles, bookings, syncLog } from "@/db/schema";
+import { isZohoAuthConfigured, getZohoAccessToken } from "@/lib/zoho-auth";
 
 /* ------------------------------------------------------------------ */
 /*  Configuration                                                      */
 /* ------------------------------------------------------------------ */
 
-const clientId = process.env.ZOHO_CLIENT_ID;
-const clientSecret = process.env.ZOHO_CLIENT_SECRET;
-const refreshToken = process.env.ZOHO_REFRESH_TOKEN;
 const apiDomain = process.env.ZOHO_API_DOMAIN || "https://www.zohoapis.com";
-const accountsUrl = "https://accounts.zoho.com";
 
 /** Whether Zoho CRM integration is configured. */
 export function isZohoConfigured(): boolean {
-  return !!(clientId && clientSecret && refreshToken);
-}
-
-/* ------------------------------------------------------------------ */
-/*  OAuth2 token management                                            */
-/* ------------------------------------------------------------------ */
-
-let _accessToken: string | null = null;
-let _tokenExpiresAt = 0;
-
-/**
- * Returns a valid access token, refreshing if expired.
- * Zoho access tokens last ~1 hour; the refresh token is long-lived.
- */
-async function getAccessToken(): Promise<string> {
-  if (_accessToken && Date.now() < _tokenExpiresAt) {
-    return _accessToken;
-  }
-
-  const params = new URLSearchParams({
-    grant_type: "refresh_token",
-    client_id: clientId!,
-    client_secret: clientSecret!,
-    refresh_token: refreshToken!,
-  });
-
-  const res = await fetch(`${accountsUrl}/oauth/v2/token?${params.toString()}`, {
-    method: "POST",
-  });
-
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Zoho OAuth refresh failed (${res.status}): ${text}`);
-  }
-
-  const data = (await res.json()) as { access_token: string; expires_in: number };
-  _accessToken = data.access_token;
-  // Expire 5 minutes early to avoid edge cases
-  _tokenExpiresAt = Date.now() + (data.expires_in - 300) * 1000;
-
-  return _accessToken;
+  return isZohoAuthConfigured();
 }
 
 /* ------------------------------------------------------------------ */
@@ -75,7 +32,7 @@ async function zohoFetch(
   path: string,
   options: { method?: string; body?: Record<string, unknown> } = {},
 ): Promise<Record<string, unknown>> {
-  const token = await getAccessToken();
+  const token = await getZohoAccessToken();
   const res = await fetch(`${apiDomain}/crm/v7${path}`, {
     method: options.method || "GET",
     headers: {

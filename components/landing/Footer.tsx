@@ -48,9 +48,12 @@ export function Footer() {
             <p className="text-sm font-medium tracking-wide text-foreground mb-3">
               T Creative Studio
             </p>
-            <p className="text-sm text-muted leading-relaxed max-w-sm mb-4">
-              Premium lash extensions, skin treatments, permanent jewelry, custom craft, and
-              business consulting. Made with intention in San Jose.
+            <p className="text-sm text-muted leading-relaxed max-w-sm mb-2">
+              Lash extensions, crochet hair, permanent jewelry, custom craft, 3D printing, and
+              business consulting. Structure makes beautiful things.
+            </p>
+            <p className="text-xs text-muted/60 mb-4">
+              San Jose · Bay Area · Certifications &amp; training available.
             </p>
             <p className="text-sm text-muted mb-6">hello@tcreativestudio.com</p>
             {/* Social icons row */}

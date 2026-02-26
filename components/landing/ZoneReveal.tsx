@@ -1,189 +1,254 @@
 /**
- * ZoneReveal — Four business verticals as full-bleed editorial bands. Act IV.
+ * ZoneReveal — Four business verticals as transformation-arc bands. Act IV.
  *
- * Each vertical gets a ~90vh horizontal band. Colour bleeds to the edge on
- * one side (no gutter); copy occupies the other side. Bands alternate
- * left/right for visual rhythm.
+ * Each vertical follows the arc: Raw Material → Applied Structure → Transformed Outcome.
+ * Bands are scroll-pinned horizontally — the three states slide left as the user
+ * scrolls down, creating a sense of progression through a pipeline.
  *
- * Each band reveals on scroll with a whileInView entrance. The large verb
- * ("Elevate.", "Weld.", "Create.", "Transform.") anchors the brand language
- * defined in the design system — parallel grammar, equal weight.
+ * Motion contrast: Raw→Process uses a mechanical spring (hard overshoot),
+ * Process→Result uses an organic ease (slow settle). This contrast IS the brand:
+ * mechanical precision producing organic beauty.
  *
- * Includes an animated stat counter per band that counts up on viewport entry.
- *
- * Client Component — Framer Motion scroll-reveal animations.
+ * Client Component — Framer Motion scroll-driven animations.
  */
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef } from "react";
 import Link from "next/link";
-import { motion, useInView, useMotionValue, useSpring } from "framer-motion";
+import { motion, useScroll, useTransform } from "framer-motion";
 import { ZONES, type ZoneId } from "@/lib/zones";
 
-interface ZoneBand {
+interface TransformationArc {
   id: ZoneId;
-  verb: string;
-  /** Which side the colour panel is on */
-  side: "left" | "right";
-  /** Stat to display as animated counter */
-  stat: { value: number; prefix?: string; suffix: string; label: string };
+  raw: { label: string; text: string };
+  process: { label: string; text: string };
+  result: { label: string; text: string };
+  stat: { value: string; label: string };
 }
 
-const BANDS: ZoneBand[] = [
+const ARCS: TransformationArc[] = [
   {
     id: "lash",
-    verb: "Elevate.",
-    side: "left",
-    stat: { value: 500, suffix: "+", label: "lash sets completed" },
+    raw: {
+      label: "The Raw",
+      text: "Natural lashes. Uneven. Sparse in places. Beautiful in potential.",
+    },
+    process: {
+      label: "The Process",
+      text: "Mapped. Isolated. Each extension placed at the exact angle for maximum retention and lift.",
+    },
+    result: {
+      label: "The Result",
+      text: "A gaze that doesn\u2019t need explanation.",
+    },
+    stat: { value: "500+", label: "lash sets completed" },
   },
   {
     id: "jewelry",
-    verb: "Weld.",
-    side: "right",
-    stat: { value: 1000, suffix: "+", label: "chains welded" },
+    raw: {
+      label: "The Raw",
+      text: "A spool of chain. 14k gold-filled or sterling silver. Cold metal, full of promise.",
+    },
+    process: {
+      label: "The Process",
+      text: "Measured to your wrist. Cut to size. Welded with a single, precise arc. No clasp. No removal.",
+    },
+    result: {
+      label: "The Result",
+      text: "Permanence on skin. A gesture that stays.",
+    },
+    stat: { value: "1,000+", label: "chains welded" },
   },
   {
     id: "crochet",
-    verb: "Create.",
-    side: "left",
-    stat: { value: 200, suffix: "+", label: "custom commissions" },
+    raw: {
+      label: "The Raw",
+      text: "A spool of yarn. A reel of filament. Natural hair, ready for transformation.",
+    },
+    process: {
+      label: "The Process",
+      text: "Braided, looped, knotted. Or modeled, sliced, printed layer by layer. Box braids, goddess locs, bags, accessories \u2014 geometry made real.",
+    },
+    result: {
+      label: "The Result",
+      text: "Looks that turn heads. Objects that didn\u2019t exist before. All one-of-a-kind.",
+    },
+    stat: { value: "200+", label: "custom commissions" },
   },
   {
     id: "consulting",
-    verb: "Transform.",
-    side: "right",
-    stat: { value: 50, suffix: "+", label: "businesses transformed" },
+    raw: {
+      label: "The Raw",
+      text: "A business running on memory and goodwill. Processes in someone\u2019s head. Nothing written down.",
+    },
+    process: {
+      label: "The Process",
+      text: "Documented. Systematized. Every process given a home. Every role given clarity.",
+    },
+    result: {
+      label: "The Result",
+      text: "A company that runs \u2014 even when you\u2019re not in the room.",
+    },
+    stat: { value: "50+", label: "businesses transformed" },
   },
 ];
 
-/** Animated number counter that counts up when in view */
-function AnimatedCounter({
-  value,
-  suffix = "",
-  label,
-}: {
-  value: number;
-  suffix?: string;
-  label: string;
-}) {
+function TransformationBand({ arc }: { arc: TransformationArc }) {
   const ref = useRef<HTMLDivElement>(null);
-  const isInView = useInView(ref, { once: true, margin: "-40px" });
-  const motionVal = useMotionValue(0);
-  const spring = useSpring(motionVal, { stiffness: 50, damping: 30 });
-  const [display, setDisplay] = useState(0);
+  const zone = ZONES[arc.id];
 
-  useEffect(() => {
-    if (isInView) {
-      motionVal.set(value);
-    }
-  }, [isInView, motionVal, value]);
+  const { scrollYProgress } = useScroll({
+    target: ref,
+    offset: ["start start", "end start"],
+  });
 
-  useEffect(() => {
-    const unsubscribe = spring.on("change", (v) => {
-      setDisplay(Math.round(v));
-    });
-    return unsubscribe;
-  }, [spring]);
-
-  return (
-    <div ref={ref} className="mt-10 pt-6 border-t border-foreground/8">
-      <span className="text-2xl md:text-3xl font-light text-foreground tabular-nums">
-        {display.toLocaleString()}
-        {suffix}
-      </span>
-      <span className="block text-[10px] tracking-[0.2em] uppercase text-muted mt-1">{label}</span>
-    </div>
+  // Horizontal slide: 0% = Raw visible, 50% = Process, 100% = Result
+  const slideX = useTransform(
+    scrollYProgress,
+    [0, 0.4, 0.7, 1],
+    ["0%", "-33.33%", "-66.66%", "-66.66%"],
   );
-}
 
-function ZoneBandSection({ band }: { band: ZoneBand }) {
-  const zone = ZONES[band.id];
-  const isLeft = band.side === "left";
+  // Phase opacities — each state fades in/out
+  const rawOpacity = useTransform(scrollYProgress, [0, 0.1, 0.3, 0.4], [0.3, 1, 1, 0.2]);
+  const processOpacity = useTransform(scrollYProgress, [0.25, 0.4, 0.6, 0.7], [0.2, 1, 1, 0.2]);
+  const resultOpacity = useTransform(scrollYProgress, [0.55, 0.7, 1], [0.2, 1, 1]);
+
+  // Progress bar for the transformation
+  const progressWidth = useTransform(scrollYProgress, [0, 1], ["0%", "100%"]);
 
   return (
-    <motion.div
-      className="flex flex-col md:flex-row min-h-[90vh] overflow-hidden"
-      initial={{ opacity: 0 }}
-      whileInView={{ opacity: 1 }}
-      viewport={{ once: true, margin: "-80px" }}
-      transition={{ duration: 0.6 }}
-    >
-      {/* Colour panel */}
-      <motion.div
-        className={`w-full md:w-[45%] flex items-end justify-start p-10 md:p-16 min-h-[40vh] md:min-h-full order-1 ${
-          isLeft ? "md:order-1" : "md:order-2"
-        }`}
-        style={{ backgroundColor: zone.color }}
-        initial={{ x: isLeft ? -40 : 40 }}
-        whileInView={{ x: 0 }}
-        viewport={{ once: true }}
-        transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
-      >
-        {/* Big verb — display serif, bottom-left of the colour panel */}
-        <p
-          className="font-display text-[56px] sm:text-[72px] md:text-[88px] lg:text-[104px] font-light leading-none text-white/90 tracking-[0.02em] select-none"
-          aria-hidden
-        >
-          {band.verb}
-        </p>
-      </motion.div>
+    <div ref={ref} className="relative h-[250vh]">
+      <div className="sticky top-0 h-screen overflow-hidden flex flex-col">
+        {/* Zone header — fixed at top */}
+        <div className="px-8 md:px-16 pt-8 pb-4 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: zone.color }} />
+            <span className="text-[10px] tracking-[0.3em] uppercase" style={{ color: zone.color }}>
+              {zone.label}
+            </span>
+          </div>
+          <span className="text-[10px] tracking-[0.2em] uppercase text-muted">
+            {arc.stat.value} {arc.stat.label}
+          </span>
+        </div>
 
-      {/* Copy panel */}
-      <motion.div
-        className={`w-full md:w-[55%] flex flex-col justify-center px-8 md:px-16 lg:px-24 py-16 md:py-0 bg-background order-2 ${
-          isLeft ? "md:order-2" : "md:order-1"
-        }`}
-        initial={{ x: isLeft ? 40 : -40, opacity: 0 }}
-        whileInView={{ x: 0, opacity: 1 }}
-        viewport={{ once: true }}
-        transition={{ duration: 0.9, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
-      >
-        <span
-          className="text-[10px] tracking-[0.3em] uppercase mb-4 block"
-          style={{ color: zone.color }}
-        >
-          {zone.label}
-        </span>
+        {/* Transformation progress bar */}
+        <div className="mx-8 md:mx-16 h-px bg-foreground/5 relative">
+          <motion.div
+            className="absolute inset-y-0 left-0 h-full"
+            style={{ width: progressWidth, backgroundColor: zone.color, opacity: 0.4 }}
+          />
+        </div>
 
-        <h2 className="font-display text-3xl md:text-4xl lg:text-5xl font-light tracking-tight text-foreground mb-6 leading-[1.15]">
-          {zone.heading}
-        </h2>
-
-        <p className="text-sm text-muted leading-relaxed max-w-md mb-4">{zone.subtitle}</p>
-
-        <p className="text-sm text-muted leading-relaxed max-w-md mb-10">{zone.description}</p>
-
-        <Link
-          href={zone.cta.href}
-          className="inline-flex items-center gap-3 text-xs tracking-[0.2em] uppercase text-foreground group w-fit"
-        >
-          <span className="nav-link-reveal pb-px">{zone.cta.label}</span>
-          <motion.span
-            className="text-base"
-            initial={{ x: 0 }}
-            whileHover={{ x: 4 }}
-            transition={{ duration: 0.2 }}
+        {/* Sliding panels — three states side by side */}
+        <motion.div className="flex-1 flex min-w-0" style={{ x: slideX }}>
+          {/* Raw */}
+          <motion.div
+            className="w-screen shrink-0 flex items-center justify-center px-8 md:px-16 lg:px-24"
+            style={{ opacity: rawOpacity }}
           >
-            →
-          </motion.span>
-        </Link>
+            <div className="max-w-2xl w-full flex flex-col md:flex-row items-center gap-10 md:gap-16">
+              <div className="shrink-0">
+                <span className="text-[10px] tracking-[0.3em] uppercase text-muted mb-4 block">
+                  {arc.raw.label}
+                </span>
+                <div
+                  className="w-20 h-20 md:w-28 md:h-28 border-2 border-dashed flex items-center justify-center"
+                  style={{ borderColor: `${zone.color}40` }}
+                >
+                  <div className="w-3 h-3 rounded-full bg-foreground/10" />
+                </div>
+              </div>
+              <div>
+                <h3 className="font-display text-3xl md:text-4xl lg:text-5xl font-light text-foreground leading-[1.15] mb-4 tracking-tight">
+                  {zone.heading}
+                </h3>
+                <p className="text-base md:text-lg text-muted leading-relaxed max-w-md">
+                  {arc.raw.text}
+                </p>
+              </div>
+            </div>
+          </motion.div>
 
-        {/* Animated stat counter */}
-        <AnimatedCounter
-          value={band.stat.value}
-          suffix={band.stat.suffix}
-          label={band.stat.label}
-        />
-      </motion.div>
-    </motion.div>
+          {/* Process */}
+          <motion.div
+            className="w-screen shrink-0 flex items-center justify-center px-8 md:px-16 lg:px-24"
+            style={{ opacity: processOpacity }}
+          >
+            <div className="max-w-2xl w-full flex flex-col md:flex-row items-center gap-10 md:gap-16">
+              <div className="shrink-0">
+                <span className="text-[10px] tracking-[0.3em] uppercase text-muted mb-4 block">
+                  {arc.process.label}
+                </span>
+                <div
+                  className="w-20 h-20 md:w-28 md:h-28 border-2 flex items-center justify-center relative"
+                  style={{ borderColor: `${zone.color}60` }}
+                >
+                  {/* Grid lines — structure being applied */}
+                  <div className="absolute inset-0 grid grid-cols-3 grid-rows-3">
+                    {Array.from({ length: 9 }).map((_, i) => (
+                      <div key={i} className="border border-foreground/[0.04]" />
+                    ))}
+                  </div>
+                  <div
+                    className="w-3 h-3 rounded-full relative z-10"
+                    style={{ backgroundColor: zone.color, opacity: 0.5 }}
+                  />
+                </div>
+              </div>
+              <div>
+                <p className="text-base md:text-lg text-foreground/80 leading-relaxed max-w-md font-light">
+                  {arc.process.text}
+                </p>
+              </div>
+            </div>
+          </motion.div>
+
+          {/* Result */}
+          <motion.div
+            className="w-screen shrink-0 flex items-center justify-center px-8 md:px-16 lg:px-24"
+            style={{ opacity: resultOpacity }}
+          >
+            <div className="max-w-2xl w-full flex flex-col md:flex-row items-center gap-10 md:gap-16">
+              <div className="shrink-0">
+                <span className="text-[10px] tracking-[0.3em] uppercase text-muted mb-4 block">
+                  {arc.result.label}
+                </span>
+                <div
+                  className="w-20 h-20 md:w-28 md:h-28 flex items-center justify-center"
+                  style={{ backgroundColor: `${zone.color}12` }}
+                >
+                  <div className="w-6 h-6 rounded-full" style={{ backgroundColor: zone.color }} />
+                </div>
+              </div>
+              <div>
+                <p className="font-display text-2xl md:text-3xl text-foreground italic leading-relaxed max-w-md">
+                  {arc.result.text}
+                </p>
+                <Link
+                  href={zone.cta.href}
+                  className="inline-flex items-center gap-3 text-xs tracking-[0.2em] uppercase text-foreground group w-fit mt-8"
+                >
+                  <span className="nav-link-reveal pb-px">{zone.cta.label}</span>
+                  <span className="transition-transform duration-200 group-hover:translate-x-1">
+                    →
+                  </span>
+                </Link>
+              </div>
+            </div>
+          </motion.div>
+        </motion.div>
+      </div>
+    </div>
   );
 }
 
 export function ZoneReveal() {
   return (
-    <section aria-label="Services" className="overflow-hidden">
-      {BANDS.map((band) => (
-        <ZoneBandSection key={band.id} band={band} />
+    <section aria-label="Services">
+      {ARCS.map((arc) => (
+        <TransformationBand key={arc.id} arc={arc} />
       ))}
     </section>
   );

@@ -90,9 +90,9 @@ export const ZONES: Record<ZoneId, ZoneDefinition> = {
     id: "crochet",
     label: "Creative Craftsmanship",
     subtitle: "Handmade. Designed. Made to order.",
-    heading: "Custom Crochet & 3D Printing",
+    heading: "Crochet, Hair & 3D Printing",
     description:
-      "From handcrafted crochet pieces — bags, accessories, home goods — to custom 3D-printed designs and creative commissions. Every piece is made with intention, built to be one-of-a-kind. If you can imagine it, we can craft it.",
+      "Crochet hair installs — box braids, goddess locs, knotless braids. Handcrafted crochet pieces — bags, accessories, home goods. Custom 3D-printed designs and creative commissions. Every piece is made with intention, built to be one-of-a-kind.",
     cta: { label: "Browse the Collection", href: "/shop" },
     color: "#7BA3A3",
     cameraPosition: [2.2, 2.0, -5],

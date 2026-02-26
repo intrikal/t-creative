@@ -1,8 +1,11 @@
 /**
- * Portfolio — Server Component route wrapper with metadata.
+ * Portfolio — Server Component route wrapper with metadata and ISR.
  */
 import type { Metadata } from "next";
+import { getPublishedMedia } from "./actions";
 import { PortfolioPage } from "./PortfolioPage";
+
+export const revalidate = 3600;
 
 export const metadata: Metadata = {
   title: "Portfolio | T Creative Studio",
@@ -24,6 +27,7 @@ export const metadata: Metadata = {
   },
 };
 
-export default function Page() {
-  return <PortfolioPage />;
+export default async function Page() {
+  const media = await getPublishedMedia();
+  return <PortfolioPage media={media} />;
 }

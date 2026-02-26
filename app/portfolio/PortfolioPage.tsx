@@ -1,15 +1,26 @@
 /**
- * PortfolioPage — Client Component rendering the filterable portfolio gallery.
- *
- * Supports category filtering with animated layout transitions.
+ * PortfolioPage — Filterable portfolio gallery.
+ * Driven by database with hardcoded fallback.
  */
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { motion } from "framer-motion";
 import { Footer } from "@/components/landing/Footer";
+import type { PublicMediaItem } from "./actions";
+
+/* ------------------------------------------------------------------ */
+/*  Category config                                                    */
+/* ------------------------------------------------------------------ */
 
 type Category = "all" | "lash" | "jewelry" | "crochet";
+
+const CATEGORY_COLORS: Record<string, string> = {
+  lash: "#C4907A",
+  jewelry: "#D4A574",
+  crochet: "#7BA3A3",
+};
 
 const filters: { label: string; value: Category }[] = [
   { label: "All", value: "all" },
@@ -18,21 +29,75 @@ const filters: { label: string; value: Category }[] = [
   { label: "Custom Crochet", value: "crochet" },
 ];
 
-const works: { caption: string; category: Category; color: string }[] = [
-  { caption: "Volume Set — Special Event", category: "lash", color: "#C4907A" },
-  { caption: "Permanent Bracelet — Gold Chain", category: "jewelry", color: "#D4A574" },
-  { caption: "Custom Crochet — Commissioned Piece", category: "crochet", color: "#7BA3A3" },
-  { caption: "Cat Eye Lash Transformation", category: "lash", color: "#C4907A" },
-  { caption: "Welded Bracelet — Sterling Silver", category: "jewelry", color: "#D4A574" },
-  { caption: "Handmade Crochet Blanket", category: "crochet", color: "#7BA3A3" },
-  { caption: "Mega Volume Lashes — Red Carpet", category: "lash", color: "#C4907A" },
-  { caption: "Permanent Bracelet — Sister Bond", category: "jewelry", color: "#D4A574" },
-  { caption: "Wispy Lashes — Natural Beauty", category: "lash", color: "#C4907A" },
+/* ------------------------------------------------------------------ */
+/*  Hardcoded fallback                                                 */
+/* ------------------------------------------------------------------ */
+
+type WorkItem = {
+  caption: string;
+  category: string;
+  color: string;
+  imageUrl: string | null;
+};
+
+const FALLBACK_WORKS: WorkItem[] = [
+  { caption: "Volume Set — Special Event", category: "lash", color: "#C4907A", imageUrl: null },
+  {
+    caption: "Permanent Bracelet — Gold Chain",
+    category: "jewelry",
+    color: "#D4A574",
+    imageUrl: null,
+  },
+  {
+    caption: "Custom Crochet — Commissioned Piece",
+    category: "crochet",
+    color: "#7BA3A3",
+    imageUrl: null,
+  },
+  { caption: "Cat Eye Lash Transformation", category: "lash", color: "#C4907A", imageUrl: null },
+  {
+    caption: "Welded Bracelet — Sterling Silver",
+    category: "jewelry",
+    color: "#D4A574",
+    imageUrl: null,
+  },
+  { caption: "Handmade Crochet Blanket", category: "crochet", color: "#7BA3A3", imageUrl: null },
+  {
+    caption: "Mega Volume Lashes — Red Carpet",
+    category: "lash",
+    color: "#C4907A",
+    imageUrl: null,
+  },
+  {
+    caption: "Permanent Bracelet — Sister Bond",
+    category: "jewelry",
+    color: "#D4A574",
+    imageUrl: null,
+  },
+  { caption: "Wispy Lashes — Natural Beauty", category: "lash", color: "#C4907A", imageUrl: null },
 ];
 
-export function PortfolioPage() {
+/* ------------------------------------------------------------------ */
+/*  Transform DB media to display format                               */
+/* ------------------------------------------------------------------ */
+
+function toWorkItems(media: PublicMediaItem[]): WorkItem[] {
+  return media.map((m) => ({
+    caption: m.caption || m.title || "",
+    category: m.category ?? "lash",
+    color: CATEGORY_COLORS[m.category ?? ""] ?? "#888",
+    imageUrl: m.publicUrl,
+  }));
+}
+
+/* ------------------------------------------------------------------ */
+/*  Component                                                          */
+/* ------------------------------------------------------------------ */
+
+export function PortfolioPage({ media }: { media: PublicMediaItem[] }) {
   const [active, setActive] = useState<Category>("all");
 
+  const works: WorkItem[] = media.length > 0 ? toWorkItems(media) : FALLBACK_WORKS;
   const filtered = active === "all" ? works : works.filter((w) => w.category === active);
 
   return (
@@ -99,12 +164,24 @@ export function PortfolioPage() {
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ duration: 0.4, delay: i * 0.05 }}
                 >
-                  <div
-                    className="aspect-[4/5] transition-transform duration-500 group-hover:scale-105"
-                    style={{
-                      background: `linear-gradient(135deg, ${item.color}33 0%, ${item.color}11 50%, ${item.color}22 100%)`,
-                    }}
-                  />
+                  {item.imageUrl ? (
+                    <div className="aspect-[4/5] relative">
+                      <Image
+                        src={item.imageUrl}
+                        alt={item.caption}
+                        fill
+                        className="object-cover transition-transform duration-500 group-hover:scale-105"
+                        sizes="(max-width: 768px) 50vw, 33vw"
+                      />
+                    </div>
+                  ) : (
+                    <div
+                      className="aspect-[4/5] transition-transform duration-500 group-hover:scale-105"
+                      style={{
+                        background: `linear-gradient(135deg, ${item.color}33 0%, ${item.color}11 50%, ${item.color}22 100%)`,
+                      }}
+                    />
+                  )}
                   <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all duration-300 flex items-end p-4 md:p-6">
                     <p className="text-sm text-white opacity-0 group-hover:opacity-100 translate-y-4 group-hover:translate-y-0 transition-all duration-300">
                       {item.caption}
@@ -114,9 +191,11 @@ export function PortfolioPage() {
               ))}
             </div>
 
-            <p className="text-center text-sm text-muted mt-12">
-              More work coming soon — placeholder images will be replaced with real photos.
-            </p>
+            {media.length === 0 && (
+              <p className="text-center text-sm text-muted mt-12">
+                More work coming soon — placeholder images will be replaced with real photos.
+              </p>
+            )}
           </div>
         </section>
       </main>

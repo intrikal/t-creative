@@ -448,6 +448,7 @@ export async function createProgram(form: ProgramFormData) {
   }
 
   revalidatePath(PATH);
+  revalidatePath("/training");
 }
 
 export async function updateProgram(id: number, form: ProgramFormData) {
@@ -473,6 +474,7 @@ export async function updateProgram(id: number, form: ProgramFormData) {
     .where(and(eq(trainingSessions.programId, id), eq(trainingSessions.status, "scheduled")));
 
   revalidatePath(PATH);
+  revalidatePath("/training");
 }
 
 /**
@@ -498,6 +500,7 @@ export async function deleteProgram(id: number): Promise<{ error?: string }> {
   await db.delete(trainingPrograms).where(eq(trainingPrograms.id, id));
 
   revalidatePath(PATH);
+  revalidatePath("/training");
   return {};
 }
 
@@ -521,6 +524,7 @@ export async function toggleWaitlist(programId: number) {
     );
 
   revalidatePath(PATH);
+  revalidatePath("/training");
 }
 
 /* ------------------------------------------------------------------ */
@@ -582,12 +586,14 @@ export async function createEnrollment(form: EnrollmentFormData) {
   }
 
   revalidatePath(PATH);
+  revalidatePath("/training");
 }
 
 export async function deleteEnrollment(id: number) {
   await getUser();
   await db.delete(enrollments).where(eq(enrollments.id, id));
   revalidatePath(PATH);
+  revalidatePath("/training");
 }
 
 /* ------------------------------------------------------------------ */
@@ -839,4 +845,5 @@ export async function toggleLessonCompletion(lessonId: number) {
   }
 
   revalidatePath(PATH);
+  revalidatePath("/training");
 }

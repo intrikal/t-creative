@@ -37,6 +37,12 @@ export const services = pgTable(
     /** Price in cents (e.g. 15000 = $150.00). Null = "Contact for quote". */
     priceInCents: integer("price_in_cents"),
 
+    /** Minimum price in cents for "From $X" pricing. */
+    priceMinInCents: integer("price_min_in_cents"),
+
+    /** Maximum price in cents for "$X–$Y" range pricing. */
+    priceMaxInCents: integer("price_max_in_cents"),
+
     /** Deposit required to hold the booking, in cents. Null = no deposit. */
     depositInCents: integer("deposit_in_cents"),
 

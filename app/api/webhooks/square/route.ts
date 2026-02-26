@@ -20,6 +20,7 @@ import { payments, bookings, orders, profiles, webhookEvents, syncLog } from "@/
 import { PaymentReceipt } from "@/emails/PaymentReceipt";
 import { sendEmail } from "@/lib/resend";
 import { SQUARE_WEBHOOK_SIGNATURE_KEY, squareClient, isSquareConfigured } from "@/lib/square";
+import { recordZohoBooksPayment } from "@/lib/zoho-books";
 
 /* ------------------------------------------------------------------ */
 /*  Signature verification                                             */
@@ -154,6 +155,21 @@ async function handlePaymentCompleted(data: any): Promise<string> {
       });
     }
 
+    // Zoho Books: record payment against invoice
+    const [bookingForInvoice] = await db
+      .select({ zohoInvoiceId: bookings.zohoInvoiceId })
+      .from(bookings)
+      .where(eq(bookings.id, booking.id));
+
+    if (bookingForInvoice?.zohoInvoiceId) {
+      recordZohoBooksPayment({
+        zohoInvoiceId: bookingForInvoice.zohoInvoiceId,
+        amountInCents: amountCents,
+        squarePaymentId,
+        description: isDeposit ? "Deposit via Square" : "Payment via Square",
+      });
+    }
+
     return `Auto-linked payment to booking #${booking.id}${isDeposit ? " (deposit)" : ""}`;
   }
 
@@ -181,6 +197,21 @@ async function handlePaymentCompleted(data: any): Promise<string> {
         }),
         entityType: "payment_receipt",
         localId: String(productOrder.id),
+      });
+    }
+
+    // Zoho Books: record payment against order invoice
+    const [orderForInvoice] = await db
+      .select({ zohoInvoiceId: orders.zohoInvoiceId })
+      .from(orders)
+      .where(eq(orders.id, productOrder.id));
+
+    if (orderForInvoice?.zohoInvoiceId) {
+      recordZohoBooksPayment({
+        zohoInvoiceId: orderForInvoice.zohoInvoiceId,
+        amountInCents: Number(squarePayment.amount_money?.amount ?? 0),
+        squarePaymentId,
+        description: "Order payment via Square",
       });
     }
 

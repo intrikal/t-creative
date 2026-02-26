@@ -98,6 +98,9 @@ export const orders = pgTable(
     /** Square order/payment ID for paid orders. */
     squareOrderId: varchar("square_order_id", { length: 100 }),
 
+    /** Zoho Books invoice ID for accounting reconciliation. */
+    zohoInvoiceId: varchar("zoho_invoice_id", { length: 100 }),
+
     /** Staff-facing notes. */
     internalNotes: text("internal_notes"),
 

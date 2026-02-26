@@ -171,6 +171,9 @@ export const profiles = pgTable(
     /** Zoho Campaigns subscriber key — set when synced to Zoho Campaigns mailing list. */
     zohoCampaignsContactKey: varchar("zoho_campaigns_contact_key", { length: 100 }),
 
+    /** Zoho Books customer ID — separate from CRM contact, used for invoicing. */
+    zohoCustomerId: varchar("zoho_customer_id", { length: 100 }),
+
     /**
      * JSONB bucket for onboarding fields that don't have dedicated columns
      * (allergies, availability, interests, waiver, photo consent, birthday, etc.).
@@ -195,6 +198,7 @@ export const profiles = pgTable(
     index("profiles_square_id_idx").on(t.squareCustomerId),
     index("profiles_zoho_id_idx").on(t.zohoContactId),
     index("profiles_zoho_campaigns_key_idx").on(t.zohoCampaignsContactKey),
+    index("profiles_zoho_customer_idx").on(t.zohoCustomerId),
   ],
 );
 

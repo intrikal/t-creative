@@ -41,6 +41,7 @@ import { trackEvent } from "@/lib/posthog";
 import { sendEmail } from "@/lib/resend";
 import { isSquareConfigured, createSquareOrder } from "@/lib/square";
 import { createZohoDeal, updateZohoDeal } from "@/lib/zoho";
+import { createZohoBooksInvoice } from "@/lib/zoho-books";
 import { createClient } from "@/utils/supabase/server";
 
 export type BookingStatus =
@@ -191,6 +192,8 @@ export async function updateBookingStatus(
     updateZohoDeal(id, "Closed Lost");
   } else if (status === "confirmed") {
     updateZohoDeal(id, "Confirmed");
+    // Zoho Books: create invoice for newly confirmed booking
+    tryCreateZohoBooksInvoice(id);
   }
 
   revalidatePath("/dashboard/bookings");
@@ -248,6 +251,22 @@ export async function createBooking(input: BookingInput): Promise<void> {
       stage: "Confirmed",
       amountInCents: input.totalInCents,
       bookingId: newBooking.id,
+    });
+
+    // Zoho Books: create invoice for admin-created booking
+    createZohoBooksInvoice({
+      entityType: "booking",
+      entityId: newBooking.id,
+      profileId: input.clientId,
+      email: clientForZoho.email,
+      firstName: clientForZoho.firstName,
+      lineItems: [
+        {
+          name: serviceForZoho?.name ?? "Appointment",
+          rate: input.totalInCents,
+          quantity: 1,
+        },
+      ],
     });
   }
 
@@ -411,6 +430,52 @@ async function tryCreateSquareOrder(
       message: "Failed to create Square order for booking",
       errorMessage: err instanceof Error ? err.message : "Unknown error",
     });
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Zoho Books invoice creation (non-fatal)                            */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Creates a Zoho Books invoice for a confirmed booking. Fetches client
+ * and service data, then fires off the invoice creation asynchronously.
+ */
+async function tryCreateZohoBooksInvoice(bookingId: number): Promise<void> {
+  try {
+    const invoiceClient = alias(profiles, "invoiceClient");
+    const [row] = await db
+      .select({
+        clientId: bookings.clientId,
+        clientEmail: invoiceClient.email,
+        clientFirstName: invoiceClient.firstName,
+        clientLastName: invoiceClient.lastName,
+        clientPhone: invoiceClient.phone,
+        serviceName: services.name,
+        totalInCents: bookings.totalInCents,
+        depositPaidInCents: bookings.depositPaidInCents,
+        zohoInvoiceId: bookings.zohoInvoiceId,
+      })
+      .from(bookings)
+      .innerJoin(invoiceClient, eq(bookings.clientId, invoiceClient.id))
+      .innerJoin(services, eq(bookings.serviceId, services.id))
+      .where(eq(bookings.id, bookingId));
+
+    if (!row || row.zohoInvoiceId) return; // Already has invoice or not found
+
+    createZohoBooksInvoice({
+      entityType: "booking",
+      entityId: bookingId,
+      profileId: row.clientId,
+      email: row.clientEmail,
+      firstName: row.clientFirstName,
+      lastName: row.clientLastName ?? undefined,
+      phone: row.clientPhone,
+      lineItems: [{ name: row.serviceName, rate: row.totalInCents, quantity: 1 }],
+      depositInCents: row.depositPaidInCents ?? undefined,
+    });
+  } catch {
+    // Non-fatal
   }
 }
 

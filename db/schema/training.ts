@@ -251,6 +251,9 @@ export const enrollments = pgTable(
     /** Square payment ID for the enrollment fee. */
     squarePaymentId: varchar("square_payment_id", { length: 100 }),
 
+    /** Zoho Books invoice ID for accounting reconciliation. */
+    zohoInvoiceId: varchar("zoho_invoice_id", { length: 100 }),
+
     /** Number of sessions this student has attended. */
     sessionsCompleted: integer("sessions_completed").notNull().default(0),
 

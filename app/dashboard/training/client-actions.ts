@@ -14,6 +14,7 @@ import {
 } from "@/db/schema";
 import { trackEvent } from "@/lib/posthog";
 import { createZohoDeal } from "@/lib/zoho";
+import { createZohoBooksInvoice } from "@/lib/zoho-books";
 import { createClient } from "@/utils/supabase/server";
 
 const PATH = "/dashboard/training";
@@ -374,12 +375,15 @@ export async function clientEnroll(programId: number) {
     .orderBy(asc(trainingSessions.startsAt))
     .limit(1);
 
-  await db.insert(enrollments).values({
-    clientId: user.id,
-    programId,
-    sessionId: nextSession?.id ?? null,
-    status: "enrolled",
-  });
+  const [newEnrollment] = await db
+    .insert(enrollments)
+    .values({
+      clientId: user.id,
+      programId,
+      sessionId: nextSession?.id ?? null,
+      status: "enrolled",
+    })
+    .returning({ id: enrollments.id });
 
   trackEvent(user.id, "training_enrolled", { programId });
 
@@ -403,6 +407,22 @@ export async function clientEnroll(programId: number) {
       stage: "Enrolled",
       amountInCents: program?.priceInCents ?? undefined,
       pipeline: "Training",
+    });
+
+    // Zoho Books: create invoice for training enrollment
+    createZohoBooksInvoice({
+      entityType: "enrollment",
+      entityId: newEnrollment.id,
+      profileId: user.id,
+      email: clientProfile.email,
+      firstName: clientProfile.firstName,
+      lineItems: [
+        {
+          name: `Training: ${program?.name ?? "Program"}`,
+          rate: program?.priceInCents ?? 0,
+          quantity: 1,
+        },
+      ],
     });
   }
 

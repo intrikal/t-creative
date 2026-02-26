@@ -17,6 +17,7 @@ import { trackEvent } from "@/lib/posthog";
 import { sendEmail } from "@/lib/resend";
 import { isSquareConfigured, createSquareOrderPaymentLink } from "@/lib/square";
 import { createZohoDeal } from "@/lib/zoho";
+import { createZohoBooksInvoice } from "@/lib/zoho-books";
 import { createClient } from "@/utils/supabase/server";
 
 /* ------------------------------------------------------------------ */
@@ -305,6 +306,20 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
       amountInCents: totalInCents,
       pipeline: "Shop",
       externalId: orderNumber,
+    });
+
+    // Zoho Books: create invoice for shop order
+    createZohoBooksInvoice({
+      entityType: "order",
+      entityId: createdOrderIds[0],
+      profileId: user.id,
+      email: clientProfile.email,
+      firstName: clientProfile.firstName,
+      lineItems: lineItems.map((item) => ({
+        name: item.name,
+        rate: item.amountInCents / item.quantity,
+        quantity: item.quantity,
+      })),
     });
   }
 

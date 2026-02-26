@@ -5,6 +5,7 @@ import { eq, desc, and, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
 import { bookings, bookingAddOns, services, profiles, reviews } from "@/db/schema";
+import { trackEvent } from "@/lib/posthog";
 import { createClient } from "@/utils/supabase/server";
 
 const PATH = "/dashboard/bookings";
@@ -207,6 +208,13 @@ export async function submitClientReview(data: {
     status: "pending",
   });
 
+  trackEvent(user.id, "review_submitted", {
+    bookingId: data.bookingId,
+    rating: data.rating,
+    serviceName: service?.name ?? "Service",
+    hasComment: !!data.comment,
+  });
+
   revalidatePath(PATH);
 }
 
@@ -240,6 +248,11 @@ export async function cancelClientBooking(bookingId: number) {
       cancellationReason: "Cancelled by client",
     })
     .where(eq(bookings.id, bookingId));
+
+  trackEvent(user.id, "booking_cancelled_by_client", {
+    bookingId,
+    previousStatus: booking.status,
+  });
 
   revalidatePath(PATH);
 }

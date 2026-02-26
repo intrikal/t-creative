@@ -13,6 +13,7 @@ import { eq, desc, asc, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { products, orders, profiles, syncLog } from "@/db/schema";
 import { OrderConfirmation } from "@/emails/OrderConfirmation";
+import { trackEvent } from "@/lib/posthog";
 import { sendEmail } from "@/lib/resend";
 import { isSquareConfigured, createSquareOrderPaymentLink } from "@/lib/square";
 import { createClient } from "@/utils/supabase/server";
@@ -284,6 +285,14 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
       localId: String(createdOrderIds[0]),
     });
   }
+
+  trackEvent(user.id, "order_placed", {
+    orderNumber,
+    itemCount: input.items.length,
+    totalInCents,
+    fulfillmentMethod: input.fulfillmentMethod,
+    hasPaymentLink: !!paymentUrl,
+  });
 
   revalidatePath("/shop");
   revalidatePath("/dashboard/marketplace");

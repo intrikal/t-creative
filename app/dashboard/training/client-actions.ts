@@ -11,6 +11,7 @@ import {
   enrollments,
   certificates,
 } from "@/db/schema";
+import { trackEvent } from "@/lib/posthog";
 import { createClient } from "@/utils/supabase/server";
 
 const PATH = "/dashboard/training";
@@ -378,6 +379,8 @@ export async function clientEnroll(programId: number) {
     status: "enrolled",
   });
 
+  trackEvent(user.id, "training_enrolled", { programId });
+
   revalidatePath(PATH);
 }
 
@@ -404,6 +407,8 @@ export async function clientJoinWaitlist(programId: number) {
     programId,
     status: "waitlisted",
   });
+
+  trackEvent(user.id, "training_waitlist_joined", { programId });
 
   revalidatePath(PATH);
 }

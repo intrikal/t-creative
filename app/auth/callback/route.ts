@@ -34,6 +34,7 @@ import { db } from "@/db";
 import { profiles } from "@/db/schema";
 import { isOnboardingComplete } from "@/lib/auth";
 import { verifyInviteToken } from "@/lib/invite";
+import { identifyUser, trackEvent } from "@/lib/posthog";
 import { createClient } from "@/utils/supabase/server";
 
 /**
@@ -157,6 +158,29 @@ export async function GET(request: Request) {
     await supabase.auth.signOut();
     return NextResponse.redirect(`${origin}/suspended`);
   }
+
+  // PostHog: identify user + track sign-in
+  const effectiveRole = assignedAdmin
+    ? "admin"
+    : assignedAssistant || profile?.role === "assistant"
+      ? "assistant"
+      : (profile?.role ?? "client");
+  const isNewUser = !isOnboardingComplete(profile ?? null);
+
+  identifyUser(user.id, {
+    email: user.email,
+    firstName: profile?.firstName || undefined,
+    role: effectiveRole,
+    isVip: profile?.isVip ?? false,
+    source: profile?.source ?? undefined,
+    createdAt: profile?.createdAt?.toISOString() ?? new Date().toISOString(),
+  });
+
+  trackEvent(user.id, isNewUser ? "user_signed_up" : "user_signed_in", {
+    role: effectiveRole,
+    method: "oauth",
+    hasInvite: !!invite,
+  });
 
   // Admins need minimal onboarding (just name) before accessing the dashboard
   if (assignedAdmin || profile?.role === "admin") {

@@ -48,8 +48,12 @@ vi.mock("@/db", () => ({
 vi.mock("@/db/schema", () => ({
   products: { id: "id", isPublished: "isPublished", stockCount: "stockCount" },
   orders: { id: "id", clientId: "clientId", productId: "productId", status: "status" },
-  services: {},
+  profiles: { id: "id", email: "email", firstName: "firstName" },
   syncLog: {},
+}));
+
+vi.mock("@/lib/resend", () => ({
+  sendEmail: vi.fn().mockResolvedValue(true),
 }));
 
 vi.mock("next/cache", () => ({
@@ -123,7 +127,7 @@ describe("placeOrder", () => {
     vi.doMock("@/db/schema", () => ({
       products: { id: "id", isPublished: "isPublished", stockCount: "stockCount" },
       orders: { id: "id", clientId: "clientId", productId: "productId", status: "status" },
-      services: {},
+      profiles: { id: "id", email: "email", firstName: "firstName" },
       syncLog: {},
     }));
 
@@ -144,6 +148,10 @@ describe("placeOrder", () => {
     vi.doMock("@/lib/square", () => ({
       isSquareConfigured: vi.fn(() => false),
       createSquareOrderPaymentLink: vi.fn(),
+    }));
+
+    vi.doMock("@/lib/resend", () => ({
+      sendEmail: vi.fn().mockResolvedValue(true),
     }));
 
     const mod = await import("./actions");

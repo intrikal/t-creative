@@ -74,6 +74,10 @@ vi.mock("@/lib/square", () => ({
   createSquarePaymentLink: (...args: unknown[]) => mockCreateSquarePaymentLink(...args),
 }));
 
+vi.mock("@/lib/resend", () => ({
+  sendEmail: vi.fn().mockResolvedValue(true),
+}));
+
 /* ------------------------------------------------------------------ */
 /*  Tests                                                              */
 /* ------------------------------------------------------------------ */
@@ -822,6 +826,13 @@ describe("payment-actions", () => {
           select: vi.fn(() => ({
             from: vi.fn(() => ({
               where: localMockSelectWhere,
+              innerJoin: vi.fn(() => ({
+                where: vi
+                  .fn()
+                  .mockResolvedValue([
+                    { email: "test@test.com", firstName: "Test", notifyEmail: true },
+                  ]),
+              })),
             })),
           })),
           insert: vi.fn(() => ({ values: localMockInsertValues })),
@@ -832,9 +843,14 @@ describe("payment-actions", () => {
       }));
       vi.doMock("@/db/schema", () => ({
         payments: {},
-        bookings: { id: "id", serviceId: "serviceId", squareOrderId: "squareOrderId" },
+        bookings: {
+          id: "id",
+          clientId: "clientId",
+          serviceId: "serviceId",
+          squareOrderId: "squareOrderId",
+        },
         services: { id: "id", name: "name" },
-        profiles: {},
+        profiles: { id: "id", email: "email", firstName: "firstName", notifyEmail: "notifyEmail" },
         syncLog: {},
       }));
       vi.doMock("drizzle-orm", () => ({
@@ -851,6 +867,9 @@ describe("payment-actions", () => {
         createClient: vi.fn(async () => ({
           auth: { getUser: () => ({ data: { user: { id: "u1" } } }) },
         })),
+      }));
+      vi.doMock("@/lib/resend", () => ({
+        sendEmail: vi.fn().mockResolvedValue(true),
       }));
 
       const localMockCreateLink = vi.fn().mockResolvedValue({
@@ -929,6 +948,9 @@ describe("payment-actions", () => {
         createClient: vi.fn(async () => ({
           auth: { getUser: () => ({ data: { user: { id: "u1" } } }) },
         })),
+      }));
+      vi.doMock("@/lib/resend", () => ({
+        sendEmail: vi.fn().mockResolvedValue(true),
       }));
 
       const localMockCreateLink = vi.fn().mockRejectedValue(new Error("Square API unavailable"));

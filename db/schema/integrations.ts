@@ -33,7 +33,7 @@ import { pgEnum } from "drizzle-orm/pg-core";
 /* ------------------------------------------------------------------ */
 
 /** External platforms we integrate with. */
-export const integrationProviderEnum = pgEnum("integration_provider", ["square", "zoho"]);
+export const integrationProviderEnum = pgEnum("integration_provider", ["square", "zoho", "resend"]);
 
 /** Direction of the sync operation. */
 export const syncDirectionEnum = pgEnum("sync_direction", ["inbound", "outbound"]);

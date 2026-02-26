@@ -5,8 +5,10 @@
  * Only users with role="admin" can call this.
  */
 import { NextResponse } from "next/server";
+import { InviteEmail } from "@/emails/InviteEmail";
 import { getCurrentUser } from "@/lib/auth";
 import { createInviteToken } from "@/lib/invite";
+import { sendEmail } from "@/lib/resend";
 
 export async function POST(request: Request) {
   const user = await getCurrentUser();
@@ -25,6 +27,15 @@ export async function POST(request: Request) {
   const token = await createInviteToken(email);
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
   const inviteUrl = `${siteUrl}/login?invite=${token}`;
+
+  // Send invite email (non-fatal — URL is still returned)
+  await sendEmail({
+    to: email,
+    subject: "You're invited to join T Creative Studio",
+    react: InviteEmail({ inviteUrl, email }),
+    entityType: "invite",
+    localId: email,
+  });
 
   return NextResponse.json({ inviteUrl });
 }

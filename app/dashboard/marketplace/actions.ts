@@ -13,7 +13,9 @@
 import { revalidatePath } from "next/cache";
 import { eq, desc, sql, asc } from "drizzle-orm";
 import { db } from "@/db";
-import { products, orders, supplies } from "@/db/schema";
+import { products, orders, supplies, profiles } from "@/db/schema";
+import { OrderStatusUpdate } from "@/emails/OrderStatusUpdate";
+import { sendEmail, getEmailRecipient } from "@/lib/resend";
 import { createClient } from "@/utils/supabase/server";
 
 const PATH = "/dashboard/marketplace";
@@ -445,4 +447,75 @@ export async function adjustSupplyStock(id: number, delta: number) {
   }
 
   revalidatePath(PATH);
+}
+
+/* ------------------------------------------------------------------ */
+/*  Order status mutations                                             */
+/* ------------------------------------------------------------------ */
+
+export type OrderStatus =
+  | "inquiry"
+  | "quoted"
+  | "accepted"
+  | "in_progress"
+  | "ready_for_pickup"
+  | "completed"
+  | "cancelled";
+
+export async function updateOrderStatus(id: number, status: OrderStatus): Promise<void> {
+  await getUser();
+
+  const updates: Record<string, unknown> = { status, updatedAt: new Date() };
+  if (status === "completed") updates.completedAt = new Date();
+  if (status === "cancelled") updates.cancelledAt = new Date();
+
+  await db.update(orders).set(updates).where(eq(orders.id, id));
+
+  // Send email for ready_for_pickup and completed
+  if (status === "ready_for_pickup" || status === "completed") {
+    await trySendOrderStatusEmail(id, status);
+  }
+
+  revalidatePath(PATH);
+}
+
+async function trySendOrderStatusEmail(
+  orderId: number,
+  status: "ready_for_pickup" | "completed",
+): Promise<void> {
+  try {
+    const [order] = await db
+      .select({
+        clientId: orders.clientId,
+        orderNumber: orders.orderNumber,
+        title: orders.title,
+      })
+      .from(orders)
+      .where(eq(orders.id, orderId));
+
+    if (!order) return;
+
+    const recipient = await getEmailRecipient(order.clientId);
+    if (!recipient) return;
+
+    const subjectMap = {
+      ready_for_pickup: `Order ${order.orderNumber} ready for pickup — T Creative`,
+      completed: `Order ${order.orderNumber} completed — T Creative`,
+    };
+
+    await sendEmail({
+      to: recipient.email,
+      subject: subjectMap[status],
+      react: OrderStatusUpdate({
+        clientName: recipient.firstName,
+        orderNumber: order.orderNumber,
+        productTitle: order.title,
+        status,
+      }),
+      entityType: "order_status_update",
+      localId: String(orderId),
+    });
+  } catch {
+    // Non-fatal
+  }
 }

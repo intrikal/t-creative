@@ -46,6 +46,8 @@
     "lucide-react": "^0.575.0",
     "next": "16.1.6",
     "postgres": "^3.4.8",
+    "posthog-js": "^1.354.3",
+    "posthog-node": "^5.26.0",
     "radix-ui": "^1.4.3",
     "react": "19.2.3",
     "react-day-picker": "^9.13.2",

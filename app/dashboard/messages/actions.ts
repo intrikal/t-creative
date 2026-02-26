@@ -22,6 +22,7 @@ import {
   threadParticipants,
 } from "@/db/schema";
 import { MessageNotification } from "@/emails/MessageNotification";
+import { trackEvent } from "@/lib/posthog";
 import { sendEmail } from "@/lib/resend";
 import { createClient } from "@/utils/supabase/server";
 
@@ -663,6 +664,13 @@ export async function createBookingRequest(input: {
     senderId: user.id,
     body,
     channel: "internal",
+  });
+
+  trackEvent(user.id, "booking_request_submitted", {
+    serviceId: input.serviceId,
+    serviceName: service.name,
+    bookingId: booking.id,
+    hasPreferredDates: !!input.preferredDates,
   });
 
   revalidatePath("/dashboard/messages");

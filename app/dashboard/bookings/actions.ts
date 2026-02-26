@@ -37,6 +37,7 @@ import { BookingCompleted } from "@/emails/BookingCompleted";
 import { BookingConfirmation } from "@/emails/BookingConfirmation";
 import { BookingNoShow } from "@/emails/BookingNoShow";
 import { BookingReschedule } from "@/emails/BookingReschedule";
+import { trackEvent } from "@/lib/posthog";
 import { sendEmail } from "@/lib/resend";
 import { isSquareConfigured, createSquareOrder } from "@/lib/square";
 import { createClient } from "@/utils/supabase/server";
@@ -176,6 +177,12 @@ export async function updateBookingStatus(
     await trySendBookingStatusEmail(id, "no_show");
   }
 
+  trackEvent(id.toString(), "booking_status_changed", {
+    bookingId: id,
+    newStatus: status,
+    ...(cancellationReason ? { cancellationReason } : {}),
+  });
+
   revalidatePath("/dashboard/bookings");
 }
 
@@ -203,6 +210,13 @@ export async function createBooking(input: BookingInput): Promise<void> {
 
   // Send booking confirmation email
   await trySendBookingConfirmation(newBooking.id);
+
+  trackEvent(input.clientId, "booking_created", {
+    bookingId: newBooking.id,
+    serviceId: input.serviceId,
+    totalInCents: input.totalInCents,
+    location: input.location ?? null,
+  });
 
   revalidatePath("/dashboard/bookings");
 }

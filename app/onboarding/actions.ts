@@ -57,6 +57,7 @@ import {
   type AssistantOnboardingData,
   type AdminOnboardingData,
 } from "@/lib/onboarding-schema";
+import { trackEvent } from "@/lib/posthog";
 import { sendEmail } from "@/lib/resend";
 import { createClient } from "@/utils/supabase/server";
 
@@ -335,6 +336,11 @@ export async function saveOnboardingData(
       console.log("[onboarding/admin] ✓ profile upserted, services saved");
     });
 
+    trackEvent(user.id, "onboarding_completed", {
+      role: "admin",
+      servicesConfigured: serviceInserts.length,
+    });
+
     return;
   }
 
@@ -480,6 +486,13 @@ export async function saveOnboardingData(
           bio: bio || null,
         },
       });
+
+    trackEvent(user.id, "onboarding_completed", {
+      role: "assistant",
+      skills,
+      experienceLevel,
+      offersTraining: offersTraining ?? false,
+    });
   } else {
     /**
      * Client path — parse and validate against the client onboarding schema.
@@ -709,5 +722,13 @@ export async function saveOnboardingData(
         }
       }
     }
+
+    trackEvent(user.id, "onboarding_completed", {
+      role: "client",
+      interests,
+      source,
+      hasReferral: !!referredBy,
+      hasBirthday: !!birthday?.trim(),
+    });
   }
 }

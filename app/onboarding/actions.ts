@@ -46,6 +46,9 @@ import { db } from "@/db";
 import { profiles, loyaltyTransactions } from "@/db/schema";
 import { assistantProfiles } from "@/db/schema/assistants";
 import { services as servicesTable } from "@/db/schema/services";
+import { LoyaltyPointsAwarded } from "@/emails/LoyaltyPointsAwarded";
+import { ReferralBonus } from "@/emails/ReferralBonus";
+import { WelcomeEmail } from "@/emails/WelcomeEmail";
 import {
   onboardingSchema,
   assistantOnboardingSchema,
@@ -54,6 +57,7 @@ import {
   type AssistantOnboardingData,
   type AdminOnboardingData,
 } from "@/lib/onboarding-schema";
+import { sendEmail } from "@/lib/resend";
 import { createClient } from "@/utils/supabase/server";
 
 export async function saveOnboardingData(
@@ -637,5 +641,73 @@ export async function saveOnboardingData(
 
       await tx.insert(loyaltyTransactions).values(pointsRows);
     });
+
+    // Send welcome email (non-fatal, respects notifyEmail preference)
+    if (notifications.email) {
+      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+      await sendEmail({
+        to: email,
+        subject: "Welcome to T Creative Studio!",
+        react: WelcomeEmail({
+          clientName: firstName,
+          dashboardUrl: `${siteUrl}/dashboard`,
+        }),
+        entityType: "welcome_email",
+        localId: user.id,
+      });
+
+      // Send loyalty points email for sign-up bonus (non-fatal)
+      try {
+        // Calculate total points earned
+        let totalPoints = 25; // profile_complete
+        if (birthday?.trim()) totalPoints += 50; // birthday_added
+        if (referredBy) totalPoints += 100; // referral_referee
+
+        await sendEmail({
+          to: email,
+          subject: "You earned loyalty points! — T Creative",
+          react: LoyaltyPointsAwarded({
+            clientName: firstName,
+            pointsEarned: totalPoints,
+            reason: "Completed onboarding",
+            totalBalance: totalPoints,
+          }),
+          entityType: "loyalty_points_awarded",
+          localId: user.id,
+        });
+      } catch {
+        // Non-fatal
+      }
+
+      // Send referral bonus email to the referrer (non-fatal)
+      if (referredBy) {
+        try {
+          const [referrerProfile] = await db
+            .select({
+              email: profiles.email,
+              firstName: profiles.firstName,
+              notifyEmail: profiles.notifyEmail,
+            })
+            .from(profiles)
+            .where(eq(profiles.id, referredBy));
+
+          if (referrerProfile?.email && referrerProfile.notifyEmail) {
+            await sendEmail({
+              to: referrerProfile.email,
+              subject: "Referral bonus! — T Creative",
+              react: ReferralBonus({
+                referrerName: referrerProfile.firstName,
+                refereeName: `${firstName}${lastName ? ` ${lastName}` : ""}`,
+                pointsEarned: 100,
+              }),
+              entityType: "referral_bonus",
+              localId: referredBy,
+            });
+          }
+        } catch {
+          // Non-fatal
+        }
+      }
+    }
   }
 }

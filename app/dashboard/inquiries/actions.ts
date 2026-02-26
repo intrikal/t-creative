@@ -23,6 +23,9 @@ import { revalidatePath } from "next/cache";
 import { eq, desc } from "drizzle-orm";
 import { db } from "@/db";
 import { inquiries, productInquiries, products } from "@/db/schema";
+import { InquiryReply } from "@/emails/InquiryReply";
+import { ProductQuote } from "@/emails/ProductQuote";
+import { sendEmail } from "@/lib/resend";
 import { createClient as createSupabaseClient } from "@/utils/supabase/server";
 
 /* ------------------------------------------------------------------ */
@@ -163,6 +166,31 @@ export async function replyToInquiry(id: number, replyText: string) {
       status: "replied",
     })
     .where(eq(inquiries.id, id));
+
+  // Send reply notification email (non-fatal)
+  try {
+    const [inquiry] = await db
+      .select({ email: inquiries.email, name: inquiries.name, message: inquiries.message })
+      .from(inquiries)
+      .where(eq(inquiries.id, id));
+
+    if (inquiry?.email) {
+      await sendEmail({
+        to: inquiry.email,
+        subject: "Reply to your inquiry — T Creative",
+        react: InquiryReply({
+          clientName: inquiry.name,
+          replyText,
+          originalMessage: inquiry.message,
+        }),
+        entityType: "inquiry_reply",
+        localId: String(id),
+      });
+    }
+  } catch {
+    // Non-fatal
+  }
+
   revalidatePath("/dashboard/inquiries");
 }
 
@@ -203,6 +231,36 @@ export async function sendProductQuote(id: number, amountInCents: number) {
       status: "quote_sent",
     })
     .where(eq(productInquiries.id, id));
+
+  // Send quote email (non-fatal)
+  try {
+    const [row] = await db
+      .select({
+        email: productInquiries.email,
+        clientName: productInquiries.clientName,
+        productTitle: products.title,
+      })
+      .from(productInquiries)
+      .leftJoin(products, eq(productInquiries.productId, products.id))
+      .where(eq(productInquiries.id, id));
+
+    if (row?.email) {
+      await sendEmail({
+        to: row.email,
+        subject: `Quote — ${row.productTitle ?? "Your product"} — T Creative`,
+        react: ProductQuote({
+          clientName: row.clientName,
+          productTitle: row.productTitle ?? "Your product",
+          quotedAmountInCents: amountInCents,
+        }),
+        entityType: "product_quote",
+        localId: String(id),
+      });
+    }
+  } catch {
+    // Non-fatal
+  }
+
   revalidatePath("/dashboard/inquiries");
 }
 

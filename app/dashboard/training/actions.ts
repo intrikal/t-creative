@@ -23,6 +23,8 @@ import {
   lessonCompletions,
   profiles,
 } from "@/db/schema";
+import { EnrollmentConfirmation } from "@/emails/EnrollmentConfirmation";
+import { sendEmail, getEmailRecipient } from "@/lib/resend";
 import { createClient } from "@/utils/supabase/server";
 
 const PATH = "/dashboard/training";
@@ -547,6 +549,37 @@ export async function createEnrollment(form: EnrollmentFormData) {
     amountPaidInCents: Math.round(form.amountPaid * 100),
     isPaid: form.amountPaid > 0,
   });
+
+  // Send enrollment confirmation email (non-fatal)
+  try {
+    const recipient = await getEmailRecipient(form.clientId);
+    if (recipient) {
+      const [program] = await db
+        .select({
+          name: trainingPrograms.name,
+          priceInCents: trainingPrograms.priceInCents,
+        })
+        .from(trainingPrograms)
+        .where(eq(trainingPrograms.id, form.programId));
+
+      if (program) {
+        await sendEmail({
+          to: recipient.email,
+          subject: `Enrollment confirmed — ${program.name} — T Creative`,
+          react: EnrollmentConfirmation({
+            clientName: recipient.firstName,
+            programName: program.name,
+            format: "In Person",
+            priceInCents: program.priceInCents ?? 0,
+          }),
+          entityType: "enrollment_confirmation",
+          localId: `${form.clientId}-${form.programId}`,
+        });
+      }
+    }
+  } catch {
+    // Non-fatal
+  }
 
   revalidatePath(PATH);
 }

@@ -21,6 +21,8 @@ import {
   bookings,
   threadParticipants,
 } from "@/db/schema";
+import { MessageNotification } from "@/emails/MessageNotification";
+import { sendEmail } from "@/lib/resend";
 import { createClient } from "@/utils/supabase/server";
 
 /* ------------------------------------------------------------------ */
@@ -370,6 +372,51 @@ export async function sendMessage(threadId: number, body: string): Promise<Messa
     .from(messages)
     .innerJoin(senderProfile, eq(messages.senderId, senderProfile.id))
     .where(eq(messages.id, msg.id));
+
+  // Send email notification to other thread participants (non-fatal)
+  try {
+    const senderName = [full.senderFirstName, full.senderLastName].filter(Boolean).join(" ");
+    const participants = await db
+      .select({
+        id: profiles.id,
+        email: profiles.email,
+        firstName: profiles.firstName,
+        notifyEmail: profiles.notifyEmail,
+      })
+      .from(threadParticipants)
+      .innerJoin(profiles, eq(threadParticipants.profileId, profiles.id))
+      .where(eq(threadParticipants.threadId, threadId));
+
+    // Get thread subject
+    const [threadRow] = await db
+      .select({ subject: threads.subject })
+      .from(threads)
+      .where(eq(threads.id, threadId));
+
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+    const preview = body.length > 200 ? body.slice(0, 200) + "..." : body;
+
+    for (const p of participants) {
+      if (p.id === user.id) continue; // Don't email yourself
+      if (!p.email || !p.notifyEmail) continue;
+
+      await sendEmail({
+        to: p.email,
+        subject: `New message — ${threadRow?.subject ?? "Conversation"} — T Creative`,
+        react: MessageNotification({
+          recipientName: p.firstName,
+          senderName,
+          threadSubject: threadRow?.subject ?? "Conversation",
+          messagePreview: preview,
+          threadUrl: `${siteUrl}/dashboard/messages?thread=${threadId}`,
+        }),
+        entityType: "message_notification",
+        localId: String(msg.id),
+      });
+    }
+  } catch {
+    // Non-fatal
+  }
 
   revalidatePath("/dashboard/messages");
   return full;

@@ -21,6 +21,9 @@ import { eq, and, sql, inArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
 import { payments, bookings, services, profiles, syncLog } from "@/db/schema";
+import { PaymentLinkEmail } from "@/emails/PaymentLinkEmail";
+import { RefundNotification } from "@/emails/RefundNotification";
+import { sendEmail, getEmailRecipient } from "@/lib/resend";
 import {
   squareClient,
   isSquareConfigured,
@@ -284,6 +287,50 @@ export async function processRefund(input: RefundInput): Promise<RefundResult> {
     })
     .where(eq(payments.id, input.paymentId));
 
+  // Send refund notification email (non-fatal)
+  try {
+    const recipient = await getEmailRecipient(payment.clientId);
+    if (recipient) {
+      // Get service name from the booking
+      let serviceName = "your service";
+      if (payment.bookingId) {
+        const [booking] = await db
+          .select({ serviceName: services.name })
+          .from(bookings)
+          .innerJoin(services, eq(bookings.serviceId, services.id))
+          .where(eq(bookings.id, payment.bookingId));
+        if (booking) serviceName = booking.serviceName;
+      }
+
+      const methodLabels: Record<string, string> = {
+        cash: "Cash",
+        square_card: "Card",
+        square_cash: "Cash App",
+        square_wallet: "Digital Wallet",
+        square_gift_card: "Gift Card",
+        square_other: "Square",
+      };
+
+      await sendEmail({
+        to: recipient.email,
+        subject: `Refund processed — $${(input.amountInCents / 100).toFixed(2)} — T Creative`,
+        react: RefundNotification({
+          clientName: recipient.firstName,
+          refundAmountInCents: input.amountInCents,
+          originalAmountInCents: payment.amountInCents,
+          method:
+            (payment.method ? methodLabels[payment.method] : null) ?? payment.method ?? "Unknown",
+          reason: input.reason,
+          serviceName,
+        }),
+        entityType: "refund_notification",
+        localId: String(payment.id),
+      });
+    }
+  } catch {
+    // Non-fatal
+  }
+
   revalidatePath("/dashboard/financial");
   revalidatePath("/dashboard/bookings");
 
@@ -363,6 +410,33 @@ export async function createPaymentLink(input: {
       message: `Created ${input.type} payment link for booking #${booking.id}`,
       payload: { url, orderId, amountInCents: input.amountInCents },
     });
+
+    // Email payment link to client (respects notifyEmail preference)
+    const [linkClient] = await db
+      .select({
+        email: profiles.email,
+        firstName: profiles.firstName,
+        notifyEmail: profiles.notifyEmail,
+      })
+      .from(profiles)
+      .innerJoin(bookings, eq(bookings.clientId, profiles.id))
+      .where(eq(bookings.id, input.bookingId));
+
+    if (linkClient?.email && linkClient.notifyEmail) {
+      await sendEmail({
+        to: linkClient.email,
+        subject: `${input.type === "deposit" ? "Deposit" : "Payment"} link — ${serviceName} — T Creative`,
+        react: PaymentLinkEmail({
+          clientName: linkClient.firstName,
+          serviceName,
+          amountInCents: input.amountInCents,
+          type: input.type,
+          paymentUrl: url,
+        }),
+        entityType: "payment_link_delivery",
+        localId: String(booking.id),
+      });
+    }
 
     return { success: true, url };
   } catch (err) {

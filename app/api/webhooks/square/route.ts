@@ -16,7 +16,9 @@
 import { createHmac } from "crypto";
 import { eq, and, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { payments, bookings, orders, webhookEvents, syncLog } from "@/db/schema";
+import { payments, bookings, orders, profiles, webhookEvents, syncLog } from "@/db/schema";
+import { PaymentReceipt } from "@/emails/PaymentReceipt";
+import { sendEmail } from "@/lib/resend";
 import { SQUARE_WEBHOOK_SIGNATURE_KEY, squareClient, isSquareConfigured } from "@/lib/square";
 
 /* ------------------------------------------------------------------ */
@@ -130,6 +132,28 @@ async function handlePaymentCompleted(data: any): Promise<string> {
         .where(eq(bookings.id, booking.id));
     }
 
+    // Send payment receipt email (non-fatal)
+    const [bookingClient] = await db
+      .select({ email: profiles.email, firstName: profiles.firstName })
+      .from(profiles)
+      .where(eq(profiles.id, booking.clientId));
+
+    if (bookingClient?.email) {
+      await sendEmail({
+        to: bookingClient.email,
+        subject: "Payment receipt — T Creative",
+        react: PaymentReceipt({
+          clientName: bookingClient.firstName,
+          amountInCents: amountCents,
+          method: method.replace("square_", "").replace("_", " "),
+          receiptUrl: (squarePayment.receipt_url as string) ?? undefined,
+          description: isDeposit ? "Deposit payment" : "Appointment payment",
+        }),
+        entityType: "payment_receipt",
+        localId: String(booking.id),
+      });
+    }
+
     return `Auto-linked payment to booking #${booking.id}${isDeposit ? " (deposit)" : ""}`;
   }
 
@@ -137,6 +161,28 @@ async function handlePaymentCompleted(data: any): Promise<string> {
   const productOrder = await findProductOrderBySquareOrder(squareOrderId);
   if (productOrder) {
     await db.update(orders).set({ status: "in_progress" }).where(eq(orders.id, productOrder.id));
+
+    // Send payment receipt email (non-fatal)
+    const [orderClient] = await db
+      .select({ email: profiles.email, firstName: profiles.firstName })
+      .from(profiles)
+      .where(eq(profiles.id, productOrder.clientId));
+
+    if (orderClient?.email) {
+      await sendEmail({
+        to: orderClient.email,
+        subject: "Payment received for your order — T Creative",
+        react: PaymentReceipt({
+          clientName: orderClient.firstName,
+          amountInCents: Number(squarePayment.amount_money?.amount ?? 0),
+          method: "card",
+          receiptUrl: (squarePayment.receipt_url as string) ?? undefined,
+          description: "Order payment",
+        }),
+        entityType: "payment_receipt",
+        localId: String(productOrder.id),
+      });
+    }
 
     return `Auto-linked payment to product order #${productOrder.id}`;
   }

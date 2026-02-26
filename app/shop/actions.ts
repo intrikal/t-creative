@@ -11,7 +11,9 @@
 import { revalidatePath } from "next/cache";
 import { eq, desc, asc, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { products, orders, services, syncLog } from "@/db/schema";
+import { products, orders, profiles, syncLog } from "@/db/schema";
+import { OrderConfirmation } from "@/emails/OrderConfirmation";
+import { sendEmail } from "@/lib/resend";
 import { isSquareConfigured, createSquareOrderPaymentLink } from "@/lib/square";
 import { createClient } from "@/utils/supabase/server";
 
@@ -258,6 +260,29 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
       });
       // Non-fatal — order is still created, client can pay later
     }
+  }
+
+  // Send order confirmation email (non-fatal)
+  const [clientProfile] = await db
+    .select({ email: profiles.email, firstName: profiles.firstName })
+    .from(profiles)
+    .where(eq(profiles.id, user.id));
+
+  if (clientProfile?.email) {
+    await sendEmail({
+      to: clientProfile.email,
+      subject: `Order ${orderNumber} confirmed — T Creative`,
+      react: OrderConfirmation({
+        clientName: clientProfile.firstName,
+        orderNumber,
+        items: lineItems,
+        totalInCents,
+        fulfillmentMethod: input.fulfillmentMethod,
+        paymentUrl,
+      }),
+      entityType: "order_confirmation",
+      localId: String(createdOrderIds[0]),
+    });
   }
 
   revalidatePath("/shop");

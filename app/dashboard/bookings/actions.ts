@@ -32,6 +32,12 @@ import { eq, desc, ne, and, gte, sum } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
 import { bookings, profiles, services, syncLog } from "@/db/schema";
+import { BookingCancellation } from "@/emails/BookingCancellation";
+import { BookingCompleted } from "@/emails/BookingCompleted";
+import { BookingConfirmation } from "@/emails/BookingConfirmation";
+import { BookingNoShow } from "@/emails/BookingNoShow";
+import { BookingReschedule } from "@/emails/BookingReschedule";
+import { sendEmail } from "@/lib/resend";
 import { isSquareConfigured, createSquareOrder } from "@/lib/square";
 import { createClient } from "@/utils/supabase/server";
 
@@ -153,6 +159,21 @@ export async function updateBookingStatus(
     if (booking && !booking.squareOrderId) {
       await tryCreateSquareOrder(id, booking.serviceId, booking.totalInCents);
     }
+
+    // Send booking confirmation email
+    await trySendBookingConfirmation(id);
+  }
+
+  if (status === "cancelled") {
+    await trySendBookingStatusEmail(id, "cancelled", cancellationReason);
+  }
+
+  if (status === "completed") {
+    await trySendBookingStatusEmail(id, "completed");
+  }
+
+  if (status === "no_show") {
+    await trySendBookingStatusEmail(id, "no_show");
   }
 
   revalidatePath("/dashboard/bookings");
@@ -180,6 +201,9 @@ export async function createBooking(input: BookingInput): Promise<void> {
   // Create Square order for POS payment matching
   await tryCreateSquareOrder(newBooking.id, input.serviceId, input.totalInCents);
 
+  // Send booking confirmation email
+  await trySendBookingConfirmation(newBooking.id);
+
   revalidatePath("/dashboard/bookings");
 }
 
@@ -188,6 +212,12 @@ export async function updateBooking(
   input: BookingInput & { status: BookingStatus },
 ): Promise<void> {
   await getUser();
+
+  // Fetch old booking time to detect reschedule
+  const [oldBooking] = await db
+    .select({ startsAt: bookings.startsAt })
+    .from(bookings)
+    .where(eq(bookings.id, id));
 
   const updates: Record<string, unknown> = {
     clientId: input.clientId,
@@ -206,6 +236,12 @@ export async function updateBooking(
   if (input.status === "cancelled") updates.cancelledAt = new Date();
 
   await db.update(bookings).set(updates).where(eq(bookings.id, id));
+
+  // Send reschedule email if time changed
+  if (oldBooking && oldBooking.startsAt.getTime() !== input.startsAt.getTime()) {
+    await trySendBookingReschedule(id, oldBooking.startsAt);
+  }
+
   revalidatePath("/dashboard/bookings");
 }
 
@@ -328,6 +364,181 @@ async function tryCreateSquareOrder(
       message: "Failed to create Square order for booking",
       errorMessage: err instanceof Error ? err.message : "Unknown error",
     });
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Booking confirmation email (non-fatal)                             */
+/* ------------------------------------------------------------------ */
+
+async function trySendBookingConfirmation(bookingId: number): Promise<void> {
+  try {
+    const confirmClient = alias(profiles, "confirmClient");
+    const [row] = await db
+      .select({
+        clientEmail: confirmClient.email,
+        clientFirstName: confirmClient.firstName,
+        serviceName: services.name,
+        startsAt: bookings.startsAt,
+        durationMinutes: bookings.durationMinutes,
+        totalInCents: bookings.totalInCents,
+      })
+      .from(bookings)
+      .innerJoin(confirmClient, eq(bookings.clientId, confirmClient.id))
+      .innerJoin(services, eq(bookings.serviceId, services.id))
+      .where(eq(bookings.id, bookingId));
+
+    if (!row?.clientEmail) return;
+
+    const startsAtFormatted = row.startsAt.toLocaleDateString("en-US", {
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+
+    await sendEmail({
+      to: row.clientEmail,
+      subject: `Booking confirmed — ${row.serviceName} — T Creative`,
+      react: BookingConfirmation({
+        clientName: row.clientFirstName,
+        serviceName: row.serviceName,
+        startsAt: startsAtFormatted,
+        durationMinutes: row.durationMinutes,
+        totalInCents: row.totalInCents,
+      }),
+      entityType: "booking_confirmation",
+      localId: String(bookingId),
+    });
+  } catch {
+    // Non-fatal — booking confirmation email failure shouldn't break the flow
+  }
+}
+
+/**
+ * Sends status-change emails for cancelled, completed, and no-show bookings.
+ * Uses the same join pattern as trySendBookingConfirmation.
+ */
+async function trySendBookingStatusEmail(
+  bookingId: number,
+  status: "cancelled" | "completed" | "no_show",
+  cancellationReason?: string,
+): Promise<void> {
+  try {
+    const statusClient = alias(profiles, "statusClient");
+    const [row] = await db
+      .select({
+        clientEmail: statusClient.email,
+        clientFirstName: statusClient.firstName,
+        notifyEmail: statusClient.notifyEmail,
+        serviceName: services.name,
+        startsAt: bookings.startsAt,
+      })
+      .from(bookings)
+      .innerJoin(statusClient, eq(bookings.clientId, statusClient.id))
+      .innerJoin(services, eq(bookings.serviceId, services.id))
+      .where(eq(bookings.id, bookingId));
+
+    if (!row?.clientEmail || !row.notifyEmail) return;
+
+    const dateFormatted = row.startsAt.toLocaleDateString("en-US", {
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+
+    if (status === "cancelled") {
+      await sendEmail({
+        to: row.clientEmail,
+        subject: `Booking cancelled — ${row.serviceName} — T Creative`,
+        react: BookingCancellation({
+          clientName: row.clientFirstName,
+          serviceName: row.serviceName,
+          bookingDate: dateFormatted,
+          cancellationReason,
+        }),
+        entityType: "booking_cancellation",
+        localId: String(bookingId),
+      });
+    } else if (status === "completed") {
+      await sendEmail({
+        to: row.clientEmail,
+        subject: `Thanks for visiting — ${row.serviceName} — T Creative`,
+        react: BookingCompleted({
+          clientName: row.clientFirstName,
+          serviceName: row.serviceName,
+        }),
+        entityType: "booking_completed",
+        localId: String(bookingId),
+      });
+    } else if (status === "no_show") {
+      await sendEmail({
+        to: row.clientEmail,
+        subject: `Missed appointment — ${row.serviceName} — T Creative`,
+        react: BookingNoShow({
+          clientName: row.clientFirstName,
+          serviceName: row.serviceName,
+          bookingDate: dateFormatted,
+        }),
+        entityType: "booking_no_show",
+        localId: String(bookingId),
+      });
+    }
+  } catch {
+    // Non-fatal
+  }
+}
+
+/**
+ * Sends a reschedule notification email when a booking's time changes.
+ */
+async function trySendBookingReschedule(bookingId: number, oldStartsAt: Date): Promise<void> {
+  try {
+    const reschedClient = alias(profiles, "reschedClient");
+    const [row] = await db
+      .select({
+        clientEmail: reschedClient.email,
+        clientFirstName: reschedClient.firstName,
+        notifyEmail: reschedClient.notifyEmail,
+        serviceName: services.name,
+        startsAt: bookings.startsAt,
+      })
+      .from(bookings)
+      .innerJoin(reschedClient, eq(bookings.clientId, reschedClient.id))
+      .innerJoin(services, eq(bookings.serviceId, services.id))
+      .where(eq(bookings.id, bookingId));
+
+    if (!row?.clientEmail || !row.notifyEmail) return;
+
+    const fmt = (d: Date) =>
+      d.toLocaleDateString("en-US", {
+        weekday: "long",
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      });
+
+    await sendEmail({
+      to: row.clientEmail,
+      subject: `Booking rescheduled — ${row.serviceName} — T Creative`,
+      react: BookingReschedule({
+        clientName: row.clientFirstName,
+        serviceName: row.serviceName,
+        oldDateTime: fmt(oldStartsAt),
+        newDateTime: fmt(row.startsAt),
+      }),
+      entityType: "booking_reschedule",
+      localId: String(bookingId),
+    });
+  } catch {
+    // Non-fatal
   }
 }
 

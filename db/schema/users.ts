@@ -168,6 +168,9 @@ export const profiles = pgTable(
     /** Zoho CRM contact ID — set when synced to Zoho for CRM tracking. */
     zohoContactId: varchar("zoho_contact_id", { length: 100 }),
 
+    /** Zoho Campaigns subscriber key — set when synced to Zoho Campaigns mailing list. */
+    zohoCampaignsContactKey: varchar("zoho_campaigns_contact_key", { length: 100 }),
+
     /**
      * JSONB bucket for onboarding fields that don't have dedicated columns
      * (allergies, availability, interests, waiver, photo consent, birthday, etc.).
@@ -191,6 +194,7 @@ export const profiles = pgTable(
     index("profiles_referred_by_idx").on(t.referredBy),
     index("profiles_square_id_idx").on(t.squareCustomerId),
     index("profiles_zoho_id_idx").on(t.zohoContactId),
+    index("profiles_zoho_campaigns_key_idx").on(t.zohoCampaignsContactKey),
   ],
 );
 

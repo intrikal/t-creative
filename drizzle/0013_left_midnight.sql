@@ -1,0 +1,2 @@
+ALTER TABLE "profiles" ADD COLUMN "zoho_campaigns_contact_key" varchar(100);--> statement-breakpoint
+CREATE INDEX "profiles_zoho_campaigns_key_idx" ON "profiles" USING btree ("zoho_campaigns_contact_key");

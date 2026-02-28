@@ -208,3 +208,21 @@ export async function saveClientNotifications(prefs: ClientNotifications) {
 
   revalidatePath(PATH);
 }
+
+/* ------------------------------------------------------------------ */
+/*  Delete account                                                     */
+/* ------------------------------------------------------------------ */
+
+export async function deleteClientAccount() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
+  // Soft-delete: deactivate profile (preserves referential integrity)
+  await db.update(profiles).set({ isActive: false }).where(eq(profiles.id, user.id));
+
+  // Sign out so session is cleared
+  await supabase.auth.signOut();
+}

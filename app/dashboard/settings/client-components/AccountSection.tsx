@@ -4,20 +4,23 @@
  * AccountSection.tsx — Account management tab for the client settings page.
  *
  * Contains:
- * - Change password (navigates to Supabase auth flow in Phase 2)
  * - Linked phone display
  * - Privacy policy link
- * - Log out (calls `supabase.auth.signOut()` in Phase 2)
- * - Delete account with confirmation dialog
+ * - Log out (POST to /auth/signout)
+ * - Delete account (soft-delete via server action)
  */
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { AlertTriangle, ChevronRight, LogOut, Trash2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogFooter } from "@/components/ui/dialog";
+import { deleteClientAccount } from "../client-settings-actions";
 
 export function AccountSection() {
+  const router = useRouter();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   return (
     <>
@@ -30,15 +33,6 @@ export function AccountSection() {
         <Card className="gap-0">
           <CardContent className="px-5 pb-5 pt-5 space-y-4">
             <div className="space-y-0">
-              {/* Change password */}
-              <div className="flex items-center justify-between py-3 border-b border-border/40">
-                <div>
-                  <p className="text-sm font-medium text-foreground">Change Password</p>
-                  <p className="text-xs text-muted mt-0.5">Update your login password</p>
-                </div>
-                <ChevronRight className="w-4 h-4 text-muted" />
-              </div>
-
               {/* Linked phone */}
               <div className="flex items-center justify-between py-3 border-b border-border/40">
                 <div>
@@ -60,18 +54,20 @@ export function AccountSection() {
               </div>
 
               {/* Log out */}
-              <button
-                onClick={() => {}}
-                className="w-full flex items-center justify-between py-3 border-b border-border/40 text-left group"
-              >
-                <div>
-                  <p className="text-sm font-medium text-foreground group-hover:text-destructive transition-colors">
-                    Log Out
-                  </p>
-                  <p className="text-xs text-muted mt-0.5">Sign out of your account</p>
-                </div>
-                <LogOut className="w-4 h-4 text-muted group-hover:text-destructive transition-colors" />
-              </button>
+              <form action="/auth/signout" method="POST" className="w-full">
+                <button
+                  type="submit"
+                  className="w-full flex items-center justify-between py-3 border-b border-border/40 text-left group"
+                >
+                  <div>
+                    <p className="text-sm font-medium text-foreground group-hover:text-destructive transition-colors">
+                      Log Out
+                    </p>
+                    <p className="text-xs text-muted mt-0.5">Sign out of your account</p>
+                  </div>
+                  <LogOut className="w-4 h-4 text-muted group-hover:text-destructive transition-colors" />
+                </button>
+              </form>
             </div>
 
             {/* Delete account */}
@@ -109,8 +105,16 @@ export function AccountSection() {
           </div>
           <DialogFooter
             onCancel={() => setShowDeleteConfirm(false)}
-            onConfirm={() => setShowDeleteConfirm(false)}
-            confirmLabel="Delete my account"
+            onConfirm={async () => {
+              setDeleting(true);
+              try {
+                await deleteClientAccount();
+                router.push("/auth/signed-out");
+              } catch {
+                setDeleting(false);
+              }
+            }}
+            confirmLabel={deleting ? "Deleting..." : "Delete my account"}
             destructive
           />
         </Dialog>

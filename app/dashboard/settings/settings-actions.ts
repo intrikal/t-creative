@@ -93,6 +93,30 @@ export interface NotificationPrefs {
   }>;
 }
 
+export interface BookingRulesConfig {
+  minNoticeHours: number;
+  maxAdvanceDays: number;
+  bufferMinutes: number;
+  maxDailyBookings: number;
+  cancelWindowHours: number;
+  depositPct: number;
+  depositRequired: boolean;
+  allowOnlineBooking: boolean;
+}
+
+export interface ReminderItem {
+  id: number;
+  label: string;
+  timing: string;
+  email: boolean;
+  sms: boolean;
+  active: boolean;
+}
+
+export interface RemindersConfig {
+  items: ReminderItem[];
+}
+
 /* ------------------------------------------------------------------ */
 /*  Defaults                                                           */
 /* ------------------------------------------------------------------ */
@@ -129,6 +153,70 @@ const DEFAULT_LOYALTY: LoyaltyConfig = {
   tierPlatinum: 1500,
 };
 
+const DEFAULT_BOOKING_RULES: BookingRulesConfig = {
+  minNoticeHours: 24,
+  maxAdvanceDays: 60,
+  bufferMinutes: 15,
+  maxDailyBookings: 8,
+  cancelWindowHours: 48,
+  depositPct: 25,
+  depositRequired: true,
+  allowOnlineBooking: true,
+};
+
+const DEFAULT_REMINDERS: RemindersConfig = {
+  items: [
+    {
+      id: 1,
+      label: "Booking confirmation",
+      timing: "Immediately after booking",
+      email: true,
+      sms: true,
+      active: true,
+    },
+    {
+      id: 2,
+      label: "48-hour reminder",
+      timing: "2 days before appointment",
+      email: true,
+      sms: true,
+      active: true,
+    },
+    {
+      id: 3,
+      label: "24-hour reminder",
+      timing: "1 day before appointment",
+      email: false,
+      sms: true,
+      active: true,
+    },
+    {
+      id: 4,
+      label: "Day-of reminder",
+      timing: "Morning of appointment",
+      email: false,
+      sms: true,
+      active: false,
+    },
+    {
+      id: 5,
+      label: "4-week follow-up",
+      timing: "28 days after appointment",
+      email: true,
+      sms: false,
+      active: true,
+    },
+    {
+      id: 6,
+      label: "Review request",
+      timing: "2 days after appointment",
+      email: true,
+      sms: false,
+      active: true,
+    },
+  ],
+};
+
 const DEFAULT_NOTIFICATIONS: NotificationPrefs = {
   items: [
     { label: "New booking confirmation", email: true, sms: true },
@@ -149,6 +237,8 @@ const KEY_BUSINESS = "business_profile";
 const KEY_POLICIES = "policy_settings";
 const KEY_LOYALTY = "loyalty_config";
 const KEY_NOTIFICATIONS = "notification_prefs";
+const KEY_BOOKING_RULES = "booking_rules";
+const KEY_REMINDERS = "reminder_config";
 
 /* ------------------------------------------------------------------ */
 /*  Generic helpers                                                    */
@@ -224,6 +314,36 @@ export async function getNotificationPrefs(): Promise<NotificationPrefs> {
 export async function saveNotificationPrefs(data: NotificationPrefs): Promise<void> {
   await getUser();
   await upsertSetting(KEY_NOTIFICATIONS, "Notification Preferences", data);
+  revalidatePath("/dashboard/settings");
+}
+
+/* ------------------------------------------------------------------ */
+/*  Booking Rules                                                      */
+/* ------------------------------------------------------------------ */
+
+export async function getBookingRules(): Promise<BookingRulesConfig> {
+  await getUser();
+  return getSetting(KEY_BOOKING_RULES, DEFAULT_BOOKING_RULES);
+}
+
+export async function saveBookingRules(data: BookingRulesConfig): Promise<void> {
+  await getUser();
+  await upsertSetting(KEY_BOOKING_RULES, "Booking Rules", data);
+  revalidatePath("/dashboard/settings");
+}
+
+/* ------------------------------------------------------------------ */
+/*  Reminders                                                          */
+/* ------------------------------------------------------------------ */
+
+export async function getReminders(): Promise<RemindersConfig> {
+  await getUser();
+  return getSetting(KEY_REMINDERS, DEFAULT_REMINDERS);
+}
+
+export async function saveReminders(data: RemindersConfig): Promise<void> {
+  await getUser();
+  await upsertSetting(KEY_REMINDERS, "Reminder Config", data);
   revalidatePath("/dashboard/settings");
 }
 

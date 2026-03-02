@@ -1,12 +1,7 @@
 /**
  * Booking Rules tab — scheduling constraints, cancellation, and deposit settings.
  *
- * **Currently hardcoded** — no DB schema exists for booking rules yet.
- * Uses local `useState` with `INITIAL_BOOKING` defaults. When a `booking_rules`
- * settings key is added, this tab can be wired similarly to PoliciesTab.
- *
- * Fields: minNoticeHours, maxAdvanceDays, cancelWindowHours, depositPercent,
- * allowWaitlist, requireDeposit.
+ * DB-wired via the `booking_rules` key in the `settings` table.
  *
  * @module settings/components/BookingTab
  */
@@ -14,24 +9,29 @@
 
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { FieldRow, ToggleRow, NUM_INPUT_CLASS } from "./shared";
+import type { BookingRulesConfig } from "../settings-actions";
+import { saveBookingRules } from "../settings-actions";
+import { FieldRow, ToggleRow, StatefulSaveButton, NUM_INPUT_CLASS } from "./shared";
 
-const INITIAL_BOOKING = {
-  minNoticeHours: 24,
-  maxAdvanceDays: 60,
-  cancelWindowHours: 48,
-  depositRequired: true,
-  depositPct: 25,
-  allowOnlineBooking: true,
-  bufferMinutes: 15,
-  maxDailyBookings: 8,
-};
+export function BookingTab({ initial }: { initial: BookingRulesConfig }) {
+  const [rules, setRules] = useState(initial);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
 
-export function BookingTab() {
-  const [rules, setRules] = useState(INITIAL_BOOKING);
+  function updateNum(key: keyof BookingRulesConfig, raw: string) {
+    const n = parseInt(raw, 10);
+    if (!isNaN(n)) setRules((prev) => ({ ...prev, [key]: n }));
+  }
 
-  function toggleRule(key: "depositRequired" | "allowOnlineBooking") {
-    setRules((prev) => ({ ...prev, [key]: !prev[key] }));
+  async function handleSave() {
+    setSaving(true);
+    try {
+      await saveBookingRules(rules);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -49,18 +49,34 @@ export function BookingTab() {
         </CardHeader>
         <CardContent className="px-5 pb-5 pt-3 space-y-4">
           <FieldRow label="Min notice (hours)">
-            <input type="number" defaultValue={rules.minNoticeHours} className={NUM_INPUT_CLASS} />
+            <input
+              type="number"
+              value={rules.minNoticeHours}
+              onChange={(e) => updateNum("minNoticeHours", e.target.value)}
+              className={NUM_INPUT_CLASS}
+            />
           </FieldRow>
           <FieldRow label="Max advance (days)">
-            <input type="number" defaultValue={rules.maxAdvanceDays} className={NUM_INPUT_CLASS} />
+            <input
+              type="number"
+              value={rules.maxAdvanceDays}
+              onChange={(e) => updateNum("maxAdvanceDays", e.target.value)}
+              className={NUM_INPUT_CLASS}
+            />
           </FieldRow>
           <FieldRow label="Buffer between appts (mins)">
-            <input type="number" defaultValue={rules.bufferMinutes} className={NUM_INPUT_CLASS} />
+            <input
+              type="number"
+              value={rules.bufferMinutes}
+              onChange={(e) => updateNum("bufferMinutes", e.target.value)}
+              className={NUM_INPUT_CLASS}
+            />
           </FieldRow>
           <FieldRow label="Max daily bookings">
             <input
               type="number"
-              defaultValue={rules.maxDailyBookings}
+              value={rules.maxDailyBookings}
+              onChange={(e) => updateNum("maxDailyBookings", e.target.value)}
               className={NUM_INPUT_CLASS}
             />
           </FieldRow>
@@ -77,27 +93,44 @@ export function BookingTab() {
           <FieldRow label="Cancellation window (hours)">
             <input
               type="number"
-              defaultValue={rules.cancelWindowHours}
+              value={rules.cancelWindowHours}
+              onChange={(e) => updateNum("cancelWindowHours", e.target.value)}
               className={NUM_INPUT_CLASS}
             />
-          </FieldRow>
-          <FieldRow label="Deposit amount (%)">
-            <input type="number" defaultValue={rules.depositPct} className={NUM_INPUT_CLASS} />
           </FieldRow>
           <ToggleRow
             label="Require deposit"
             hint="Client must pay deposit to confirm booking"
             on={rules.depositRequired}
-            onChange={() => toggleRule("depositRequired")}
+            onChange={(v) => setRules((prev) => ({ ...prev, depositRequired: v }))}
           />
+          {rules.depositRequired && (
+            <FieldRow label="Deposit amount (%)">
+              <input
+                type="number"
+                value={rules.depositPct}
+                onChange={(e) => updateNum("depositPct", e.target.value)}
+                className={NUM_INPUT_CLASS}
+              />
+            </FieldRow>
+          )}
           <ToggleRow
             label="Allow online booking"
             hint="Clients can book directly from your booking link"
             on={rules.allowOnlineBooking}
-            onChange={() => toggleRule("allowOnlineBooking")}
+            onChange={(v) => setRules((prev) => ({ ...prev, allowOnlineBooking: v }))}
           />
         </CardContent>
       </Card>
+
+      <div className="flex justify-end">
+        <StatefulSaveButton
+          label="Save Booking Rules"
+          saving={saving}
+          saved={saved}
+          onSave={handleSave}
+        />
+      </div>
     </div>
   );
 }

@@ -69,6 +69,8 @@ export type BookingRow = {
   serviceCategory: string;
   staffId: string | null;
   staffFirstName: string | null;
+  recurrenceRule: string | null;
+  parentBookingId: number | null;
 };
 
 export type BookingInput = {
@@ -80,6 +82,7 @@ export type BookingInput = {
   totalInCents: number;
   location?: string;
   clientNotes?: string;
+  recurrenceRule?: string;
 };
 
 async function getUser() {
@@ -115,6 +118,8 @@ export async function getBookings(): Promise<BookingRow[]> {
       serviceCategory: services.category,
       staffId: bookings.staffId,
       staffFirstName: staffProfile.firstName,
+      recurrenceRule: bookings.recurrenceRule,
+      parentBookingId: bookings.parentBookingId,
     })
     .from(bookings)
     .leftJoin(clientProfile, eq(bookings.clientId, clientProfile.id))
@@ -173,6 +178,7 @@ export async function updateBookingStatus(
 
   if (status === "completed") {
     await trySendBookingStatusEmail(id, "completed");
+    await generateNextRecurringBooking(id);
   }
 
   if (status === "no_show") {
@@ -213,6 +219,7 @@ export async function createBooking(input: BookingInput): Promise<void> {
       totalInCents: input.totalInCents,
       location: input.location ?? undefined,
       clientNotes: input.clientNotes ?? undefined,
+      recurrenceRule: input.recurrenceRule ?? undefined,
       status: "confirmed",
       confirmedAt: new Date(),
     })
@@ -294,6 +301,7 @@ export async function updateBooking(
     totalInCents: input.totalInCents,
     location: input.location ?? undefined,
     clientNotes: input.clientNotes ?? undefined,
+    recurrenceRule: input.recurrenceRule ?? null,
     status: input.status,
   };
 
@@ -389,6 +397,80 @@ export async function getStaffForSelect(): Promise<{ id: string; name: string }[
     id: r.id,
     name: [r.firstName, r.lastName].filter(Boolean).join(" "),
   }));
+}
+
+/* ------------------------------------------------------------------ */
+/*  Recurring bookings — auto-generate next appointment                */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Parses a simple iCal RRULE and returns the number of days to add.
+ * Supports: FREQ=WEEKLY;INTERVAL=N and FREQ=MONTHLY;INTERVAL=N
+ */
+function parseRRuleIntervalDays(rule: string): { days?: number; months?: number } | null {
+  const parts = Object.fromEntries(rule.split(";").map((p) => p.split("=")));
+  const freq = parts.FREQ;
+  const interval = Number(parts.INTERVAL ?? 1);
+  if (!freq || isNaN(interval)) return null;
+
+  if (freq === "WEEKLY") return { days: interval * 7 };
+  if (freq === "MONTHLY") return { months: interval };
+  return null;
+}
+
+/**
+ * After a recurring booking is completed, generates the next booking
+ * in the series with the same service, client, staff, duration, price,
+ * and recurrence rule. The new booking links back via parentBookingId.
+ */
+async function generateNextRecurringBooking(bookingId: number): Promise<void> {
+  try {
+    const [booking] = await db
+      .select({
+        clientId: bookings.clientId,
+        serviceId: bookings.serviceId,
+        staffId: bookings.staffId,
+        startsAt: bookings.startsAt,
+        durationMinutes: bookings.durationMinutes,
+        totalInCents: bookings.totalInCents,
+        location: bookings.location,
+        recurrenceRule: bookings.recurrenceRule,
+        parentBookingId: bookings.parentBookingId,
+      })
+      .from(bookings)
+      .where(eq(bookings.id, bookingId));
+
+    if (!booking?.recurrenceRule) return;
+
+    const interval = parseRRuleIntervalDays(booking.recurrenceRule);
+    if (!interval) return;
+
+    const nextStart = new Date(booking.startsAt);
+    if (interval.days) {
+      nextStart.setDate(nextStart.getDate() + interval.days);
+    } else if (interval.months) {
+      nextStart.setMonth(nextStart.getMonth() + interval.months);
+    }
+
+    // The series root is either this booking's parent or this booking itself
+    const seriesRoot = booking.parentBookingId ?? bookingId;
+
+    await db.insert(bookings).values({
+      clientId: booking.clientId,
+      serviceId: booking.serviceId,
+      staffId: booking.staffId ?? undefined,
+      startsAt: nextStart,
+      durationMinutes: booking.durationMinutes,
+      totalInCents: booking.totalInCents,
+      location: booking.location ?? undefined,
+      recurrenceRule: booking.recurrenceRule,
+      parentBookingId: seriesRoot,
+      status: "confirmed",
+      confirmedAt: new Date(),
+    });
+  } catch {
+    // Non-fatal — don't break the completion flow
+  }
 }
 
 /* ------------------------------------------------------------------ */

@@ -47,6 +47,7 @@ export interface Booking {
   clientId: string;
   serviceId: number;
   staffId: string | null;
+  recurrenceRule?: string;
 }
 
 export function statusConfig(status: BookingStatus) {
@@ -141,6 +142,7 @@ function mapBookingRow(row: BookingRow): Booking {
     clientId: row.clientId,
     serviceId: row.serviceId,
     staffId: row.staffId,
+    recurrenceRule: row.recurrenceRule ?? undefined,
   };
 }
 
@@ -274,6 +276,7 @@ export function BookingsPage({
         totalInCents: Math.round(data.price * 100),
         location: data.location || undefined,
         clientNotes: data.notes || undefined,
+        recurrenceRule: data.recurrenceRule || undefined,
         status: data.status,
       });
       router.refresh();
@@ -289,6 +292,7 @@ export function BookingsPage({
         totalInCents: Math.round(data.price * 100),
         location: data.location || undefined,
         clientNotes: data.notes || undefined,
+        recurrenceRule: data.recurrenceRule || undefined,
       } satisfies BookingInput);
       router.refresh();
     }

@@ -31,7 +31,7 @@ import { revalidatePath } from "next/cache";
 import { eq, desc, ne, and, gte, sum } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
-import { bookings, profiles, services, syncLog } from "@/db/schema";
+import { bookings, profiles, services, serviceRecords, syncLog } from "@/db/schema";
 import { BookingCancellation } from "@/emails/BookingCancellation";
 import { BookingCompleted } from "@/emails/BookingCompleted";
 import { BookingConfirmation } from "@/emails/BookingConfirmation";
@@ -768,4 +768,133 @@ export async function getAssistantBookings(): Promise<{
       completedRevenue: completedBookings.reduce((s, b) => s + b.price, 0),
     },
   };
+}
+
+/* ------------------------------------------------------------------ */
+/*  Service Records (post-appointment notes)                           */
+/* ------------------------------------------------------------------ */
+
+export type ServiceRecordRow = {
+  id: number;
+  bookingId: number;
+  clientId: string;
+  staffId: string | null;
+  staffName: string | null;
+  lashMapping: string | null;
+  curlType: string | null;
+  diameter: string | null;
+  lengths: string | null;
+  adhesive: string | null;
+  retentionNotes: string | null;
+  productsUsed: string | null;
+  notes: string | null;
+  reactions: string | null;
+  nextVisitNotes: string | null;
+  beforePhotoPath: string | null;
+  afterPhotoPath: string | null;
+  createdAt: string;
+};
+
+export type ServiceRecordInput = {
+  bookingId: number;
+  clientId: string;
+  lashMapping?: string;
+  curlType?: string;
+  diameter?: string;
+  lengths?: string;
+  adhesive?: string;
+  retentionNotes?: string;
+  productsUsed?: string;
+  notes?: string;
+  reactions?: string;
+  nextVisitNotes?: string;
+};
+
+export async function getServiceRecord(bookingId: number): Promise<ServiceRecordRow | null> {
+  await getUser();
+
+  const staffProfile = alias(profiles, "recordStaff");
+
+  const rows = await db
+    .select({
+      id: serviceRecords.id,
+      bookingId: serviceRecords.bookingId,
+      clientId: serviceRecords.clientId,
+      staffId: serviceRecords.staffId,
+      staffName: staffProfile.firstName,
+      lashMapping: serviceRecords.lashMapping,
+      curlType: serviceRecords.curlType,
+      diameter: serviceRecords.diameter,
+      lengths: serviceRecords.lengths,
+      adhesive: serviceRecords.adhesive,
+      retentionNotes: serviceRecords.retentionNotes,
+      productsUsed: serviceRecords.productsUsed,
+      notes: serviceRecords.notes,
+      reactions: serviceRecords.reactions,
+      nextVisitNotes: serviceRecords.nextVisitNotes,
+      beforePhotoPath: serviceRecords.beforePhotoPath,
+      afterPhotoPath: serviceRecords.afterPhotoPath,
+      createdAt: serviceRecords.createdAt,
+    })
+    .from(serviceRecords)
+    .leftJoin(staffProfile, eq(serviceRecords.staffId, staffProfile.id))
+    .where(eq(serviceRecords.bookingId, bookingId))
+    .limit(1);
+
+  if (rows.length === 0) return null;
+
+  const r = rows[0];
+  return { ...r, createdAt: r.createdAt.toISOString() };
+}
+
+export async function upsertServiceRecord(input: ServiceRecordInput): Promise<void> {
+  const user = await getUser();
+
+  // Check if a record already exists for this booking
+  const existing = await db
+    .select({ id: serviceRecords.id })
+    .from(serviceRecords)
+    .where(eq(serviceRecords.bookingId, input.bookingId))
+    .limit(1);
+
+  if (existing.length > 0) {
+    await db
+      .update(serviceRecords)
+      .set({
+        lashMapping: input.lashMapping ?? null,
+        curlType: input.curlType ?? null,
+        diameter: input.diameter ?? null,
+        lengths: input.lengths ?? null,
+        adhesive: input.adhesive ?? null,
+        retentionNotes: input.retentionNotes ?? null,
+        productsUsed: input.productsUsed ?? null,
+        notes: input.notes ?? null,
+        reactions: input.reactions ?? null,
+        nextVisitNotes: input.nextVisitNotes ?? null,
+      })
+      .where(eq(serviceRecords.id, existing[0].id));
+  } else {
+    await db.insert(serviceRecords).values({
+      bookingId: input.bookingId,
+      clientId: input.clientId,
+      staffId: user.id,
+      lashMapping: input.lashMapping ?? null,
+      curlType: input.curlType ?? null,
+      diameter: input.diameter ?? null,
+      lengths: input.lengths ?? null,
+      adhesive: input.adhesive ?? null,
+      retentionNotes: input.retentionNotes ?? null,
+      productsUsed: input.productsUsed ?? null,
+      notes: input.notes ?? null,
+      reactions: input.reactions ?? null,
+      nextVisitNotes: input.nextVisitNotes ?? null,
+    });
+  }
+
+  trackEvent(user.id, "service_record_saved", {
+    bookingId: input.bookingId,
+    clientId: input.clientId,
+  });
+
+  revalidatePath("/dashboard/bookings");
 }

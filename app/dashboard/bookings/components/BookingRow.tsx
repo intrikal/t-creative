@@ -10,6 +10,7 @@ import {
   X,
   CheckCircle,
   CreditCard,
+  ClipboardList,
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -25,6 +26,7 @@ export function BookingRow({
   onCancel,
   onDelete,
   onPayment,
+  onServiceNotes,
 }: {
   booking: Booking;
   menuOpen: boolean;
@@ -34,6 +36,7 @@ export function BookingRow({
   onCancel: () => void;
   onDelete: () => void;
   onPayment: () => void;
+  onServiceNotes: () => void;
 }) {
   const status = statusConfig(booking.status);
 
@@ -129,6 +132,14 @@ export function BookingRow({
                 className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-foreground hover:bg-foreground/5 transition-colors"
               >
                 <CheckCircle className="w-3.5 h-3.5 text-muted" /> Complete
+              </button>
+            )}
+            {(booking.status === "completed" || booking.status === "in_progress") && (
+              <button
+                onClick={onServiceNotes}
+                className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-foreground hover:bg-foreground/5 transition-colors"
+              >
+                <ClipboardList className="w-3.5 h-3.5 text-muted" /> Service Notes
               </button>
             )}
             {booking.status !== "cancelled" && booking.status !== "completed" && (

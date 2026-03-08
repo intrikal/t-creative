@@ -12,6 +12,7 @@ import { BookingDialog, type BookingFormState } from "./components/BookingDialog
 import { BookingRow as BookingRowComponent } from "./components/BookingRow";
 import { CancelDialog } from "./components/CancelDialog";
 import { DeleteDialog } from "./components/DeleteDialog";
+import { ServiceRecordDialog } from "./components/ServiceRecordDialog";
 import { WaitlistTab } from "./components/WaitlistTab";
 
 /* ------------------------------------------------------------------ */
@@ -188,6 +189,7 @@ export function BookingsPage({
   const [cancelReason, setCancelReason] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<Booking | null>(null);
   const [paymentTarget, setPaymentTarget] = useState<Booking | null>(null);
+  const [serviceNotesTarget, setServiceNotesTarget] = useState<Booking | null>(null);
 
   const filtered = bookings.filter((b) => {
     const matchSearch =
@@ -430,6 +432,10 @@ export function BookingsPage({
                       setPaymentTarget(booking);
                       setMenuOpen(null);
                     }}
+                    onServiceNotes={() => {
+                      setServiceNotesTarget(booking);
+                      setMenuOpen(null);
+                    }}
                   />
                 ))}
               </div>
@@ -470,6 +476,17 @@ export function BookingsPage({
         onConfirm={handleConfirmDelete}
         onClose={() => setDeleteTarget(null)}
       />
+
+      {serviceNotesTarget && (
+        <ServiceRecordDialog
+          open
+          onClose={() => setServiceNotesTarget(null)}
+          bookingId={serviceNotesTarget.id}
+          clientId={serviceNotesTarget.clientId}
+          serviceName={serviceNotesTarget.service}
+          serviceCategory={serviceNotesTarget.category}
+        />
+      )}
 
       {paymentTarget &&
         (() => {

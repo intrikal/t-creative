@@ -450,6 +450,8 @@ export function BookingsPage({
           pendingBookings={pendingBookings}
           onBook={openAdd}
           onRemove={removeFromWaitlist}
+          clients={clients}
+          serviceOptions={serviceOptions}
         />
       )}
 

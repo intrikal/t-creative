@@ -20,6 +20,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { bookings } from "./bookings";
 import { giftCardStatusEnum } from "./enums";
+import { giftCardTransactions } from "./gift-card-transactions";
 import { profiles } from "./users";
 
 /* ------------------------------------------------------------------ */
@@ -83,4 +84,6 @@ export const giftCardsRelations = relations(giftCards, ({ one, many }) => ({
   }),
   /** One-to-many: gift_cards.id → bookings.gift_card_id (bookings that redeemed this card). */
   bookings: many(bookings),
+  /** One-to-many: gift_cards.id → gift_card_transactions.gift_card_id (balance history). */
+  transactions: many(giftCardTransactions),
 }));

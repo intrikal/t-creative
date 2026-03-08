@@ -152,3 +152,67 @@ export const giftCardStatusEnum = pgEnum("gift_card_status", ["active", "redeeme
 
 /** Discount mechanic applied by a promotion code. */
 export const discountTypeEnum = pgEnum("discount_type", ["percent", "fixed", "bogo"]);
+
+/* ------------------------------------------------------------------ */
+/*  Waitlist                                                           */
+/* ------------------------------------------------------------------ */
+
+/** Waitlist entry lifecycle. */
+export const waitlistStatusEnum = pgEnum("waitlist_status", [
+  "waiting",
+  "notified",
+  "booked",
+  "expired",
+  "cancelled",
+]);
+
+/* ------------------------------------------------------------------ */
+/*  Notifications                                                      */
+/* ------------------------------------------------------------------ */
+
+/** Notification type — determines template and routing logic. */
+export const notificationTypeEnum = pgEnum("notification_type", [
+  "booking_reminder",
+  "booking_confirmation",
+  "booking_cancellation",
+  "review_request",
+  "waitlist_alert",
+  "promotion",
+  "form_request",
+  "general",
+]);
+
+/** Notification delivery status. */
+export const notificationStatusEnum = pgEnum("notification_status", [
+  "pending",
+  "sent",
+  "delivered",
+  "failed",
+  "clicked",
+]);
+
+/* ------------------------------------------------------------------ */
+/*  Audit Log                                                          */
+/* ------------------------------------------------------------------ */
+
+/** High-level action categories for the audit trail. */
+export const auditActionEnum = pgEnum("audit_action", [
+  "create",
+  "update",
+  "delete",
+  "status_change",
+  "login",
+  "export",
+]);
+
+/* ------------------------------------------------------------------ */
+/*  Gift Card Transactions                                             */
+/* ------------------------------------------------------------------ */
+
+/** Gift card transaction type — tracks balance changes. */
+export const giftCardTxTypeEnum = pgEnum("gift_card_tx_type", [
+  "purchase",
+  "redemption",
+  "refund",
+  "adjustment",
+]);

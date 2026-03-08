@@ -54,6 +54,9 @@ export const payments = pgTable(
     /** Amount refunded in cents (for partial or full refunds). */
     refundedInCents: integer("refunded_in_cents").notNull().default(0),
 
+    /** Sales tax collected in cents (California requires tracking). */
+    taxAmountInCents: integer("tax_amount_in_cents").notNull().default(0),
+
     /* ------ Square integration ------ */
 
     /** Square payment ID — source of truth for transaction state. */

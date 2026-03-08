@@ -45,6 +45,9 @@ export const invoices = pgTable(
     /** Invoice total in cents. */
     amountInCents: integer("amount_in_cents").notNull(),
 
+    /** Sales tax in cents (California requires tracking). */
+    taxAmountInCents: integer("tax_amount_in_cents").notNull().default(0),
+
     status: invoiceStatusEnum("status").notNull().default("draft"),
 
     /** When the invoice was sent to the client. */

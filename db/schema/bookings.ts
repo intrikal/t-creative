@@ -29,6 +29,7 @@ import { giftCards } from "./gift-cards";
 import { payments } from "./payments";
 import { promotions } from "./promotions";
 import { reviews } from "./reviews";
+import { serviceRecords } from "./service-records";
 import { services } from "./services";
 import { profiles } from "./users";
 
@@ -108,6 +109,22 @@ export const bookings = pgTable(
 
     /** If cancelled, why. */
     cancellationReason: text("cancellation_reason"),
+
+    /* ------ Deposit tracking ------ */
+
+    /* ------ Recurring bookings ------ */
+
+    /**
+     * iCal RRULE string for recurring appointments (e.g. "FREQ=WEEKLY;INTERVAL=2").
+     * Null for one-off bookings.
+     */
+    recurrenceRule: varchar("recurrence_rule", { length: 200 }),
+
+    /**
+     * FK to the original booking in a recurring series.
+     * Null for standalone bookings or the first booking in a series.
+     */
+    parentBookingId: integer("parent_booking_id"),
 
     /* ------ Deposit tracking ------ */
 
@@ -194,6 +211,8 @@ export const bookingsRelations = relations(bookings, ({ one, many }) => ({
     fields: [bookings.promotionId],
     references: [promotions.id],
   }),
+  /** One-to-many: bookings.id → service_records.booking_id (post-service documentation). */
+  serviceRecords: many(serviceRecords),
 }));
 
 export const bookingAddOnsRelations = relations(bookingAddOns, ({ one }) => ({

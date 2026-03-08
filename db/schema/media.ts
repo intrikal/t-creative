@@ -21,6 +21,7 @@ import {
   varchar,
 } from "drizzle-orm/pg-core";
 import { mediaTypeEnum, serviceCategoryEnum } from "./enums";
+import { services } from "./services";
 import { profiles } from "./users";
 
 /* ------------------------------------------------------------------ */
@@ -84,6 +85,14 @@ export const mediaItems = pgTable(
     /** Whether this is a featured/hero image for its category. */
     isFeatured: boolean("is_featured").notNull().default(false),
 
+    /** Whether the client has given consent to display this media publicly. */
+    clientConsentGiven: boolean("client_consent_given").notNull().default(false),
+
+    /** Link to the service type this media showcases (nullable). */
+    serviceId: integer("service_id").references(() => services.id, {
+      onDelete: "set null",
+    }),
+
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
@@ -107,5 +116,10 @@ export const mediaItemsRelations = relations(mediaItems, ({ one }) => ({
   client: one(profiles, {
     fields: [mediaItems.clientId],
     references: [profiles.id],
+  }),
+  /** Many-to-one: media_items.service_id → services.id (service this media showcases, nullable). */
+  service: one(services, {
+    fields: [mediaItems.serviceId],
+    references: [services.id],
   }),
 }));

@@ -52,16 +52,21 @@ import {
 import { pgEnum } from "drizzle-orm/pg-core";
 import { assistantProfiles, shifts } from "./assistants";
 import { bookings } from "./bookings";
+import { clientPreferences } from "./client-preferences";
 import { userRoleEnum } from "./enums";
 import { events } from "./events";
 import { expenses } from "./expenses";
+import { formSubmissions } from "./form-submissions";
 import { giftCards } from "./gift-cards";
 import { invoices } from "./invoices";
 import { threads, messages } from "./messages";
+import { notifications } from "./notifications";
 import { orders } from "./orders";
 import { payments } from "./payments";
 import { reviews } from "./reviews";
+import { serviceRecords } from "./service-records";
 import { enrollments } from "./training";
+import { waitlist } from "./waitlist";
 import { wishlistItems } from "./wishlists";
 
 /* ------------------------------------------------------------------ */
@@ -245,4 +250,16 @@ export const profilesRelations = relations(profiles, ({ many }) => ({
   loggedExpenses: many(expenses),
   /** One-to-many: profiles.id → gift_cards.purchased_by_client_id (gift cards purchased). */
   giftCards: many(giftCards),
+  /** One-to-many: profiles.id → form_submissions.client_id (signed forms/waivers). */
+  formSubmissions: many(formSubmissions),
+  /** One-to-many: profiles.id → waitlist.client_id (waitlist entries). */
+  waitlistEntries: many(waitlist),
+  /** One-to-many: profiles.id → service_records.client_id (post-service documentation). */
+  serviceRecords: many(serviceRecords),
+  /** One-to-many: profiles.id → service_records.staff_id (service records authored by staff). */
+  authoredServiceRecords: many(serviceRecords, { relationName: "serviceRecordStaff" }),
+  /** One-to-many: profiles.id → notifications.profile_id (notification history). */
+  notifications: many(notifications),
+  /** One-to-one: profiles.id → client_preferences.profile_id (beauty/service preferences). */
+  clientPreferences: many(clientPreferences),
 }));

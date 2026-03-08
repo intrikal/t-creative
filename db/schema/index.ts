@@ -39,6 +39,11 @@ export {
   expenseCategoryEnum,
   giftCardStatusEnum,
   discountTypeEnum,
+  waitlistStatusEnum,
+  notificationTypeEnum,
+  notificationStatusEnum,
+  auditActionEnum,
+  giftCardTxTypeEnum,
 } from "./enums";
 
 /* Users & RBAC */
@@ -195,3 +200,24 @@ export { promotions, promotionsRelations } from "./promotions";
 
 /* Supplies (service consumables) */
 export { supplies } from "./supplies";
+
+/* Form submissions (waiver/consent tracking) */
+export { formSubmissions, formSubmissionsRelations } from "./form-submissions";
+
+/* Waitlist */
+export { waitlist, waitlistRelations } from "./waitlist";
+
+/* Service records (post-appointment notes) */
+export { serviceRecords, serviceRecordsRelations } from "./service-records";
+
+/* Notifications */
+export { notifications, notificationsRelations } from "./notifications";
+
+/* Audit log */
+export { auditLog } from "./audit-log";
+
+/* Gift card transactions */
+export { giftCardTransactions, giftCardTransactionsRelations } from "./gift-card-transactions";
+
+/* Client preferences (beauty/service prefs) */
+export { clientPreferences, clientPreferencesRelations } from "./client-preferences";

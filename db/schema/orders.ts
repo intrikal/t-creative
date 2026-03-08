@@ -77,6 +77,9 @@ export const orders = pgTable(
     /** Final agreed price in cents. */
     finalInCents: integer("final_in_cents"),
 
+    /** Sales tax in cents (California requires tracking). */
+    taxAmountInCents: integer("tax_amount_in_cents").notNull().default(0),
+
     /**
      * Flexible metadata for order-specific details.
      * E.g. `{ "colors": ["sage", "ivory"], "size": "queen", "deadline": "2026-04-01" }`

@@ -57,7 +57,7 @@ export function Hero() {
               <Link href="/contact">Book Appointment</Link>
             </Button>
             <Button asChild variant="secondary">
-              <Link href="#studio">Enter the Studio</Link>
+              <Link href="/services">View Services &amp; Pricing</Link>
             </Button>
           </motion.div>
 

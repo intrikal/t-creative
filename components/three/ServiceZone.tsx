@@ -112,10 +112,9 @@ export function ServiceZone({ zone }: ServiceZoneProps) {
           setHoveredZone(null);
           document.body.style.cursor = "default";
         }}
-        visible={false}
       >
         <boxGeometry args={[zone.platformSize[0], 2.2, zone.platformSize[1]]} />
-        <meshBasicMaterial transparent opacity={0} />
+        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
       </mesh>
 
       {/* ── Display furniture ──
@@ -129,8 +128,8 @@ export function ServiceZone({ zone }: ServiceZoneProps) {
       </group>
 
       {/* ── Zone label ──
-          Real HTML rendered in 3D space via drei's <Html>.
-          Only visible when the studio is in exploring/focused mode. */}
+          Always-visible pill badge floating above each zone.
+          Brightens on hover to reinforce clickability. */}
       {isInteractive && (
         <Html
           center
@@ -140,14 +139,14 @@ export function ServiceZone({ zone }: ServiceZoneProps) {
         >
           <div
             className={`text-center transition-opacity duration-300 ${
-              isFaded ? "opacity-15" : "opacity-100"
+              isFaded ? "opacity-20" : "opacity-100"
             }`}
           >
             <p
-              className={`text-[10px] tracking-[0.2em] uppercase whitespace-nowrap px-3 py-1.5 transition-all duration-200 ${
+              className={`text-[10px] tracking-[0.2em] uppercase whitespace-nowrap rounded-full px-3 py-1.5 transition-all duration-200 backdrop-blur-sm ${
                 hovered && !isFaded
-                  ? "text-foreground bg-background/90 backdrop-blur-sm"
-                  : "text-muted/50"
+                  ? "text-foreground bg-background/95 shadow-sm"
+                  : "text-foreground/70 bg-background/70"
               }`}
             >
               {zone.label}

@@ -1,48 +1,48 @@
 /**
- * TrainingTeaser — Certification programs teaser. Between HowItWorks and Portfolio.
+ * Events — Showcase event offerings (parties, pop-ups, bridal, corporate).
  *
- * Showcases Trini as an educator, not just a practitioner. This section adds
- * authority and reveals a major revenue stream (training programs $450–$2,200).
- *
- * Client Component — Framer Motion whileInView entrance.
+ * Client Component — uses Framer Motion for staggered scroll-reveal.
  */
 "use client";
 
 import Link from "next/link";
 import { motion } from "framer-motion";
 
-const PROGRAMS = [
+const EVENT_TYPES = [
   {
-    title: "Classic Lash Certification",
-    duration: "2 weekends · 16 hours",
-    price: "From $1,800",
+    title: "Private Lash Parties",
+    description:
+      "Book the studio for you and your group. Everyone gets lashed while you celebrate — birthdays, bachelorettes, girls' night.",
+    detail: "Up to 6 guests",
     color: "#C4907A",
   },
   {
-    title: "Volume Lash Certification",
-    duration: "3 weekends · 24 hours",
-    price: "From $2,200",
-    color: "#C4907A",
-  },
-  {
-    title: "Permanent Jewelry Certification",
-    duration: "1 day · 8 hours",
-    price: "From $1,200",
+    title: "Pop-Up Events",
+    description:
+      "Permanent jewelry welding at your venue, market, or storefront. Full setup provided — we bring the studio to you.",
+    detail: "Travel available",
     color: "#D4A574",
   },
   {
-    title: "Beauty Business Bootcamp",
-    duration: "3 sessions · 18 hours",
-    price: "From $450",
+    title: "Bridal & Wedding",
+    description:
+      "Day-of lash services and permanent jewelry for the bridal party. Coordinated scheduling so everyone is ready on time.",
+    detail: "Custom packages",
+    color: "#C4907A",
+  },
+  {
+    title: "Corporate & Team Events",
+    description:
+      "Team bonding with permanent jewelry or beauty services. Great for offsites, retreats, and company milestones.",
+    detail: "Groups of 10+",
     color: "#5B8A8A",
   },
 ];
 
-export function TrainingTeaser() {
+export function Events() {
   return (
-    <section className="bg-surface py-28 md:py-40 px-6" aria-label="Training programs">
+    <section className="py-28 md:py-40 px-6 bg-surface" aria-label="Events">
       <div className="mx-auto max-w-5xl">
-        {/* Header */}
         <motion.div
           className="mb-16 md:mb-20"
           initial={{ opacity: 0, y: 24 }}
@@ -51,23 +51,21 @@ export function TrainingTeaser() {
           transition={{ duration: 0.8 }}
         >
           <span className="text-[10px] tracking-[0.3em] uppercase text-muted mb-5 block">
-            Education
+            Events
           </span>
           <h2 className="font-display text-4xl md:text-5xl font-light tracking-tight text-foreground leading-[1.1] mb-4">
-            Learn from the source.
+            Bring the studio to you.
           </h2>
           <p className="text-sm text-muted leading-relaxed max-w-lg">
-            Certification programs for lash artists, jewelry welders, and beauty entrepreneurs.
-            Hands-on training with the same techniques and standards behind every T Creative
-            service.
+            Private parties, pop-ups, bridal services, and corporate events. The full T Creative
+            experience — wherever you need it.
           </p>
         </motion.div>
 
-        {/* Program cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-12">
-          {PROGRAMS.map((program, i) => (
+          {EVENT_TYPES.map((event, i) => (
             <motion.div
-              key={program.title}
+              key={event.title}
               className="border border-foreground/8 p-6 md:p-8 hover:border-foreground/20 transition-all duration-300 group"
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
@@ -75,20 +73,19 @@ export function TrainingTeaser() {
               transition={{ duration: 0.5, delay: i * 0.1 }}
             >
               <div className="flex items-center gap-3 mb-4">
-                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: program.color }} />
+                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: event.color }} />
                 <span className="text-[10px] tracking-[0.2em] uppercase text-muted">
-                  {program.duration}
+                  {event.detail}
                 </span>
               </div>
               <h3 className="text-base font-medium text-foreground mb-2 group-hover:text-accent transition-colors duration-200">
-                {program.title}
+                {event.title}
               </h3>
-              <p className="text-sm text-accent font-medium">{program.price}</p>
+              <p className="text-sm text-muted leading-relaxed">{event.description}</p>
             </motion.div>
           ))}
         </div>
 
-        {/* CTA */}
         <motion.div
           initial={{ opacity: 0 }}
           whileInView={{ opacity: 1 }}
@@ -96,10 +93,10 @@ export function TrainingTeaser() {
           transition={{ duration: 0.6, delay: 0.3 }}
         >
           <Link
-            href="/training"
+            href="/contact"
             className="inline-flex items-center gap-3 text-xs tracking-[0.2em] uppercase text-foreground group"
           >
-            <span className="nav-link-reveal pb-px">View All Programs</span>
+            <span className="nav-link-reveal pb-px">Inquire About an Event</span>
             <span className="transition-transform duration-200 group-hover:translate-x-1">→</span>
           </Link>
         </motion.div>

@@ -17,6 +17,7 @@
  */
 
 import { MeshReflectorMaterial } from "@react-three/drei";
+import { DoubleSide } from "three";
 
 const W = 14; // width (X axis)
 const D = 10; // depth (Z axis, room extends in -Z)
@@ -59,30 +60,24 @@ export function StudioRoom() {
         <meshStandardMaterial color="#5B8A8A" roughness={0.9} transparent opacity={0.6} />
       </mesh>
 
-      {/* ── CEILING ── */}
-      <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, H, -D / 2]}>
-        <planeGeometry args={[W, D]} />
-        <meshStandardMaterial color={IVORY} roughness={0.95} />
-      </mesh>
-
       {/* ── WALLS ── */}
 
       {/* Back wall — teal accent */}
       <mesh position={[0, H / 2, -D]}>
         <planeGeometry args={[W, H]} />
-        <meshStandardMaterial color={TEAL} roughness={0.85} />
+        <meshStandardMaterial color={TEAL} roughness={0.85} side={DoubleSide} />
       </mesh>
 
       {/* Left wall — ivory */}
       <mesh position={[-halfW, H / 2, -D / 2]} rotation={[0, Math.PI / 2, 0]}>
         <planeGeometry args={[D, H]} />
-        <meshStandardMaterial color={IVORY} roughness={0.9} />
+        <meshStandardMaterial color={IVORY} roughness={0.9} side={DoubleSide} />
       </mesh>
 
       {/* Right wall — ivory */}
       <mesh position={[halfW, H / 2, -D / 2]} rotation={[0, -Math.PI / 2, 0]}>
         <planeGeometry args={[D, H]} />
-        <meshStandardMaterial color={IVORY} roughness={0.9} />
+        <meshStandardMaterial color={IVORY} roughness={0.9} side={DoubleSide} />
       </mesh>
 
       {/* ── BASEBOARDS ── */}
@@ -92,21 +87,6 @@ export function StudioRoom() {
       <Baseboard position={[halfW - 0.01, 0.06, -D / 2]} width={D} rotY={-Math.PI / 2} />
 
       {/* ── DECORATIVE ELEMENTS ── */}
-
-      {/* Ceiling edge strip — warm accent line where ceiling meets back wall */}
-      <mesh position={[0, H - 0.04, -D + 0.02]}>
-        <boxGeometry args={[W, 0.08, 0.04]} />
-        <meshStandardMaterial color={BASEBOARD} roughness={0.8} />
-      </mesh>
-      {/* Side ceiling strips */}
-      <mesh position={[-halfW + 0.02, H - 0.04, -D / 2]} rotation={[0, Math.PI / 2, 0]}>
-        <boxGeometry args={[D, 0.08, 0.04]} />
-        <meshStandardMaterial color={BASEBOARD} roughness={0.8} />
-      </mesh>
-      <mesh position={[halfW - 0.02, H - 0.04, -D / 2]} rotation={[0, Math.PI / 2, 0]}>
-        <boxGeometry args={[D, 0.08, 0.04]} />
-        <meshStandardMaterial color={BASEBOARD} roughness={0.8} />
-      </mesh>
 
       {/* Window-light panels on back wall — implied natural light */}
       <WindowPanel position={[-3, 2.8, -D + 0.02]} />

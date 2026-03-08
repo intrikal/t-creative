@@ -27,9 +27,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { eq } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 import { db } from "@/db";
-import { clientForms } from "@/db/schema";
+import { clientForms, formSubmissions } from "@/db/schema";
 import { trackEvent } from "@/lib/posthog";
 import { createClient } from "@/utils/supabase/server";
 
@@ -111,4 +111,88 @@ export async function updateFormFields(id: number, fields: unknown): Promise<voi
   await getUser();
   await db.update(clientForms).set({ fields }).where(eq(clientForms.id, id));
   revalidatePath("/dashboard/services");
+}
+
+/* ------------------------------------------------------------------ */
+/*  Form Submissions                                                   */
+/* ------------------------------------------------------------------ */
+
+export type FormSubmissionRow = {
+  id: number;
+  formId: number;
+  formName: string;
+  formType: "intake" | "waiver" | "consent" | "custom";
+  data: Record<string, unknown> | null;
+  signatureUrl: string | null;
+  formVersion: string | null;
+  submittedAt: string;
+};
+
+export type FormSubmissionInput = {
+  clientId: string;
+  formId: number;
+  data: Record<string, unknown>;
+  signatureUrl?: string;
+  formVersion?: string;
+  ipAddress?: string;
+};
+
+export async function getFormSubmissions(clientId: string): Promise<FormSubmissionRow[]> {
+  await getUser();
+
+  const rows = await db
+    .select({
+      id: formSubmissions.id,
+      formId: formSubmissions.formId,
+      formName: clientForms.name,
+      formType: clientForms.type,
+      data: formSubmissions.data,
+      signatureUrl: formSubmissions.signatureUrl,
+      formVersion: formSubmissions.formVersion,
+      submittedAt: formSubmissions.submittedAt,
+    })
+    .from(formSubmissions)
+    .innerJoin(clientForms, eq(formSubmissions.formId, clientForms.id))
+    .where(eq(formSubmissions.clientId, clientId))
+    .orderBy(desc(formSubmissions.submittedAt));
+
+  return rows.map((r) => ({
+    ...r,
+    submittedAt: new Date(r.submittedAt).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    }),
+  }));
+}
+
+export async function getActiveForms(): Promise<FormRow[]> {
+  await getUser();
+  return db
+    .select()
+    .from(clientForms)
+    .where(eq(clientForms.isActive, true))
+    .orderBy(clientForms.name);
+}
+
+export async function submitForm(input: FormSubmissionInput): Promise<void> {
+  const user = await getUser();
+
+  await db.insert(formSubmissions).values({
+    clientId: input.clientId,
+    formId: input.formId,
+    data: input.data,
+    signatureUrl: input.signatureUrl ?? null,
+    formVersion: input.formVersion ?? null,
+    ipAddress: input.ipAddress ?? null,
+  });
+
+  trackEvent(user.id, "form_submitted", {
+    clientId: input.clientId,
+    formId: input.formId,
+  });
+
+  revalidatePath("/dashboard/clients");
 }

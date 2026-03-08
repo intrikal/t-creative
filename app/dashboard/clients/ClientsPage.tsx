@@ -10,6 +10,7 @@ import { createClient, updateClient, deleteClient } from "./actions";
 import { ClientCard } from "./components/ClientCard";
 import { ClientFormDialog, BLANK_FORM, type ClientFormState } from "./components/ClientFormDialog";
 import { ClientPreferencesDialog } from "./components/ClientPreferencesDialog";
+import { ClientWaiversDialog } from "./components/ClientWaiversDialog";
 import { DeleteDialog } from "./components/DeleteDialog";
 import { LoyaltyTab } from "./components/LoyaltyTab";
 
@@ -265,6 +266,7 @@ export function ClientsPage({
   const [formInitial, setFormInitial] = useState<ClientFormState>(BLANK_FORM);
   const [deleteTarget, setDeleteTarget] = useState<Client | null>(null);
   const [prefsTarget, setPrefsTarget] = useState<Client | null>(null);
+  const [waiversTarget, setWaiversTarget] = useState<Client | null>(null);
 
   const filtered = clients.filter((c) => {
     const matchSearch =
@@ -507,6 +509,7 @@ export function ClientsPage({
                   onEdit={openEdit}
                   onDelete={(c) => setDeleteTarget(c)}
                   onPreferences={(c) => setPrefsTarget(c)}
+                  onWaivers={(c) => setWaiversTarget(c)}
                 />
               ))}
             </div>
@@ -540,6 +543,16 @@ export function ClientsPage({
           onClose={() => setPrefsTarget(null)}
           clientId={prefsTarget.id}
           clientName={prefsTarget.name}
+        />
+      )}
+
+      {/* Client waivers dialog */}
+      {waiversTarget && (
+        <ClientWaiversDialog
+          open
+          onClose={() => setWaiversTarget(null)}
+          clientId={waiversTarget.id}
+          clientName={waiversTarget.name}
         />
       )}
     </div>

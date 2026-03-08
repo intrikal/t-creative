@@ -25,6 +25,7 @@ import { db } from "@/db";
 import { inquiries, productInquiries, products } from "@/db/schema";
 import { InquiryReply } from "@/emails/InquiryReply";
 import { ProductQuote } from "@/emails/ProductQuote";
+import { trackEvent } from "@/lib/posthog";
 import { sendEmail } from "@/lib/resend";
 import { createClient as createSupabaseClient } from "@/utils/supabase/server";
 
@@ -157,7 +158,7 @@ export async function updateInquiryStatus(
 }
 
 export async function replyToInquiry(id: number, replyText: string) {
-  await getUser();
+  const user = await getUser();
   await db
     .update(inquiries)
     .set({
@@ -166,6 +167,8 @@ export async function replyToInquiry(id: number, replyText: string) {
       status: "replied",
     })
     .where(eq(inquiries.id, id));
+
+  trackEvent(user.id, "inquiry_replied", { inquiryId: id });
 
   // Send reply notification email (non-fatal)
   try {
@@ -222,7 +225,7 @@ export async function updateProductInquiryStatus(
 }
 
 export async function sendProductQuote(id: number, amountInCents: number) {
-  await getUser();
+  const user = await getUser();
   await db
     .update(productInquiries)
     .set({
@@ -231,6 +234,8 @@ export async function sendProductQuote(id: number, amountInCents: number) {
       status: "quote_sent",
     })
     .where(eq(productInquiries.id, id));
+
+  trackEvent(user.id, "product_quote_sent", { inquiryId: id, amountInCents });
 
   // Send quote email (non-fatal)
   try {

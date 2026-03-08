@@ -33,6 +33,7 @@ import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { settings } from "@/db/schema";
+import { trackEvent } from "@/lib/posthog";
 import { isSquareConfigured } from "@/lib/square";
 import { createClient } from "@/utils/supabase/server";
 
@@ -267,8 +268,9 @@ export async function getBusinessProfile(): Promise<BusinessProfile> {
 }
 
 export async function saveBusinessProfile(data: BusinessProfile): Promise<void> {
-  await getUser();
+  const user = await getUser();
   await upsertSetting(KEY_BUSINESS, "Business Profile", data);
+  trackEvent(user.id, "business_profile_updated");
   revalidatePath("/dashboard/settings");
 }
 
@@ -282,8 +284,9 @@ export async function getPolicies(): Promise<PolicySettings> {
 }
 
 export async function savePolicies(data: PolicySettings): Promise<void> {
-  await getUser();
+  const user = await getUser();
   await upsertSetting(KEY_POLICIES, "Policy Settings", data);
+  trackEvent(user.id, "policies_updated");
   revalidatePath("/dashboard/settings");
 }
 
@@ -297,8 +300,9 @@ export async function getLoyaltyConfig(): Promise<LoyaltyConfig> {
 }
 
 export async function saveLoyaltyConfig(data: LoyaltyConfig): Promise<void> {
-  await getUser();
+  const user = await getUser();
   await upsertSetting(KEY_LOYALTY, "Loyalty Config", data);
+  trackEvent(user.id, "loyalty_config_updated");
   revalidatePath("/dashboard/settings");
 }
 
@@ -327,8 +331,9 @@ export async function getBookingRules(): Promise<BookingRulesConfig> {
 }
 
 export async function saveBookingRules(data: BookingRulesConfig): Promise<void> {
-  await getUser();
+  const user = await getUser();
   await upsertSetting(KEY_BOOKING_RULES, "Booking Rules", data);
+  trackEvent(user.id, "booking_rules_updated");
   revalidatePath("/dashboard/settings");
 }
 

@@ -6,18 +6,12 @@ import posthog from "posthog-js";
 import { PostHogProvider as PHProvider } from "posthog-js/react";
 
 const key = process.env.NEXT_PUBLIC_POSTHOG_KEY;
-const host = process.env.NEXT_PUBLIC_POSTHOG_HOST || "https://us.i.posthog.com";
 
-if (typeof window !== "undefined" && key) {
-  posthog.init(key, {
-    api_host: host,
-    person_profiles: "identified_only",
-    capture_pageview: false, // We capture manually below
-    capture_pageleave: true,
-  });
-}
-
-/** Captures pageviews on route change via Next.js router. */
+/**
+ * Captures pageviews on route change via Next.js router.
+ * PostHog is initialized in instrumentation-client.ts — this component
+ * only handles SPA-style navigation tracking.
+ */
 function PostHogPageview() {
   const pathname = usePathname();
   const searchParams = useSearchParams();

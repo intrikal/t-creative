@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { eq, desc, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { events, eventGuests, profiles } from "@/db/schema";
+import { trackEvent } from "@/lib/posthog";
 import { createClient } from "@/utils/supabase/server";
 
 const PATH = "/dashboard/events";
@@ -239,12 +240,13 @@ export async function createEvent(data: EventInput): Promise<number> {
     })
     .returning({ id: events.id });
 
+  trackEvent(user.id, "event_created", { title: data.title, eventType: data.eventType });
   revalidatePath(PATH);
   return row.id;
 }
 
 export async function updateEvent(id: number, data: Partial<EventInput>) {
-  await getUser();
+  const user = await getUser();
 
   const set: Record<string, unknown> = {};
   if (data.title !== undefined) set.title = data.title;
@@ -270,12 +272,14 @@ export async function updateEvent(id: number, data: Partial<EventInput>) {
   if (data.status === "cancelled") set.cancelledAt = new Date();
 
   await db.update(events).set(set).where(eq(events.id, id));
+  trackEvent(user.id, "event_updated", { eventId: id, status: data.status });
   revalidatePath(PATH);
 }
 
 export async function deleteEvent(id: number) {
-  await getUser();
+  const user = await getUser();
   await db.delete(events).where(eq(events.id, id));
+  trackEvent(user.id, "event_deleted", { eventId: id });
   revalidatePath(PATH);
 }
 

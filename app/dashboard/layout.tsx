@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
+import { PostHogIdentify } from "@/components/providers/PostHogIdentify";
 import { getCurrentUser } from "@/lib/auth";
 import { DashboardSidebar } from "./DashboardSidebar";
 
@@ -15,17 +16,18 @@ export default async function DashboardLayout({ children }: { children: ReactNod
         : "admin"
   ) as "admin" | "assistant" | "client";
 
+  const userName = user.profile?.firstName
+    ? `${user.profile.firstName} ${user.profile.lastName ?? ""}`.trim()
+    : user.profile?.displayName
+      ? user.profile.displayName
+      : user.email.split("@")[0];
+
   return (
     <div className="flex h-screen overflow-hidden bg-background">
+      <PostHogIdentify userId={user.id} email={user.email} role={role} name={userName} />
       <DashboardSidebar
         role={role}
-        userName={
-          user.profile?.firstName
-            ? `${user.profile.firstName} ${user.profile.lastName ?? ""}`.trim()
-            : user.profile?.displayName
-              ? user.profile.displayName
-              : user.email.split("@")[0]
-        }
+        userName={userName}
         userAvatarUrl={user.profile?.avatarUrl ?? null}
       />
       <main

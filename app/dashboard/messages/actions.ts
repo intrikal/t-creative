@@ -421,6 +421,7 @@ export async function sendMessage(threadId: number, body: string): Promise<Messa
   }
 
   revalidatePath("/dashboard/messages");
+  trackEvent(user.id, "message_sent", { threadId });
   return full;
 }
 
@@ -570,6 +571,11 @@ export async function createThread(input: {
     channel: "internal" as const,
   });
 
+  trackEvent(user.id, "thread_created", {
+    subject: input.subject,
+    isGroup,
+    participantCount: input.participantIds.length,
+  });
   revalidatePath("/dashboard/messages");
   return { threadId: thread.id };
 }

@@ -9,6 +9,24 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  // PostHog reverse proxy — routes tracking requests through our own domain
+  // so ad-blockers and privacy extensions don't intercept them.
+  async rewrites() {
+    return [
+      {
+        source: "/ingest/static/:path*",
+        destination: "https://us-assets.i.posthog.com/static/:path*",
+      },
+      {
+        source: "/ingest/:path*",
+        destination: "https://us.i.posthog.com/:path*",
+      },
+      {
+        source: "/ingest/decide",
+        destination: "https://us.i.posthog.com/decide",
+      },
+    ];
+  },
   async redirects() {
     return [
       { source: "/client", destination: "/dashboard", permanent: true },

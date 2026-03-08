@@ -15,6 +15,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
+import posthog from "posthog-js";
 
 export function StickyMobileCTA() {
   const [visible, setVisible] = useState(false);
@@ -59,6 +60,9 @@ export function StickyMobileCTA() {
             </div>
             <Link
               href="/book/tcreativestudio"
+              onClick={() =>
+                posthog.capture("cta_clicked", { cta: "book_now", location: "mobile_sticky" })
+              }
               className="shrink-0 px-5 py-2.5 text-[10px] tracking-[0.2em] uppercase bg-foreground text-background hover:bg-foreground/85 transition-colors duration-200"
             >
               Book Now

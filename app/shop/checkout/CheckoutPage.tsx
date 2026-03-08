@@ -7,8 +7,9 @@
  */
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import Link from "next/link";
+import posthog from "posthog-js";
 import { useCartStore, cartTotalInCents } from "@/stores/useCartStore";
 import { placeOrder } from "../actions";
 
@@ -18,6 +19,15 @@ export function CheckoutPage() {
   const { items, clearCart } = useCartStore();
   const total = cartTotalInCents(items);
   const [method, setMethod] = useState<FulfillmentMethod>("pickup_online");
+
+  useEffect(() => {
+    if (items.length > 0) {
+      posthog.capture("checkout_started", {
+        itemCount: items.length,
+        totalInCents: total,
+      });
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [isPending, startTransition] = useTransition();
   const [result, setResult] = useState<{
     success: boolean;

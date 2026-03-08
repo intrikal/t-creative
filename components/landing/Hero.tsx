@@ -8,6 +8,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { motion } from "framer-motion";
+import posthog from "posthog-js";
 import { Button } from "@/components/ui/Button";
 
 export function Hero() {
@@ -54,10 +55,24 @@ export function Hero() {
             transition={{ duration: 0.8, delay: 0.45 }}
           >
             <Button asChild>
-              <Link href="/contact">Book Appointment</Link>
+              <Link
+                href="/contact"
+                onClick={() =>
+                  posthog.capture("cta_clicked", { cta: "book_appointment", location: "hero" })
+                }
+              >
+                Book Appointment
+              </Link>
             </Button>
             <Button asChild variant="secondary">
-              <Link href="/services">View Services &amp; Pricing</Link>
+              <Link
+                href="/services"
+                onClick={() =>
+                  posthog.capture("cta_clicked", { cta: "view_services", location: "hero" })
+                }
+              >
+                View Services &amp; Pricing
+              </Link>
             </Button>
           </motion.div>
 

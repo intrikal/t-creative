@@ -7,6 +7,7 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
+import posthog from "posthog-js";
 import { Button } from "@/components/ui/Button";
 
 export function CallToAction() {
@@ -30,10 +31,27 @@ export function CallToAction() {
 
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
           <Button asChild>
-            <Link href="/contact">Book a Session</Link>
+            <Link
+              href="/contact"
+              onClick={() =>
+                posthog.capture("cta_clicked", { cta: "book_session", location: "landing_bottom" })
+              }
+            >
+              Book a Session
+            </Link>
           </Button>
           <Button asChild variant="secondary">
-            <Link href="/services">Explore the Ecosystem</Link>
+            <Link
+              href="/services"
+              onClick={() =>
+                posthog.capture("cta_clicked", {
+                  cta: "explore_ecosystem",
+                  location: "landing_bottom",
+                })
+              }
+            >
+              Explore the Ecosystem
+            </Link>
           </Button>
         </div>
       </motion.div>

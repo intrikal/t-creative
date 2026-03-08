@@ -30,6 +30,7 @@ import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { clientForms } from "@/db/schema";
+import { trackEvent } from "@/lib/posthog";
 import { createClient } from "@/utils/supabase/server";
 
 export type FormRow = typeof clientForms.$inferSelect;
@@ -58,7 +59,7 @@ export async function getForms(): Promise<FormRow[]> {
 }
 
 export async function createForm(input: FormInput): Promise<FormRow> {
-  await getUser();
+  const user = await getUser();
   const [row] = await db
     .insert(clientForms)
     .values({
@@ -70,6 +71,7 @@ export async function createForm(input: FormInput): Promise<FormRow> {
       isActive: input.isActive,
     })
     .returning();
+  trackEvent(user.id, "form_created", { name: input.name, type: input.type });
   revalidatePath("/dashboard/services");
   return row;
 }
@@ -93,8 +95,9 @@ export async function updateForm(id: number, input: FormInput): Promise<FormRow>
 }
 
 export async function deleteForm(id: number): Promise<void> {
-  await getUser();
+  const user = await getUser();
   await db.delete(clientForms).where(eq(clientForms.id, id));
+  trackEvent(user.id, "form_deleted", { formId: id });
   revalidatePath("/dashboard/services");
 }
 

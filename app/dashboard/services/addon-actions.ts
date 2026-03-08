@@ -21,6 +21,7 @@ import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { serviceAddOns } from "@/db/schema";
+import { trackEvent } from "@/lib/posthog";
 import { createClient } from "@/utils/supabase/server";
 
 export type AddOnRow = typeof serviceAddOns.$inferSelect;
@@ -51,7 +52,7 @@ export async function getAddOns(serviceId: number): Promise<AddOnRow[]> {
 }
 
 export async function createAddOn(serviceId: number, input: AddOnInput): Promise<AddOnRow> {
-  await getUser();
+  const user = await getUser();
   const [row] = await db
     .insert(serviceAddOns)
     .values({
@@ -63,6 +64,7 @@ export async function createAddOn(serviceId: number, input: AddOnInput): Promise
       isActive: true,
     })
     .returning();
+  trackEvent(user.id, "addon_created", { serviceId, name: input.name });
   revalidatePath("/dashboard/services");
   return row;
 }
@@ -84,8 +86,9 @@ export async function updateAddOn(id: number, input: AddOnInput): Promise<AddOnR
 }
 
 export async function deleteAddOn(id: number): Promise<void> {
-  await getUser();
+  const user = await getUser();
   await db.delete(serviceAddOns).where(eq(serviceAddOns.id, id));
+  trackEvent(user.id, "addon_deleted", { addonId: id });
   revalidatePath("/dashboard/services");
 }
 

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { eq, desc } from "drizzle-orm";
 import { db } from "@/db";
 import { profiles, assistantProfiles, businessHours, timeOff, settings } from "@/db/schema";
+import { trackEvent } from "@/lib/posthog";
 import { createClient } from "@/utils/supabase/server";
 
 const PATH = "/dashboard/settings";
@@ -276,6 +277,7 @@ export async function saveAssistantProfile(data: {
   }
 
   revalidatePath(PATH);
+  trackEvent(user.id, "assistant_profile_updated");
 }
 
 /* ------------------------------------------------------------------ */
@@ -299,6 +301,7 @@ export async function saveAssistantAvailability(days: DayAvailability[]) {
   });
 
   revalidatePath(PATH);
+  trackEvent(user.id, "assistant_availability_updated");
 }
 
 /* ------------------------------------------------------------------ */
@@ -344,5 +347,6 @@ export async function submitTimeOffRequest(data: { from: string; to: string; rea
     }),
   });
 
+  trackEvent(user.id, "time_off_requested", { from: data.from, to: data.to });
   revalidatePath(PATH);
 }

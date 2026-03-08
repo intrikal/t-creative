@@ -24,6 +24,7 @@ import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { serviceBundles } from "@/db/schema";
+import { trackEvent } from "@/lib/posthog";
 import { createClient } from "@/utils/supabase/server";
 
 export type BundleRow = typeof serviceBundles.$inferSelect;
@@ -52,7 +53,7 @@ export async function getBundles(): Promise<BundleRow[]> {
 }
 
 export async function createBundle(input: BundleInput): Promise<BundleRow> {
-  await getUser();
+  const user = await getUser();
   const [row] = await db
     .insert(serviceBundles)
     .values({
@@ -64,6 +65,7 @@ export async function createBundle(input: BundleInput): Promise<BundleRow> {
       isActive: input.isActive,
     })
     .returning();
+  trackEvent(user.id, "bundle_created", { name: input.name });
   revalidatePath("/dashboard/services");
   return row;
 }
@@ -87,8 +89,9 @@ export async function updateBundle(id: number, input: BundleInput): Promise<Bund
 }
 
 export async function deleteBundle(id: number): Promise<void> {
-  await getUser();
+  const user = await getUser();
   await db.delete(serviceBundles).where(eq(serviceBundles.id, id));
+  trackEvent(user.id, "bundle_deleted", { bundleId: id });
   revalidatePath("/dashboard/services");
 }
 

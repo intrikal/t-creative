@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { profiles } from "@/db/schema";
+import { trackEvent } from "@/lib/posthog";
 import { syncCampaignsSubscriber, unsubscribeFromCampaigns } from "@/lib/zoho-campaigns";
 import { createClient } from "@/utils/supabase/server";
 
@@ -145,6 +146,8 @@ export async function saveClientProfile(data: {
     })
     .where(eq(profiles.id, user.id));
 
+  trackEvent(user.id, "client_profile_updated");
+
   revalidatePath(PATH);
 }
 
@@ -163,6 +166,12 @@ export async function saveClientNotifications(prefs: ClientNotifications) {
       notifyMarketing: prefs.notifyMarketing,
     })
     .where(eq(profiles.id, user.id));
+
+  trackEvent(user.id, "client_notifications_updated", {
+    notifySms: prefs.notifySms,
+    notifyEmail: prefs.notifyEmail,
+    notifyMarketing: prefs.notifyMarketing,
+  });
 
   // Zoho Campaigns: sync or unsub based on marketing preference
   if (prefs.notifyMarketing) {
@@ -219,6 +228,8 @@ export async function deleteClientAccount() {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) throw new Error("Not authenticated");
+
+  trackEvent(user.id, "account_deleted");
 
   // Soft-delete: deactivate profile (preserves referential integrity)
   await db.update(profiles).set({ isActive: false }).where(eq(profiles.id, user.id));

@@ -8,6 +8,7 @@
 
 import { db } from "@/db";
 import { inquiries } from "@/db/schema";
+import { trackEvent } from "@/lib/posthog";
 
 type ServiceCategory = "lash" | "jewelry" | "crochet" | "consulting" | null;
 
@@ -39,6 +40,8 @@ export async function submitContactForm(data: {
     message: `[${data.interest}] ${data.message}`,
     status: "new",
   });
+
+  trackEvent(data.email, "contact_form_submitted", { interest: data.interest, category });
 
   return { success: true };
 }

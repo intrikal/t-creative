@@ -5,6 +5,7 @@ import { eq, sql, desc, and, gte, asc } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
 import { profiles, bookings, services, loyaltyTransactions } from "@/db/schema";
+import { trackEvent } from "@/lib/posthog";
 import { createClient as createSupabaseClient } from "@/utils/supabase/server";
 
 /* ------------------------------------------------------------------ */
@@ -163,7 +164,7 @@ export async function getClientLoyalty(): Promise<LoyaltyRow[]> {
 /* ------------------------------------------------------------------ */
 
 export async function createClient(input: ClientInput): Promise<void> {
-  await getUser();
+  const user = await getUser();
 
   // Create a Supabase auth user first, then the profile
   // For admin-created clients we insert directly into profiles
@@ -182,11 +183,13 @@ export async function createClient(input: ClientInput): Promise<void> {
     tags: input.tags ?? null,
   });
 
+  trackEvent(user.id, "client_created", { source: input.source ?? null, isVip: input.isVip });
+
   revalidatePath("/dashboard/clients");
 }
 
 export async function updateClient(id: string, input: ClientInput): Promise<void> {
-  await getUser();
+  const user = await getUser();
 
   await db
     .update(profiles)
@@ -202,12 +205,15 @@ export async function updateClient(id: string, input: ClientInput): Promise<void
     })
     .where(eq(profiles.id, id));
 
+  trackEvent(user.id, "client_updated", { clientId: id, isVip: input.isVip });
+
   revalidatePath("/dashboard/clients");
 }
 
 export async function deleteClient(id: string): Promise<void> {
-  await getUser();
+  const user = await getUser();
   await db.delete(profiles).where(eq(profiles.id, id));
+  trackEvent(user.id, "client_deleted", { clientId: id });
   revalidatePath("/dashboard/clients");
 }
 
@@ -216,7 +222,7 @@ export async function issueLoyaltyReward(
   points: number,
   description: string,
 ): Promise<void> {
-  await getUser();
+  const user = await getUser();
 
   await db.insert(loyaltyTransactions).values({
     profileId,
@@ -224,6 +230,8 @@ export async function issueLoyaltyReward(
     type: "manual_credit",
     description,
   });
+
+  trackEvent(user.id, "loyalty_reward_issued", { clientId: profileId, points });
 
   revalidatePath("/dashboard/clients");
 }

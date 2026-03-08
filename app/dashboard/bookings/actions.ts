@@ -31,7 +31,7 @@ import { revalidatePath } from "next/cache";
 import { eq, desc, ne, and, gte, sum } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
-import { bookings, profiles, services, serviceRecords, syncLog } from "@/db/schema";
+import { bookings, profiles, services, serviceRecords, syncLog, waitlist } from "@/db/schema";
 import { BookingCancellation } from "@/emails/BookingCancellation";
 import { BookingCompleted } from "@/emails/BookingCompleted";
 import { BookingConfirmation } from "@/emails/BookingConfirmation";
@@ -896,5 +896,120 @@ export async function upsertServiceRecord(input: ServiceRecordInput): Promise<vo
     clientId: input.clientId,
   });
 
+  revalidatePath("/dashboard/bookings");
+}
+
+/* ------------------------------------------------------------------ */
+/*  Waitlist                                                           */
+/* ------------------------------------------------------------------ */
+
+export type WaitlistRow = {
+  id: number;
+  clientId: string;
+  clientName: string;
+  clientPhone: string | null;
+  serviceId: number;
+  serviceName: string;
+  serviceCategory: string;
+  status: "waiting" | "notified" | "booked" | "expired" | "cancelled";
+  preferredDateStart: string | null;
+  preferredDateEnd: string | null;
+  timePreference: string | null;
+  notes: string | null;
+  notifiedAt: string | null;
+  createdAt: string;
+};
+
+export type WaitlistInput = {
+  clientId: string;
+  serviceId: number;
+  preferredDateStart?: string;
+  preferredDateEnd?: string;
+  timePreference?: string;
+  notes?: string;
+};
+
+export async function getWaitlist(): Promise<WaitlistRow[]> {
+  await getUser();
+
+  const rows = await db
+    .select({
+      id: waitlist.id,
+      clientId: waitlist.clientId,
+      clientFirstName: profiles.firstName,
+      clientLastName: profiles.lastName,
+      clientPhone: profiles.phone,
+      serviceId: waitlist.serviceId,
+      serviceName: services.name,
+      serviceCategory: services.category,
+      status: waitlist.status,
+      preferredDateStart: waitlist.preferredDateStart,
+      preferredDateEnd: waitlist.preferredDateEnd,
+      timePreference: waitlist.timePreference,
+      notes: waitlist.notes,
+      notifiedAt: waitlist.notifiedAt,
+      createdAt: waitlist.createdAt,
+    })
+    .from(waitlist)
+    .innerJoin(profiles, eq(waitlist.clientId, profiles.id))
+    .innerJoin(services, eq(waitlist.serviceId, services.id))
+    .orderBy(desc(waitlist.createdAt));
+
+  return rows.map((r) => ({
+    id: r.id,
+    clientId: r.clientId,
+    clientName: [r.clientFirstName, r.clientLastName].filter(Boolean).join(" "),
+    clientPhone: r.clientPhone,
+    serviceId: r.serviceId,
+    serviceName: r.serviceName,
+    serviceCategory: r.serviceCategory,
+    status: r.status,
+    preferredDateStart: r.preferredDateStart,
+    preferredDateEnd: r.preferredDateEnd,
+    timePreference: r.timePreference,
+    notes: r.notes,
+    notifiedAt: r.notifiedAt?.toISOString() ?? null,
+    createdAt: r.createdAt.toISOString(),
+  }));
+}
+
+export async function addToWaitlist(input: WaitlistInput): Promise<void> {
+  const user = await getUser();
+
+  await db.insert(waitlist).values({
+    clientId: input.clientId,
+    serviceId: input.serviceId,
+    preferredDateStart: input.preferredDateStart ?? null,
+    preferredDateEnd: input.preferredDateEnd ?? null,
+    timePreference: input.timePreference ?? null,
+    notes: input.notes ?? null,
+  });
+
+  trackEvent(user.id, "waitlist_added", {
+    clientId: input.clientId,
+    serviceId: input.serviceId,
+  });
+
+  revalidatePath("/dashboard/bookings");
+}
+
+export async function updateWaitlistStatus(
+  id: number,
+  status: "waiting" | "notified" | "booked" | "expired" | "cancelled",
+): Promise<void> {
+  await getUser();
+
+  const updates: Record<string, unknown> = { status };
+  if (status === "notified") {
+    updates.notifiedAt = new Date();
+  }
+
+  await db.update(waitlist).set(updates).where(eq(waitlist.id, id));
+  revalidatePath("/dashboard/bookings");
+}
+
+export async function removeFromWaitlistById(id: number): Promise<void> {
+  await getUser();
+  await db.delete(waitlist).where(eq(waitlist.id, id));
   revalidatePath("/dashboard/bookings");
 }

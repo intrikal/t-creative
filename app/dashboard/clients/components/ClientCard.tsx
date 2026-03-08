@@ -1,6 +1,6 @@
 "use client";
 
-import { Pencil, Trash2, Star, MapPin, Heart } from "lucide-react";
+import { Pencil, Trash2, Star, MapPin, Heart, FileText } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -11,11 +11,13 @@ export function ClientCard({
   onEdit,
   onDelete,
   onPreferences,
+  onWaivers,
 }: {
   client: Client;
   onEdit: (c: Client) => void;
   onDelete: (c: Client) => void;
   onPreferences: (c: Client) => void;
+  onWaivers: (c: Client) => void;
 }) {
   const src = sourceBadge(client.source);
   const av = avatarColor(client.name);
@@ -24,6 +26,13 @@ export function ClientCard({
     <div className="group relative flex flex-col gap-3 p-4 rounded-xl border border-border bg-background hover:shadow-sm transition-all">
       {/* Actions — hover reveal */}
       <div className="absolute top-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <button
+          onClick={() => onWaivers(client)}
+          className="p-1.5 rounded-lg hover:bg-foreground/8 text-muted hover:text-foreground transition-colors"
+          title="Waivers & Forms"
+        >
+          <FileText className="w-3.5 h-3.5" />
+        </button>
         <button
           onClick={() => onPreferences(client)}
           className="p-1.5 rounded-lg hover:bg-foreground/8 text-muted hover:text-foreground transition-colors"

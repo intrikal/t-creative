@@ -9,8 +9,8 @@
  * This file contains only the tab navigation scaffold and the `PANELS` mapping.
  *
  * Props flow: `page.tsx` (server) → `SettingsPage` → individual tab components.
- * DB-wired tabs: Business, Hours, Policies, Loyalty, Notifications.
- * Hardcoded tabs (no DB schema yet): Booking Rules, Aftercare, Reminders, Integrations.
+ * DB-wired tabs: Business, Hours, Booking Rules, Policies, Loyalty, Reminders, Notifications.
+ * Hardcoded tabs (no DB schema yet): Aftercare, Integrations.
  *
  * @module settings/SettingsPage
  * @see {@link ./page.tsx} — server component providing data
@@ -42,10 +42,12 @@ import { PoliciesTab } from "./components/PoliciesTab";
 import { RemindersTab } from "./components/RemindersTab";
 import type { BusinessHourRow, LunchBreak, TimeOffRow } from "./hours-actions";
 import type {
+  BookingRulesConfig,
   BusinessProfile,
   PolicySettings,
   LoyaltyConfig,
   NotificationPrefs,
+  RemindersConfig,
   FinancialConfig,
   SquareConnectionStatus,
 } from "./settings-actions";
@@ -81,6 +83,8 @@ export function SettingsPage({
   initialLoyalty,
   initialNotifications,
   initialFinancial,
+  initialBookingRules,
+  initialReminders,
   squareStatus,
 }: {
   initialHours: BusinessHourRow[];
@@ -91,6 +95,8 @@ export function SettingsPage({
   initialLoyalty: LoyaltyConfig;
   initialNotifications: NotificationPrefs;
   initialFinancial: FinancialConfig;
+  initialBookingRules: BookingRulesConfig;
+  initialReminders: RemindersConfig;
   squareStatus: SquareConnectionStatus;
 }) {
   const [tab, setTab] = useState<Tab>("business");
@@ -104,11 +110,11 @@ export function SettingsPage({
         initialLunchBreak={initialLunchBreak}
       />
     ),
-    booking: <BookingTab />,
+    booking: <BookingTab initial={initialBookingRules} />,
     policies: <PoliciesTab initial={initialPolicies} />,
     loyalty: <LoyaltyTab initial={initialLoyalty} />,
     aftercare: <AftercareTab />,
-    reminders: <RemindersTab />,
+    reminders: <RemindersTab initial={initialReminders} />,
     integrations: (
       <IntegrationsTab
         squareConnected={squareStatus.connected}

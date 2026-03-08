@@ -1,13 +1,8 @@
 /**
  * Automated Reminders tab — configure the client communication sequence.
  *
- * **Currently hardcoded** — local state with 6 pre-defined reminder steps:
- * booking confirmation, 48h reminder, 24h reminder, day-of reminder,
- * 4-week follow-up, and review request.
- *
+ * DB-wired via the `reminder_config` key in the `settings` table.
  * Each reminder has Email, SMS, and Active toggles. SMS is powered by Square.
- * When a DB schema for reminders is added, this can be wired similarly to
- * NotificationsTab.
  *
  * @module settings/components/RemindersTab
  */
@@ -16,64 +11,28 @@
 import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { Toggle } from "./shared";
+import type { RemindersConfig } from "../settings-actions";
+import { saveReminders } from "../settings-actions";
+import { Toggle, StatefulSaveButton } from "./shared";
 
-const INITIAL_REMINDERS = [
-  {
-    id: 1,
-    label: "Booking confirmation",
-    timing: "Immediately after booking",
-    email: true,
-    sms: true,
-    active: true,
-  },
-  {
-    id: 2,
-    label: "48-hour reminder",
-    timing: "2 days before appointment",
-    email: true,
-    sms: true,
-    active: true,
-  },
-  {
-    id: 3,
-    label: "24-hour reminder",
-    timing: "1 day before appointment",
-    email: false,
-    sms: true,
-    active: true,
-  },
-  {
-    id: 4,
-    label: "Day-of reminder",
-    timing: "Morning of appointment",
-    email: false,
-    sms: true,
-    active: false,
-  },
-  {
-    id: 5,
-    label: "4-week follow-up",
-    timing: "28 days after appointment",
-    email: true,
-    sms: false,
-    active: true,
-  },
-  {
-    id: 6,
-    label: "Review request",
-    timing: "2 days after appointment",
-    email: true,
-    sms: false,
-    active: true,
-  },
-];
-
-export function RemindersTab() {
-  const [reminders, setReminders] = useState(INITIAL_REMINDERS);
+export function RemindersTab({ initial }: { initial: RemindersConfig }) {
+  const [reminders, setReminders] = useState(initial.items);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
 
   function toggleField(id: number, field: "email" | "sms" | "active") {
     setReminders((prev) => prev.map((r) => (r.id === id ? { ...r, [field]: !r[field] } : r)));
+  }
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      await saveReminders({ items: reminders });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -127,6 +86,15 @@ export function RemindersTab() {
           </div>
         </CardContent>
       </Card>
+
+      <div className="flex justify-end">
+        <StatefulSaveButton
+          label="Save Reminders"
+          saving={saving}
+          saved={saved}
+          onSave={handleSave}
+        />
+      </div>
     </div>
   );
 }

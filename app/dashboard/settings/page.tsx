@@ -7,11 +7,13 @@ import { getClientSettings } from "./client-settings-actions";
 import { ClientSettingsPage } from "./ClientSettingsPage";
 import { getBusinessHours, getTimeOff, getLunchBreak } from "./hours-actions";
 import {
+  getBookingRules,
   getBusinessProfile,
-  getPolicies,
+  getFinancialConfig,
   getLoyaltyConfig,
   getNotificationPrefs,
-  getFinancialConfig,
+  getPolicies,
+  getReminders,
   getSquareConnectionStatus,
 } from "./settings-actions";
 import { SettingsPage } from "./SettingsPage";
@@ -45,6 +47,8 @@ export default async function Page() {
     initialLoyalty,
     initialNotifications,
     initialFinancial,
+    initialBookingRules,
+    initialReminders,
     squareStatus,
   ] = await Promise.all([
     getBusinessHours(),
@@ -55,6 +59,8 @@ export default async function Page() {
     getLoyaltyConfig(),
     getNotificationPrefs(),
     getFinancialConfig(),
+    getBookingRules(),
+    getReminders(),
     getSquareConnectionStatus(),
   ]);
 
@@ -68,6 +74,8 @@ export default async function Page() {
       initialLoyalty={initialLoyalty}
       initialNotifications={initialNotifications}
       initialFinancial={initialFinancial}
+      initialBookingRules={initialBookingRules}
+      initialReminders={initialReminders}
       squareStatus={squareStatus}
     />
   );

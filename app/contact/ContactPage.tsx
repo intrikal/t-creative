@@ -11,6 +11,7 @@ import { motion } from "framer-motion";
 import { z } from "zod";
 import { Footer } from "@/components/landing/Footer";
 import { socials } from "@/lib/socials";
+import { submitContactForm } from "./actions";
 
 const contactSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
@@ -54,7 +55,7 @@ export function ContactPage() {
       const result = contactSchema.safeParse(value);
       if (!result.success) return;
 
-      // TODO: Send to API endpoint / Supabase
+      await submitContactForm(result.data);
       setSubmitted(true);
     },
   });

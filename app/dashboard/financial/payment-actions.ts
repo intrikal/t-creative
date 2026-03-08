@@ -199,7 +199,7 @@ export async function recordPayment(input: RecordPaymentInput): Promise<void> {
     notes: input.notes ?? null,
   });
 
-  logAction({
+  await logAction({
     actorId: user.id,
     action: "create",
     entityType: "payment",
@@ -345,7 +345,7 @@ export async function processRefund(input: RefundInput): Promise<RefundResult> {
     // Non-fatal
   }
 
-  logAction({
+  await logAction({
     actorId: user.id,
     action: "update",
     entityType: "payment",

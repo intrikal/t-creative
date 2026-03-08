@@ -403,7 +403,7 @@ export async function createService(input: ServiceInput): Promise<ServiceRow> {
     .returning();
   trackEvent(user.id, "service_created", { name: input.name, category: input.category });
 
-  logAction({
+  await logAction({
     actorId: user.id,
     action: "create",
     entityType: "service",
@@ -434,7 +434,7 @@ export async function updateService(id: number, input: ServiceInput): Promise<Se
     .returning();
   trackEvent(user.id, "service_updated", { serviceId: id, name: input.name });
 
-  logAction({
+  await logAction({
     actorId: user.id,
     action: "update",
     entityType: "service",
@@ -453,7 +453,7 @@ export async function deleteService(id: number): Promise<void> {
   await db.delete(services).where(eq(services.id, id));
   trackEvent(user.id, "service_deleted", { serviceId: id });
 
-  logAction({
+  await logAction({
     actorId: user.id,
     action: "delete",
     entityType: "service",

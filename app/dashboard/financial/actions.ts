@@ -28,7 +28,10 @@ import {
   promotions,
   orders,
 } from "@/db/schema";
+import { GiftCardDelivery } from "@/emails/GiftCardDelivery";
+import { GiftCardPurchase } from "@/emails/GiftCardPurchase";
 import { logAction } from "@/lib/audit";
+import { getEmailRecipient, sendEmail } from "@/lib/resend";
 import { createClient } from "@/utils/supabase/server";
 
 /* ------------------------------------------------------------------ */
@@ -425,7 +428,7 @@ export async function createInvoice(input: {
     nextDueAt,
   });
 
-  logAction({
+  await logAction({
     actorId: user.id,
     action: "create",
     entityType: "invoice",
@@ -491,7 +494,7 @@ export async function createExpense(input: {
     createdBy: user.id,
   });
 
-  logAction({
+  await logAction({
     actorId: user.id,
     action: "create",
     entityType: "expense",
@@ -606,7 +609,7 @@ export async function createGiftCard(input: {
     notes: input.notes ?? null,
   });
 
-  logAction({
+  await logAction({
     actorId: user.id,
     action: "create",
     entityType: "gift_card",
@@ -614,6 +617,51 @@ export async function createGiftCard(input: {
     description: `Gift card TC-GC-${nextNum} created`,
     metadata: { amountInCents: input.amountInCents, recipientName: input.recipientName ?? null },
   });
+
+  // Send purchase confirmation to buyer
+  if (input.purchasedByClientId) {
+    const buyer = await getEmailRecipient(input.purchasedByClientId);
+    if (buyer) {
+      const expiresFormatted = input.expiresAt
+        ? new Date(input.expiresAt).toLocaleDateString("en-US", {
+            month: "long",
+            day: "numeric",
+            year: "numeric",
+          })
+        : undefined;
+
+      await sendEmail({
+        to: buyer.email,
+        subject: `Gift card purchased — TC-GC-${nextNum} — T Creative`,
+        react: GiftCardPurchase({
+          clientName: buyer.firstName,
+          giftCardCode: `TC-GC-${nextNum}`,
+          amountInCents: input.amountInCents,
+          recipientName: input.recipientName ?? undefined,
+          expiresAt: expiresFormatted,
+        }),
+        entityType: "gift_card_purchase",
+        localId: String(newCard.id),
+      });
+
+      // Send delivery email to recipient if different from buyer
+      if (input.recipientName) {
+        await sendEmail({
+          to: buyer.email, // Goes to buyer — they forward or we'd need recipient email
+          subject: `Gift card for ${input.recipientName} — T Creative`,
+          react: GiftCardDelivery({
+            recipientName: input.recipientName,
+            senderName: buyer.firstName,
+            giftCardCode: `TC-GC-${nextNum}`,
+            amountInCents: input.amountInCents,
+            expiresAt: expiresFormatted,
+          }),
+          entityType: "gift_card_delivery",
+          localId: String(newCard.id),
+        });
+      }
+    }
+  }
 
   revalidatePath("/dashboard/financial");
 }

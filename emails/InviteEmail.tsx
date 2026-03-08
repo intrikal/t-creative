@@ -5,7 +5,6 @@ import { Layout } from "./components/Layout";
 
 export type InviteEmailProps = {
   inviteUrl: string;
-  email: string;
 };
 
 export function InviteEmail({ inviteUrl }: InviteEmailProps) {

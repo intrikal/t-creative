@@ -186,7 +186,7 @@ export async function createClient(input: ClientInput): Promise<void> {
 
   trackEvent(user.id, "client_created", { source: input.source ?? null, isVip: input.isVip });
 
-  logAction({
+  await logAction({
     actorId: user.id,
     action: "create",
     entityType: "client",
@@ -217,7 +217,7 @@ export async function updateClient(id: string, input: ClientInput): Promise<void
 
   trackEvent(user.id, "client_updated", { clientId: id, isVip: input.isVip });
 
-  logAction({
+  await logAction({
     actorId: user.id,
     action: "update",
     entityType: "client",
@@ -234,7 +234,7 @@ export async function deleteClient(id: string): Promise<void> {
   await db.delete(profiles).where(eq(profiles.id, id));
   trackEvent(user.id, "client_deleted", { clientId: id });
 
-  logAction({
+  await logAction({
     actorId: user.id,
     action: "delete",
     entityType: "client",

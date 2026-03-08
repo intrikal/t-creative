@@ -9,6 +9,7 @@ import type { ClientRow, LoyaltyRow } from "./actions";
 import { createClient, updateClient, deleteClient } from "./actions";
 import { ClientCard } from "./components/ClientCard";
 import { ClientFormDialog, BLANK_FORM, type ClientFormState } from "./components/ClientFormDialog";
+import { ClientPreferencesDialog } from "./components/ClientPreferencesDialog";
 import { DeleteDialog } from "./components/DeleteDialog";
 import { LoyaltyTab } from "./components/LoyaltyTab";
 
@@ -263,6 +264,7 @@ export function ClientsPage({
   const [editTarget, setEditTarget] = useState<Client | null>(null);
   const [formInitial, setFormInitial] = useState<ClientFormState>(BLANK_FORM);
   const [deleteTarget, setDeleteTarget] = useState<Client | null>(null);
+  const [prefsTarget, setPrefsTarget] = useState<Client | null>(null);
 
   const filtered = clients.filter((c) => {
     const matchSearch =
@@ -504,6 +506,7 @@ export function ClientsPage({
                   client={client}
                   onEdit={openEdit}
                   onDelete={(c) => setDeleteTarget(c)}
+                  onPreferences={(c) => setPrefsTarget(c)}
                 />
               ))}
             </div>
@@ -529,6 +532,16 @@ export function ClientsPage({
         onConfirm={handleDelete}
         onClose={() => setDeleteTarget(null)}
       />
+
+      {/* Client preferences dialog */}
+      {prefsTarget && (
+        <ClientPreferencesDialog
+          open
+          onClose={() => setPrefsTarget(null)}
+          clientId={prefsTarget.id}
+          clientName={prefsTarget.name}
+        />
+      )}
     </div>
   );
 }

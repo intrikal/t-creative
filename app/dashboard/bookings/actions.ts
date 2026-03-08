@@ -37,6 +37,7 @@ import { BookingCompleted } from "@/emails/BookingCompleted";
 import { BookingConfirmation } from "@/emails/BookingConfirmation";
 import { BookingNoShow } from "@/emails/BookingNoShow";
 import { BookingReschedule } from "@/emails/BookingReschedule";
+import { logAction } from "@/lib/audit";
 import { trackEvent } from "@/lib/posthog";
 import { sendEmail } from "@/lib/resend";
 import { isSquareConfigured, createSquareOrder } from "@/lib/square";
@@ -140,7 +141,7 @@ export async function updateBookingStatus(
   status: BookingStatus,
   cancellationReason?: string,
 ): Promise<void> {
-  await getUser();
+  const user = await getUser();
 
   const updates: Record<string, unknown> = { status };
 
@@ -191,6 +192,15 @@ export async function updateBookingStatus(
     ...(cancellationReason ? { cancellationReason } : {}),
   });
 
+  logAction({
+    actorId: user.id,
+    action: "status_change",
+    entityType: "booking",
+    entityId: String(id),
+    description: `Booking status changed to ${status}`,
+    metadata: { newStatus: status, ...(cancellationReason ? { cancellationReason } : {}) },
+  });
+
   // Zoho CRM: update deal stage
   if (status === "completed") {
     updateZohoDeal(id, "Closed Won");
@@ -206,7 +216,7 @@ export async function updateBookingStatus(
 }
 
 export async function createBooking(input: BookingInput): Promise<void> {
-  await getUser();
+  const user = await getUser();
 
   const [newBooking] = await db
     .insert(bookings)
@@ -236,6 +246,19 @@ export async function createBooking(input: BookingInput): Promise<void> {
     serviceId: input.serviceId,
     totalInCents: input.totalInCents,
     location: input.location ?? null,
+  });
+
+  logAction({
+    actorId: user.id,
+    action: "create",
+    entityType: "booking",
+    entityId: String(newBooking.id),
+    description: "Booking created",
+    metadata: {
+      clientId: input.clientId,
+      serviceId: input.serviceId,
+      totalInCents: input.totalInCents,
+    },
   });
 
   // Zoho CRM: create deal for admin-created booking
@@ -284,7 +307,7 @@ export async function updateBooking(
   id: number,
   input: BookingInput & { status: BookingStatus },
 ): Promise<void> {
-  await getUser();
+  const user = await getUser();
 
   // Fetch old booking time to detect reschedule
   const [oldBooking] = await db
@@ -316,12 +339,42 @@ export async function updateBooking(
     await trySendBookingReschedule(id, oldBooking.startsAt);
   }
 
+  logAction({
+    actorId: user.id,
+    action: "update",
+    entityType: "booking",
+    entityId: String(id),
+    description: "Booking updated",
+    metadata: {
+      clientId: input.clientId,
+      serviceId: input.serviceId,
+      status: input.status,
+      ...(oldBooking && oldBooking.startsAt.getTime() !== input.startsAt.getTime()
+        ? {
+            rescheduled: {
+              old: oldBooking.startsAt.toISOString(),
+              new: input.startsAt.toISOString(),
+            },
+          }
+        : {}),
+    },
+  });
+
   revalidatePath("/dashboard/bookings");
 }
 
 export async function deleteBooking(id: number): Promise<void> {
-  await getUser();
+  const user = await getUser();
   await db.delete(bookings).where(eq(bookings.id, id));
+
+  logAction({
+    actorId: user.id,
+    action: "delete",
+    entityType: "booking",
+    entityId: String(id),
+    description: "Booking deleted",
+  });
+
   revalidatePath("/dashboard/bookings");
 }
 

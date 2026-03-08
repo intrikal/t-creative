@@ -28,6 +28,7 @@ import { revalidatePath } from "next/cache";
 import { eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { bookings, services } from "@/db/schema";
+import { logAction } from "@/lib/audit";
 import { trackEvent } from "@/lib/posthog";
 import { createClient } from "@/utils/supabase/server";
 
@@ -401,6 +402,16 @@ export async function createService(input: ServiceInput): Promise<ServiceRow> {
     })
     .returning();
   trackEvent(user.id, "service_created", { name: input.name, category: input.category });
+
+  logAction({
+    actorId: user.id,
+    action: "create",
+    entityType: "service",
+    entityId: String(row.id),
+    description: "Service created",
+    metadata: { name: input.name, category: input.category },
+  });
+
   revalidatePath("/dashboard/services");
   revalidatePath("/services");
   return row;
@@ -422,6 +433,16 @@ export async function updateService(id: number, input: ServiceInput): Promise<Se
     .where(eq(services.id, id))
     .returning();
   trackEvent(user.id, "service_updated", { serviceId: id, name: input.name });
+
+  logAction({
+    actorId: user.id,
+    action: "update",
+    entityType: "service",
+    entityId: String(id),
+    description: "Service updated",
+    metadata: { name: input.name, category: input.category },
+  });
+
   revalidatePath("/dashboard/services");
   revalidatePath("/services");
   return row;
@@ -431,6 +452,15 @@ export async function deleteService(id: number): Promise<void> {
   const user = await getUser();
   await db.delete(services).where(eq(services.id, id));
   trackEvent(user.id, "service_deleted", { serviceId: id });
+
+  logAction({
+    actorId: user.id,
+    action: "delete",
+    entityType: "service",
+    entityId: String(id),
+    description: "Service deleted",
+  });
+
   revalidatePath("/dashboard/services");
   revalidatePath("/services");
 }

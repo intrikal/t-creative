@@ -5,6 +5,7 @@ import { eq, sql, desc, and, gte, asc } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
 import { profiles, bookings, services, loyaltyTransactions, clientPreferences } from "@/db/schema";
+import { logAction } from "@/lib/audit";
 import { trackEvent } from "@/lib/posthog";
 import { createClient as createSupabaseClient } from "@/utils/supabase/server";
 
@@ -185,6 +186,15 @@ export async function createClient(input: ClientInput): Promise<void> {
 
   trackEvent(user.id, "client_created", { source: input.source ?? null, isVip: input.isVip });
 
+  logAction({
+    actorId: user.id,
+    action: "create",
+    entityType: "client",
+    entityId: "new",
+    description: "Client created",
+    metadata: { email: input.email, source: input.source ?? null },
+  });
+
   revalidatePath("/dashboard/clients");
 }
 
@@ -207,6 +217,15 @@ export async function updateClient(id: string, input: ClientInput): Promise<void
 
   trackEvent(user.id, "client_updated", { clientId: id, isVip: input.isVip });
 
+  logAction({
+    actorId: user.id,
+    action: "update",
+    entityType: "client",
+    entityId: id,
+    description: "Client updated",
+    metadata: { isVip: input.isVip },
+  });
+
   revalidatePath("/dashboard/clients");
 }
 
@@ -214,6 +233,15 @@ export async function deleteClient(id: string): Promise<void> {
   const user = await getUser();
   await db.delete(profiles).where(eq(profiles.id, id));
   trackEvent(user.id, "client_deleted", { clientId: id });
+
+  logAction({
+    actorId: user.id,
+    action: "delete",
+    entityType: "client",
+    entityId: id,
+    description: "Client deleted",
+  });
+
   revalidatePath("/dashboard/clients");
 }
 

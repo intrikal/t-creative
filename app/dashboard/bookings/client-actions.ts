@@ -5,6 +5,7 @@ import { eq, desc, and, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
 import { bookings, bookingAddOns, services, profiles, reviews } from "@/db/schema";
+import { logAction } from "@/lib/audit";
 import { trackEvent } from "@/lib/posthog";
 import { updateZohoDeal, logZohoNote } from "@/lib/zoho";
 import { createClient } from "@/utils/supabase/server";
@@ -260,6 +261,15 @@ export async function cancelClientBooking(bookingId: number) {
   trackEvent(user.id, "booking_cancelled_by_client", {
     bookingId,
     previousStatus: booking.status,
+  });
+
+  logAction({
+    actorId: user.id,
+    action: "status_change",
+    entityType: "booking",
+    entityId: String(bookingId),
+    description: "Booking cancelled by client",
+    metadata: { previousStatus: booking.status },
   });
 
   // Zoho CRM: mark deal as lost

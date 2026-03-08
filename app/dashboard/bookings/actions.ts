@@ -37,6 +37,8 @@ import { BookingCompleted } from "@/emails/BookingCompleted";
 import { BookingConfirmation } from "@/emails/BookingConfirmation";
 import { BookingNoShow } from "@/emails/BookingNoShow";
 import { BookingReschedule } from "@/emails/BookingReschedule";
+import { RecurringBookingConfirmation } from "@/emails/RecurringBookingConfirmation";
+import { WaitlistNotification } from "@/emails/WaitlistNotification";
 import { logAction } from "@/lib/audit";
 import { trackEvent } from "@/lib/posthog";
 import { sendEmail } from "@/lib/resend";
@@ -192,7 +194,7 @@ export async function updateBookingStatus(
     ...(cancellationReason ? { cancellationReason } : {}),
   });
 
-  logAction({
+  await logAction({
     actorId: user.id,
     action: "status_change",
     entityType: "booking",
@@ -248,7 +250,7 @@ export async function createBooking(input: BookingInput): Promise<void> {
     location: input.location ?? null,
   });
 
-  logAction({
+  await logAction({
     actorId: user.id,
     action: "create",
     entityType: "booking",
@@ -339,7 +341,7 @@ export async function updateBooking(
     await trySendBookingReschedule(id, oldBooking.startsAt);
   }
 
-  logAction({
+  await logAction({
     actorId: user.id,
     action: "update",
     entityType: "booking",
@@ -367,7 +369,7 @@ export async function deleteBooking(id: number): Promise<void> {
   const user = await getUser();
   await db.delete(bookings).where(eq(bookings.id, id));
 
-  logAction({
+  await logAction({
     actorId: user.id,
     action: "delete",
     entityType: "booking",
@@ -508,19 +510,65 @@ async function generateNextRecurringBooking(bookingId: number): Promise<void> {
     // The series root is either this booking's parent or this booking itself
     const seriesRoot = booking.parentBookingId ?? bookingId;
 
-    await db.insert(bookings).values({
-      clientId: booking.clientId,
-      serviceId: booking.serviceId,
-      staffId: booking.staffId ?? undefined,
-      startsAt: nextStart,
-      durationMinutes: booking.durationMinutes,
-      totalInCents: booking.totalInCents,
-      location: booking.location ?? undefined,
-      recurrenceRule: booking.recurrenceRule,
-      parentBookingId: seriesRoot,
-      status: "confirmed",
-      confirmedAt: new Date(),
-    });
+    const [newBooking] = await db
+      .insert(bookings)
+      .values({
+        clientId: booking.clientId,
+        serviceId: booking.serviceId,
+        staffId: booking.staffId ?? undefined,
+        startsAt: nextStart,
+        durationMinutes: booking.durationMinutes,
+        totalInCents: booking.totalInCents,
+        location: booking.location ?? undefined,
+        recurrenceRule: booking.recurrenceRule,
+        parentBookingId: seriesRoot,
+        status: "confirmed",
+        confirmedAt: new Date(),
+      })
+      .returning({ id: bookings.id });
+
+    // Send confirmation email for the new recurring booking
+    try {
+      const recurClient = alias(profiles, "recurClient");
+      const [row] = await db
+        .select({
+          clientEmail: recurClient.email,
+          clientFirstName: recurClient.firstName,
+          notifyEmail: recurClient.notifyEmail,
+          serviceName: services.name,
+        })
+        .from(bookings)
+        .innerJoin(recurClient, eq(bookings.clientId, recurClient.id))
+        .innerJoin(services, eq(bookings.serviceId, services.id))
+        .where(eq(bookings.id, newBooking.id));
+
+      if (row?.clientEmail && row.notifyEmail) {
+        const dateFormatted = nextStart.toLocaleDateString("en-US", {
+          weekday: "long",
+          month: "long",
+          day: "numeric",
+          year: "numeric",
+          hour: "numeric",
+          minute: "2-digit",
+        });
+
+        await sendEmail({
+          to: row.clientEmail,
+          subject: `Next appointment scheduled — ${row.serviceName} — T Creative`,
+          react: RecurringBookingConfirmation({
+            clientName: row.clientFirstName,
+            serviceName: row.serviceName,
+            startsAt: dateFormatted,
+            durationMinutes: booking.durationMinutes,
+            totalInCents: booking.totalInCents,
+          }),
+          entityType: "recurring_booking_confirmation",
+          localId: String(newBooking.id),
+        });
+      }
+    } catch {
+      // Non-fatal — email failure shouldn't break recurrence
+    }
   } catch {
     // Non-fatal — don't break the completion flow
   }
@@ -1140,6 +1188,40 @@ export async function updateWaitlistStatus(
   }
 
   await db.update(waitlist).set(updates).where(eq(waitlist.id, id));
+
+  // Send notification email when marking as notified
+  if (status === "notified") {
+    try {
+      const waitlistClient = alias(profiles, "waitlistClient");
+      const [row] = await db
+        .select({
+          clientEmail: waitlistClient.email,
+          clientFirstName: waitlistClient.firstName,
+          notifyEmail: waitlistClient.notifyEmail,
+          serviceName: services.name,
+        })
+        .from(waitlist)
+        .innerJoin(waitlistClient, eq(waitlist.clientId, waitlistClient.id))
+        .innerJoin(services, eq(waitlist.serviceId, services.id))
+        .where(eq(waitlist.id, id));
+
+      if (row?.clientEmail && row.notifyEmail) {
+        await sendEmail({
+          to: row.clientEmail,
+          subject: `A spot opened up — ${row.serviceName} — T Creative`,
+          react: WaitlistNotification({
+            clientName: row.clientFirstName,
+            serviceName: row.serviceName,
+          }),
+          entityType: "waitlist_notification",
+          localId: String(id),
+        });
+      }
+    } catch {
+      // Non-fatal
+    }
+  }
+
   revalidatePath("/dashboard/bookings");
 }
 

@@ -32,7 +32,7 @@ export async function POST(request: Request) {
   await sendEmail({
     to: email,
     subject: "You're invited to join T Creative Studio",
-    react: InviteEmail({ inviteUrl, email }),
+    react: InviteEmail({ inviteUrl }),
     entityType: "invite",
     localId: email,
   });

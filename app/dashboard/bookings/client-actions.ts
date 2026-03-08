@@ -263,7 +263,7 @@ export async function cancelClientBooking(bookingId: number) {
     previousStatus: booking.status,
   });
 
-  logAction({
+  await logAction({
     actorId: user.id,
     action: "status_change",
     entityType: "booking",

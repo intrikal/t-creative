@@ -18,6 +18,7 @@ import { eq, and, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { payments, bookings, orders, profiles, webhookEvents, syncLog } from "@/db/schema";
 import { PaymentReceipt } from "@/emails/PaymentReceipt";
+import { logAction } from "@/lib/audit";
 import { sendEmail } from "@/lib/resend";
 import { SQUARE_WEBHOOK_SIGNATURE_KEY, squareClient, isSquareConfigured } from "@/lib/square";
 import { recordZohoBooksPayment } from "@/lib/zoho-books";
@@ -91,6 +92,15 @@ async function handlePaymentCompleted(data: any): Promise<string> {
         squareOrderId: squareOrderId,
       })
       .where(eq(payments.id, existing.id));
+
+    await logAction({
+      actorId: null,
+      action: "update",
+      entityType: "payment",
+      entityId: String(existing.id),
+      description: "Payment updated via Square webhook",
+      metadata: { squarePaymentId, squareOrderId },
+    });
 
     return `Updated existing payment #${existing.id}`;
   }
@@ -170,6 +180,15 @@ async function handlePaymentCompleted(data: any): Promise<string> {
       });
     }
 
+    await logAction({
+      actorId: null,
+      action: "create",
+      entityType: "payment",
+      entityId: String(booking.id),
+      description: `Payment auto-linked to booking #${booking.id}${isDeposit ? " (deposit)" : ""} via Square webhook`,
+      metadata: { squarePaymentId, squareOrderId, amountCents, method, bookingId: booking.id },
+    });
+
     return `Auto-linked payment to booking #${booking.id}${isDeposit ? " (deposit)" : ""}`;
   }
 
@@ -214,6 +233,15 @@ async function handlePaymentCompleted(data: any): Promise<string> {
         description: "Order payment via Square",
       });
     }
+
+    await logAction({
+      actorId: null,
+      action: "create",
+      entityType: "payment",
+      entityId: String(productOrder.id),
+      description: `Payment auto-linked to product order #${productOrder.id} via Square webhook`,
+      metadata: { squarePaymentId, squareOrderId, orderId: productOrder.id },
+    });
 
     return `Auto-linked payment to product order #${productOrder.id}`;
   }
@@ -314,6 +342,15 @@ async function handlePaymentUpdated(data: any): Promise<string> {
     })
     .where(eq(payments.id, existing.id));
 
+  await logAction({
+    actorId: null,
+    action: "update",
+    entityType: "payment",
+    entityId: String(existing.id),
+    description: `Payment #${existing.id} updated via Square webhook`,
+    metadata: { squarePaymentId: squarePayment.id },
+  });
+
   return `Updated payment #${existing.id}`;
 }
 
@@ -340,6 +377,15 @@ async function handleRefundEvent(data: any): Promise<string> {
       status: isFullRefund ? "refunded" : "partially_refunded",
     })
     .where(eq(payments.id, existing.id));
+
+  await logAction({
+    actorId: null,
+    action: "update",
+    entityType: "payment",
+    entityId: String(existing.id),
+    description: `Refund of $${(refundAmountCents / 100).toFixed(2)} applied via Square webhook`,
+    metadata: { refundAmountCents, isFullRefund, squarePaymentId: refund.payment_id },
+  });
 
   return `Refund of $${(refundAmountCents / 100).toFixed(2)} applied to payment #${existing.id}`;
 }

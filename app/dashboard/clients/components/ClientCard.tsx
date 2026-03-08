@@ -1,6 +1,6 @@
 "use client";
 
-import { Pencil, Trash2, Star, MapPin } from "lucide-react";
+import { Pencil, Trash2, Star, MapPin, Heart } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -10,10 +10,12 @@ export function ClientCard({
   client,
   onEdit,
   onDelete,
+  onPreferences,
 }: {
   client: Client;
   onEdit: (c: Client) => void;
   onDelete: (c: Client) => void;
+  onPreferences: (c: Client) => void;
 }) {
   const src = sourceBadge(client.source);
   const av = avatarColor(client.name);
@@ -23,14 +25,23 @@ export function ClientCard({
       {/* Actions — hover reveal */}
       <div className="absolute top-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
         <button
+          onClick={() => onPreferences(client)}
+          className="p-1.5 rounded-lg hover:bg-foreground/8 text-muted hover:text-foreground transition-colors"
+          title="Preferences"
+        >
+          <Heart className="w-3.5 h-3.5" />
+        </button>
+        <button
           onClick={() => onEdit(client)}
           className="p-1.5 rounded-lg hover:bg-foreground/8 text-muted hover:text-foreground transition-colors"
+          title="Edit"
         >
           <Pencil className="w-3.5 h-3.5" />
         </button>
         <button
           onClick={() => onDelete(client)}
           className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted hover:text-destructive transition-colors"
+          title="Delete"
         >
           <Trash2 className="w-3.5 h-3.5" />
         </button>

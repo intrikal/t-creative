@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { eq, sql, desc, and, gte, asc } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
-import { profiles, bookings, services, loyaltyTransactions } from "@/db/schema";
+import { profiles, bookings, services, loyaltyTransactions, clientPreferences } from "@/db/schema";
 import { trackEvent } from "@/lib/posthog";
 import { createClient as createSupabaseClient } from "@/utils/supabase/server";
 
@@ -232,6 +232,110 @@ export async function issueLoyaltyReward(
   });
 
   trackEvent(user.id, "loyalty_reward_issued", { clientId: profileId, points });
+
+  revalidatePath("/dashboard/clients");
+}
+
+/* ------------------------------------------------------------------ */
+/*  Client Preferences                                                 */
+/* ------------------------------------------------------------------ */
+
+export type ClientPreferencesRow = {
+  profileId: string;
+  preferredLashStyle: string | null;
+  preferredCurlType: string | null;
+  preferredLengths: string | null;
+  preferredDiameter: string | null;
+  naturalLashNotes: string | null;
+  retentionProfile: string | null;
+  allergies: string | null;
+  skinType: string | null;
+  adhesiveSensitivity: boolean;
+  healthNotes: string | null;
+  birthday: string | null;
+  preferredContactMethod: string | null;
+  preferredServiceTypes: string | null;
+  generalNotes: string | null;
+};
+
+export type ClientPreferencesInput = {
+  profileId: string;
+  preferredLashStyle?: string;
+  preferredCurlType?: string;
+  preferredLengths?: string;
+  preferredDiameter?: string;
+  naturalLashNotes?: string;
+  retentionProfile?: string;
+  allergies?: string;
+  skinType?: string;
+  adhesiveSensitivity?: boolean;
+  healthNotes?: string;
+  birthday?: string;
+  preferredContactMethod?: string;
+  preferredServiceTypes?: string;
+  generalNotes?: string;
+};
+
+export async function getClientPreferences(
+  profileId: string,
+): Promise<ClientPreferencesRow | null> {
+  await getUser();
+  const [row] = await db
+    .select()
+    .from(clientPreferences)
+    .where(eq(clientPreferences.profileId, profileId))
+    .limit(1);
+  if (!row) return null;
+  return {
+    profileId: row.profileId,
+    preferredLashStyle: row.preferredLashStyle,
+    preferredCurlType: row.preferredCurlType,
+    preferredLengths: row.preferredLengths,
+    preferredDiameter: row.preferredDiameter,
+    naturalLashNotes: row.naturalLashNotes,
+    retentionProfile: row.retentionProfile,
+    allergies: row.allergies,
+    skinType: row.skinType,
+    adhesiveSensitivity: row.adhesiveSensitivity,
+    healthNotes: row.healthNotes,
+    birthday: row.birthday,
+    preferredContactMethod: row.preferredContactMethod,
+    preferredServiceTypes: row.preferredServiceTypes,
+    generalNotes: row.generalNotes,
+  };
+}
+
+export async function upsertClientPreferences(input: ClientPreferencesInput): Promise<void> {
+  await getUser();
+
+  const values = {
+    profileId: input.profileId,
+    preferredLashStyle: input.preferredLashStyle ?? null,
+    preferredCurlType: input.preferredCurlType ?? null,
+    preferredLengths: input.preferredLengths ?? null,
+    preferredDiameter: input.preferredDiameter ?? null,
+    naturalLashNotes: input.naturalLashNotes ?? null,
+    retentionProfile: input.retentionProfile ?? null,
+    allergies: input.allergies ?? null,
+    skinType: input.skinType ?? null,
+    adhesiveSensitivity: input.adhesiveSensitivity ?? false,
+    healthNotes: input.healthNotes ?? null,
+    birthday: input.birthday ?? null,
+    preferredContactMethod: input.preferredContactMethod ?? null,
+    preferredServiceTypes: input.preferredServiceTypes ?? null,
+    generalNotes: input.generalNotes ?? null,
+  };
+
+  await db
+    .insert(clientPreferences)
+    .values(values)
+    .onConflictDoUpdate({
+      target: clientPreferences.profileId,
+      set: {
+        ...values,
+        profileId: undefined,
+      },
+    });
 
   revalidatePath("/dashboard/clients");
 }

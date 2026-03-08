@@ -23,6 +23,7 @@ import { db } from "@/db";
 import { payments, bookings, services, profiles, syncLog } from "@/db/schema";
 import { PaymentLinkEmail } from "@/emails/PaymentLinkEmail";
 import { RefundNotification } from "@/emails/RefundNotification";
+import { logAction } from "@/lib/audit";
 import { sendEmail, getEmailRecipient } from "@/lib/resend";
 import {
   squareClient,
@@ -159,7 +160,7 @@ export async function getBookingsForPayment(): Promise<BookingForPayment[]> {
  * if a `squarePaymentId` is provided and Square is configured.
  */
 export async function recordPayment(input: RecordPaymentInput): Promise<void> {
-  await getUser();
+  const user = await getUser();
 
   // Validate the booking exists
   const [booking] = await db
@@ -198,6 +199,19 @@ export async function recordPayment(input: RecordPaymentInput): Promise<void> {
     notes: input.notes ?? null,
   });
 
+  logAction({
+    actorId: user.id,
+    action: "create",
+    entityType: "payment",
+    entityId: String(input.bookingId),
+    description: `Payment of $${(input.amountInCents / 100).toFixed(2)} recorded`,
+    metadata: {
+      method: input.method,
+      amountInCents: input.amountInCents,
+      bookingId: input.bookingId,
+    },
+  });
+
   revalidatePath("/dashboard/financial");
   revalidatePath("/dashboard/bookings");
 }
@@ -212,7 +226,7 @@ export async function recordPayment(input: RecordPaymentInput): Promise<void> {
  * updates the DB directly.
  */
 export async function processRefund(input: RefundInput): Promise<RefundResult> {
-  await getUser();
+  const user = await getUser();
 
   const [payment] = await db.select().from(payments).where(eq(payments.id, input.paymentId));
 
@@ -330,6 +344,15 @@ export async function processRefund(input: RefundInput): Promise<RefundResult> {
   } catch {
     // Non-fatal
   }
+
+  logAction({
+    actorId: user.id,
+    action: "update",
+    entityType: "payment",
+    entityId: String(input.paymentId),
+    description: `Refund of $${(input.amountInCents / 100).toFixed(2)} processed`,
+    metadata: { amountInCents: input.amountInCents, reason: input.reason ?? null, isFullRefund },
+  });
 
   revalidatePath("/dashboard/financial");
   revalidatePath("/dashboard/bookings");

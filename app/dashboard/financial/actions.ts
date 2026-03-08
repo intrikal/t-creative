@@ -28,6 +28,7 @@ import {
   promotions,
   orders,
 } from "@/db/schema";
+import { logAction } from "@/lib/audit";
 import { createClient } from "@/utils/supabase/server";
 
 /* ------------------------------------------------------------------ */
@@ -388,7 +389,7 @@ export async function createInvoice(input: {
   isRecurring?: boolean;
   recurrenceInterval?: string;
 }) {
-  await getUser();
+  const user = await getUser();
 
   // Auto-generate next invoice number
   const [lastInvoice] = await db
@@ -422,6 +423,15 @@ export async function createInvoice(input: {
     isRecurring: input.isRecurring ?? false,
     recurrenceInterval: input.recurrenceInterval ?? null,
     nextDueAt,
+  });
+
+  logAction({
+    actorId: user.id,
+    action: "create",
+    entityType: "invoice",
+    entityId: `INV-${nextNum}`,
+    description: `Invoice INV-${nextNum} created`,
+    metadata: { clientId: input.clientId, amountInCents: input.amountInCents },
   });
 
   revalidatePath("/dashboard/financial");
@@ -479,6 +489,15 @@ export async function createExpense(input: {
     amountInCents: input.amountInCents,
     hasReceipt: input.hasReceipt ?? false,
     createdBy: user.id,
+  });
+
+  logAction({
+    actorId: user.id,
+    action: "create",
+    entityType: "expense",
+    entityId: "new",
+    description: `Expense recorded: ${input.description}`,
+    metadata: { category: input.category, amountInCents: input.amountInCents },
   });
 
   revalidatePath("/dashboard/financial");
@@ -585,6 +604,15 @@ export async function createGiftCard(input: {
     balanceAfterInCents: input.amountInCents,
     performedBy: user.id,
     notes: input.notes ?? null,
+  });
+
+  logAction({
+    actorId: user.id,
+    action: "create",
+    entityType: "gift_card",
+    entityId: String(newCard.id),
+    description: `Gift card TC-GC-${nextNum} created`,
+    metadata: { amountInCents: input.amountInCents, recipientName: input.recipientName ?? null },
   });
 
   revalidatePath("/dashboard/financial");

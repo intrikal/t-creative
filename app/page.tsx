@@ -1,67 +1,58 @@
 /**
- * Home — Landing page as a cinematic, narrative-driven experience.
+ * Home — Landing page for T Creative Studio.
  *
- * Page structure (Acts):
- *   I    Arrival            — Atmospheric dark opener; single word, scroll to warm
- *   II   Declaration        — Three words + typewriter thesis; brand identity
- *   II.5 Founder            — Trini's editorial portrait and introduction
- *        ─── SectionDivider (grid → organic morph)
- *   III  StudioPortal       — Scroll-pinned 3D interactive studio (300vh)
- *   IV   ZoneReveal         — Four transformation arcs (Raw → Process → Result)
- *   IV.5 HowItWorks         — Three-step booking process with animated connectors
- *   IV.6 TrainingTeaser     — Certification programs preview
- *        ─── SectionDivider
- *   V    EditorialPortfolio  — Asymmetric 3-column grid with loupe interaction
- *   V.5  FeaturedProducts    — Shop entry strip
- *   VI   Testimonials        — Full-bleed typographic with word-stagger transitions
- *   VII  TheInvitation       — Final CTA; ambient gradient, magnetic button
- *        Footer
+ * Page structure:
+ *   Hero             — Headline, tagline, dual CTAs, founder photo
+ *   TrustBar         — Social proof strip (location, clients, rating)
+ *   Services         — Four service zones with pricing and CTAs
+ *   HowItWorks       — Three-step booking process
+ *   StudioDiorama    — Interactive isometric 3D studio (drag to rotate)
+ *   Stats            — Key metrics (clients, rating, rebooking, services)
+ *   Portfolio        — Filterable work gallery with loupe interaction
+ *   Events           — Private parties, pop-ups, bridal, corporate
+ *   TrainingTeaser   — Certification programs preview
+ *   FeaturedProducts — Shop entry strip
+ *   Testimonials     — Client review carousel
+ *   FAQ              — Common questions accordion
+ *   CallToAction     — Final conversion CTA
+ *   Footer
  *
  * Server Component — all sections are client components imported here.
  */
 
-import { Arrival } from "@/components/landing/Arrival";
-import { Declaration } from "@/components/landing/Declaration";
+import { CallToAction } from "@/components/landing/CallToAction";
 import { EditorialPortfolio } from "@/components/landing/EditorialPortfolio";
+import { Events } from "@/components/landing/Events";
+import { FAQ } from "@/components/landing/FAQ";
 import { FeaturedProducts } from "@/components/landing/FeaturedProducts";
 import { Footer } from "@/components/landing/Footer";
-import { Founder } from "@/components/landing/Founder";
+import { Hero } from "@/components/landing/Hero";
 import { HowItWorks } from "@/components/landing/HowItWorks";
+import { Services } from "@/components/landing/Services";
+import { Stats } from "@/components/landing/Stats";
 import { StickyMobileCTA } from "@/components/landing/StickyMobileCTA";
-import { StudioOverlays } from "@/components/landing/StudioOverlays";
-import { StudioPortal } from "@/components/landing/StudioPortal";
+import { StudioDiorama } from "@/components/landing/StudioDiorama";
 import { Testimonials } from "@/components/landing/Testimonials";
-import { TheInvitation } from "@/components/landing/TheInvitation";
 import { TrainingTeaser } from "@/components/landing/TrainingTeaser";
-import { ZoneReveal } from "@/components/landing/ZoneReveal";
-import { SectionDivider } from "@/components/ui/SectionDivider";
+import { TrustBar } from "@/components/landing/TrustBar";
 
 export default function Home() {
   return (
     <main id="main-content">
-      <Arrival />
-      <Declaration />
-      <Founder />
-
-      {/* Grid-to-organic morphing transition — structure becoming beauty */}
-      <SectionDivider className="bg-background" color="#6b5d52" />
-
-      <StudioPortal />
-      <ZoneReveal />
+      <Hero />
+      <TrustBar />
+      <Services />
       <HowItWorks />
-      <TrainingTeaser />
-
-      {/* Second divider before the dark portfolio section */}
-      <SectionDivider className="bg-background" color="#96604a" />
-
+      <StudioDiorama />
+      <Stats />
       <EditorialPortfolio />
+      <Events />
+      <TrainingTeaser />
       <FeaturedProducts />
       <Testimonials />
-      <TheInvitation />
+      <FAQ />
+      <CallToAction />
       <Footer />
-
-      {/* Studio overlays — rendered outside all scroll containers */}
-      <StudioOverlays />
 
       {/* Sticky mobile booking CTA */}
       <StickyMobileCTA />

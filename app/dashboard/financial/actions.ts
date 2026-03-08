@@ -24,6 +24,7 @@ import {
   invoices,
   expenses,
   giftCards,
+  giftCardTransactions,
   promotions,
   orders,
 } from "@/db/schema";
@@ -550,7 +551,7 @@ export async function createGiftCard(input: {
   expiresAt?: string;
   notes?: string;
 }) {
-  await getUser();
+  const user = await getUser();
 
   // Auto-generate next gift card code
   const [lastCard] = await db
@@ -563,13 +564,26 @@ export async function createGiftCard(input: {
     ? String(parseInt(lastCard.code.replace("TC-GC-", ""), 10) + 1).padStart(3, "0")
     : "001";
 
-  await db.insert(giftCards).values({
-    code: `TC-GC-${nextNum}`,
-    purchasedByClientId: input.purchasedByClientId ?? null,
-    recipientName: input.recipientName ?? null,
-    originalAmountInCents: input.amountInCents,
-    balanceInCents: input.amountInCents,
-    expiresAt: input.expiresAt ? new Date(input.expiresAt) : null,
+  const [newCard] = await db
+    .insert(giftCards)
+    .values({
+      code: `TC-GC-${nextNum}`,
+      purchasedByClientId: input.purchasedByClientId ?? null,
+      recipientName: input.recipientName ?? null,
+      originalAmountInCents: input.amountInCents,
+      balanceInCents: input.amountInCents,
+      expiresAt: input.expiresAt ? new Date(input.expiresAt) : null,
+      notes: input.notes ?? null,
+    })
+    .returning({ id: giftCards.id });
+
+  // Record purchase transaction in the ledger
+  await db.insert(giftCardTransactions).values({
+    giftCardId: newCard.id,
+    type: "purchase",
+    amountInCents: input.amountInCents,
+    balanceAfterInCents: input.amountInCents,
+    performedBy: user.id,
     notes: input.notes ?? null,
   });
 
@@ -672,6 +686,106 @@ export async function redeemGiftCard(input: {
       status: newBalance === 0 ? "redeemed" : "active",
     })
     .where(eq(giftCards.id, input.giftCardId));
+
+  await db
+    .update(bookings)
+    .set({
+      giftCardId: input.giftCardId,
+      discountInCents: input.amountInCents,
+    })
+    .where(eq(bookings.id, input.bookingId));
+
+  revalidatePath("/dashboard/financial");
+}
+
+/* ================================================================== */
+/*  Gift Card Transaction History                                      */
+/* ================================================================== */
+
+export type GiftCardTxRow = {
+  id: number;
+  type: "purchase" | "redemption" | "refund" | "adjustment";
+  amount: number;
+  balanceAfter: number;
+  bookingService: string | null;
+  performedByName: string | null;
+  notes: string | null;
+  createdAt: string;
+};
+
+const txPerformer = alias(profiles, "txPerformer");
+
+export async function getGiftCardHistory(cardId: number): Promise<GiftCardTxRow[]> {
+  await getUser();
+
+  const rows = await db
+    .select({
+      id: giftCardTransactions.id,
+      type: giftCardTransactions.type,
+      amountInCents: giftCardTransactions.amountInCents,
+      balanceAfterInCents: giftCardTransactions.balanceAfterInCents,
+      bookingId: giftCardTransactions.bookingId,
+      serviceName: services.name,
+      performedByFirst: txPerformer.firstName,
+      performedByLast: txPerformer.lastName,
+      notes: giftCardTransactions.notes,
+      createdAt: giftCardTransactions.createdAt,
+    })
+    .from(giftCardTransactions)
+    .leftJoin(bookings, eq(giftCardTransactions.bookingId, bookings.id))
+    .leftJoin(services, eq(bookings.serviceId, services.id))
+    .leftJoin(txPerformer, eq(giftCardTransactions.performedBy, txPerformer.id))
+    .where(eq(giftCardTransactions.giftCardId, cardId))
+    .orderBy(desc(giftCardTransactions.createdAt));
+
+  return rows.map((r) => ({
+    id: r.id,
+    type: r.type,
+    amount: r.amountInCents / 100,
+    balanceAfter: r.balanceAfterInCents / 100,
+    bookingService: r.serviceName ?? null,
+    performedByName: [r.performedByFirst, r.performedByLast].filter(Boolean).join(" ") || null,
+    notes: r.notes,
+    createdAt: r.createdAt.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    }),
+  }));
+}
+
+export async function recordRedemption(input: {
+  giftCardId: number;
+  bookingId: number;
+  amountInCents: number;
+}): Promise<void> {
+  const user = await getUser();
+
+  const [card] = await db.select().from(giftCards).where(eq(giftCards.id, input.giftCardId));
+  if (!card) throw new Error("Gift card not found");
+  if (card.status !== "active") throw new Error("Gift card is not active");
+  if (card.balanceInCents < input.amountInCents) throw new Error("Insufficient gift card balance");
+
+  const newBalance = card.balanceInCents - input.amountInCents;
+
+  await db
+    .update(giftCards)
+    .set({
+      balanceInCents: newBalance,
+      status: newBalance === 0 ? "redeemed" : "active",
+    })
+    .where(eq(giftCards.id, input.giftCardId));
+
+  await db.insert(giftCardTransactions).values({
+    giftCardId: input.giftCardId,
+    type: "redemption",
+    amountInCents: -input.amountInCents,
+    balanceAfterInCents: newBalance,
+    bookingId: input.bookingId,
+    performedBy: user.id,
+  });
 
   await db
     .update(bookings)

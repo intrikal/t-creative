@@ -15,7 +15,18 @@ export type BookingFormState = {
   price: number;
   location: string;
   notes: string;
+  recurrenceRule: string;
 };
+
+const RECURRENCE_OPTIONS = [
+  { value: "", label: "Does not repeat" },
+  { value: "FREQ=WEEKLY;INTERVAL=1", label: "Every week" },
+  { value: "FREQ=WEEKLY;INTERVAL=2", label: "Every 2 weeks" },
+  { value: "FREQ=WEEKLY;INTERVAL=3", label: "Every 3 weeks" },
+  { value: "FREQ=MONTHLY;INTERVAL=1", label: "Every month" },
+  { value: "FREQ=WEEKLY;INTERVAL=6", label: "Every 6 weeks" },
+  { value: "FREQ=WEEKLY;INTERVAL=8", label: "Every 8 weeks" },
+] as const;
 
 const EMPTY_FORM: BookingFormState = {
   clientId: "",
@@ -28,6 +39,7 @@ const EMPTY_FORM: BookingFormState = {
   price: 0,
   location: "",
   notes: "",
+  recurrenceRule: "",
 };
 
 function bookingToForm(b: Booking): BookingFormState {
@@ -43,6 +55,7 @@ function bookingToForm(b: Booking): BookingFormState {
     price: b.price,
     location: b.location ?? "",
     notes: b.notes ?? "",
+    recurrenceRule: b.recurrenceRule ?? "",
   };
 }
 
@@ -190,13 +203,27 @@ export function BookingDialog({
             />
           </Field>
         </div>
-        <Field label="Location" hint="e.g. Studio, Virtual, Client's home">
-          <Input
-            placeholder="Optional"
-            value={form.location}
-            onChange={(e) => set("location", e.target.value)}
-          />
-        </Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Location" hint="e.g. Studio, Virtual, Client's home">
+            <Input
+              placeholder="Optional"
+              value={form.location}
+              onChange={(e) => set("location", e.target.value)}
+            />
+          </Field>
+          <Field label="Repeat">
+            <Select
+              value={form.recurrenceRule}
+              onChange={(e) => set("recurrenceRule", e.target.value)}
+            >
+              {RECURRENCE_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        </div>
         <Field label="Notes">
           <Textarea
             rows={3}

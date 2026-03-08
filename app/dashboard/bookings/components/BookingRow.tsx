@@ -4,6 +4,7 @@ import {
   Clock,
   MapPin,
   Pencil,
+  Repeat,
   Trash2,
   MoreHorizontal,
   Check,
@@ -53,7 +54,14 @@ export function BookingRow({
         </AvatarFallback>
       </Avatar>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-foreground truncate">{booking.service}</p>
+        <p className="text-sm font-medium text-foreground truncate">
+          {booking.service}
+          {booking.recurrenceRule && (
+            <span title="Recurring">
+              <Repeat className="w-3 h-3 text-muted inline ml-1.5 -mt-0.5" />
+            </span>
+          )}
+        </p>
         <p className="text-xs text-muted mt-0.5">
           {booking.client}
           {booking.location && (

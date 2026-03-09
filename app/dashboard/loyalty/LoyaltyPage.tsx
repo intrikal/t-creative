@@ -8,7 +8,7 @@
  * how to earn, redemption info, and points history.
  */
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import {
   Award,
   CalendarCheck,
@@ -32,6 +32,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import type { LoyaltyPageData } from "./actions";
+import { redeemPoints } from "./actions";
 
 /* ------------------------------------------------------------------ */
 /*  Tier config                                                        */
@@ -157,6 +158,9 @@ const EARN_WAYS = [
 
 export function LoyaltyPage({ data }: { data: LoyaltyPageData }) {
   const [copied, setCopied] = useState(false);
+  const [redeemedLabel, setRedeemedLabel] = useState<string | null>(null);
+  const [redeemError, setRedeemError] = useState<string | null>(null);
+  const [isRedeeming, startRedeemTransition] = useTransition();
   const tier = getTier(data.totalPoints);
   const isMaxTier = tier.name === "Platinum";
   const progress = isMaxTier
@@ -169,6 +173,20 @@ export function LoyaltyPage({ data }: { data: LoyaltyPageData }) {
     navigator.clipboard.writeText(data.referralCode);
     setCopied(true);
     setTimeout(() => setCopied(false), 2500);
+  }
+
+  function handleRedeem(item: { label: string; points: number }) {
+    setRedeemError(null);
+    startRedeemTransition(async () => {
+      try {
+        await redeemPoints(item);
+        setRedeemedLabel(item.label);
+        setTimeout(() => setRedeemedLabel(null), 4000);
+      } catch (err) {
+        setRedeemError(err instanceof Error ? err.message : "Something went wrong.");
+        setTimeout(() => setRedeemError(null), 4000);
+      }
+    });
   }
 
   const currentPerks = TIER_PERKS[tier.name] ?? [];
@@ -328,9 +346,26 @@ export function LoyaltyPage({ data }: { data: LoyaltyPageData }) {
                 <p className="text-sm font-semibold text-foreground">Redeem Points</p>
               </div>
 
+              {redeemedLabel && (
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-accent/10 border border-accent/20">
+                  <Check className="w-3.5 h-3.5 text-accent shrink-0" />
+                  <p className="text-xs text-foreground">
+                    <span className="font-medium">{redeemedLabel}</span> redeemed! We&apos;ll apply
+                    it at your next appointment.
+                  </p>
+                </div>
+              )}
+
+              {redeemError && (
+                <p className="text-xs text-destructive bg-destructive/8 border border-destructive/20 rounded-lg px-3 py-2">
+                  {redeemError}
+                </p>
+              )}
+
               <div className="space-y-1">
                 {REDEEM_OPTIONS.map((item) => {
                   const affordable = data.totalPoints >= item.points;
+                  const isThisRedeeming = isRedeeming;
                   return (
                     <div
                       key={item.label}
@@ -351,20 +386,26 @@ export function LoyaltyPage({ data }: { data: LoyaltyPageData }) {
                         <p className="text-sm text-foreground truncate">{item.label}</p>
                         <p className="text-[10px] text-muted">{item.category}</p>
                       </div>
-                      <span
-                        className={`text-xs font-semibold shrink-0 ${
-                          affordable ? "text-accent" : "text-muted"
-                        }`}
-                      >
-                        {item.points.toLocaleString()} pts
-                      </span>
+                      {affordable ? (
+                        <button
+                          onClick={() => handleRedeem({ label: item.label, points: item.points })}
+                          disabled={isThisRedeeming}
+                          className="text-[11px] font-semibold text-accent border border-accent/30 rounded-md px-2 py-0.5 hover:bg-accent/10 transition-colors disabled:opacity-40 shrink-0"
+                        >
+                          {item.points.toLocaleString()} pts
+                        </button>
+                      ) : (
+                        <span className="text-xs font-semibold text-muted shrink-0">
+                          {item.points.toLocaleString()} pts
+                        </span>
+                      )}
                     </div>
                   );
                 })}
               </div>
 
               <p className="text-[11px] text-muted pt-1">
-                Redeem at checkout — points never expire.
+                Points never expire. We&apos;ll apply your reward at your next appointment.
               </p>
             </CardContent>
           </Card>

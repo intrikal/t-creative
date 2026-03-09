@@ -32,6 +32,7 @@ async function getUser() {
 export type ClientBookingRow = {
   id: number;
   dateISO: string;
+  startsAtISO: string;
   date: string;
   time: string;
   service: string;
@@ -44,6 +45,7 @@ export type ClientBookingRow = {
   location: string | null;
   addOns: { name: string; priceInCents: number }[];
   reviewLeft: boolean;
+  depositPaid: boolean;
 };
 
 export type ClientBookingsData = {
@@ -72,6 +74,7 @@ export async function getClientBookings(): Promise<ClientBookingsData> {
       serviceName: services.name,
       serviceCategory: services.category,
       staffFirstName: staffProfile.firstName,
+      depositPaidInCents: bookings.depositPaidInCents,
     })
     .from(bookings)
     .leftJoin(services, eq(bookings.serviceId, services.id))
@@ -141,6 +144,7 @@ export async function getClientBookings(): Promise<ClientBookingsData> {
     return {
       id: r.id,
       dateISO: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`,
+      startsAtISO: d.toISOString(),
       date: `${DAY_NAMES_FULL[d.getDay()]}, ${MONTH_NAMES[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`,
       time: d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true }),
       service: r.serviceName ?? "Service",
@@ -153,6 +157,7 @@ export async function getClientBookings(): Promise<ClientBookingsData> {
       location: r.location,
       addOns: addOnMap.get(r.id) ?? [],
       reviewLeft: reviewedBookingIds.has(r.id),
+      depositPaid: (r.depositPaidInCents ?? 0) > 0,
     };
   });
 
@@ -236,7 +241,12 @@ export async function cancelClientBooking(bookingId: number) {
 
   // Verify the booking belongs to this client and is cancellable
   const [booking] = await db
-    .select({ clientId: bookings.clientId, status: bookings.status })
+    .select({
+      clientId: bookings.clientId,
+      status: bookings.status,
+      startsAt: bookings.startsAt,
+      depositPaidInCents: bookings.depositPaidInCents,
+    })
     .from(bookings)
     .where(eq(bookings.id, bookingId))
     .limit(1);
@@ -249,18 +259,33 @@ export async function cancelClientBooking(bookingId: number) {
     throw new Error("This booking cannot be cancelled");
   }
 
+  // Enforce 24-hour cancellation window
+  const hoursUntilAppointment = (booking.startsAt.getTime() - Date.now()) / (1000 * 60 * 60);
+  if (hoursUntilAppointment < 24) {
+    throw new Error(
+      "Appointments cannot be cancelled within 24 hours of the scheduled time. Please contact us directly.",
+    );
+  }
+
+  const depositPaidInCents = booking.depositPaidInCents ?? 0;
+  const cancellationReason =
+    depositPaidInCents > 0
+      ? "Cancelled by client — deposit pending admin review"
+      : "Cancelled by client";
+
   await db
     .update(bookings)
     .set({
       status: "cancelled",
       cancelledAt: new Date(),
-      cancellationReason: "Cancelled by client",
+      cancellationReason,
     })
     .where(eq(bookings.id, bookingId));
 
   trackEvent(user.id, "booking_cancelled_by_client", {
     bookingId,
     previousStatus: booking.status,
+    depositPaidInCents,
   });
 
   await logAction({
@@ -269,7 +294,7 @@ export async function cancelClientBooking(bookingId: number) {
     entityType: "booking",
     entityId: String(bookingId),
     description: "Booking cancelled by client",
-    metadata: { previousStatus: booking.status },
+    metadata: { previousStatus: booking.status, depositPaidInCents },
   });
 
   // Zoho CRM: mark deal as lost

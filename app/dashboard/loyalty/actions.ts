@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { eq, sum, desc, count } from "drizzle-orm";
 import { db } from "@/db";
 import { profiles, loyaltyTransactions } from "@/db/schema";
@@ -37,6 +38,41 @@ export type LoyaltyPageData = {
   referralCount: number;
   transactions: LoyaltyTransaction[];
 };
+
+/* ------------------------------------------------------------------ */
+/*  Query                                                              */
+/* ------------------------------------------------------------------ */
+
+/* ------------------------------------------------------------------ */
+/*  Redeem points                                                      */
+/* ------------------------------------------------------------------ */
+
+export async function redeemPoints(reward: { label: string; points: number }): Promise<void> {
+  const user = await getUser();
+
+  if (reward.points <= 0) throw new Error("Invalid reward");
+
+  // Re-query balance server-side to prevent races
+  const [pointsRow] = await db
+    .select({ total: sum(loyaltyTransactions.points) })
+    .from(loyaltyTransactions)
+    .where(eq(loyaltyTransactions.profileId, user.id));
+
+  const currentPoints = Number(pointsRow?.total ?? 0);
+
+  if (currentPoints < reward.points) {
+    throw new Error("Not enough points to redeem this reward");
+  }
+
+  await db.insert(loyaltyTransactions).values({
+    profileId: user.id,
+    points: -reward.points,
+    type: "redeemed",
+    description: `Redeemed: ${reward.label}`,
+  });
+
+  revalidatePath("/dashboard/loyalty");
+}
 
 /* ------------------------------------------------------------------ */
 /*  Query                                                              */

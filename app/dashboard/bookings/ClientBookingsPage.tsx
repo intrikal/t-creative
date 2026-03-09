@@ -201,11 +201,13 @@ function CancelModal({
   onClose,
   onConfirm,
   isPending,
+  errorMsg,
 }: {
   booking: ClientBookingRow;
   onClose: () => void;
   onConfirm: (id: number) => void;
   isPending: boolean;
+  errorMsg: string | null;
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-foreground/20 backdrop-blur-sm">
@@ -223,6 +225,17 @@ function CancelModal({
           <p className="text-xs text-muted">
             {booking.service} · {booking.date} at {booking.time}
           </p>
+          {booking.depositPaid && (
+            <p className="text-xs text-[#7a5c10] bg-[#7a5c10]/8 border border-[#7a5c10]/20 rounded-lg px-3 py-2">
+              A deposit was collected for this booking. Our team will reach out regarding your
+              refund.
+            </p>
+          )}
+          {errorMsg && (
+            <p className="text-xs text-destructive bg-destructive/8 border border-destructive/20 rounded-lg px-3 py-2">
+              {errorMsg}
+            </p>
+          )}
         </div>
         <div className="px-5 py-3 border-t border-border flex gap-2">
           <button
@@ -233,7 +246,7 @@ function CancelModal({
           </button>
           <button
             onClick={() => onConfirm(booking.id)}
-            disabled={isPending}
+            disabled={isPending || !!errorMsg}
             className="flex-1 py-2 rounded-lg bg-destructive text-white text-sm font-medium hover:bg-destructive/90 transition-colors disabled:opacity-40"
           >
             Cancel Appointment
@@ -399,6 +412,7 @@ export function ClientBookingsPage({ data }: { data: ClientBookingsData }) {
   const [bookings, setBookings] = useState<ClientBookingRow[]>(data.bookings);
   const [reviewTarget, setReviewTarget] = useState<ClientBookingRow | null>(null);
   const [cancelTarget, setCancelTarget] = useState<ClientBookingRow | null>(null);
+  const [cancelError, setCancelError] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -426,16 +440,38 @@ export function ClientBookingsPage({ data }: { data: ClientBookingsData }) {
       prev.map((b) => (b.id === id ? { ...b, status: "cancelled" as const } : b)),
     );
     setCancelTarget(null);
+    setCancelError(null);
 
     startTransition(async () => {
-      await cancelClientBooking(id);
+      try {
+        await cancelClientBooking(id);
+      } catch (err) {
+        // Revert optimistic update and surface the error
+        setBookings((prev) =>
+          prev.map((b) =>
+            b.id === id
+              ? {
+                  ...b,
+                  status: (b.status === "cancelled"
+                    ? "confirmed"
+                    : b.status) as ClientBookingRow["status"],
+                }
+              : b,
+          ),
+        );
+        const msg = err instanceof Error ? err.message : "Something went wrong. Please try again.";
+        setCancelTarget(bookings.find((b) => b.id === id) ?? null);
+        setCancelError(msg);
+      }
     });
   }
 
   function BookingCard({ booking }: { booking: ClientBookingRow }) {
     const isExpanded = expanded === booking.id;
     const sts = statusConfig(booking.status);
-    const isCancellable = booking.status === "pending" || booking.status === "confirmed";
+    const hoursUntil = (new Date(booking.startsAtISO).getTime() - Date.now()) / (1000 * 60 * 60);
+    const isCancellable =
+      (booking.status === "pending" || booking.status === "confirmed") && hoursUntil >= 24;
 
     return (
       <div className="border-b border-border/40 last:border-0">
@@ -678,9 +714,13 @@ export function ClientBookingsPage({ data }: { data: ClientBookingsData }) {
       {cancelTarget && (
         <CancelModal
           booking={cancelTarget}
-          onClose={() => setCancelTarget(null)}
+          onClose={() => {
+            setCancelTarget(null);
+            setCancelError(null);
+          }}
           onConfirm={handleCancelBooking}
           isPending={isPending}
+          errorMsg={cancelError}
         />
       )}
     </div>

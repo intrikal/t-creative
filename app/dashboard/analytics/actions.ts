@@ -805,11 +805,11 @@ export async function exportBookingsCsv(): Promise<BookingExportRow[]> {
       clientLast: clientProfile.lastName,
       serviceName: services.name,
       status: bookings.status,
-      durationMin: bookings.durationMin,
+      durationMin: bookings.durationMinutes,
       totalInCents: bookings.totalInCents,
       staffFirst: staffProfile.firstName,
       staffLast: staffProfile.lastName,
-      notes: bookings.notes,
+      notes: bookings.clientNotes,
     })
     .from(bookings)
     .leftJoin(clientProfile, eq(bookings.clientId, clientProfile.id))

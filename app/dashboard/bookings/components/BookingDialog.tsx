@@ -15,7 +15,9 @@ export type BookingFormState = {
   price: number;
   location: string;
   notes: string;
-  recurrenceRule: string;
+  recurrenceRule: string; // base frequency from dropdown (FREQ=...;INTERVAL=...)
+  seriesEndDate: string; // YYYY-MM-DD — sets UNTIL in the full RRULE
+  seriesMaxOccurrences: string; // numeric string — sets COUNT in the full RRULE
 };
 
 const RECURRENCE_OPTIONS = [
@@ -40,10 +42,36 @@ const EMPTY_FORM: BookingFormState = {
   location: "",
   notes: "",
   recurrenceRule: "",
+  seriesEndDate: "",
+  seriesMaxOccurrences: "",
 };
+
+/** Strips UNTIL and COUNT from a stored RRULE, returning just FREQ+INTERVAL. */
+function extractBaseFreq(rule: string): string {
+  if (!rule) return "";
+  return rule
+    .split(";")
+    .filter((p) => p.startsWith("FREQ=") || p.startsWith("INTERVAL="))
+    .join(";");
+}
+
+/** Parses UNTIL=YYYYMMDDTHHMMSSZ → YYYY-MM-DD, or returns "". */
+function extractUntilDate(rule: string): string {
+  const parts = Object.fromEntries(rule.split(";").map((p) => p.split("=")));
+  if (!parts.UNTIL) return "";
+  const u = parts.UNTIL;
+  return `${u.slice(0, 4)}-${u.slice(4, 6)}-${u.slice(6, 8)}`;
+}
+
+/** Parses COUNT=N → "N", or returns "". */
+function extractCount(rule: string): string {
+  const parts = Object.fromEntries(rule.split(";").map((p) => p.split("=")));
+  return parts.COUNT ?? "";
+}
 
 function bookingToForm(b: Booking): BookingFormState {
   const d = new Date(b.startsAtIso);
+  const rule = b.recurrenceRule ?? "";
   return {
     clientId: b.clientId,
     serviceId: b.serviceId,
@@ -55,7 +83,9 @@ function bookingToForm(b: Booking): BookingFormState {
     price: b.price,
     location: b.location ?? "",
     notes: b.notes ?? "",
-    recurrenceRule: b.recurrenceRule ?? "",
+    recurrenceRule: extractBaseFreq(rule),
+    seriesEndDate: extractUntilDate(rule),
+    seriesMaxOccurrences: extractCount(rule),
   };
 }
 
@@ -105,6 +135,16 @@ export function BookingDialog({
         price: svc ? svc.priceInCents / 100 : prev.price,
       };
     });
+  }
+
+  function onRepeatChange(rule: string) {
+    setForm((prev) => ({
+      ...prev,
+      recurrenceRule: rule,
+      // Clear series constraints when repeat is turned off
+      seriesEndDate: rule ? prev.seriesEndDate : "",
+      seriesMaxOccurrences: rule ? prev.seriesMaxOccurrences : "",
+    }));
   }
 
   const isEdit = !!initial;
@@ -212,10 +252,7 @@ export function BookingDialog({
             />
           </Field>
           <Field label="Repeat">
-            <Select
-              value={form.recurrenceRule}
-              onChange={(e) => set("recurrenceRule", e.target.value)}
-            >
+            <Select value={form.recurrenceRule} onChange={(e) => onRepeatChange(e.target.value)}>
               {RECURRENCE_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>
                   {o.label}
@@ -224,6 +261,32 @@ export function BookingDialog({
             </Select>
           </Field>
         </div>
+        {form.recurrenceRule && (
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Series end date" hint="Stop after this date">
+              <Input
+                type="date"
+                value={form.seriesEndDate}
+                onChange={(e) => {
+                  set("seriesEndDate", e.target.value);
+                  if (e.target.value) set("seriesMaxOccurrences", "");
+                }}
+              />
+            </Field>
+            <Field label="Max occurrences" hint="Or stop after N appointments">
+              <Input
+                type="number"
+                min={1}
+                placeholder="e.g. 12"
+                value={form.seriesMaxOccurrences}
+                onChange={(e) => {
+                  set("seriesMaxOccurrences", e.target.value);
+                  if (e.target.value) set("seriesEndDate", "");
+                }}
+              />
+            </Field>
+          </div>
+        )}
         <Field label="Notes">
           <Textarea
             rows={3}

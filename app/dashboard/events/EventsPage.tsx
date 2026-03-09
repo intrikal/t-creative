@@ -12,12 +12,14 @@ import {
   Pencil,
   Trash2,
   UserPlus,
+  Mail,
+  X,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, Field, Input, Textarea, Select, DialogFooter } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import type { EventRow, EventGuestRow, EventType, EventStatus, EventInput } from "./actions";
+import type { EventRow, EventType, EventStatus, EventInput } from "./actions";
 import {
   createEvent,
   updateEvent,
@@ -25,6 +27,7 @@ import {
   addGuest,
   removeGuest,
   toggleGuestPaid,
+  sendEventRsvpInvite,
 } from "./actions";
 
 /* ------------------------------------------------------------------ */
@@ -431,6 +434,7 @@ function EventCard({
   onAddGuest,
   onToggleGuestPaid,
   onRemoveGuest,
+  onSendInvite,
 }: {
   event: EventRow;
   onEdit: () => void;
@@ -438,9 +442,11 @@ function EventCard({
   onAddGuest: (guest: { name: string; service: string; paid: boolean }) => void;
   onToggleGuestPaid: (guestId: number) => void;
   onRemoveGuest: (guestId: number) => void;
+  onSendInvite: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [guestDialogOpen, setGuestDialogOpen] = useState(false);
+  const [isSendingInvite, startInviteTransition] = useTransition();
   const type = TYPE_CONFIG[event.eventType];
   const status = statusConfig(event.status);
   const paidCount = event.guests.filter((g) => g.paid).length;
@@ -571,6 +577,13 @@ function EventCard({
                         >
                           {g.paid ? "Paid" : "Unpaid"}
                         </button>
+                        <button
+                          onClick={() => onRemoveGuest(g.id)}
+                          className="text-muted hover:text-destructive transition-colors"
+                          aria-label="Remove guest"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
                       </div>
                     ))}
                   </div>
@@ -579,13 +592,22 @@ function EventCard({
                 )}
               </div>
 
-              <div className="flex gap-2 pt-1">
+              <div className="flex gap-2 pt-1 flex-wrap">
                 <button
                   onClick={onEdit}
                   className="flex items-center gap-1.5 text-xs text-muted hover:text-foreground px-2.5 py-1.5 rounded-lg hover:bg-foreground/5 transition-colors"
                 >
                   <Pencil className="w-3 h-3" /> Edit event
                 </button>
+                {event.contactEmail && (
+                  <button
+                    onClick={() => startInviteTransition(onSendInvite)}
+                    disabled={isSendingInvite}
+                    className="flex items-center gap-1.5 text-xs text-muted hover:text-foreground px-2.5 py-1.5 rounded-lg hover:bg-foreground/5 transition-colors disabled:opacity-50"
+                  >
+                    <Mail className="w-3 h-3" /> {isSendingInvite ? "Sending…" : "Send Invite"}
+                  </button>
+                )}
                 <button
                   onClick={onDelete}
                   className="flex items-center gap-1.5 text-xs text-muted hover:text-destructive px-2.5 py-1.5 rounded-lg hover:bg-destructive/5 transition-colors ml-auto"
@@ -617,7 +639,7 @@ export function EventsPage({ initialEvents }: { initialEvents: EventRow[] }) {
   const [filter, setFilter] = useState<"all" | EventType>("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<EventRow | null>(null);
-  const [isPending, startTransition] = useTransition();
+  const [, startTransition] = useTransition();
 
   const filtered = filter === "all" ? events : events.filter((e) => e.eventType === filter);
   const upcoming = events.filter((e) => e.status === "upcoming" || e.status === "confirmed");
@@ -826,6 +848,7 @@ export function EventsPage({ initialEvents }: { initialEvents: EventRow[] }) {
               onAddGuest={(guest) => handleAddGuest(e.id, guest)}
               onToggleGuestPaid={(guestId) => handleToggleGuestPaid(e.id, guestId)}
               onRemoveGuest={(guestId) => removeGuest(guestId)}
+              onSendInvite={() => sendEventRsvpInvite(e.id)}
             />
           ))}
         </div>

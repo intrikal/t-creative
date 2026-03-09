@@ -3,8 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { eq, desc, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { events, eventGuests, profiles } from "@/db/schema";
+import { events, eventGuests } from "@/db/schema";
+import { EventInviteEmail } from "@/emails/EventInviteEmail";
 import { trackEvent } from "@/lib/posthog";
+import { sendEmail } from "@/lib/resend";
 import { createClient } from "@/utils/supabase/server";
 
 const PATH = "/dashboard/events";
@@ -320,4 +322,76 @@ export async function toggleGuestPaid(guestId: number) {
     .set({ paid: sql`NOT ${eventGuests.paid}` })
     .where(eq(eventGuests.id, guestId));
   revalidatePath(PATH);
+}
+
+/* ------------------------------------------------------------------ */
+/*  RSVP invite                                                        */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Generates a unique RSVP token for an event, saves it to events.metadata,
+ * and emails the invite link to the event's contact email.
+ * Returns the public RSVP URL.
+ */
+export async function sendEventRsvpInvite(eventId: number): Promise<{ url: string }> {
+  await getUser();
+
+  const [event] = await db
+    .select({
+      id: events.id,
+      title: events.title,
+      startsAt: events.startsAt,
+      location: events.location,
+      services: events.services,
+      contactEmail: events.contactEmail,
+      contactName: events.contactName,
+      metadata: events.metadata,
+    })
+    .from(events)
+    .where(eq(events.id, eventId));
+
+  if (!event) throw new Error("Event not found");
+  if (!event.contactEmail) throw new Error("Event has no contact email");
+
+  // Generate or reuse existing RSVP token
+  const existing = (event.metadata as Record<string, unknown> | null)?.rsvpToken as
+    | string
+    | undefined;
+  const token = existing ?? crypto.randomUUID();
+
+  if (!existing) {
+    await db
+      .update(events)
+      .set({ metadata: { ...(event.metadata ?? {}), rsvpToken: token } })
+      .where(eq(events.id, eventId));
+  }
+
+  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tcreativestudio.com";
+  const rsvpUrl = `${baseUrl}/rsvp/${token}`;
+
+  const eventDate = new Date(event.startsAt).toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+
+  await sendEmail({
+    to: event.contactEmail,
+    subject: `You're invited — ${event.title} — T Creative Studio`,
+    react: EventInviteEmail({
+      eventTitle: event.title,
+      eventDate,
+      eventLocation: event.location,
+      services: event.services,
+      rsvpUrl,
+    }),
+    entityType: "event_invite",
+    localId: String(eventId),
+  });
+
+  revalidatePath(PATH);
+  return { url: rsvpUrl };
 }

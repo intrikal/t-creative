@@ -28,7 +28,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { eq, desc, ne, and } from "drizzle-orm";
+import { eq, desc, ne, and, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
 import { bookings, profiles, services, serviceRecords, syncLog, waitlist } from "@/db/schema";
@@ -460,18 +460,36 @@ export async function getStaffForSelect(): Promise<{ id: string; name: string }[
 /* ------------------------------------------------------------------ */
 
 /**
- * Parses a simple iCal RRULE and returns the number of days to add.
- * Supports: FREQ=WEEKLY;INTERVAL=N and FREQ=MONTHLY;INTERVAL=N
+ * Parses a simple iCal RRULE. Supports FREQ=WEEKLY/MONTHLY with INTERVAL, UNTIL, and COUNT.
  */
-function parseRRuleIntervalDays(rule: string): { days?: number; months?: number } | null {
+function parseRRule(rule: string): {
+  days?: number;
+  months?: number;
+  until?: Date;
+  count?: number;
+} | null {
   const parts = Object.fromEntries(rule.split(";").map((p) => p.split("=")));
   const freq = parts.FREQ;
   const interval = Number(parts.INTERVAL ?? 1);
   if (!freq || isNaN(interval)) return null;
 
-  if (freq === "WEEKLY") return { days: interval * 7 };
-  if (freq === "MONTHLY") return { months: interval };
-  return null;
+  let days: number | undefined;
+  let months: number | undefined;
+  if (freq === "WEEKLY") days = interval * 7;
+  else if (freq === "MONTHLY") months = interval;
+  else return null;
+
+  // Parse UNTIL=YYYYMMDDTHHMMSSZ
+  let until: Date | undefined;
+  if (parts.UNTIL) {
+    const u = parts.UNTIL;
+    until = new Date(
+      Date.UTC(parseInt(u.slice(0, 4)), parseInt(u.slice(4, 6)) - 1, parseInt(u.slice(6, 8))),
+    );
+  }
+
+  const count = parts.COUNT ? parseInt(parts.COUNT, 10) : undefined;
+  return { days, months, until, count };
 }
 
 /**
@@ -498,7 +516,7 @@ async function generateNextRecurringBooking(bookingId: number): Promise<void> {
 
     if (!booking?.recurrenceRule) return;
 
-    const interval = parseRRuleIntervalDays(booking.recurrenceRule);
+    const interval = parseRRule(booking.recurrenceRule);
     if (!interval) return;
 
     const nextStart = new Date(booking.startsAt);
@@ -506,6 +524,20 @@ async function generateNextRecurringBooking(bookingId: number): Promise<void> {
       nextStart.setDate(nextStart.getDate() + interval.days);
     } else if (interval.months) {
       nextStart.setMonth(nextStart.getMonth() + interval.months);
+    }
+
+    // Respect UNTIL — don't create a booking past the series end date
+    if (interval.until && nextStart > interval.until) return;
+
+    // Respect COUNT — don't create beyond the max number of occurrences
+    if (interval.count) {
+      const seriesRoot = booking.parentBookingId ?? bookingId;
+      const [{ total }] = await db
+        .select({ total: sql<number>`count(*)` })
+        .from(bookings)
+        .where(and(eq(bookings.parentBookingId, seriesRoot)));
+      // +1 for the root booking itself
+      if (Number(total) + 1 >= interval.count) return;
     }
 
     // The series root is either this booking's parent or this booking itself
@@ -1281,5 +1313,63 @@ export async function updateWaitlistStatus(
 export async function removeFromWaitlistById(id: number): Promise<void> {
   await getUser();
   await db.delete(waitlist).where(eq(waitlist.id, id));
+  revalidatePath("/dashboard/bookings");
+}
+
+/* ------------------------------------------------------------------ */
+/*  Cancel recurring series                                            */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Cancels all future non-completed bookings in the same recurring series.
+ * Finds the series root (parentBookingId ?? the booking itself), then cancels
+ * every confirmed/pending booking in the series that hasn't started yet.
+ */
+export async function cancelBookingSeries(bookingId: number): Promise<void> {
+  const user = await getUser();
+
+  const [booking] = await db
+    .select({ parentBookingId: bookings.parentBookingId })
+    .from(bookings)
+    .where(eq(bookings.id, bookingId));
+
+  if (!booking) throw new Error("Booking not found");
+
+  const seriesRoot = booking.parentBookingId ?? bookingId;
+  const now = new Date();
+
+  // Find all future non-completed bookings in the series (root + children)
+  const seriesBookings = await db
+    .select({ id: bookings.id, status: bookings.status })
+    .from(bookings)
+    .where(
+      and(
+        sql`(${bookings.id} = ${seriesRoot} OR ${bookings.parentBookingId} = ${seriesRoot})`,
+        sql`${bookings.startsAt} >= ${now.toISOString()}`,
+        sql`${bookings.status} NOT IN ('cancelled', 'completed', 'no_show')`,
+      ),
+    );
+
+  if (seriesBookings.length === 0) return;
+
+  await db
+    .update(bookings)
+    .set({ status: "cancelled", cancelledAt: new Date() })
+    .where(
+      sql`${bookings.id} IN (${sql.join(
+        seriesBookings.map((b) => sql`${b.id}`),
+        sql`, `,
+      )})`,
+    );
+
+  await logAction({
+    actorId: user.id,
+    action: "status_change",
+    entityType: "booking",
+    entityId: String(bookingId),
+    description: `Recurring series cancelled — ${seriesBookings.length} future booking(s) cancelled`,
+    metadata: { seriesRoot, cancelledCount: seriesBookings.length },
+  });
+
   revalidatePath("/dashboard/bookings");
 }

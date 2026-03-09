@@ -6,7 +6,13 @@ import { Search, Plus } from "lucide-react";
 import { PaymentChoiceDialog } from "@/components/booking/PaymentChoiceDialog";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { updateBookingStatus, createBooking, updateBooking, deleteBooking } from "./actions";
+import {
+  updateBookingStatus,
+  createBooking,
+  updateBooking,
+  deleteBooking,
+  cancelBookingSeries,
+} from "./actions";
 import type { BookingRow, BookingInput } from "./actions";
 import { BookingDialog, type BookingFormState } from "./components/BookingDialog";
 import { BookingRow as BookingRowComponent } from "./components/BookingRow";
@@ -263,7 +269,20 @@ export function BookingsPage({
     setDeleteTarget(null);
   }
 
+  function buildFullRRule(baseFreq: string, endDate: string, maxOcc: string): string | undefined {
+    if (!baseFreq) return undefined;
+    let rule = baseFreq;
+    if (endDate) rule += `;UNTIL=${endDate.replace(/-/g, "")}T000000Z`;
+    else if (maxOcc) rule += `;COUNT=${maxOcc}`;
+    return rule;
+  }
+
   async function handleSave(data: BookingFormState) {
+    const recurrenceRule = buildFullRRule(
+      data.recurrenceRule,
+      data.seriesEndDate,
+      data.seriesMaxOccurrences,
+    );
     if (editTarget) {
       if (!data.clientId || data.serviceId === "" || !data.date || !data.time) return;
       const startsAt = new Date(`${data.date}T${data.time}`);
@@ -276,7 +295,7 @@ export function BookingsPage({
         totalInCents: Math.round(data.price * 100),
         location: data.location || undefined,
         clientNotes: data.notes || undefined,
-        recurrenceRule: data.recurrenceRule || undefined,
+        recurrenceRule,
         status: data.status,
       });
       router.refresh();
@@ -292,10 +311,16 @@ export function BookingsPage({
         totalInCents: Math.round(data.price * 100),
         location: data.location || undefined,
         clientNotes: data.notes || undefined,
-        recurrenceRule: data.recurrenceRule || undefined,
+        recurrenceRule,
       } satisfies BookingInput);
       router.refresh();
     }
+  }
+
+  async function handleCancelSeries(booking: Booking) {
+    setMenuOpen(null);
+    await cancelBookingSeries(booking.id);
+    router.refresh();
   }
 
   async function removeFromWaitlist(id: number) {
@@ -440,6 +465,7 @@ export function BookingsPage({
                       setServiceNotesTarget(booking);
                       setMenuOpen(null);
                     }}
+                    onCancelSeries={() => handleCancelSeries(booking)}
                   />
                 ))}
               </div>

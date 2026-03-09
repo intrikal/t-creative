@@ -25,6 +25,7 @@ export function BookingRow({
   onEdit,
   onQuickStatus,
   onCancel,
+  onCancelSeries,
   onDelete,
   onPayment,
   onServiceNotes,
@@ -35,6 +36,7 @@ export function BookingRow({
   onEdit: () => void;
   onQuickStatus: (status: BookingStatus) => void;
   onCancel: () => void;
+  onCancelSeries?: () => void;
   onDelete: () => void;
   onPayment: () => void;
   onServiceNotes: () => void;
@@ -158,6 +160,17 @@ export function BookingRow({
                 <X className="w-3.5 h-3.5" /> Cancel
               </button>
             )}
+            {booking.recurrenceRule &&
+              booking.status !== "cancelled" &&
+              booking.status !== "completed" &&
+              onCancelSeries && (
+                <button
+                  onClick={onCancelSeries}
+                  className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-destructive hover:bg-destructive/5 transition-colors"
+                >
+                  <Repeat className="w-3.5 h-3.5" /> Cancel Series
+                </button>
+              )}
             <button
               onClick={onDelete}
               className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-destructive hover:bg-destructive/5 transition-colors"

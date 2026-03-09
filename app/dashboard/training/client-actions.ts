@@ -8,6 +8,7 @@ import {
   trainingSessions,
   trainingModules,
   trainingLessons,
+  lessonCompletions,
   enrollments,
   certificates,
   profiles,
@@ -60,6 +61,21 @@ export type ClientProgram = {
   } | null;
 };
 
+export type ClientLesson = {
+  id: number;
+  title: string;
+  content: string | null;
+  resourceUrl: string | null;
+  durationMin: number;
+  completed: boolean;
+};
+
+export type ClientLessonModule = {
+  id: number;
+  name: string;
+  lessons: ClientLesson[];
+};
+
 export type ClientEnrollment = {
   id: number;
   programId: number;
@@ -72,6 +88,8 @@ export type ClientEnrollment = {
   totalPriceCents: number;
   sessionStartsAt: string | null;
   sessionLocation: string | null;
+  /** Lesson modules for this program — only populated for active enrollments. */
+  lessonModules: ClientLessonModule[];
 };
 
 export type ClientCertificate = {
@@ -275,6 +293,76 @@ export async function getClientTraining(): Promise<ClientTrainingData> {
     .where(eq(enrollments.clientId, user.id))
     .orderBy(desc(enrollments.enrolledAt));
 
+  // 5b. Fetch lesson modules + lessons for active enrollments
+  const activeProgramIds = enrollmentRows
+    .filter((r) => r.status === "enrolled" || r.status === "in_progress")
+    .map((r) => r.programId);
+
+  const lessonModuleMap = new Map<number, ClientLessonModule[]>(); // programId → modules
+
+  if (activeProgramIds.length > 0) {
+    const lessonRows = await db
+      .select({
+        programId: trainingModules.programId,
+        moduleId: trainingModules.id,
+        moduleName: trainingModules.name,
+        moduleSortOrder: trainingModules.sortOrder,
+        lessonId: trainingLessons.id,
+        lessonTitle: trainingLessons.title,
+        lessonContent: trainingLessons.content,
+        lessonResourceUrl: trainingLessons.resourceUrl,
+        lessonDurationMin: trainingLessons.durationMinutes,
+        lessonSortOrder: trainingLessons.sortOrder,
+      })
+      .from(trainingModules)
+      .innerJoin(trainingLessons, eq(trainingLessons.moduleId, trainingModules.id))
+      .where(
+        sql`${trainingModules.programId} IN (${sql.join(
+          activeProgramIds.map((id) => sql`${id}`),
+          sql`, `,
+        )})`,
+      )
+      .orderBy(asc(trainingModules.sortOrder), asc(trainingLessons.sortOrder));
+
+    const completionRows = await db
+      .select({ lessonId: lessonCompletions.lessonId })
+      .from(lessonCompletions)
+      .where(eq(lessonCompletions.profileId, user.id));
+
+    const completedIds = new Set(completionRows.map((c) => c.lessonId));
+
+    // Group into modules per program
+    const moduleAccum = new Map<
+      number,
+      { programId: number; name: string; sortOrder: number; lessons: ClientLesson[] }
+    >();
+    for (const row of lessonRows) {
+      if (!moduleAccum.has(row.moduleId)) {
+        moduleAccum.set(row.moduleId, {
+          programId: row.programId,
+          name: row.moduleName,
+          sortOrder: row.moduleSortOrder,
+          lessons: [],
+        });
+      }
+      moduleAccum.get(row.moduleId)!.lessons.push({
+        id: row.lessonId,
+        title: row.lessonTitle,
+        content: row.lessonContent,
+        resourceUrl: row.lessonResourceUrl,
+        durationMin: row.lessonDurationMin ?? 10,
+        completed: completedIds.has(row.lessonId),
+      });
+    }
+
+    for (const [moduleId, mod] of moduleAccum) {
+      if (!lessonModuleMap.has(mod.programId)) lessonModuleMap.set(mod.programId, []);
+      lessonModuleMap
+        .get(mod.programId)!
+        .push({ id: moduleId, name: mod.name, lessons: mod.lessons });
+    }
+  }
+
   const clientEnrollments: ClientEnrollment[] = enrollmentRows.map((r) => {
     let status: EnrollStatus = null;
     if (r.status === "waitlisted") status = "waitlist";
@@ -292,6 +380,7 @@ export async function getClientTraining(): Promise<ClientTrainingData> {
       sessionsCompleted: r.sessionsCompleted,
       amountPaidCents: r.amountPaidInCents,
       totalPriceCents: r.programPrice ?? 0,
+      lessonModules: lessonModuleMap.get(r.programId) ?? [],
       sessionStartsAt: r.sessionStartsAt
         ? new Date(r.sessionStartsAt).toLocaleDateString("en-US", {
             weekday: "short",

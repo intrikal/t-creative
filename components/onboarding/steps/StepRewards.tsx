@@ -29,7 +29,7 @@
  * - components/onboarding/OnboardingFlow.tsx       — renders this step
  * - app/onboarding/actions.ts                      — awards the matching point values
  */
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { OnboardingForm } from "../OnboardingFlow";
 
@@ -50,28 +50,16 @@ interface StepProps {
 }
 
 export function StepRewards({ form, onNext, stepNum }: StepProps) {
-  const emailRef = useRef<HTMLInputElement>(null);
-  const phoneRef = useRef<HTMLInputElement>(null);
-
   const [currentSource, setCurrentSource] = useState(() => form.getFieldValue("source") as string);
   const isReferral = currentSource === "referral";
 
-  const [referrerName, setReferrerName] = useState(
-    () => (form.getFieldValue("referral.referrerName" as "referral") as unknown as string) ?? "",
-  );
-  const [referrerEmail, setReferrerEmail] = useState(
-    () => (form.getFieldValue("referral.referrerEmail" as "referral") as unknown as string) ?? "",
-  );
-  const [referrerPhone, setReferrerPhone] = useState(
-    () => (form.getFieldValue("referral.referrerPhone" as "referral") as unknown as string) ?? "",
+  const [referrerCode, setReferrerCode] = useState(
+    () => (form.getFieldValue("referral.referrerCode" as "referral") as unknown as string) ?? "",
   );
 
-  // Referral is only valid when: not selected, OR name+email are both filled and email is valid.
-  const referralValid =
-    !isReferral ||
-    (referrerName.trim().length > 0 &&
-      referrerEmail.trim().length > 0 &&
-      /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(referrerEmail.trim()));
+  // Referral code format: XXXXX-XXXXXX (1-5 uppercase letters, dash, 6 alphanumeric).
+  const REFERRAL_CODE_RE = /^[A-Z]{1,5}-[A-Z0-9]{6}$/;
+  const referralValid = !isReferral || REFERRAL_CODE_RE.test(referrerCode.trim());
 
   const canContinue = referralValid;
 
@@ -80,12 +68,8 @@ export function StepRewards({ form, onNext, stepNum }: StepProps) {
       form.setFieldValue("source", id);
       setCurrentSource(id);
       if (id !== "referral") {
-        setReferrerName("");
-        setReferrerEmail("");
-        setReferrerPhone("");
-        form.setFieldValue("referral.referrerName" as "referral", "" as never);
-        form.setFieldValue("referral.referrerEmail" as "referral", "" as never);
-        form.setFieldValue("referral.referrerPhone" as "referral", "" as never);
+        setReferrerCode("");
+        form.setFieldValue("referral.referrerCode" as "referral", "" as never);
         form.setFieldValue("referral.skipped" as "referral", true as never);
       } else {
         form.setFieldValue("referral.skipped" as "referral", false as never);
@@ -94,72 +78,32 @@ export function StepRewards({ form, onNext, stepNum }: StepProps) {
     [form],
   );
 
-  const handleNameChange = useCallback(
+  const handleCodeChange = useCallback(
     (value: string) => {
-      setReferrerName(value);
-      form.setFieldValue("referral.referrerName" as "referral", value as never);
+      const formatted = value.toUpperCase().replace(/[^A-Z0-9-]/g, "");
+      setReferrerCode(formatted);
+      form.setFieldValue("referral.referrerCode" as "referral", formatted as never);
     },
     [form],
-  );
-
-  const handleEmailChange = useCallback(
-    (value: string) => {
-      setReferrerEmail(value);
-      form.setFieldValue("referral.referrerEmail" as "referral", value as never);
-    },
-    [form],
-  );
-
-  const formatReferrerPhone = useCallback((raw: string) => {
-    const digits = raw.replace(/\D/g, "").slice(0, 10);
-    if (digits.length <= 3) return digits.length ? `(${digits}` : "";
-    if (digits.length <= 6) return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
-    return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
-  }, []);
-
-  const handlePhoneChange = useCallback(
-    (value: string) => {
-      const formatted = formatReferrerPhone(value);
-      setReferrerPhone(formatted);
-      form.setFieldValue("referral.referrerPhone" as "referral", formatted as never);
-    },
-    [form, formatReferrerPhone],
   );
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA") {
-        if (e.key === "Enter") {
-          // Smart focus chaining through the referral inputs.
-          if (
-            (e.target as HTMLInputElement)?.placeholder === "Their first name" &&
-            referrerName.trim()
-          ) {
-            e.preventDefault();
-            emailRef.current?.focus();
-          } else if (
-            (e.target as HTMLInputElement)?.placeholder === "friend@example.com" &&
-            referrerEmail.trim()
-          ) {
-            e.preventDefault();
-            phoneRef.current?.focus();
-          } else if (canContinue) {
-            onNext();
-          }
-        }
-        // Suppress letter shortcuts (A–E) while typing in an input.
+        if (e.key === "Enter" && canContinue) onNext();
+        // Suppress letter shortcuts while typing in an input.
         return;
       }
 
       if (e.key === "Enter" && canContinue) onNext();
 
-      // Letter shortcuts A–E select the corresponding source option.
+      // Letter shortcuts A–G select the corresponding source option.
       const letter = e.key.toUpperCase();
       const option = SOURCE_OPTIONS.find((o) => o.letter === letter);
       if (option) handleSelect(option.id);
     },
-    [canContinue, onNext, handleSelect, referrerName, referrerEmail],
+    [canContinue, onNext, handleSelect],
   );
 
   useEffect(() => {
@@ -266,7 +210,7 @@ export function StepRewards({ form, onNext, stepNum }: StepProps) {
         </form.Field>
       </motion.div>
 
-      {/* Referral inputs — animate in when "Friend Referral" is selected */}
+      {/* Referral code input — animates in when "Friend Referral" is selected */}
       <AnimatePresence>
         {isReferral && (
           <motion.div
@@ -278,52 +222,27 @@ export function StepRewards({ form, onNext, stepNum }: StepProps) {
             className="space-y-3 overflow-hidden"
           >
             <div className="flex items-center gap-2">
-              <p className="text-xs text-muted">Who referred you?</p>
-              {/* Reward context for the referrer */}
+              <p className="text-xs text-muted">Enter their referral code</p>
               <span className="inline-flex items-center text-[10px] px-1.5 py-0.5 rounded-full bg-accent/10 text-accent font-medium">
-                They earn +100 pts
+                You both earn +100 pts
               </span>
             </div>
             <div>
               <input
                 type="text"
                 autoFocus
-                placeholder="Their first name"
-                value={referrerName}
-                onChange={(e) => handleNameChange(e.target.value)}
-                className="w-full sm:max-w-[360px] px-0 py-2 text-base bg-transparent border-b-2 border-accent/30
-                  placeholder:text-muted/30 text-foreground
+                placeholder="SARAH-A1B2C3"
+                value={referrerCode}
+                onChange={(e) => handleCodeChange(e.target.value)}
+                maxLength={12}
+                className="w-full sm:max-w-[260px] px-0 py-2 text-base font-mono tracking-widest bg-transparent border-b-2 border-accent/30
+                  placeholder:text-muted/30 placeholder:tracking-normal text-foreground
                   focus:outline-none focus:border-accent
                   transition-colors duration-200"
               />
-            </div>
-            <div>
-              <input
-                ref={emailRef}
-                type="email"
-                placeholder="friend@example.com"
-                value={referrerEmail}
-                onChange={(e) => handleEmailChange(e.target.value)}
-                className="w-full sm:max-w-[360px] px-0 py-2 text-base bg-transparent border-b-2 border-accent/30
-                  placeholder:text-muted/30 text-foreground
-                  focus:outline-none focus:border-accent
-                  transition-colors duration-200"
-              />
-            </div>
-            <div>
-              <input
-                ref={phoneRef}
-                type="tel"
-                inputMode="numeric"
-                placeholder="(555) 123-4567"
-                value={referrerPhone}
-                onChange={(e) => handlePhoneChange(e.target.value)}
-                className="w-full sm:max-w-[360px] px-0 py-2 text-base bg-transparent border-b-2 border-accent/30
-                  placeholder:text-muted/30 text-foreground
-                  focus:outline-none focus:border-accent
-                  transition-colors duration-200"
-              />
-              <p className="text-xs text-muted/50 mt-1.5">So we can credit their account too</p>
+              <p className="text-xs text-muted/50 mt-1.5">
+                Your friend&apos;s code — found in their loyalty dashboard
+              </p>
             </div>
           </motion.div>
         )}

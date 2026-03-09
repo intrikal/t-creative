@@ -233,6 +233,73 @@ export async function submitClientReview(data: {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Reschedule booking                                                 */
+/* ------------------------------------------------------------------ */
+
+export async function rescheduleClientBooking(bookingId: number, newStartsAt: string) {
+  const user = await getUser();
+
+  const [booking] = await db
+    .select({
+      clientId: bookings.clientId,
+      status: bookings.status,
+      startsAt: bookings.startsAt,
+      serviceName: services.name,
+    })
+    .from(bookings)
+    .leftJoin(services, eq(bookings.serviceId, services.id))
+    .where(eq(bookings.id, bookingId))
+    .limit(1);
+
+  if (!booking || booking.clientId !== user.id) {
+    throw new Error("Booking not found");
+  }
+
+  if (booking.status !== "pending" && booking.status !== "confirmed") {
+    throw new Error("This booking cannot be rescheduled");
+  }
+
+  const hoursUntilCurrent = (booking.startsAt.getTime() - Date.now()) / (1000 * 60 * 60);
+  if (hoursUntilCurrent < 24) {
+    throw new Error(
+      "Bookings cannot be rescheduled within 24 hours of the scheduled time. Please contact us directly.",
+    );
+  }
+
+  const newDate = new Date(newStartsAt);
+  if (isNaN(newDate.getTime())) throw new Error("Invalid date");
+  if (newDate <= new Date()) throw new Error("New appointment time must be in the future");
+
+  const oldStartsAt = booking.startsAt.toISOString();
+
+  await db
+    .update(bookings)
+    .set({
+      startsAt: newDate,
+      status: "pending",
+      staffNotes: `Rescheduled by client from ${oldStartsAt}`,
+    })
+    .where(eq(bookings.id, bookingId));
+
+  trackEvent(user.id, "booking_rescheduled_by_client", {
+    bookingId,
+    oldStartsAt,
+    newStartsAt,
+  });
+
+  await logAction({
+    actorId: user.id,
+    action: "update",
+    entityType: "booking",
+    entityId: String(bookingId),
+    description: "Booking rescheduled by client",
+    metadata: { oldStartsAt, newStartsAt },
+  });
+
+  revalidatePath(PATH);
+}
+
+/* ------------------------------------------------------------------ */
 /*  Cancel booking                                                     */
 /* ------------------------------------------------------------------ */
 

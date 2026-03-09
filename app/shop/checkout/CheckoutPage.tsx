@@ -8,10 +8,11 @@
 "use client";
 
 import { useState, useTransition, useEffect } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import posthog from "posthog-js";
 import { useCartStore, cartTotalInCents } from "@/stores/useCartStore";
-import { placeOrder } from "../actions";
+import { placeOrder, lookupGiftCard, type GiftCardLookupResult } from "../actions";
 
 type FulfillmentMethod = "pickup_online" | "pickup_cash";
 
@@ -36,6 +37,31 @@ export function CheckoutPage() {
     error?: string;
   } | null>(null);
 
+  const [giftCardInput, setGiftCardInput] = useState("");
+  const [appliedCard, setAppliedCard] = useState<GiftCardLookupResult | null>(null);
+  const [appliedCode, setAppliedCode] = useState<string>("");
+  const [giftCardError, setGiftCardError] = useState<string | null>(null);
+  const [isApplyingCard, startApplyTransition] = useTransition();
+
+  const discountInCents = appliedCard ? Math.min(appliedCard.balanceInCents, total) : 0;
+  const chargeInCents = total - discountInCents;
+
+  function handleApplyGiftCard() {
+    if (!giftCardInput.trim()) return;
+    setGiftCardError(null);
+    startApplyTransition(async () => {
+      try {
+        const code = giftCardInput.trim();
+        const card = await lookupGiftCard(code);
+        setAppliedCard(card);
+        setAppliedCode(code);
+        setGiftCardInput("");
+      } catch (err) {
+        setGiftCardError(err instanceof Error ? err.message : "Invalid gift card");
+      }
+    });
+  }
+
   function handleSubmit() {
     if (items.length === 0) return;
 
@@ -43,6 +69,7 @@ export function CheckoutPage() {
       const res = await placeOrder({
         items: items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
         fulfillmentMethod: method,
+        giftCardCode: appliedCard ? appliedCode : undefined,
       });
 
       setResult(res);
@@ -148,9 +175,11 @@ export function CheckoutPage() {
               <div key={item.productId} className="p-4 flex items-center justify-between gap-4">
                 <div className="flex items-center gap-3 min-w-0">
                   {item.imageUrl ? (
-                    <img
+                    <Image
                       src={item.imageUrl}
                       alt={item.title}
+                      width={40}
+                      height={40}
                       className="w-10 h-10 object-cover bg-surface shrink-0"
                     />
                   ) : (
@@ -169,10 +198,67 @@ export function CheckoutPage() {
               </div>
             ))}
           </div>
+          {appliedCard && (
+            <div className="px-4 py-2.5 border-t border-foreground/5 flex items-center justify-between text-sm">
+              <span className="text-muted">Gift card discount</span>
+              <span className="text-green-700">−${(discountInCents / 100).toFixed(2)}</span>
+            </div>
+          )}
           <div className="p-4 border-t border-foreground/8 flex items-center justify-between">
-            <span className="text-sm font-medium">Total</span>
-            <span className="text-lg font-medium text-accent">${(total / 100).toFixed(2)}</span>
+            <span className="text-sm font-medium">{appliedCard ? "Amount due" : "Total"}</span>
+            <span className="text-lg font-medium text-accent">
+              ${(chargeInCents / 100).toFixed(2)}
+            </span>
           </div>
+        </div>
+
+        {/* Gift card */}
+        <div className="mb-8">
+          <h2 className="text-xs tracking-widest uppercase text-muted mb-4">Gift Card</h2>
+          {appliedCard ? (
+            <div className="flex items-center justify-between p-3 border border-green-200 bg-green-50">
+              <div>
+                <p className="text-sm font-medium text-green-800">{appliedCode}</p>
+                <p className="text-xs text-green-700 mt-0.5">
+                  ${(discountInCents / 100).toFixed(2)} applied · $
+                  {((appliedCard.balanceInCents - discountInCents) / 100).toFixed(2)} remaining
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setAppliedCard(null);
+                  setAppliedCode("");
+                }}
+                className="text-xs text-muted hover:text-foreground transition-colors"
+              >
+                Remove
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={giftCardInput}
+                  onChange={(e) => {
+                    setGiftCardInput(e.target.value.toUpperCase());
+                    setGiftCardError(null);
+                  }}
+                  onKeyDown={(e) => e.key === "Enter" && handleApplyGiftCard()}
+                  placeholder="TC-GC-001"
+                  className="flex-1 px-3 py-2 text-sm border border-foreground/8 bg-background placeholder:text-muted/40 focus:outline-none focus:border-foreground/30 font-mono uppercase"
+                />
+                <button
+                  onClick={handleApplyGiftCard}
+                  disabled={!giftCardInput.trim() || isApplyingCard}
+                  className="px-4 py-2 text-xs tracking-widest uppercase bg-foreground text-background hover:bg-muted transition-colors disabled:opacity-40"
+                >
+                  {isApplyingCard ? "…" : "Apply"}
+                </button>
+              </div>
+              {giftCardError && <p className="text-xs text-red-600">{giftCardError}</p>}
+            </div>
+          )}
         </div>
 
         {/* Payment method */}

@@ -103,9 +103,11 @@ export const onboardingSchema = z.object({
 
   /** Referral info. */
   referral: z.object({
-    referrerName: z.string().optional().or(z.literal("")),
-    referrerEmail: z.string().email("Enter a valid email").optional().or(z.literal("")),
-    referrerPhone: z.string().optional().or(z.literal("")),
+    referrerCode: z
+      .string()
+      .regex(/^[A-Z]{1,5}-[A-Z0-9]{6}$/, "Enter a valid referral code (e.g. SARAH-A1B2C3)")
+      .optional()
+      .or(z.literal("")),
     skipped: z.boolean(),
   }),
 

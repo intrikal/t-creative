@@ -28,7 +28,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { eq, desc, ne, and, gte, sum } from "drizzle-orm";
+import { eq, desc, ne, and } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
 import { bookings, profiles, services, serviceRecords, syncLog, waitlist } from "@/db/schema";
@@ -177,6 +177,7 @@ export async function updateBookingStatus(
 
   if (status === "cancelled") {
     await trySendBookingStatusEmail(id, "cancelled", cancellationReason);
+    await tryNotifyWaitlist(id);
   }
 
   if (status === "completed") {
@@ -786,6 +787,58 @@ async function trySendBookingStatusEmail(
     }
   } catch {
     // Non-fatal
+  }
+}
+
+/**
+ * Notifies waiting clients when a booking is cancelled and a spot opens up.
+ * Queries the waitlist for the same service, sends WaitlistNotification emails,
+ * and marks each entry as "notified".
+ */
+async function tryNotifyWaitlist(cancelledBookingId: number): Promise<void> {
+  try {
+    const [cancelled] = await db
+      .select({ serviceId: bookings.serviceId })
+      .from(bookings)
+      .where(eq(bookings.id, cancelledBookingId));
+
+    if (!cancelled) return;
+
+    const waitingEntries = await db
+      .select({
+        id: waitlist.id,
+        clientId: waitlist.clientId,
+        clientEmail: profiles.email,
+        clientFirstName: profiles.firstName,
+        notifyEmail: profiles.notifyEmail,
+        serviceName: services.name,
+      })
+      .from(waitlist)
+      .innerJoin(profiles, eq(waitlist.clientId, profiles.id))
+      .innerJoin(services, eq(waitlist.serviceId, services.id))
+      .where(and(eq(waitlist.serviceId, cancelled.serviceId), eq(waitlist.status, "waiting")));
+
+    for (const entry of waitingEntries) {
+      if (!entry.clientEmail || !entry.notifyEmail) continue;
+
+      await sendEmail({
+        to: entry.clientEmail,
+        subject: `A spot opened up — ${entry.serviceName} — T Creative`,
+        react: WaitlistNotification({
+          clientName: entry.clientFirstName,
+          serviceName: entry.serviceName,
+        }),
+        entityType: "waitlist_notification",
+        localId: String(entry.id),
+      });
+
+      await db
+        .update(waitlist)
+        .set({ status: "notified", notifiedAt: new Date() })
+        .where(eq(waitlist.id, entry.id));
+    }
+  } catch {
+    // Non-fatal — waitlist notification failure shouldn't block cancellation
   }
 }
 

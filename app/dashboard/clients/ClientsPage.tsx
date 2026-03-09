@@ -6,6 +6,7 @@ import { Search, Star, Plus, Users, TrendingUp, DollarSign } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import type { ClientRow, LoyaltyRow, LifecycleStage } from "./actions";
+export type { LifecycleStage };
 import { createClient, updateClient, deleteClient } from "./actions";
 import { ClientCard } from "./components/ClientCard";
 import { ClientFormDialog, BLANK_FORM, type ClientFormState } from "./components/ClientFormDialog";

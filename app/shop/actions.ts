@@ -9,9 +9,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { eq, desc, asc, sql } from "drizzle-orm";
+import { eq, desc, asc, sql, ilike } from "drizzle-orm";
 import { db } from "@/db";
-import { products, orders, profiles, syncLog } from "@/db/schema";
+import { products, orders, profiles, syncLog, giftCards, giftCardTransactions } from "@/db/schema";
 import { OrderConfirmation } from "@/emails/OrderConfirmation";
 import { trackEvent } from "@/lib/posthog";
 import { sendEmail } from "@/lib/resend";
@@ -63,6 +63,13 @@ export type CartItemInput = {
 export type PlaceOrderInput = {
   items: CartItemInput[];
   fulfillmentMethod: "pickup_cash" | "pickup_online";
+  giftCardCode?: string;
+};
+
+export type GiftCardLookupResult = {
+  id: number;
+  balanceInCents: number;
+  originalAmountInCents: number;
 };
 
 export type PlaceOrderResult = {
@@ -82,6 +89,40 @@ export type ClientOrder = {
   fulfillmentMethod: string | null;
   createdAt: string;
 };
+
+/* ------------------------------------------------------------------ */
+/*  Gift card lookup                                                   */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Validates a gift card code and returns its current balance.
+ * Read-only — does not decrement the balance. Call placeOrder with the
+ * code to perform the actual redemption atomically.
+ */
+export async function lookupGiftCard(code: string): Promise<GiftCardLookupResult> {
+  const [card] = await db
+    .select({
+      id: giftCards.id,
+      balanceInCents: giftCards.balanceInCents,
+      originalAmountInCents: giftCards.originalAmountInCents,
+      status: giftCards.status,
+      expiresAt: giftCards.expiresAt,
+    })
+    .from(giftCards)
+    .where(ilike(giftCards.code, code.trim()))
+    .limit(1);
+
+  if (!card) throw new Error("Gift card not found");
+  if (card.status !== "active") throw new Error("This gift card has already been used");
+  if (card.balanceInCents <= 0) throw new Error("This gift card has no remaining balance");
+  if (card.expiresAt && card.expiresAt < new Date()) throw new Error("This gift card has expired");
+
+  return {
+    id: card.id,
+    balanceInCents: card.balanceInCents,
+    originalAmountInCents: card.originalAmountInCents,
+  };
+}
 
 /* ------------------------------------------------------------------ */
 /*  Public queries                                                     */
@@ -223,14 +264,62 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
     }
   }
 
+  // Apply gift card if provided — re-validate server-side and decrement balance
+  let giftCardDiscountInCents = 0;
+  if (input.giftCardCode) {
+    const [card] = await db
+      .select({
+        id: giftCards.id,
+        balanceInCents: giftCards.balanceInCents,
+        status: giftCards.status,
+        expiresAt: giftCards.expiresAt,
+      })
+      .from(giftCards)
+      .where(ilike(giftCards.code, input.giftCardCode.trim()))
+      .limit(1);
+
+    if (
+      card &&
+      card.status === "active" &&
+      card.balanceInCents > 0 &&
+      (!card.expiresAt || card.expiresAt >= new Date())
+    ) {
+      giftCardDiscountInCents = Math.min(card.balanceInCents, totalInCents);
+      const newBalance = card.balanceInCents - giftCardDiscountInCents;
+
+      await db
+        .update(giftCards)
+        .set({ balanceInCents: newBalance, status: newBalance === 0 ? "redeemed" : "active" })
+        .where(eq(giftCards.id, card.id));
+
+      await db.insert(giftCardTransactions).values({
+        giftCardId: card.id,
+        type: "redemption",
+        amountInCents: giftCardDiscountInCents,
+        balanceAfterInCents: newBalance,
+        notes: `Redeemed on order ${orderNumber}`,
+      });
+    }
+  }
+
+  const chargeInCents = totalInCents - giftCardDiscountInCents;
+
   // Generate Square payment link for online payments
   let paymentUrl: string | undefined;
-  if (input.fulfillmentMethod === "pickup_online" && isSquareConfigured()) {
+  if (input.fulfillmentMethod === "pickup_online" && isSquareConfigured() && chargeInCents > 0) {
     try {
+      // Reduce the Square charge by appending a negative line item for the gift card.
+      const squareLineItems =
+        giftCardDiscountInCents > 0
+          ? [
+              ...lineItems,
+              { name: "Gift card", quantity: 1, amountInCents: -giftCardDiscountInCents },
+            ]
+          : lineItems;
       const { url, orderId: squareOrderId } = await createSquareOrderPaymentLink({
         orderId: createdOrderIds[0],
         orderNumber,
-        lineItems,
+        lineItems: squareLineItems,
       });
 
       paymentUrl = url;
@@ -248,7 +337,7 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
         localId: String(createdOrderIds[0]),
         remoteId: squareOrderId,
         message: `Created payment link for order ${orderNumber}`,
-        payload: { url, orderNumber, totalInCents },
+        payload: { url, orderNumber, totalInCents, giftCardDiscountInCents, chargeInCents },
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to create payment link";
@@ -292,6 +381,8 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
     orderNumber,
     itemCount: input.items.length,
     totalInCents,
+    giftCardDiscountInCents,
+    chargeInCents,
     fulfillmentMethod: input.fulfillmentMethod,
     hasPaymentLink: !!paymentUrl,
   });

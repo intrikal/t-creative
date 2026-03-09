@@ -562,13 +562,13 @@ export async function saveOnboardingData(
       .filter(Boolean)
       .join(", ");
 
-    // Look up the referrer's profile ID if the client provided a referrer email.
+    // Look up the referrer's profile ID by their referral code.
     let referredBy: string | null = null;
-    if (referral.referrerEmail?.trim()) {
+    if (referral.referrerCode?.trim()) {
       const [referrer] = await db
         .select({ id: profiles.id })
         .from(profiles)
-        .where(eq(profiles.email, referral.referrerEmail.trim()))
+        .where(eq(profiles.referralCode, referral.referrerCode.trim().toUpperCase()))
         .limit(1);
       if (referrer) referredBy = referrer.id;
     }
@@ -640,7 +640,7 @@ export async function saveOnboardingData(
           profileId: user.id,
           points: 100,
           type: "referral_referee",
-          description: `Referred by ${referral.referrerName || "a friend"}`,
+          description: `Referred by a friend`,
           referenceId: referredBy,
         });
 

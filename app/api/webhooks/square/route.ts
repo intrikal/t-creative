@@ -114,9 +114,13 @@ async function handlePaymentCompleted(data: any): Promise<string> {
     const method = tenders?.[0]?.type ? mapTenderType(tenders[0].type) : "square_other";
     const tipCents = Number(squarePayment.tip_money?.amount ?? 0);
 
-    // Determine if this is a deposit payment via the payment note
+    // Determine if this is a deposit payment.
+    // Primary: Square order metadata.paymentType (set when payment link is created).
+    // Fallback: payment note string for payments created before metadata was added.
     const note = squarePayment.note as string | undefined;
-    const isDeposit = note?.includes("(deposit)") ?? false;
+    const isDeposit = booking.squareOrderType
+      ? booking.squareOrderType === "deposit"
+      : (note?.includes("(deposit)") ?? false);
 
     await db.insert(payments).values({
       bookingId: booking.id,
@@ -267,7 +271,7 @@ async function handlePaymentCompleted(data: any): Promise<string> {
  */
 async function findBookingByOrder(
   squareOrderId: string | null,
-): Promise<{ id: number; clientId: string } | null> {
+): Promise<{ id: number; clientId: string; squareOrderType?: string } | null> {
   if (!squareOrderId) return null;
 
   // Strategy 1: direct DB lookup
@@ -276,7 +280,19 @@ async function findBookingByOrder(
     .from(bookings)
     .where(eq(bookings.squareOrderId, squareOrderId));
 
-  if (byOrder) return byOrder;
+  if (byOrder) {
+    // Fetch order metadata to reliably determine payment type (deposit vs balance)
+    if (isSquareConfigured()) {
+      try {
+        const orderResponse = await squareClient.orders.get({ orderId: squareOrderId });
+        const paymentType = orderResponse.order?.metadata?.paymentType as string | undefined;
+        return { ...byOrder, squareOrderType: paymentType };
+      } catch {
+        // Non-fatal — fall back to note-based detection
+      }
+    }
+    return byOrder;
+  }
 
   // Strategy 2: fetch order from Square API, use referenceId
   if (isSquareConfigured()) {
@@ -285,6 +301,7 @@ async function findBookingByOrder(
         orderId: squareOrderId,
       });
       const referenceId = orderResponse.order?.referenceId;
+      const paymentType = orderResponse.order?.metadata?.paymentType as string | undefined;
       if (referenceId) {
         const bookingId = parseInt(referenceId, 10);
         if (!isNaN(bookingId)) {
@@ -292,7 +309,7 @@ async function findBookingByOrder(
             .select({ id: bookings.id, clientId: bookings.clientId })
             .from(bookings)
             .where(eq(bookings.id, bookingId));
-          if (byRef) return byRef;
+          if (byRef) return { ...byRef, squareOrderType: paymentType };
         }
       }
     } catch {

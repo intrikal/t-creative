@@ -112,13 +112,23 @@ export async function createSquarePaymentLink(params: {
 
   const response = await squareClient.checkout.paymentLinks.create({
     idempotencyKey: crypto.randomUUID(),
-    quickPay: {
-      name: label,
-      priceMoney: {
-        amount: BigInt(params.amountInCents),
-        currency: "USD",
-      },
+    order: {
       locationId: SQUARE_LOCATION_ID,
+      referenceId: String(params.bookingId),
+      lineItems: [
+        {
+          name: label,
+          quantity: "1",
+          basePriceMoney: {
+            amount: BigInt(params.amountInCents),
+            currency: "USD",
+          },
+        },
+      ],
+      metadata: {
+        bookingId: String(params.bookingId),
+        paymentType: params.type,
+      },
     },
     paymentNote: `Booking #${params.bookingId} (${params.type})`,
   });

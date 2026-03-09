@@ -123,6 +123,13 @@ export const profiles = pgTable(
     isVip: boolean("is_vip").notNull().default(false),
 
     /**
+     * CRM lifecycle stage for segmenting clients.
+     * Values: prospect | active | at_risk | lapsed | churned
+     * Null = not manually set (UI auto-suggests based on booking recency).
+     */
+    lifecycleStage: varchar("lifecycle_stage", { length: 50 }),
+
+    /**
      * Comma-separated tags for client categorization and filtering.
      * E.g. "VIP, Lashes, Regular" or "Crochet, Custom"
      * Displayed as pills on the client card. Filterable via "All Tags".

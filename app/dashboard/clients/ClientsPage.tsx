@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Search, Star, Plus, Users, TrendingUp, DollarSign } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import type { ClientRow, LoyaltyRow } from "./actions";
+import type { ClientRow, LoyaltyRow, LifecycleStage } from "./actions";
 import { createClient, updateClient, deleteClient } from "./actions";
 import { ClientCard } from "./components/ClientCard";
 import { ClientFormDialog, BLANK_FORM, type ClientFormState } from "./components/ClientFormDialog";
@@ -39,6 +39,7 @@ export interface Client {
   source: ClientSource;
   joinedDate: string;
   vip: boolean;
+  lifecycleStage: LifecycleStage | null;
   services: ServiceCategory[];
   totalBookings: number;
   totalSpent: number;
@@ -198,6 +199,7 @@ function mapClientRow(r: ClientRow): Client {
       year: "numeric",
     }),
     vip: r.isVip,
+    lifecycleStage: r.lifecycleStage,
     services: tagsList,
     totalBookings: r.totalBookings,
     totalSpent: Math.round(r.totalSpent / 100),
@@ -257,6 +259,7 @@ export function ClientsPage({
   const [clients, setClients] = useState<Client[]>(mappedClients);
   const [search, setSearch] = useState("");
   const [sourceFilter, setSourceFilter] = useState("All");
+  const [stageFilter, setStageFilter] = useState<LifecycleStage | "all">("all");
   const [vipOnly, setVipOnly] = useState(false);
   const [activeTab, setActiveTab] = useState<ClientsTab>("clients");
 
@@ -275,7 +278,8 @@ export function ClientsPage({
       c.email.toLowerCase().includes(search.toLowerCase());
     const matchSource = sourceFilter === "All" || sourceBadge(c.source)?.label === sourceFilter;
     const matchVip = !vipOnly || c.vip;
-    return matchSearch && matchSource && matchVip;
+    const matchStage = stageFilter === "all" || c.lifecycleStage === stageFilter;
+    return matchSearch && matchSource && matchVip && matchStage;
   });
 
   const vipCount = clients.filter((c) => c.vip).length;
@@ -301,6 +305,7 @@ export function ClientsPage({
       tags: c.tags ?? c.services.join(", "),
       notes: c.notes ?? "",
       vip: c.vip,
+      lifecycleStage: c.lifecycleStage,
     });
     setFormOpen(true);
   };
@@ -313,6 +318,7 @@ export function ClientsPage({
       phone: f.phone.trim() || undefined,
       source: f.source as ClientSource,
       isVip: f.vip,
+      lifecycleStage: f.lifecycleStage ?? null,
       internalNotes: f.notes.trim() || undefined,
       tags: f.tags.trim() || undefined,
     };
@@ -331,6 +337,7 @@ export function ClientsPage({
                 phone: input.phone ?? "",
                 source: input.source ?? "website_direct",
                 vip: input.isVip,
+                lifecycleStage: input.lifecycleStage,
                 notes: input.internalNotes,
                 tags: input.tags,
                 services: input.tags
@@ -477,6 +484,26 @@ export function ClientsPage({
                   {s}
                 </button>
               ))}
+              <div className="w-px h-4 bg-border mx-1" />
+              {(["all", "prospect", "active", "at_risk", "lapsed", "churned"] as const).map((s) => (
+                <button
+                  key={s}
+                  onClick={() => setStageFilter(s)}
+                  className={cn(
+                    "px-3 py-1.5 rounded-lg text-xs font-medium transition-colors",
+                    stageFilter === s
+                      ? "bg-foreground text-background"
+                      : "text-muted hover:text-foreground",
+                  )}
+                >
+                  {s === "all"
+                    ? "All stages"
+                    : s === "at_risk"
+                      ? "At risk"
+                      : s.charAt(0).toUpperCase() + s.slice(1)}
+                </button>
+              ))}
+              <div className="w-px h-4 bg-border mx-1" />
               <button
                 onClick={() => setVipOnly(!vipOnly)}
                 className={cn(

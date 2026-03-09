@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { eq, sql, desc, and, gte, asc } from "drizzle-orm";
+import { eq, sql, desc } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
 import { profiles, bookings, services, loyaltyTransactions, clientPreferences } from "@/db/schema";
@@ -36,6 +36,8 @@ export type ClientSource =
   | "website_direct"
   | "event";
 
+export type LifecycleStage = "prospect" | "active" | "at_risk" | "lapsed" | "churned";
+
 export type ClientRow = {
   id: string;
   firstName: string;
@@ -44,6 +46,7 @@ export type ClientRow = {
   phone: string | null;
   source: ClientSource | null;
   isVip: boolean;
+  lifecycleStage: LifecycleStage | null;
   internalNotes: string | null;
   tags: string | null;
   referredByName: string | null;
@@ -61,6 +64,7 @@ export type ClientInput = {
   phone?: string;
   source?: ClientSource;
   isVip: boolean;
+  lifecycleStage?: LifecycleStage | null;
   internalNotes?: string;
   tags?: string;
 };
@@ -113,6 +117,7 @@ export async function getClients(): Promise<ClientRow[]> {
       phone: profiles.phone,
       source: profiles.source,
       isVip: profiles.isVip,
+      lifecycleStage: profiles.lifecycleStage,
       internalNotes: profiles.internalNotes,
       tags: profiles.tags,
       referredByName: referrer.firstName,
@@ -131,6 +136,7 @@ export async function getClients(): Promise<ClientRow[]> {
 
   return rows.map((r) => ({
     ...r,
+    lifecycleStage: (r.lifecycleStage as LifecycleStage | null) ?? null,
     totalBookings: Number(r.totalBookings ?? 0),
     totalSpent: Number(r.totalSpent ?? 0),
     loyaltyPoints: Number(r.loyaltyPoints ?? 0),
@@ -180,6 +186,7 @@ export async function createClient(input: ClientInput): Promise<void> {
     phone: input.phone ?? null,
     source: input.source ?? null,
     isVip: input.isVip,
+    lifecycleStage: input.lifecycleStage ?? null,
     internalNotes: input.internalNotes ?? null,
     tags: input.tags ?? null,
   });
@@ -210,6 +217,7 @@ export async function updateClient(id: string, input: ClientInput): Promise<void
       phone: input.phone ?? null,
       source: input.source ?? null,
       isVip: input.isVip,
+      lifecycleStage: input.lifecycleStage ?? null,
       internalNotes: input.internalNotes ?? null,
       tags: input.tags ?? null,
     })

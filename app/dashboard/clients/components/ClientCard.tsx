@@ -1,6 +1,6 @@
 "use client";
 
-import { Pencil, Trash2, Star, MapPin, Heart, FileText } from "lucide-react";
+import { Pencil, Trash2, Star, Heart, FileText } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -80,6 +80,23 @@ export function ClientCard({
         {src && (
           <Badge className={cn("border text-[10px] px-1.5 py-0.5 font-medium", src.className)}>
             {src.label}
+          </Badge>
+        )}
+        {client.lifecycleStage && (
+          <Badge
+            className={cn(
+              "border text-[10px] px-1.5 py-0.5 font-medium",
+              client.lifecycleStage === "prospect" && "bg-blue-50 text-blue-700 border-blue-100",
+              client.lifecycleStage === "active" && "bg-green-50 text-green-700 border-green-100",
+              client.lifecycleStage === "at_risk" && "bg-amber-50 text-amber-700 border-amber-100",
+              client.lifecycleStage === "lapsed" &&
+                "bg-orange-50 text-orange-700 border-orange-100",
+              client.lifecycleStage === "churned" && "bg-red-50 text-red-600 border-red-100",
+            )}
+          >
+            {client.lifecycleStage === "at_risk"
+              ? "At Risk"
+              : client.lifecycleStage.charAt(0).toUpperCase() + client.lifecycleStage.slice(1)}
           </Badge>
         )}
         {client.services.map((s) => (

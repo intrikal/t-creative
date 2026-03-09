@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Star } from "lucide-react";
 import { Dialog, Field, Input, Select, Textarea, DialogFooter } from "@/components/ui/dialog";
-import type { ClientSource } from "../ClientsPage";
+import type { ClientSource, LifecycleStage } from "../ClientsPage";
 
 export interface ClientFormState {
   firstName: string;
@@ -15,6 +15,7 @@ export interface ClientFormState {
   tags: string;
   notes: string;
   vip: boolean;
+  lifecycleStage: LifecycleStage | null;
 }
 
 export const BLANK_FORM: ClientFormState = {
@@ -27,6 +28,7 @@ export const BLANK_FORM: ClientFormState = {
   tags: "",
   notes: "",
   vip: false,
+  lifecycleStage: null,
 };
 
 export function ClientFormDialog({
@@ -43,7 +45,7 @@ export function ClientFormDialog({
   onSave: (f: ClientFormState) => void;
 }) {
   const [form, setForm] = useState<ClientFormState>(initial);
-  const set = (k: keyof ClientFormState) => (v: string | boolean) =>
+  const set = (k: keyof ClientFormState) => (v: string | boolean | null) =>
     setForm((prev) => ({ ...prev, [k]: v }));
 
   return (
@@ -85,20 +87,39 @@ export function ClientFormDialog({
           </Field>
         </div>
 
-        <Field label="How did they find you?">
-          <Select
-            value={form.source}
-            onChange={(e) => set("source")(e.target.value as ClientSource)}
-          >
-            <option value="instagram">Instagram</option>
-            <option value="tiktok">TikTok</option>
-            <option value="pinterest">Pinterest</option>
-            <option value="word_of_mouth">Word of Mouth</option>
-            <option value="google_search">Google Search</option>
-            <option value="referral">Referral</option>
-            <option value="website_direct">Website Direct</option>
-          </Select>
-        </Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="How did they find you?">
+            <Select
+              value={form.source}
+              onChange={(e) => set("source")(e.target.value as ClientSource)}
+            >
+              <option value="instagram">Instagram</option>
+              <option value="tiktok">TikTok</option>
+              <option value="pinterest">Pinterest</option>
+              <option value="word_of_mouth">Word of Mouth</option>
+              <option value="google_search">Google Search</option>
+              <option value="referral">Referral</option>
+              <option value="website_direct">Website Direct</option>
+            </Select>
+          </Field>
+          <Field label="Lifecycle stage">
+            <Select
+              value={form.lifecycleStage ?? ""}
+              onChange={(e) =>
+                set("lifecycleStage")(
+                  e.target.value === "" ? null : (e.target.value as LifecycleStage),
+                )
+              }
+            >
+              <option value="">Not set</option>
+              <option value="prospect">Prospect</option>
+              <option value="active">Active</option>
+              <option value="at_risk">At Risk</option>
+              <option value="lapsed">Lapsed</option>
+              <option value="churned">Churned</option>
+            </Select>
+          </Field>
+        </div>
 
         {form.source === "referral" && (
           <Field label="Referred by">

@@ -120,6 +120,13 @@
       "when": 1773006971055,
       "tag": "0016_tiny_multiple_man",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1773018058372,
+      "tag": "0017_rare_whirlwind",
+      "breakpoints": true
     }
   ]
 }

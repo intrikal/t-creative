@@ -35,6 +35,7 @@ import {
 import { TCLogo } from "@/components/TCLogo";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
+import { NotificationBell } from "./components/NotificationBell";
 
 type NavItem = {
   href: string;
@@ -364,12 +365,15 @@ function MobileDrawer({
               </p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg hover:bg-foreground/8 text-muted transition-colors"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-1">
+            <NotificationBell />
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-lg hover:bg-foreground/8 text-muted transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         {/* Nav groups */}
@@ -450,7 +454,7 @@ export function DashboardSidebar({
         {/* Brand */}
         <div className="px-4 h-12 flex items-center gap-2.5 border-b border-border shrink-0">
           <TCLogo size={24} className="text-accent shrink-0" />
-          <div>
+          <div className="flex-1 min-w-0">
             <p className="text-xs font-semibold text-foreground tracking-tight leading-none">
               T Creative
             </p>
@@ -458,6 +462,7 @@ export function DashboardSidebar({
               {role === "assistant" ? "Assistant" : role === "client" ? "Client Portal" : "Studio"}
             </p>
           </div>
+          <NotificationBell />
         </div>
 
         {/* Nav groups */}

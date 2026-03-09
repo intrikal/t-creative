@@ -775,3 +775,63 @@ export async function getAppointmentGaps(): Promise<AppointmentGapStats> {
 
   return { overall, byCategory };
 }
+
+/* ------------------------------------------------------------------ */
+/*  CSV Export                                                         */
+/* ------------------------------------------------------------------ */
+
+export type BookingExportRow = {
+  date: string;
+  client: string;
+  service: string;
+  status: string;
+  durationMin: number;
+  priceUsd: string;
+  staff: string;
+  notes: string;
+};
+
+/** Returns raw booking rows suitable for CSV download. */
+export async function exportBookingsCsv(): Promise<BookingExportRow[]> {
+  await getUser();
+
+  const clientProfile = alias(profiles, "client_profile");
+  const staffProfile = alias(profiles, "staff_profile");
+
+  const rows = await db
+    .select({
+      startsAt: bookings.startsAt,
+      clientFirst: clientProfile.firstName,
+      clientLast: clientProfile.lastName,
+      serviceName: services.name,
+      status: bookings.status,
+      durationMin: bookings.durationMin,
+      totalInCents: bookings.totalInCents,
+      staffFirst: staffProfile.firstName,
+      staffLast: staffProfile.lastName,
+      notes: bookings.notes,
+    })
+    .from(bookings)
+    .leftJoin(clientProfile, eq(bookings.clientId, clientProfile.id))
+    .leftJoin(services, eq(bookings.serviceId, services.id))
+    .leftJoin(staffProfile, eq(bookings.staffId, staffProfile.id))
+    .orderBy(desc(bookings.startsAt))
+    .limit(5000);
+
+  return rows.map((r) => ({
+    date: r.startsAt.toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    }),
+    client: [r.clientFirst, r.clientLast].filter(Boolean).join(" ") || "—",
+    service: r.serviceName ?? "—",
+    status: r.status,
+    durationMin: r.durationMin ?? 0,
+    priceUsd: r.totalInCents != null ? `$${(r.totalInCents / 100).toFixed(2)}` : "—",
+    staff: [r.staffFirst, r.staffLast].filter(Boolean).join(" ") || "—",
+    notes: r.notes ?? "",
+  }));
+}

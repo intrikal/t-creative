@@ -1,0 +1,1 @@
+ALTER TABLE "profiles" ADD COLUMN "lifecycle_stage" varchar(50);

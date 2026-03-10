@@ -1,5 +1,10 @@
 import type { Metadata } from "next";
-import { getAssistants, getAssistantAvailability } from "./actions";
+import {
+  getAssistants,
+  getAssistantAvailability,
+  getCommissionsData,
+  getPayrollData,
+} from "./actions";
 import { AssistantsPage } from "./AssistantsPage";
 
 export const metadata: Metadata = {
@@ -9,15 +14,20 @@ export const metadata: Metadata = {
 };
 
 export default async function Page() {
-  const [initialAssistants, initialAvailability] = await Promise.all([
+  const [initialAssistants, initialAvailability, commissionsData, payroll] = await Promise.all([
     getAssistants(),
     getAssistantAvailability(),
+    getCommissionsData(),
+    getPayrollData(),
   ]);
 
   return (
     <AssistantsPage
       initialAssistants={initialAssistants}
       initialAvailability={initialAvailability}
+      commissionsData={commissionsData}
+      payrollRows={payroll.rows}
+      payrollSummary={payroll.summary}
     />
   );
 }

@@ -12,6 +12,7 @@
 import { isNull, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { businessHours, timeOff, settings } from "@/db/schema";
+import { createClient } from "@/utils/supabase/server";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                               */
@@ -73,4 +74,13 @@ export async function getStudioAvailability(): Promise<StudioAvailability> {
   const lunchBreak = lunchRow.length > 0 ? (lunchRow[0].value as LunchBreakInfo) : null;
 
   return { hours, timeOff: timeOffBlocks, lunchBreak };
+}
+
+/** Returns true if the current request has a valid Supabase session. */
+export async function checkIsAuthenticated(): Promise<boolean> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  return !!user;
 }

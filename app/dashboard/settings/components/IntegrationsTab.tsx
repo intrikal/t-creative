@@ -1,20 +1,7 @@
-/**
- * Integrations tab — connect/disconnect third-party services.
- *
- * **Currently hardcoded** — displays 7 integrations grouped by category:
- * - Payments: Square
- * - Business: Zoho, QuickBooks
- * - Calendar: Google Calendar
- * - Marketing: Instagram, TikTok, Google Business
- *
- * Each integration shows a connected/disconnected badge and a toggle button.
- * When real OAuth flows are implemented, the connect/disconnect buttons will
- * call server actions to manage tokens.
- *
- * @module settings/components/IntegrationsTab
- */
 "use client";
 
+import { useState } from "react";
+import { Copy, Check } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
@@ -22,6 +9,7 @@ type IntegrationsTabProps = {
   squareConnected?: boolean;
   squareEnvironment?: string;
   squareLocationId?: string;
+  calendarUrl?: string;
 };
 
 function buildIntegrations(
@@ -54,13 +42,6 @@ function buildIntegrations(
       category: "Business",
     },
     {
-      name: "Google Calendar",
-      description: "Two-way sync with your studio calendar",
-      connected: true,
-      icon: "📅",
-      category: "Calendar",
-    },
-    {
       name: "Instagram",
       description: "Booking link in bio + story promotions",
       connected: true,
@@ -84,10 +65,82 @@ function buildIntegrations(
   ];
 }
 
+function CalendarCard({ calendarUrl }: { calendarUrl: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const webcalUrl = calendarUrl.replace(/^https?:\/\//, "webcal://");
+  const googleUrl = `https://calendar.google.com/calendar/render?cid=${encodeURIComponent(webcalUrl)}`;
+
+  function handleCopy() {
+    navigator.clipboard.writeText(calendarUrl).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  return (
+    <Card className="gap-0">
+      <CardContent className="px-5 py-4 space-y-3">
+        <div className="flex items-center gap-4">
+          <span className="text-2xl shrink-0">📅</span>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-semibold text-foreground">Calendar Sync</p>
+              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full border bg-[#4e6b51]/10 text-[#4e6b51] border-[#4e6b51]/20">
+                Active
+              </span>
+            </div>
+            <p className="text-xs text-muted mt-0.5">
+              Subscribe to your bookings feed in any calendar app
+            </p>
+          </div>
+        </div>
+
+        <div className="rounded-lg bg-surface border border-border px-3 py-2 flex items-center gap-2">
+          <code className="flex-1 text-[11px] text-muted truncate font-mono">{calendarUrl}</code>
+          <button
+            onClick={handleCopy}
+            className="shrink-0 p-1 rounded text-muted hover:text-foreground transition-colors"
+            title="Copy URL"
+          >
+            {copied ? (
+              <Check className="w-3.5 h-3.5 text-[#4e6b51]" />
+            ) : (
+              <Copy className="w-3.5 h-3.5" />
+            )}
+          </button>
+        </div>
+
+        <div className="flex gap-2 flex-wrap">
+          <a
+            href={googleUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-3 py-1.5 rounded-lg text-xs font-medium bg-accent text-white hover:bg-accent/90 transition-colors"
+          >
+            Add to Google Calendar
+          </a>
+          <a
+            href={webcalUrl}
+            className="px-3 py-1.5 rounded-lg text-xs font-medium bg-surface border border-border text-muted hover:text-foreground transition-colors"
+          >
+            Subscribe in Apple Calendar
+          </a>
+        </div>
+
+        <p className="text-[10px] text-muted">
+          Keep this URL private — anyone with it can view your upcoming bookings.
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
+
 export function IntegrationsTab({
   squareConnected = false,
   squareEnvironment,
   squareLocationId,
+  calendarUrl,
 }: IntegrationsTabProps = {}) {
   const integrations = buildIntegrations(squareConnected, squareEnvironment, squareLocationId);
   const categories = [...new Set(integrations.map((i) => i.category))];
@@ -100,6 +153,15 @@ export function IntegrationsTab({
           Connect your studio to the tools you already use
         </p>
       </div>
+
+      {calendarUrl && (
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-muted mb-2">
+            Calendar
+          </p>
+          <CalendarCard calendarUrl={calendarUrl} />
+        </div>
+      )}
 
       {categories.map((cat) => (
         <div key={cat}>

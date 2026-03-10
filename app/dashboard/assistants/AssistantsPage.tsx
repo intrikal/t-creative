@@ -5,7 +5,13 @@ import { useRouter } from "next/navigation";
 import { UserCheck, Clock, Star, Calendar, DollarSign, Plus } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import type { AssistantRow, AvailabilityRow } from "./actions";
+import type {
+  AssistantRow,
+  AvailabilityRow,
+  CommissionRow,
+  PayrollRow,
+  PayrollSummary,
+} from "./actions";
 import { createAssistant, toggleAssistantStatus } from "./actions";
 import { AddAssistantDialog, type AssistantFormData } from "./components/AddAssistantDialog";
 import { AssistantCard } from "./components/AssistantCard";
@@ -145,9 +151,15 @@ type PageTab = (typeof PAGE_TABS)[number];
 export function AssistantsPage({
   initialAssistants,
   initialAvailability,
+  commissionsData,
+  payrollRows,
+  payrollSummary,
 }: {
   initialAssistants: AssistantRow[];
   initialAvailability: AvailabilityRow[];
+  commissionsData: CommissionRow[];
+  payrollRows: PayrollRow[];
+  payrollSummary: PayrollSummary;
 }) {
   const router = useRouter();
 
@@ -291,10 +303,10 @@ export function AssistantsPage({
       )}
 
       {/* Commissions */}
-      {pageTab === "Commissions" && <CommissionsTab />}
+      {pageTab === "Commissions" && <CommissionsTab data={commissionsData} />}
 
       {/* Payroll */}
-      {pageTab === "Payroll" && <PayrollTab />}
+      {pageTab === "Payroll" && <PayrollTab rows={payrollRows} summary={payrollSummary} />}
 
       <AddAssistantDialog
         key={`assistant-${dialogOpen}`}

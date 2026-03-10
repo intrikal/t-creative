@@ -3,58 +3,23 @@
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import type { CommissionRow } from "../actions";
 
-const COMMISSION_DATA = [
-  {
-    id: 1,
-    name: "Jasmine Carter",
-    initials: "JC",
-    rate: 30,
-    sessions: 28,
-    revenue: 4900,
-    earned: 1470,
-    paidOut: 1200,
-  },
-  {
-    id: 2,
-    name: "Brianna Moss",
-    initials: "BM",
-    rate: 28,
-    sessions: 21,
-    revenue: 2100,
-    earned: 588,
-    paidOut: 500,
-  },
-  {
-    id: 3,
-    name: "Simone Owens",
-    initials: "SO",
-    rate: 25,
-    sessions: 14,
-    revenue: 1850,
-    earned: 462,
-    paidOut: 400,
-  },
-  {
-    id: 4,
-    name: "Kezia Thompson",
-    initials: "KT",
-    rate: 25,
-    sessions: 0,
-    revenue: 0,
-    earned: 0,
-    paidOut: 0,
-  },
-];
+function fmt(cents: number) {
+  return "$" + Math.round(cents / 100).toLocaleString();
+}
 
-export function CommissionsTab() {
-  const totalBalance = COMMISSION_DATA.reduce((s, c) => s + (c.earned - c.paidOut), 0);
+export function CommissionsTab({ data }: { data: CommissionRow[] }) {
+  const totalRevenue = data.reduce((s, r) => s + r.revenueInCents, 0);
+  const totalEarned = data.reduce((s, r) => s + r.earnedInCents, 0);
+  const totalPaidOut = data.reduce((s, r) => s + r.paidOutInCents, 0);
+  const totalBalance = totalEarned - totalPaidOut;
 
   return (
     <Card className="gap-0">
       <CardHeader className="pb-0 pt-4 px-4 md:px-5">
         <CardTitle className="text-sm font-semibold">Commission Tracker</CardTitle>
-        <p className="text-xs text-muted mt-0.5">Current pay period</p>
+        <p className="text-xs text-muted mt-0.5">All-time · current month balance is unpaid</p>
       </CardHeader>
       <CardContent className="px-0 pb-0 pt-3">
         <div className="overflow-x-auto">
@@ -85,8 +50,8 @@ export function CommissionsTab() {
               </tr>
             </thead>
             <tbody>
-              {COMMISSION_DATA.map((c) => {
-                const balance = c.earned - c.paidOut;
+              {data.map((c) => {
+                const balance = c.earnedInCents - c.paidOutInCents;
                 return (
                   <tr
                     key={c.id}
@@ -110,17 +75,17 @@ export function CommissionsTab() {
                     </td>
                     <td className="px-3 py-3 text-right align-middle">
                       <span className="text-sm text-foreground tabular-nums">
-                        ${c.revenue.toLocaleString()}
+                        {fmt(c.revenueInCents)}
                       </span>
                     </td>
                     <td className="px-3 py-3 text-right align-middle">
                       <span className="text-sm font-semibold text-foreground tabular-nums">
-                        ${c.earned.toLocaleString()}
+                        {fmt(c.earnedInCents)}
                       </span>
                     </td>
                     <td className="px-3 py-3 text-right align-middle hidden lg:table-cell">
                       <span className="text-sm text-muted tabular-nums">
-                        ${c.paidOut.toLocaleString()}
+                        {fmt(c.paidOutInCents)}
                       </span>
                     </td>
                     <td className="px-4 md:px-5 py-3 text-right align-middle">
@@ -130,7 +95,7 @@ export function CommissionsTab() {
                           balance > 0 ? "text-[#7a5c10]" : "text-muted",
                         )}
                       >
-                        ${balance.toLocaleString()}
+                        {fmt(balance)}
                       </span>
                     </td>
                   </tr>
@@ -146,16 +111,16 @@ export function CommissionsTab() {
                   Total
                 </td>
                 <td className="px-3 py-2.5 text-right text-sm font-semibold text-foreground tabular-nums">
-                  ${COMMISSION_DATA.reduce((s, c) => s + c.revenue, 0).toLocaleString()}
+                  {fmt(totalRevenue)}
                 </td>
                 <td className="px-3 py-2.5 text-right text-sm font-semibold text-foreground tabular-nums">
-                  ${COMMISSION_DATA.reduce((s, c) => s + c.earned, 0).toLocaleString()}
+                  {fmt(totalEarned)}
                 </td>
                 <td className="px-3 py-2.5 text-right text-sm text-muted tabular-nums hidden lg:table-cell">
-                  ${COMMISSION_DATA.reduce((s, c) => s + c.paidOut, 0).toLocaleString()}
+                  {fmt(totalPaidOut)}
                 </td>
                 <td className="px-4 md:px-5 py-2.5 text-right text-sm font-semibold text-[#7a5c10] tabular-nums">
-                  ${totalBalance.toLocaleString()}
+                  {fmt(totalBalance)}
                 </td>
               </tr>
             </tfoot>

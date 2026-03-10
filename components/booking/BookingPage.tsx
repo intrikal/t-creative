@@ -70,6 +70,7 @@
 
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import {
@@ -121,6 +122,14 @@ export function BookingPage({
   addOnsByService,
   slug,
 }: BookingPageProps) {
+  // Save ?ref=CODE to a cookie so /auth/callback can award referral points on signup.
+  useEffect(() => {
+    const ref = new URLSearchParams(window.location.search).get("ref");
+    if (ref && /^[\w-]{2,50}$/i.test(ref)) {
+      document.cookie = `referral_ref=${encodeURIComponent(ref)}; path=/; max-age=604800; SameSite=Lax`;
+    }
+  }, []);
+
   /** Smoothly scrolls to the services section when a header/sidebar CTA is clicked. */
   const scrollToServices = () => {
     document.getElementById("services")?.scrollIntoView({ behavior: "smooth" });

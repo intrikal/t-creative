@@ -170,7 +170,8 @@ export function LoyaltyPage({ data }: { data: LoyaltyPageData }) {
 
   function copyCode() {
     if (!data.referralCode) return;
-    navigator.clipboard.writeText(data.referralCode);
+    const url = `https://tcreativestudio.com/book/tcreativestudio?ref=${data.referralCode}`;
+    navigator.clipboard.writeText(url);
     setCopied(true);
     setTimeout(() => setCopied(false), 2500);
   }

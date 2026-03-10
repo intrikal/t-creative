@@ -36,6 +36,7 @@ export type AssistantRow = {
   averageRating: string | null;
   isAvailable: boolean;
   startDate: Date | null;
+  commissionRatePercent: number | null;
   totalSessions: number;
   totalRevenue: number;
   thisMonthSessions: number;
@@ -48,6 +49,7 @@ export type AssistantInput = {
   phone?: string;
   title?: string;
   specialties?: string;
+  commissionRate?: number;
 };
 
 export type AvailabilityRow = {
@@ -106,6 +108,7 @@ export async function getAssistants(): Promise<AssistantRow[]> {
       averageRating: assistantProfiles.averageRating,
       isAvailable: assistantProfiles.isAvailable,
       startDate: assistantProfiles.startDate,
+      commissionRatePercent: assistantProfiles.commissionRatePercent,
       totalSessions: allBookingStats.totalSessions,
       totalRevenue: allBookingStats.totalRevenue,
       thisMonthSessions: monthBookingStats.thisMonthSessions,
@@ -120,6 +123,7 @@ export async function getAssistants(): Promise<AssistantRow[]> {
   return rows.map((r) => ({
     ...r,
     isAvailable: r.isAvailable ?? true,
+    commissionRatePercent: r.commissionRatePercent ?? null,
     totalSessions: Number(r.totalSessions ?? 0),
     totalRevenue: Number(r.totalRevenue ?? 0),
     thisMonthSessions: Number(r.thisMonthSessions ?? 0),
@@ -175,6 +179,7 @@ export async function createAssistant(input: AssistantInput): Promise<void> {
     profileId: id,
     title: input.title ?? null,
     specialties: input.specialties ?? null,
+    commissionRatePercent: input.commissionRate ?? null,
     isAvailable: true,
     startDate: new Date(),
   });
@@ -208,6 +213,9 @@ export async function updateAssistant(id: string, input: AssistantInput): Promis
       .set({
         title: input.title ?? null,
         specialties: input.specialties ?? null,
+        ...(input.commissionRate !== undefined && {
+          commissionRatePercent: input.commissionRate,
+        }),
       })
       .where(eq(assistantProfiles.profileId, id));
   } else {
@@ -215,6 +223,7 @@ export async function updateAssistant(id: string, input: AssistantInput): Promis
       profileId: id,
       title: input.title ?? null,
       specialties: input.specialties ?? null,
+      commissionRatePercent: input.commissionRate ?? null,
     });
   }
 
@@ -247,6 +256,30 @@ export async function toggleAssistantStatus(
       .update(assistantProfiles)
       .set({ isAvailable: true })
       .where(eq(assistantProfiles.profileId, id));
+  }
+
+  revalidatePath("/dashboard/assistants");
+}
+
+export async function updateCommissionRate(id: string, rate: number): Promise<void> {
+  await getUser();
+
+  const existing = await db
+    .select({ profileId: assistantProfiles.profileId })
+    .from(assistantProfiles)
+    .where(eq(assistantProfiles.profileId, id))
+    .limit(1);
+
+  if (existing.length > 0) {
+    await db
+      .update(assistantProfiles)
+      .set({ commissionRatePercent: rate })
+      .where(eq(assistantProfiles.profileId, id));
+  } else {
+    await db.insert(assistantProfiles).values({
+      profileId: id,
+      commissionRatePercent: rate,
+    });
   }
 
   revalidatePath("/dashboard/assistants");

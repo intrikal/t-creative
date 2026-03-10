@@ -14,7 +14,11 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { X, CalendarDays, Sparkles, Send, ChevronLeft, Clock } from "lucide-react";
-import { getStudioAvailability, type StudioAvailability } from "@/app/dashboard/book/actions";
+import {
+  getStudioAvailability,
+  checkIsAuthenticated,
+  type StudioAvailability,
+} from "@/app/dashboard/book/actions";
 import { createBookingRequest } from "@/app/dashboard/messages/actions";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
@@ -110,17 +114,24 @@ export function BookingRequestDialog({
 }) {
   const [step, setStep] = useState<Step>("date");
   const [availability, setAvailability] = useState<StudioAvailability | null>(null);
+  const [isGuest, setIsGuest] = useState<boolean | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>();
   const [selectedTime, setSelectedTime] = useState("");
   const [notes, setNotes] = useState("");
+  const [guestName, setGuestName] = useState("");
+  const [guestEmail, setGuestEmail] = useState("");
+  const [guestPhone, setGuestPhone] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState("");
 
-  // Fetch availability on open
+  // Fetch availability + auth status on open
   useEffect(() => {
     if (!open) return;
-    getStudioAvailability().then(setAvailability);
+    Promise.all([getStudioAvailability(), checkIsAuthenticated()]).then(([avail, authed]) => {
+      setAvailability(avail);
+      setIsGuest(!authed);
+    });
   }, [open]);
 
   // Compute which dates to disable on the calendar
@@ -182,25 +193,42 @@ export function BookingRequestDialog({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (submitting || !selectedDate) return;
+
+    if (isGuest && (!guestName.trim() || !guestEmail.trim())) {
+      setError("Please enter your name and email.");
+      return;
+    }
+
     setSubmitting(true);
     setError("");
 
     const preferredDates = `${fmtDateLabel(selectedDate)} at ${fmt12(selectedTime)}`;
 
     try {
-      await createBookingRequest({
-        serviceId: service.id,
-        message: notes.trim() || `I'd like to book ${service.name} on ${preferredDates}.`,
-        preferredDates,
-      });
+      if (isGuest) {
+        const res = await fetch("/api/book/guest-request", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: guestName.trim(),
+            email: guestEmail.trim(),
+            phone: guestPhone.trim(),
+            serviceId: service.id,
+            preferredDate: preferredDates,
+            notes: notes.trim(),
+          }),
+        });
+        if (!res.ok) throw new Error("Failed to send request");
+      } else {
+        await createBookingRequest({
+          serviceId: service.id,
+          message: notes.trim() || `I'd like to book ${service.name} on ${preferredDates}.`,
+          preferredDates,
+        });
+      }
       setSubmitted(true);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Something went wrong";
-      if (msg.includes("Not authenticated")) {
-        setError("Please sign in to request a booking.");
-      } else {
-        setError(msg);
-      }
+      setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setSubmitting(false);
     }
@@ -212,6 +240,9 @@ export function BookingRequestDialog({
     setSelectedDate(undefined);
     setSelectedTime("");
     setNotes("");
+    setGuestName("");
+    setGuestEmail("");
+    setGuestPhone("");
     setError("");
     onClose();
   }
@@ -401,6 +432,36 @@ export function BookingRequestDialog({
                     A {formatPrice(service.depositInCents)} deposit is required to confirm this
                     booking.
                   </p>
+                )}
+
+                {/* Guest contact fields */}
+                {isGuest && (
+                  <div className="space-y-2.5">
+                    <p className="text-xs font-medium text-stone-600">Your contact info</p>
+                    <input
+                      type="text"
+                      placeholder="Full name *"
+                      value={guestName}
+                      onChange={(e) => setGuestName(e.target.value)}
+                      required
+                      className="w-full px-3.5 py-2.5 text-sm bg-white border border-stone-200 rounded-xl text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-rose-200 focus:border-rose-300 transition"
+                    />
+                    <input
+                      type="email"
+                      placeholder="Email address *"
+                      value={guestEmail}
+                      onChange={(e) => setGuestEmail(e.target.value)}
+                      required
+                      className="w-full px-3.5 py-2.5 text-sm bg-white border border-stone-200 rounded-xl text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-rose-200 focus:border-rose-300 transition"
+                    />
+                    <input
+                      type="tel"
+                      placeholder="Phone (optional)"
+                      value={guestPhone}
+                      onChange={(e) => setGuestPhone(e.target.value)}
+                      className="w-full px-3.5 py-2.5 text-sm bg-white border border-stone-200 rounded-xl text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-rose-200 focus:border-rose-300 transition"
+                    />
+                  </div>
                 )}
 
                 {/* Notes */}

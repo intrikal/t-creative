@@ -1,6 +1,6 @@
 "use client";
 
-import { Pencil, Trash2, Star, Heart, FileText } from "lucide-react";
+import { Pencil, Trash2, Star, Heart, FileText, Users } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -112,12 +112,24 @@ export function ClientCard({
         ))}
       </div>
 
-      {/* Referred by */}
-      {client.source === "referral" && client.referredBy && (
-        <p className="text-[10px] text-muted -mt-1">
-          Referred by <span className="font-medium text-foreground">{client.referredBy}</span>
-        </p>
-      )}
+      {/* Referred by / referral count */}
+      {(client.source === "referral" && client.referredBy) || client.referralCount > 0 ? (
+        <div className="flex items-center justify-between -mt-1">
+          {client.source === "referral" && client.referredBy ? (
+            <p className="text-[10px] text-muted">
+              Referred by <span className="font-medium text-foreground">{client.referredBy}</span>
+            </p>
+          ) : (
+            <span />
+          )}
+          {client.referralCount > 0 && (
+            <span className="inline-flex items-center gap-1 text-[10px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-full px-1.5 py-0.5">
+              <Users className="w-2.5 h-2.5" />
+              {client.referralCount} referred
+            </span>
+          )}
+        </div>
+      ) : null}
 
       {/* Stats */}
       <div className="grid grid-cols-3 gap-0 pt-2.5 border-t border-border/50">

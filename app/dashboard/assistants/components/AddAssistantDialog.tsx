@@ -14,6 +14,7 @@ export interface AssistantFormData {
   specialties: string;
   shifts: string;
   certifications: string;
+  commissionRate: number;
 }
 
 export function AddAssistantDialog({
@@ -34,6 +35,7 @@ export function AddAssistantDialog({
   const [specialties, setSpecialties] = useState("");
   const [shifts, setShifts] = useState("");
   const [certs, setCerts] = useState("");
+  const [commissionRate, setCommissionRate] = useState("60");
 
   return (
     <Dialog open={open} onClose={onClose} title="Add Assistant" size="lg">
@@ -103,6 +105,19 @@ export function AddAssistantDialog({
             placeholder="Volume Lashes Pro, Lash Lift Certified"
           />
         </Field>
+        <Field
+          label="Commission rate (%)"
+          hint="Percentage of booking revenue paid to this assistant"
+        >
+          <Input
+            type="number"
+            min="0"
+            max="100"
+            value={commissionRate}
+            onChange={(e) => setCommissionRate(e.target.value)}
+            placeholder="60"
+          />
+        </Field>
         <DialogFooter
           onCancel={onClose}
           onConfirm={() => {
@@ -117,6 +132,7 @@ export function AddAssistantDialog({
               specialties: specialties.trim(),
               shifts: shifts.trim(),
               certifications: certs.trim(),
+              commissionRate: Math.min(100, Math.max(0, Number(commissionRate) || 60)),
             });
             onClose();
           }}

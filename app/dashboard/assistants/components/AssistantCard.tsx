@@ -1,7 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { Star, Clock, ChevronDown, ChevronUp, Phone, Mail, Award } from "lucide-react";
+import {
+  Star,
+  Clock,
+  ChevronDown,
+  ChevronUp,
+  Phone,
+  Mail,
+  Award,
+  Pencil,
+  Check,
+  X,
+} from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -18,11 +29,15 @@ import {
 export function AssistantCard({
   assistant,
   onToggleStatus,
+  onUpdateCommissionRate,
 }: {
   assistant: Assistant;
   onToggleStatus: (id: string, status: AssistantStatus) => void;
+  onUpdateCommissionRate: (id: string, rate: number) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [editingRate, setEditingRate] = useState(false);
+  const [rateInput, setRateInput] = useState(String(assistant.commissionRate ?? 60));
   const status = statusConfig(assistant.status);
 
   const nextStatus: AssistantStatus =
@@ -113,6 +128,61 @@ export function AssistantCard({
               <Mail className="w-3.5 h-3.5 text-muted shrink-0" />
               {assistant.email}
             </div>
+          </div>
+
+          {/* Commission rate */}
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted mb-2">
+              Commission Rate
+            </p>
+            {editingRate ? (
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1">
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={rateInput}
+                    onChange={(e) => setRateInput(e.target.value)}
+                    className="w-16 text-sm text-foreground bg-surface border border-border rounded-md px-2 py-1 tabular-nums focus:outline-none focus:ring-1 focus:ring-accent"
+                    autoFocus
+                  />
+                  <span className="text-sm text-muted">%</span>
+                </div>
+                <button
+                  onClick={() => {
+                    const rate = Math.min(100, Math.max(0, Number(rateInput) || 60));
+                    onUpdateCommissionRate(assistant.id, rate);
+                    setRateInput(String(rate));
+                    setEditingRate(false);
+                  }}
+                  className="p-1 rounded text-[#4e6b51] hover:bg-[#4e6b51]/10 transition-colors"
+                >
+                  <Check className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={() => {
+                    setRateInput(String(assistant.commissionRate ?? 60));
+                    setEditingRate(false);
+                  }}
+                  className="p-1 rounded text-muted hover:bg-foreground/5 transition-colors"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-semibold text-foreground tabular-nums">
+                  {assistant.commissionRate ?? 60}%
+                </span>
+                <button
+                  onClick={() => setEditingRate(true)}
+                  className="p-1 rounded text-muted hover:text-foreground hover:bg-foreground/5 transition-colors"
+                >
+                  <Pencil className="w-3 h-3" />
+                </button>
+              </div>
+            )}
           </div>
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-wide text-muted mb-2">

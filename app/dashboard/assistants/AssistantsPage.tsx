@@ -12,7 +12,7 @@ import type {
   PayrollRow,
   PayrollSummary,
 } from "./actions";
-import { createAssistant, toggleAssistantStatus } from "./actions";
+import { createAssistant, toggleAssistantStatus, updateCommissionRate } from "./actions";
 import { AddAssistantDialog, type AssistantFormData } from "./components/AddAssistantDialog";
 import { AssistantCard } from "./components/AssistantCard";
 import { AvailabilityTab } from "./components/AvailabilityTab";
@@ -54,6 +54,7 @@ export interface Assistant {
   totalRevenue: number;
   avgRating: number;
   thisMonthSessions: number;
+  commissionRate: number | null;
   certifications: string[];
   recentSessions: Session[];
 }
@@ -132,6 +133,7 @@ function mapAssistantRow(r: AssistantRow): Assistant {
     totalRevenue: Math.round(r.totalRevenue / 100),
     avgRating: r.averageRating ? parseFloat(r.averageRating) : 0,
     thisMonthSessions: r.thisMonthSessions,
+    commissionRate: r.commissionRatePercent,
     certifications: [],
     recentSessions: [],
   };
@@ -223,6 +225,7 @@ export function AssistantsPage({
       phone: data.phone || undefined,
       title: data.role,
       specialties: data.specialties || undefined,
+      commissionRate: data.commissionRate,
     });
     router.refresh();
   };
@@ -230,6 +233,11 @@ export function AssistantsPage({
   const handleToggleStatus = async (id: string, status: AssistantStatus) => {
     await toggleAssistantStatus(id, status);
     setAssistants((prev) => prev.map((a) => (a.id === id ? { ...a, status } : a)));
+  };
+
+  const handleUpdateCommissionRate = async (id: string, rate: number) => {
+    await updateCommissionRate(id, rate);
+    setAssistants((prev) => prev.map((a) => (a.id === id ? { ...a, commissionRate: rate } : a)));
   };
 
   return (
@@ -292,7 +300,12 @@ export function AssistantsPage({
       {pageTab === "Roster" && (
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
           {assistants.map((a) => (
-            <AssistantCard key={a.id} assistant={a} onToggleStatus={handleToggleStatus} />
+            <AssistantCard
+              key={a.id}
+              assistant={a}
+              onToggleStatus={handleToggleStatus}
+              onUpdateCommissionRate={handleUpdateCommissionRate}
+            />
           ))}
         </div>
       )}

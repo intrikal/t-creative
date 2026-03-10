@@ -41,6 +41,7 @@
  * form entirely. Zod schemas (onboardingSchema / assistantOnboardingSchema) verify
  * the shape and types before anything touches the database.
  */
+import { cookies } from "next/headers";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { profiles, loyaltyTransactions } from "@/db/schema";
@@ -563,12 +564,19 @@ export async function saveOnboardingData(
       .join(", ");
 
     // Look up the referrer's profile ID by their referral code.
+    // Primary source: code typed into the onboarding form.
+    // Fallback: ?ref=CODE cookie set when the user visited the booking page via a referral link.
     let referredBy: string | null = null;
-    if (referral.referrerCode?.trim()) {
+    const cookieStore = await cookies();
+    const codeToLookup =
+      referral.referrerCode?.trim() || cookieStore.get("referral_ref")?.value?.trim() || "";
+    // Clear the cookie now that we've read it — prevents double-award on re-submit.
+    cookieStore.delete("referral_ref");
+    if (codeToLookup) {
       const [referrer] = await db
         .select({ id: profiles.id })
         .from(profiles)
-        .where(eq(profiles.referralCode, referral.referrerCode.trim().toUpperCase()))
+        .where(eq(profiles.referralCode, codeToLookup.toUpperCase()))
         .limit(1);
       if (referrer) referredBy = referrer.id;
     }

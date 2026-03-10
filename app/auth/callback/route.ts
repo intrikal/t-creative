@@ -28,91 +28,15 @@
  * include the login URL with an `invite=<jwt>` parameter. The LoginPage threads
  * that token through the OAuth redirect so it arrives here after sign-in.
  */
-import React from "react";
-import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
-import { profiles, loyaltyTransactions } from "@/db/schema";
-import { ReferralBonus } from "@/emails/ReferralBonus";
+import { profiles } from "@/db/schema";
 import { isOnboardingComplete } from "@/lib/auth";
 import { verifyInviteToken } from "@/lib/invite";
 import { identifyUser, trackEvent } from "@/lib/posthog";
-import { sendEmail, getEmailRecipient, isResendConfigured } from "@/lib/resend";
 import { upsertZohoContact } from "@/lib/zoho";
 import { createClient } from "@/utils/supabase/server";
-
-const REFERRAL_REFERRER_POINTS = 100;
-const REFERRAL_REFEREE_POINTS = 50;
-
-/**
- * Award referral points to both the referrer and the new client (referee).
- * Fire-and-forget — errors are caught internally so they never block the redirect.
- */
-async function awardReferralBonus(
-  newClientId: string,
-  newClientFirstName: string,
-  refCode: string,
-): Promise<void> {
-  try {
-    const [referrer] = await db
-      .select({
-        id: profiles.id,
-        firstName: profiles.firstName,
-        referralCode: profiles.referralCode,
-      })
-      .from(profiles)
-      .where(eq(profiles.referralCode, refCode))
-      .limit(1);
-
-    // Guard: referrer must exist and must not be the same person signing up
-    if (!referrer || referrer.id === newClientId) return;
-
-    await Promise.all([
-      // Points for the referrer
-      db.insert(loyaltyTransactions).values({
-        profileId: referrer.id,
-        points: REFERRAL_REFERRER_POINTS,
-        type: "referral_referrer",
-        description: `Referred ${newClientFirstName || "a friend"} — welcome bonus`,
-        referenceId: newClientId,
-      }),
-      // Points for the new client (referee)
-      db.insert(loyaltyTransactions).values({
-        profileId: newClientId,
-        points: REFERRAL_REFEREE_POINTS,
-        type: "referral_referee",
-        description: `Joined via ${referrer.firstName}'s referral link`,
-        referenceId: referrer.id,
-      }),
-      // Record the referral on the new client's profile
-      db
-        .update(profiles)
-        .set({ referredBy: referrer.id, source: "referral" })
-        .where(eq(profiles.id, newClientId)),
-    ]);
-
-    // Send a "you earned a referral bonus!" email to the referrer (non-blocking)
-    if (isResendConfigured()) {
-      const recipient = await getEmailRecipient(referrer.id);
-      if (recipient) {
-        void sendEmail({
-          to: recipient.email,
-          subject: `You earned ${REFERRAL_REFERRER_POINTS} points — referral bonus!`,
-          react: React.createElement(ReferralBonus, {
-            referrerName: referrer.firstName,
-            refereeName: newClientFirstName || "a friend",
-            pointsEarned: REFERRAL_REFERRER_POINTS,
-          }),
-          entityType: "referral_bonus",
-          localId: newClientId,
-        });
-      }
-    }
-  } catch (err) {
-    console.error("[referral] awardReferralBonus failed:", err);
-  }
-}
 
 /**
  * Known admin email addresses. Add Trini's email here when she joins.
@@ -271,13 +195,6 @@ export async function GET(request: Request) {
     });
   }
 
-  // Referral award — new clients only; fire-and-forget so it never blocks the redirect
-  const cookieStore = await cookies();
-  const refCode = cookieStore.get("referral_ref")?.value?.trim() ?? null;
-  if (isNewUser && effectiveRole === "client" && refCode && profile) {
-    void awardReferralBonus(user.id, profile.firstName, refCode);
-  }
-
   // Admins need minimal onboarding (just name) before accessing the dashboard
   if (assignedAdmin || profile?.role === "admin") {
     if (!isOnboardingComplete(profile ?? null)) {
@@ -302,9 +219,7 @@ export async function GET(request: Request) {
    */
   if (!isOnboardingComplete(profile ?? null)) {
     const role = assignedAssistant || profile?.role === "assistant" ? "assistant" : "client";
-    const res = NextResponse.redirect(`${origin}/onboarding?role=${role}`);
-    if (refCode) res.cookies.delete("referral_ref");
-    return res;
+    return NextResponse.redirect(`${origin}/onboarding?role=${role}`);
   }
 
   // Route each role to their home base after sign-in

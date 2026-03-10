@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { getCurrentUser } from "@/lib/auth";
+import { calendarUrl } from "@/lib/calendar-token";
 import { getAssistantSettings } from "./assistant-settings-actions";
 import { AssistantSettingsPage } from "./AssistantSettingsPage";
 import { getClientSettings } from "./client-settings-actions";
@@ -77,6 +78,7 @@ export default async function Page() {
       initialBookingRules={initialBookingRules}
       initialReminders={initialReminders}
       squareStatus={squareStatus}
+      calendarUrl={calendarUrl(user.id)}
     />
   );
 }

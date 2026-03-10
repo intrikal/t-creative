@@ -86,6 +86,7 @@ export function SettingsPage({
   initialBookingRules,
   initialReminders,
   squareStatus,
+  calendarUrl,
 }: {
   initialHours: BusinessHourRow[];
   initialTimeOff: TimeOffRow[];
@@ -98,6 +99,7 @@ export function SettingsPage({
   initialBookingRules: BookingRulesConfig;
   initialReminders: RemindersConfig;
   squareStatus: SquareConnectionStatus;
+  calendarUrl?: string;
 }) {
   const [tab, setTab] = useState<Tab>("business");
 
@@ -120,6 +122,7 @@ export function SettingsPage({
         squareConnected={squareStatus.connected}
         squareEnvironment={squareStatus.environment}
         squareLocationId={squareStatus.locationId}
+        calendarUrl={calendarUrl}
       />
     ),
     notifications: <NotificationsTab initial={initialNotifications} />,

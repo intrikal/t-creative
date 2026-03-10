@@ -32,6 +32,7 @@ import { Badge } from "@/components/ui/badge";
 import { BookingRequestDialog } from "../BookingRequestDialog";
 import { formatPrice } from "../helpers";
 import type { Service, ServiceAddOn } from "../types";
+import { WaitlistDialog } from "../WaitlistDialog";
 
 /**
  * ServiceCard — displays a single bookable service with add-ons and CTA buttons.
@@ -53,6 +54,7 @@ export function ServiceCard({
   isPopular: boolean;
 }) {
   const [showRequest, setShowRequest] = useState(false);
+  const [showWaitlist, setShowWaitlist] = useState(false);
 
   return (
     <div
@@ -122,18 +124,33 @@ export function ServiceCard({
         </div>
       )}
 
-      {/* Book CTA */}
-      <button
-        onClick={() => setShowRequest(true)}
-        className="w-full rounded-xl bg-stone-900 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-rose-500 active:scale-[0.98]"
-      >
-        Book this service
-      </button>
+      {/* CTAs */}
+      <div className="flex gap-2">
+        <button
+          onClick={() => setShowRequest(true)}
+          className="flex-1 rounded-xl bg-stone-900 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-rose-500 active:scale-[0.98]"
+        >
+          Book this service
+        </button>
+        <button
+          onClick={() => setShowWaitlist(true)}
+          className="rounded-xl border border-stone-200 px-3.5 py-2.5 text-xs font-medium text-stone-500 transition-colors hover:border-amber-300 hover:text-amber-600 hover:bg-amber-50 active:scale-[0.98]"
+          title="Join waitlist"
+        >
+          Waitlist
+        </button>
+      </div>
 
       <BookingRequestDialog
         service={service}
         open={showRequest}
         onClose={() => setShowRequest(false)}
+      />
+
+      <WaitlistDialog
+        service={service}
+        open={showWaitlist}
+        onClose={() => setShowWaitlist(false)}
       />
     </div>
   );

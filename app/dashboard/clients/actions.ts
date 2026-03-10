@@ -50,6 +50,7 @@ export type ClientRow = {
   internalNotes: string | null;
   tags: string | null;
   referredByName: string | null;
+  referralCount: number;
   createdAt: Date;
   totalBookings: number;
   totalSpent: number;
@@ -108,6 +109,17 @@ export async function getClients(): Promise<ClientRow[]> {
     .groupBy(loyaltyTransactions.profileId)
     .as("loyalty_stats");
 
+  // Subquery: count how many clients each person has referred
+  const referee = alias(profiles, "referee");
+  const referralStats = db
+    .select({
+      referrerId: referee.referredBy,
+      referralCount: sql<number>`count(*)::int`.as("referral_count"),
+    })
+    .from(referee)
+    .groupBy(referee.referredBy)
+    .as("referral_stats");
+
   const rows = await db
     .select({
       id: profiles.id,
@@ -121,6 +133,7 @@ export async function getClients(): Promise<ClientRow[]> {
       internalNotes: profiles.internalNotes,
       tags: profiles.tags,
       referredByName: referrer.firstName,
+      referralCount: referralStats.referralCount,
       createdAt: profiles.createdAt,
       totalBookings: bookingStats.totalBookings,
       totalSpent: bookingStats.totalSpent,
@@ -132,6 +145,7 @@ export async function getClients(): Promise<ClientRow[]> {
     .leftJoin(referrer, eq(profiles.referredBy, referrer.id))
     .leftJoin(bookingStats, eq(profiles.id, bookingStats.clientId))
     .leftJoin(loyaltyStats, eq(profiles.id, loyaltyStats.profileId))
+    .leftJoin(referralStats, eq(profiles.id, referralStats.referrerId))
     .orderBy(desc(profiles.createdAt));
 
   return rows.map((r) => ({
@@ -140,6 +154,7 @@ export async function getClients(): Promise<ClientRow[]> {
     totalBookings: Number(r.totalBookings ?? 0),
     totalSpent: Number(r.totalSpent ?? 0),
     loyaltyPoints: Number(r.loyaltyPoints ?? 0),
+    referralCount: Number(r.referralCount ?? 0),
   }));
 }
 

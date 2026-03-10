@@ -47,6 +47,7 @@ export interface Client {
   lastVisit: string;
   notes?: string;
   referredBy?: string;
+  referralCount: number;
   tags?: string;
 }
 
@@ -209,6 +210,7 @@ function mapClientRow(r: ClientRow): Client {
       : "—",
     notes: r.internalNotes ?? undefined,
     referredBy: r.referredByName ?? undefined,
+    referralCount: r.referralCount,
     tags: r.tags ?? undefined,
   };
 }

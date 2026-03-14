@@ -20,6 +20,7 @@
  * Server Component — all sections are client components imported here.
  */
 
+import { ChatWidgetLoader } from "@/components/chat/ChatWidgetLoader";
 import { CallToAction } from "@/components/landing/CallToAction";
 import { EditorialPortfolio } from "@/components/landing/EditorialPortfolio";
 import { Events } from "@/components/landing/Events";
@@ -56,6 +57,7 @@ export default function Home() {
 
       {/* Sticky mobile booking CTA */}
       <StickyMobileCTA />
+      <ChatWidgetLoader />
     </main>
   );
 }

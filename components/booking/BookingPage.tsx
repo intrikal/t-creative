@@ -79,7 +79,6 @@ import {
   LuClock,
   LuCamera,
   LuShieldCheck,
-  LuMessageCircle,
   LuCalendarCheck,
   LuGift,
   LuSparkles,
@@ -88,7 +87,7 @@ import {
   LuInfo,
 } from "react-icons/lu";
 import { SiTiktok, SiFacebook } from "react-icons/si";
-import { fadeUp, stagger } from "@/components/onboarding/panels/shared";
+import { ChatWidget } from "@/components/chat/ChatWidget";
 import { TCLogo } from "@/components/TCLogo";
 import {
   Accordion,
@@ -96,16 +95,16 @@ import {
   AccordionTrigger,
   AccordionContent,
 } from "@/components/ui/accordion";
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { ContactForm } from "./components/ContactForm";
 import { CopyLinkButton } from "./components/CopyLinkButton";
 import { ReviewCard } from "./components/ReviewCard";
 import { SectionHeading } from "./components/SectionHeading";
 import { ServiceCard } from "./components/ServiceCard";
 import { CATEGORIES, CATEGORY_META, HOW_IT_WORKS } from "./constants";
-import { formatPrice, getInitials, formatLocationType, formatTime } from "./helpers";
+import { formatPrice, formatLocationType, formatTime } from "./helpers";
 import type { BookingPageProps } from "./types";
 
 /**
@@ -160,10 +159,32 @@ export function BookingPage({
     .join(" · ");
 
   // Build social links array, filtering out platforms with no handle configured.
+  // All four instagram slots are included so studios with multiple accounts show them all.
   const socialLinks = [
     {
       key: "instagram",
       handle: studio.socials.instagram,
+      icon: LuInstagram,
+      color: "#E1306C",
+      href: (h: string) => `https://instagram.com/${h.replace("@", "")}`,
+    },
+    {
+      key: "instagram2",
+      handle: studio.socials.instagram2,
+      icon: LuInstagram,
+      color: "#E1306C",
+      href: (h: string) => `https://instagram.com/${h.replace("@", "")}`,
+    },
+    {
+      key: "instagram3",
+      handle: studio.socials.instagram3,
+      icon: LuInstagram,
+      color: "#E1306C",
+      href: (h: string) => `https://instagram.com/${h.replace("@", "")}`,
+    },
+    {
+      key: "instagram4",
+      handle: studio.socials.instagram4,
       icon: LuInstagram,
       color: "#E1306C",
       href: (h: string) => `https://instagram.com/${h.replace("@", "")}`,
@@ -197,9 +218,9 @@ export function BookingPage({
           : null;
 
   return (
-    <div className="min-h-screen bg-[#FAFAF8] text-stone-900">
+    <div className="min-h-screen bg-[#faf6f1] text-stone-900">
       {/* ── Mobile-only sticky header ── */}
-      <header className="sticky top-0 z-50 border-b border-stone-200 bg-white/95 backdrop-blur-md lg:hidden">
+      <header className="sticky top-0 z-50 border-b border-[#e8c4b8]/50 bg-[#faf6f1]/95 backdrop-blur-md lg:hidden">
         <div className="flex items-center justify-between px-5 py-3">
           <div className="flex items-center gap-2 text-stone-700">
             <TCLogo size={20} />
@@ -207,7 +228,7 @@ export function BookingPage({
           </div>
           <button
             onClick={scrollToServices}
-            className="rounded-full bg-rose-500 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-rose-600 active:scale-95"
+            className="rounded-full bg-[#96604a] px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#7a4e3a] active:scale-95"
           >
             Book a session
           </button>
@@ -218,21 +239,14 @@ export function BookingPage({
       <div className="mx-auto max-w-5xl px-5 lg:flex lg:items-start lg:gap-10 lg:py-12">
         {/* ── Desktop sticky sidebar ── */}
         <aside className="hidden lg:block lg:w-60 lg:shrink-0 xl:w-64">
-          <div className="sticky top-8 overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-stone-100">
-            <div className="h-2 bg-gradient-to-r from-rose-400 via-amber-300 to-violet-400" />
+          <div className="sticky top-8 overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-[#e8c4b8]/40">
+            <div className="h-1.5 bg-[#96604a]" />
 
             <div className="p-6">
-              <div className="mb-5 flex justify-center">
-                <TCLogo size={32} className="text-stone-700" />
-              </div>
-
               <div className="mb-4 flex justify-center">
-                <Avatar className="h-20 w-20 ring-4 ring-rose-50 shadow-sm">
-                  <AvatarImage src={studio.avatarUrl ?? undefined} alt={studio.name} />
-                  <AvatarFallback className="bg-rose-100 text-xl font-semibold text-rose-400">
-                    {getInitials(studio.name)}
-                  </AvatarFallback>
-                </Avatar>
+                <div className="flex h-20 w-20 items-center justify-center rounded-full bg-[#faf6f1] shadow-sm ring-4 ring-[#e8c4b8]/50">
+                  <TCLogo size={44} className="text-[#96604a]" />
+                </div>
               </div>
 
               <div className="mb-3 text-center">
@@ -242,14 +256,14 @@ export function BookingPage({
                 )}
                 {locationLabel && (
                   <p className="mt-2 inline-flex items-center gap-1 text-xs text-stone-400">
-                    <LuMapPin className="h-3 w-3 text-rose-400" />
+                    <LuMapPin className="h-3 w-3 text-[#96604a]" />
                     {locationLabel}
                   </p>
                 )}
               </div>
 
               <div className="mb-4 flex justify-center">
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-3 py-1 text-[11px] font-medium text-rose-500 ring-1 ring-rose-100">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-[#faf6f1] px-3 py-1 text-[11px] font-medium text-[#96604a] ring-1 ring-[#e8c4b8]">
                   <LuCalendar className="h-3 w-3" />
                   Now booking {nowBookingMonth}
                 </span>
@@ -311,7 +325,7 @@ export function BookingPage({
 
               <button
                 onClick={scrollToServices}
-                className="w-full rounded-xl bg-rose-500 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-rose-600 active:scale-[0.98]"
+                className="w-full rounded-xl bg-[#96604a] py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#7a4e3a] active:scale-[0.98]"
               >
                 Book a session
               </button>
@@ -322,111 +336,112 @@ export function BookingPage({
         {/* ── Main content ── */}
         <main className="min-w-0 flex-1 pb-24">
           {/* ── Mobile hero (lg:hidden) ── */}
-          <motion.section
-            variants={stagger}
-            initial="hidden"
-            animate="show"
-            className="bg-gradient-to-b from-rose-50/80 via-amber-50/30 to-transparent pb-8 pt-10 text-center lg:hidden"
-          >
-            <motion.div variants={fadeUp} className="mb-4 flex justify-center">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white shadow-md ring-1 ring-stone-100">
-                <TCLogo size={30} className="text-stone-800" />
+          <section className="pt-6 pb-4 lg:hidden">
+            <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-[#e8c4b8]/40">
+              <div className="h-1.5 bg-[#96604a]" />
+              <div className="p-6 text-center">
+                <div className="mb-4 flex justify-center">
+                  <div className="flex h-20 w-20 items-center justify-center rounded-full bg-[#faf6f1] shadow-sm ring-4 ring-[#e8c4b8]/50">
+                    <TCLogo size={44} className="text-[#96604a]" />
+                  </div>
+                </div>
+
+                <h1 className="font-display mb-2 text-2xl font-light tracking-wide text-stone-900">
+                  {studio.name}
+                </h1>
+
+                <div className="mb-3 flex justify-center">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-[#faf6f1] px-3 py-1 text-xs font-medium text-[#96604a] ring-1 ring-[#e8c4b8]">
+                    <LuCalendar className="h-3 w-3" />
+                    Now booking {nowBookingMonth}
+                  </span>
+                </div>
+
+                {studio.bio && (
+                  <p className="mx-auto mb-4 max-w-xs text-sm leading-relaxed text-stone-500">
+                    {studio.bio}
+                  </p>
+                )}
+
+                <div className="mb-4 flex flex-wrap justify-center gap-2">
+                  {locationLabel && (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-[#faf6f1] px-3 py-1 text-xs text-stone-500 ring-1 ring-[#e8c4b8]/60">
+                      <LuMapPin className="h-3 w-3 text-[#96604a]" />
+                      {locationLabel}
+                    </span>
+                  )}
+                  {hoursLabel && (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-[#faf6f1] px-3 py-1 text-xs text-stone-500 ring-1 ring-[#e8c4b8]/60">
+                      <LuClock className="h-3 w-3 text-stone-400" />
+                      {hoursLabel}
+                    </span>
+                  )}
+                </div>
+
+                {reviewStats.count > 0 && (
+                  <>
+                    <Separator className="mb-4" />
+                    <div className="mb-4 flex items-center justify-center gap-6">
+                      <div className="text-center">
+                        <p className="text-base font-semibold text-stone-900">
+                          {reviewStats.count}+
+                        </p>
+                        <p className="text-[10px] text-stone-400">clients</p>
+                      </div>
+                      <div className="h-5 w-px bg-stone-200" />
+                      <div className="text-center">
+                        <p className="text-base font-semibold text-stone-900">{reviewStats.avg}★</p>
+                        <p className="text-[10px] text-stone-400">rating</p>
+                      </div>
+                      <div className="h-5 w-px bg-stone-200" />
+                      <div className="text-center">
+                        <p className="text-base font-semibold text-stone-900">4</p>
+                        <p className="text-[10px] text-stone-400">services</p>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {socialLinks.length > 0 && (
+                  <>
+                    <Separator className="mb-4" />
+                    <div className="mb-4 flex flex-col gap-2">
+                      {socialLinks.map(({ key, handle, icon: Icon, color, href }) => (
+                        <a
+                          key={key}
+                          href={href(handle)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs text-stone-500 transition-colors hover:bg-stone-50 hover:text-stone-800"
+                        >
+                          <Icon style={{ color }} className="h-3.5 w-3.5 shrink-0" />
+                          <span className="truncate">
+                            {handle.startsWith("@") ? handle : `@${handle}`}
+                          </span>
+                        </a>
+                      ))}
+                    </div>
+                  </>
+                )}
+
+                <Separator className="mb-4" />
+
+                <button
+                  onClick={scrollToServices}
+                  className="w-full rounded-xl bg-[#96604a] py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#7a4e3a] active:scale-[0.98]"
+                >
+                  Book a session
+                </button>
               </div>
-            </motion.div>
-
-            <motion.div variants={fadeUp} className="mb-4 flex justify-center">
-              <Avatar className="h-24 w-24 shadow-lg ring-4 ring-white">
-                <AvatarImage src={studio.avatarUrl ?? undefined} alt={studio.name} />
-                <AvatarFallback className="bg-rose-100 text-2xl font-semibold text-rose-400">
-                  {getInitials(studio.name)}
-                </AvatarFallback>
-              </Avatar>
-            </motion.div>
-
-            <motion.h1
-              variants={fadeUp}
-              className="font-display mb-1 text-3xl font-light tracking-wide text-stone-900"
-            >
-              {studio.name}
-            </motion.h1>
-
-            <motion.div variants={fadeUp} className="mb-3 flex justify-center">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-3 py-1 text-xs font-medium text-rose-500 ring-1 ring-rose-100">
-                <LuCalendar className="h-3 w-3" />
-                Now booking {nowBookingMonth}
-              </span>
-            </motion.div>
-
-            {studio.bio && (
-              <motion.p
-                variants={fadeUp}
-                className="mx-auto mb-4 max-w-xs text-sm leading-relaxed text-stone-500"
-              >
-                {studio.bio}
-              </motion.p>
-            )}
-
-            {locationLabel && (
-              <motion.div variants={fadeUp} className="mb-3 flex justify-center">
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1 text-xs text-stone-500 shadow-sm ring-1 ring-stone-100">
-                  <LuMapPin className="h-3 w-3 text-rose-400" />
-                  {locationLabel}
-                </span>
-              </motion.div>
-            )}
-
-            {hoursLabel && (
-              <motion.div variants={fadeUp} className="mb-5 flex justify-center">
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1 text-xs text-stone-500 shadow-sm ring-1 ring-stone-100">
-                  <LuClock className="h-3 w-3 text-stone-400" />
-                  {hoursLabel}
-                </span>
-              </motion.div>
-            )}
-
-            {reviewStats.count > 0 && (
-              <motion.div variants={fadeUp} className="mb-6 flex items-center justify-center gap-6">
-                <div className="text-center">
-                  <p className="text-lg font-semibold text-stone-900">{reviewStats.count}+</p>
-                  <p className="text-[10px] uppercase tracking-wide text-stone-400">clients</p>
-                </div>
-                <div className="h-6 w-px bg-stone-200" />
-                <div className="text-center">
-                  <p className="text-lg font-semibold text-stone-900">{reviewStats.avg}★</p>
-                  <p className="text-[10px] uppercase tracking-wide text-stone-400">rating</p>
-                </div>
-                <div className="h-6 w-px bg-stone-200" />
-                <div className="text-center">
-                  <p className="text-lg font-semibold text-stone-900">4</p>
-                  <p className="text-[10px] uppercase tracking-wide text-stone-400">services</p>
-                </div>
-              </motion.div>
-            )}
-
-            {socialLinks.length > 0 && (
-              <motion.div variants={fadeUp} className="flex flex-wrap justify-center gap-2">
-                {socialLinks.map(({ key, handle, icon: Icon, color, href }) => (
-                  <a
-                    key={key}
-                    href={href(handle)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 rounded-full border border-stone-200 bg-white px-3 py-1.5 text-xs text-stone-600 shadow-sm transition-colors hover:bg-stone-50"
-                  >
-                    <Icon style={{ color }} className="h-3.5 w-3.5" />
-                    {handle.startsWith("@") ? handle : `@${handle}`}
-                  </a>
-                ))}
-              </motion.div>
-            )}
-          </motion.section>
+            </div>
+          </section>
 
           {/*
            * New client callout — always shown, not gated by auth or prior-visit state.
            * Reduces abandoned booking requests by setting expectations upfront.
            */}
-          <div className="mt-8 mb-2 flex items-start gap-3 rounded-2xl border border-rose-100 bg-rose-50/60 p-4 lg:mt-0">
-            <LuInfo className="mt-0.5 h-4 w-4 shrink-0 text-rose-400" />
+          <div className="mt-8 mb-2 flex items-start gap-3 rounded-2xl border border-[#e8c4b8] bg-[#faf6f1] p-4 lg:mt-0">
+            <LuInfo className="mt-0.5 h-4 w-4 shrink-0 text-[#96604a]" />
             <div>
               <p className="text-sm font-medium text-stone-800">First time? Welcome!</p>
               <p className="mt-0.5 text-xs leading-relaxed text-stone-500">
@@ -440,7 +455,7 @@ export function BookingPage({
           <section id="services" className="mt-8 lg:pt-0">
             <div className="mb-6 flex items-end justify-between">
               <div>
-                <p className="mb-1 text-xs font-semibold uppercase tracking-[0.15em] text-rose-400">
+                <p className="mb-1 text-xs font-semibold uppercase tracking-[0.15em] text-[#96604a]">
                   Services
                 </p>
                 <h2 className="font-display text-2xl font-light text-stone-900">
@@ -452,25 +467,27 @@ export function BookingPage({
 
             {activeCategories.length > 0 ? (
               <Tabs defaultValue={defaultTab}>
-                <TabsList
-                  variant="line"
-                  className="mb-6 w-full justify-start border-b border-stone-200 bg-transparent pb-0"
-                >
-                  {activeCategories.map((cat) => {
-                    const meta = CATEGORY_META[cat];
-                    const Icon = meta.icon;
-                    return (
-                      <TabsTrigger
-                        key={cat}
-                        value={cat}
-                        className={`shrink-0 gap-1.5 px-3 pb-3 ${meta.tabActive}`}
-                      >
-                        <Icon className={`h-3.5 w-3.5 ${meta.color}`} />
-                        <span className="text-sm">{meta.shortLabel}</span>
-                      </TabsTrigger>
-                    );
-                  })}
-                </TabsList>
+                <div className="-mx-5 px-5 overflow-x-auto [&::-webkit-scrollbar]:hidden mb-6">
+                  <TabsList
+                    variant="line"
+                    className="w-max min-w-full justify-start border-b border-stone-200 bg-transparent pb-0"
+                  >
+                    {activeCategories.map((cat) => {
+                      const meta = CATEGORY_META[cat];
+                      const Icon = meta.icon;
+                      return (
+                        <TabsTrigger
+                          key={cat}
+                          value={cat}
+                          className={`shrink-0 gap-1.5 px-3 pb-3 ${meta.tabActive}`}
+                        >
+                          <Icon className={`h-3.5 w-3.5 ${meta.color}`} />
+                          <span className="text-sm">{meta.shortLabel}</span>
+                        </TabsTrigger>
+                      );
+                    })}
+                  </TabsList>
+                </div>
 
                 {activeCategories.map((cat) => {
                   const meta = CATEGORY_META[cat];
@@ -483,7 +500,7 @@ export function BookingPage({
                       {meta.note && (
                         <p className="mb-4 text-xs text-stone-400 italic">{meta.note}</p>
                       )}
-                      <div className="flex flex-col gap-3">
+                      <div className="grid grid-cols-2 gap-3">
                         {catServices.map((service, index) => (
                           <ServiceCard
                             key={service.id}
@@ -512,17 +529,17 @@ export function BookingPage({
               className="mb-4 grid grid-cols-3 gap-2 overflow-hidden rounded-2xl"
               style={{ gridTemplateRows: "140px 100px" }}
             >
-              <div className="col-span-2 row-span-1 flex items-center justify-center bg-rose-50">
-                <LuCamera className="h-6 w-6 text-rose-200" />
+              <div className="col-span-2 row-span-1 flex items-center justify-center bg-[#faf6f1]">
+                <LuCamera className="h-6 w-6 text-[#e8c4b8]" />
               </div>
-              <div className="col-span-1 row-span-2 flex items-center justify-center bg-amber-50">
-                <LuCamera className="h-6 w-6 text-amber-200" />
+              <div className="col-span-1 row-span-2 flex items-center justify-center bg-[#e8c4b8]/30">
+                <LuCamera className="h-6 w-6 text-[#c4907a]" />
               </div>
-              <div className="flex items-center justify-center bg-violet-50">
-                <LuCamera className="h-5 w-5 text-violet-200" />
+              <div className="flex items-center justify-center bg-[#faf6f1]">
+                <LuCamera className="h-5 w-5 text-[#e8c4b8]" />
               </div>
-              <div className="flex items-center justify-center bg-teal-50">
-                <LuCamera className="h-5 w-5 text-teal-200" />
+              <div className="flex items-center justify-center bg-[#e8c4b8]/20">
+                <LuCamera className="h-5 w-5 text-[#c4907a]" />
               </div>
             </div>
             <p className="mb-3 text-center text-xs text-stone-400">
@@ -535,7 +552,7 @@ export function BookingPage({
                 rel="noopener noreferrer"
                 className="flex items-center justify-center gap-2 rounded-full border border-stone-200 bg-white py-3 text-sm font-medium text-stone-700 shadow-sm transition-colors hover:bg-stone-50"
               >
-                <LuInstagram className="h-4 w-4 text-rose-500" />@{instagramHandle}
+                <LuInstagram className="h-4 w-4 text-[#96604a]" />@{instagramHandle}
               </a>
             )}
           </section>
@@ -561,14 +578,11 @@ export function BookingPage({
           <section>
             <SectionHeading eyebrow="About" title={`Meet ${studio.firstName}`} />
             <div className="relative overflow-hidden rounded-2xl bg-white p-6 shadow-sm ring-1 ring-stone-100">
-              <div className="absolute top-0 right-0 h-28 w-28 translate-x-8 -translate-y-8 rounded-full bg-rose-50/60" />
+              <div className="absolute top-0 right-0 h-28 w-28 translate-x-8 -translate-y-8 rounded-full bg-[#e8c4b8]/20" />
               <div className="relative flex gap-4">
-                <Avatar className="h-12 w-12 shrink-0 ring-2 ring-rose-100">
-                  <AvatarImage src={studio.avatarUrl ?? undefined} alt={studio.firstName} />
-                  <AvatarFallback className="bg-rose-50 text-sm font-semibold text-rose-400">
-                    {studio.firstName[0]}
-                  </AvatarFallback>
-                </Avatar>
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#faf6f1] ring-2 ring-[#e8c4b8]">
+                  <TCLogo size={28} className="text-[#96604a]" />
+                </div>
                 <div>
                   <p className="font-semibold text-stone-900">{studio.firstName}</p>
                   {locationLabel && <p className="text-xs text-stone-400">{locationLabel}</p>}
@@ -582,7 +596,7 @@ export function BookingPage({
                 {["Lash Certified", "Permanent Jewelry", "Crochet Styles", "Consulting"].map(
                   (tag) => (
                     <Badge key={tag} variant="outline" className="text-stone-500">
-                      <LuSparkles className="h-3 w-3 text-rose-400" />
+                      <LuSparkles className="h-3 w-3 text-[#96604a]" />
                       {tag}
                     </Badge>
                   ),
@@ -606,7 +620,7 @@ export function BookingPage({
                   transition={{ delay: i * 0.1, duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
                   className="flex items-start gap-4 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-stone-100"
                 >
-                  <span className="font-display mt-0.5 text-2xl font-light leading-none text-rose-200">
+                  <span className="font-display mt-0.5 text-2xl font-light leading-none text-[#e8c4b8]">
                     {item.step}
                   </span>
                   <div>
@@ -624,7 +638,7 @@ export function BookingPage({
               <Separator className="my-10" />
               <section>
                 <SectionHeading eyebrow="Loyalty" title="Earn rewards" />
-                <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-amber-50 to-rose-50 p-6 ring-1 ring-amber-100">
+                <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-amber-50 to-[#faf6f1] p-6 ring-1 ring-amber-100">
                   <div className="absolute top-0 right-0 h-24 w-24 translate-x-4 -translate-y-4 rounded-full bg-amber-100/40" />
                   <div className="relative flex items-start gap-4">
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-100">
@@ -659,10 +673,10 @@ export function BookingPage({
           <Separator className="my-10" />
           <section>
             <SectionHeading eyebrow="Spread the love" title="Share with a friend" />
-            <div className="overflow-hidden rounded-2xl bg-gradient-to-br from-rose-50 to-amber-50 p-6 ring-1 ring-rose-100">
+            <div className="overflow-hidden rounded-2xl bg-[#faf6f1] p-6 ring-1 ring-[#e8c4b8]">
               <div className="flex items-start gap-4">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-100">
-                  <LuUsers className="h-5 w-5 text-rose-500" />
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#e8c4b8]/50">
+                  <LuUsers className="h-5 w-5 text-[#96604a]" />
                 </div>
                 <div className="flex-1">
                   <p className="font-semibold text-stone-900">Refer a friend, earn a reward</p>
@@ -685,7 +699,7 @@ export function BookingPage({
                 <div className="divide-y divide-stone-100 overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-stone-100">
                   {/* Approval-based booking row — always shown when Policies section renders */}
                   <div className="flex items-start gap-3 p-4">
-                    <LuCalendarCheck className="mt-0.5 h-4 w-4 shrink-0 text-rose-400" />
+                    <LuCalendarCheck className="mt-0.5 h-4 w-4 shrink-0 text-[#96604a]" />
                     <div>
                       <p className="text-sm font-medium text-stone-800">Approval-based booking</p>
                       <p className="mt-0.5 text-xs text-stone-500">
@@ -697,7 +711,7 @@ export function BookingPage({
 
                   {studio.policies.cancellationWindowHours !== null && (
                     <div className="flex items-start gap-3 p-4">
-                      <LuShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-rose-400" />
+                      <LuShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-[#96604a]" />
                       <div>
                         <p className="text-sm font-medium text-stone-800">
                           {studio.policies.cancellationWindowHours}-hour cancellation policy
@@ -715,7 +729,7 @@ export function BookingPage({
 
                   {studio.policies.noShowFeeInCents !== null && (
                     <div className="flex items-start gap-3 p-4">
-                      <LuShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-rose-400" />
+                      <LuShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-[#96604a]" />
                       <div>
                         <p className="text-sm font-medium text-stone-800">No-show fee</p>
                         <p className="mt-0.5 text-xs text-stone-500">
@@ -756,37 +770,29 @@ export function BookingPage({
 
           {/* ── Contact CTA ── */}
           <Separator className="my-10" />
-          <section className="py-2 text-center">
+          <section className="py-2">
             <SectionHeading eyebrow="Questions?" title="Get in touch" />
-            <p className="mx-auto mb-6 max-w-xs text-sm text-stone-500">
-              Not sure which service is right for you? Send a message before booking — we&apos;re
-              happy to help.
+            <p className="mb-6 text-sm text-stone-500">
+              Not sure which service is right for you? Send a message — we&apos;ll get back to you
+              within 24 hours.
             </p>
-            {instagramHandle ? (
-              <a
-                href={`https://instagram.com/${instagramHandle}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 rounded-full bg-rose-500 px-7 py-3.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-rose-600 active:scale-95"
-              >
-                <LuMessageCircle className="h-4 w-4" />
-                Message on Instagram
-              </a>
-            ) : (
-              <p className="text-xs text-stone-400">Reach out via DM to get started.</p>
-            )}
+            <div className="overflow-hidden rounded-2xl bg-white p-6 shadow-sm ring-1 ring-stone-100">
+              <ContactForm />
+            </div>
           </section>
         </main>
       </div>
 
+      <ChatWidget studio={studio} services={services} slug={slug} />
+
       {/* ── Footer ── */}
-      <footer className="border-t border-stone-200 bg-white py-10">
+      <footer className="border-t border-[#e8c4b8]/50 bg-white py-10">
         <div className="mx-auto flex max-w-5xl flex-col items-center gap-3 px-5 text-center">
-          <TCLogo size={28} className="text-stone-300" />
+          <TCLogo size={28} className="text-[#c4907a]/50" />
           <p className="text-xs text-stone-400">© T Creative Studio</p>
           <Link
             href="/"
-            className="text-xs text-stone-400 underline-offset-2 hover:text-stone-600 hover:underline"
+            className="text-xs text-stone-400 underline-offset-2 hover:text-[#96604a] hover:underline"
           >
             tcreativestudio.com
           </Link>

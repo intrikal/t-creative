@@ -170,13 +170,18 @@ export default async function BookSlugPage({ params }: Props) {
     locationArea: locationData.area ?? "",
     socials: {
       instagram: socialsData.instagram ?? "",
+      instagram2: socialsData.instagram2 ?? "",
+      instagram3: socialsData.instagram3 ?? "",
+      instagram4: socialsData.instagram4 ?? "",
       tiktok: socialsData.tiktok ?? "",
       facebook: socialsData.facebook ?? "",
     },
     // avatarUrl is sourced from Google OAuth metadata (saved at onboarding time).
     // Falls back to null — the client component shows initials in that case.
     avatarUrl: profileRow.avatarUrl ?? null,
-    firstName: profileRow.firstName,
+    // ownerFirstName in onboardingData takes priority — lets the admin set a display
+    // name independent of whatever Google OAuth returned (e.g. a studio persona name).
+    firstName: (data?.ownerFirstName as string | undefined) || profileRow.firstName,
     policies: {
       cancellationWindowHours: (policiesData.cancellationWindowHours as number) ?? null,
       cancellationFeeInCents: (policiesData.cancellationFeeInCents as number) ?? null,

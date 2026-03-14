@@ -57,7 +57,14 @@ export interface Studio {
   locationType: string;
   /** Free-text area name displayed alongside the location type (e.g. "Brooklyn, NY"). */
   locationArea: string;
-  socials: { instagram: string; tiktok: string; facebook: string };
+  socials: {
+    instagram: string;
+    instagram2: string;
+    instagram3: string;
+    instagram4: string;
+    tiktok: string;
+    facebook: string;
+  };
   /** Google OAuth profile photo URL, or null if not available. */
   avatarUrl: string | null;
   /** Admin's given first name, shown in the "Meet …" section. */

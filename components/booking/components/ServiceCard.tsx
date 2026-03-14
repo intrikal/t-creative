@@ -27,6 +27,7 @@
  */
 
 import { useState } from "react";
+import type React from "react";
 import { LuClock, LuFlame } from "react-icons/lu";
 import { Badge } from "@/components/ui/badge";
 import { BookingRequestDialog } from "../BookingRequestDialog";
@@ -49,96 +50,113 @@ export function ServiceCard({
   isPopular,
 }: {
   service: Service;
-  meta: { color: string; bg: string; border: string };
+  meta: {
+    color: string;
+    bg: string;
+    border: string;
+    icon: React.ComponentType<{ className?: string }>;
+  };
   addOns: ServiceAddOn[];
   isPopular: boolean;
 }) {
   const [showRequest, setShowRequest] = useState(false);
   const [showWaitlist, setShowWaitlist] = useState(false);
+  const Icon = meta.icon;
 
   return (
     <div
-      className={`rounded-2xl border border-stone-100 border-l-4 ${meta.border} bg-white p-5 shadow-sm transition-shadow hover:shadow-md`}
+      className={`group flex flex-col overflow-hidden rounded-2xl border border-stone-200 border-l-4 ${meta.border} bg-white shadow-sm transition-shadow hover:shadow-md`}
     >
-      {/* Name row — "Most popular" badge only renders when isPopular is true */}
-      <div className="mb-3 flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <p className="font-semibold text-stone-900">{service.name}</p>
-            {isPopular && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-semibold text-rose-500 ring-1 ring-rose-100">
-                <LuFlame className="h-2.5 w-2.5" />
-                Most popular
-              </span>
-            )}
-          </div>
-          {service.description && (
-            <p className="mt-0.5 text-xs leading-relaxed text-stone-500">{service.description}</p>
+      {/* Top accent line */}
+      <div className="h-1 w-full bg-[#e8c4b8]" />
+      {/* Icon + price row */}
+      <div className="flex items-center justify-between px-5 pt-4 pb-3">
+        <div className={`flex h-9 w-9 items-center justify-center rounded-xl ${meta.bg}`}>
+          <Icon className={`h-4 w-4 ${meta.color}`} />
+        </div>
+        <div className="text-right">
+          <p className={`text-lg font-bold ${meta.color}`}>{formatPrice(service.priceInCents)}</p>
+          {service.depositInCents && (
+            <p className="text-[10px] text-stone-400">
+              {formatPrice(service.depositInCents)} deposit
+            </p>
           )}
         </div>
-        <p className={`shrink-0 text-base font-semibold ${meta.color}`}>
-          {formatPrice(service.priceInCents)}
-        </p>
       </div>
 
-      {/* Metadata chips — duration and deposit */}
-      <div className="mb-4 flex flex-wrap gap-1.5">
-        {service.durationMinutes && (
-          <Badge variant="outline" className="text-stone-500">
-            <LuClock className="h-3 w-3" />
-            {service.durationMinutes} min
-          </Badge>
-        )}
-        {service.depositInCents && (
-          <Badge variant="outline" className="text-stone-500">
-            {formatPrice(service.depositInCents)} deposit to hold
-          </Badge>
-        )}
-      </div>
-
-      {/* Add-ons — only rendered when this service has at least one active add-on */}
-      {addOns.length > 0 && (
-        <div className="mb-4 border-t border-stone-100 pt-3">
-          <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-stone-400">
-            Add-ons
-          </p>
-          <div className="flex flex-col gap-1.5">
-            {addOns.map((addon) => (
-              <div
-                key={addon.id}
-                className="flex items-center justify-between text-xs text-stone-500"
-              >
-                <span>
-                  {addon.name}
-                  {/* Only show duration modifier when it's non-zero */}
-                  {addon.additionalMinutes > 0 && (
-                    <span className="ml-1 text-stone-400">+{addon.additionalMinutes}min</span>
-                  )}
-                </span>
-                <span className="font-medium text-stone-700">
-                  +{formatPrice(addon.priceInCents)}
-                </span>
-              </div>
-            ))}
-          </div>
+      {/* Body */}
+      <div className="flex flex-1 flex-col px-5 pb-5">
+        {/* Name + popular badge */}
+        <div className="mb-1 flex flex-wrap items-center gap-2">
+          <p className="font-semibold text-stone-900">{service.name}</p>
+          {isPopular && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-[#faf6f1] px-2 py-0.5 text-[10px] font-semibold text-[#96604a] ring-1 ring-[#e8c4b8]">
+              <LuFlame className="h-2.5 w-2.5" />
+              Popular
+            </span>
+          )}
         </div>
-      )}
 
-      {/* CTAs */}
-      <div className="flex gap-2">
-        <button
-          onClick={() => setShowRequest(true)}
-          className="flex-1 rounded-xl bg-stone-900 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-rose-500 active:scale-[0.98]"
-        >
-          Book this service
-        </button>
-        <button
-          onClick={() => setShowWaitlist(true)}
-          className="rounded-xl border border-stone-200 px-3.5 py-2.5 text-xs font-medium text-stone-500 transition-colors hover:border-amber-300 hover:text-amber-600 hover:bg-amber-50 active:scale-[0.98]"
-          title="Join waitlist"
-        >
-          Waitlist
-        </button>
+        {service.description && (
+          <p className="mb-3 text-xs leading-relaxed text-stone-500">{service.description}</p>
+        )}
+
+        {/* Duration chip */}
+        {service.durationMinutes && (
+          <div className="mb-3">
+            <Badge variant="outline" className="text-stone-500">
+              <LuClock className="h-3 w-3" />
+              {service.durationMinutes} min
+            </Badge>
+          </div>
+        )}
+
+        {/* Add-ons — only rendered when this service has at least one active add-on */}
+        {addOns.length > 0 && (
+          <div className="mb-4 rounded-xl bg-stone-50 px-3 py-2.5">
+            <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-stone-400">
+              Add-ons
+            </p>
+            <div className="flex flex-col gap-1">
+              {addOns.map((addon) => (
+                <div
+                  key={addon.id}
+                  className="flex items-center justify-between text-xs text-stone-500"
+                >
+                  <span>
+                    {addon.name}
+                    {addon.additionalMinutes > 0 && (
+                      <span className="ml-1 text-stone-400">+{addon.additionalMinutes}min</span>
+                    )}
+                  </span>
+                  <span className="font-medium text-stone-700">
+                    +{formatPrice(addon.priceInCents)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Spacer to push CTAs to bottom */}
+        <div className="flex-1" />
+
+        {/* CTAs */}
+        <div className="flex gap-2 pt-1">
+          <button
+            onClick={() => setShowRequest(true)}
+            className="flex-1 rounded-xl bg-[#96604a] py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#7a4e3a] active:scale-[0.98]"
+          >
+            Book
+          </button>
+          <button
+            onClick={() => setShowWaitlist(true)}
+            className="rounded-xl border border-stone-200 px-3.5 py-2.5 text-xs font-medium text-stone-500 transition-colors hover:border-[#e8c4b8] hover:text-[#96604a] hover:bg-[#faf6f1] active:scale-[0.98]"
+            title="Join waitlist"
+          >
+            Waitlist
+          </button>
+        </div>
       </div>
 
       <BookingRequestDialog

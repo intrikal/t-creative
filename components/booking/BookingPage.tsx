@@ -282,7 +282,7 @@ export function BookingPage({
                       <p className="text-[10px] text-stone-400">rating</p>
                     </div>
                     <div>
-                      <p className="text-base font-semibold text-stone-900">4</p>
+                      <p className="text-base font-semibold text-stone-900">{services.length}</p>
                       <p className="text-[10px] text-stone-400">services</p>
                     </div>
                   </div>
@@ -395,7 +395,7 @@ export function BookingPage({
                       </div>
                       <div className="h-5 w-px bg-stone-200" />
                       <div className="text-center">
-                        <p className="text-base font-semibold text-stone-900">4</p>
+                        <p className="text-base font-semibold text-stone-900">{services.length}</p>
                         <p className="text-[10px] text-stone-400">services</p>
                       </div>
                     </div>
@@ -593,14 +593,12 @@ export function BookingPage({
                   `Hi, I'm ${studio.firstName} — welcome to ${studio.name}. Every appointment is personalized to you.`}
               </p>
               <div className="relative mt-4 flex flex-wrap gap-2">
-                {["Lash Certified", "Permanent Jewelry", "Crochet Styles", "Consulting"].map(
-                  (tag) => (
-                    <Badge key={tag} variant="outline" className="text-stone-500">
-                      <LuSparkles className="h-3 w-3 text-[#96604a]" />
-                      {tag}
-                    </Badge>
-                  ),
-                )}
+                {activeCategories.map((cat) => (
+                  <Badge key={cat} variant="outline" className="text-stone-500">
+                    <LuSparkles className="h-3 w-3 text-[#96604a]" />
+                    {CATEGORY_META[cat].label}
+                  </Badge>
+                ))}
               </div>
             </div>
           </section>

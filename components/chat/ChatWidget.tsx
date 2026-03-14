@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { useForm } from "@tanstack/react-form";
 import { useMutation, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MessageCircle, X } from "lucide-react";
+import { CATEGORY_META } from "@/components/booking/constants";
 import { formatPrice, formatLocationType, formatTime } from "@/components/booking/helpers";
 import type { Service, Studio } from "@/components/booking/types";
 import { TCLogo } from "@/components/TCLogo";
@@ -47,15 +48,8 @@ export function ChatWidget(props: Props) {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-const CATEGORY_LABELS: Record<string, string> = {
-  lash: "Lash Extensions",
-  jewelry: "Permanent Jewelry",
-  crochet: "Custom Crochet",
-  consulting: "Business Consulting",
-};
-
 function catLabel(cat: string) {
-  return CATEGORY_LABELS[cat] ?? cat;
+  return (CATEGORY_META as Record<string, { label: string }>)[cat]?.label ?? cat;
 }
 
 // ── Widget (inner) ───────────────────────────────────────────────────────────

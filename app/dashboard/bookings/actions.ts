@@ -53,6 +53,7 @@ import { logAction } from "@/lib/audit";
 import { trackEvent } from "@/lib/posthog";
 import { sendEmail } from "@/lib/resend";
 import { isSquareConfigured, createSquareOrder, createSquarePaymentLink } from "@/lib/square";
+import { sendSms } from "@/lib/twilio";
 import { notifyWaitlistForCancelledBooking } from "@/lib/waitlist-notify";
 import { createZohoDeal, updateZohoDeal } from "@/lib/zoho";
 import { createZohoBooksInvoice } from "@/lib/zoho-books";
@@ -905,7 +906,10 @@ async function trySendBookingConfirmation(bookingId: number): Promise<void> {
     const [row] = await db
       .select({
         clientEmail: confirmClient.email,
+        clientPhone: confirmClient.phone,
         clientFirstName: confirmClient.firstName,
+        notifyEmail: confirmClient.notifyEmail,
+        notifySms: confirmClient.notifySms,
         serviceName: services.name,
         startsAt: bookings.startsAt,
         durationMinutes: bookings.durationMinutes,
@@ -916,7 +920,7 @@ async function trySendBookingConfirmation(bookingId: number): Promise<void> {
       .innerJoin(services, eq(bookings.serviceId, services.id))
       .where(eq(bookings.id, bookingId));
 
-    if (!row?.clientEmail) return;
+    if (!row) return;
 
     const startsAtFormatted = row.startsAt.toLocaleDateString("en-US", {
       weekday: "long",
@@ -927,21 +931,32 @@ async function trySendBookingConfirmation(bookingId: number): Promise<void> {
       minute: "2-digit",
     });
 
-    await sendEmail({
-      to: row.clientEmail,
-      subject: `Booking confirmed — ${row.serviceName} — T Creative`,
-      react: BookingConfirmation({
-        clientName: row.clientFirstName,
-        serviceName: row.serviceName,
-        startsAt: startsAtFormatted,
-        durationMinutes: row.durationMinutes,
-        totalInCents: row.totalInCents,
-      }),
-      entityType: "booking_confirmation",
-      localId: String(bookingId),
-    });
+    if (row.clientEmail && row.notifyEmail) {
+      await sendEmail({
+        to: row.clientEmail,
+        subject: `Booking confirmed — ${row.serviceName} — T Creative`,
+        react: BookingConfirmation({
+          clientName: row.clientFirstName,
+          serviceName: row.serviceName,
+          startsAt: startsAtFormatted,
+          durationMinutes: row.durationMinutes,
+          totalInCents: row.totalInCents,
+        }),
+        entityType: "booking_confirmation",
+        localId: String(bookingId),
+      });
+    }
+
+    if (row.clientPhone && row.notifySms) {
+      await sendSms({
+        to: row.clientPhone,
+        body: `Hi ${row.clientFirstName}! Your ${row.serviceName} appt at T Creative is confirmed for ${startsAtFormatted}. See you then! Reply STOP to opt out.`,
+        entityType: "booking_confirmation_sms",
+        localId: String(bookingId),
+      });
+    }
   } catch {
-    // Non-fatal — booking confirmation email failure shouldn't break the flow
+    // Non-fatal — booking confirmation notifications shouldn't break the flow
   }
 }
 

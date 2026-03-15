@@ -3,7 +3,7 @@
  *
  * Runs hourly via pg_cron. Finds confirmed bookings starting in 23–25h
  * and 47–49h windows, deduplicates against sync_log, and sends reminder
- * emails via Resend.
+ * emails via Resend and/or SMS via Twilio.
  *
  * Secured with CRON_SECRET header to prevent unauthorized access.
  */
@@ -14,6 +14,7 @@ import { db } from "@/db";
 import { bookings, profiles, services, syncLog } from "@/db/schema";
 import { BookingReminder } from "@/emails/BookingReminder";
 import { sendEmail } from "@/lib/resend";
+import { sendSms } from "@/lib/twilio";
 
 type ReminderWindow = { label: string; hoursUntil: number; minHours: number; maxHours: number };
 
@@ -46,8 +47,10 @@ export async function GET(request: Request) {
         totalInCents: bookings.totalInCents,
         location: bookings.location,
         clientEmail: profiles.email,
+        clientPhone: profiles.phone,
         clientFirstName: profiles.firstName,
         notifyEmail: profiles.notifyEmail,
+        notifySms: profiles.notifySms,
         serviceName: services.name,
       })
       .from(bookings)
@@ -62,44 +65,73 @@ export async function GET(request: Request) {
       );
 
     for (const booking of upcomingBookings) {
-      if (!booking.clientEmail || !booking.notifyEmail) continue;
-
-      const entityType = `booking_reminder_${window.label}`;
+      const emailEntityType = `booking_reminder_${window.label}`;
+      const smsEntityType = `booking_reminder_${window.label}_sms`;
       const localId = booking.bookingId.toString();
+      const startsAtFormatted = format(booking.startsAt, "EEEE, MMMM d 'at' h:mm a");
 
-      // Check if reminder already sent for this booking + window
-      const [existing] = await db
-        .select({ id: syncLog.id })
-        .from(syncLog)
-        .where(
-          and(
-            eq(syncLog.entityType, entityType),
-            eq(syncLog.localId, localId),
-            eq(syncLog.status, "success"),
-          ),
-        )
-        .limit(1);
+      // --- Email ---
+      if (booking.clientEmail && booking.notifyEmail) {
+        const [existingEmail] = await db
+          .select({ id: syncLog.id })
+          .from(syncLog)
+          .where(
+            and(
+              eq(syncLog.entityType, emailEntityType),
+              eq(syncLog.localId, localId),
+              eq(syncLog.status, "success"),
+            ),
+          )
+          .limit(1);
 
-      if (existing) continue;
+        if (!existingEmail) {
+          const success = await sendEmail({
+            to: booking.clientEmail,
+            subject: `Reminder: ${booking.serviceName} appointment coming up`,
+            react: BookingReminder({
+              clientName: booking.clientFirstName,
+              serviceName: booking.serviceName,
+              startsAt: startsAtFormatted,
+              durationMinutes: booking.durationMinutes,
+              totalInCents: booking.totalInCents,
+              location: booking.location ?? "T Creative Studio",
+              hoursUntil: window.hoursUntil,
+            }),
+            entityType: emailEntityType,
+            localId,
+          });
 
-      const success = await sendEmail({
-        to: booking.clientEmail,
-        subject: `Reminder: ${booking.serviceName} appointment coming up`,
-        react: BookingReminder({
-          clientName: booking.clientFirstName,
-          serviceName: booking.serviceName,
-          startsAt: format(booking.startsAt, "EEEE, MMMM d 'at' h:mm a"),
-          durationMinutes: booking.durationMinutes,
-          totalInCents: booking.totalInCents,
-          location: booking.location ?? "T Creative Studio",
-          hoursUntil: window.hoursUntil,
-        }),
-        entityType,
-        localId,
-      });
+          if (success) totalSent++;
+          else totalFailed++;
+        }
+      }
 
-      if (success) totalSent++;
-      else totalFailed++;
+      // --- SMS ---
+      if (booking.clientPhone && booking.notifySms) {
+        const [existingSms] = await db
+          .select({ id: syncLog.id })
+          .from(syncLog)
+          .where(
+            and(
+              eq(syncLog.entityType, smsEntityType),
+              eq(syncLog.localId, localId),
+              eq(syncLog.status, "success"),
+            ),
+          )
+          .limit(1);
+
+        if (!existingSms) {
+          const success = await sendSms({
+            to: booking.clientPhone,
+            body: `Hi ${booking.clientFirstName}! Reminder: your ${booking.serviceName} appt at T Creative is ${startsAtFormatted}. See you soon! Reply STOP to opt out.`,
+            entityType: smsEntityType,
+            localId,
+          });
+
+          if (success) totalSent++;
+          else totalFailed++;
+        }
+      }
     }
   }
 

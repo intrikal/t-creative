@@ -14,6 +14,7 @@ import { revalidatePath } from "next/cache";
 import { eq, desc, sql, asc } from "drizzle-orm";
 import { db } from "@/db";
 import { products, orders, supplies, profiles } from "@/db/schema";
+import { CommissionQuote } from "@/emails/CommissionQuote";
 import { OrderStatusUpdate } from "@/emails/OrderStatusUpdate";
 import { sendEmail, getEmailRecipient } from "@/lib/resend";
 import { createClient } from "@/utils/supabase/server";
@@ -461,6 +462,79 @@ export type OrderStatus =
   | "ready_for_pickup"
   | "completed"
   | "cancelled";
+
+/**
+ * Sends a quote for a custom commission order (status: "inquiry" → "quoted").
+ * Sets the quoted price, optional completion estimate and internal notes,
+ * then emails the client with a link to accept/decline in their dashboard.
+ */
+export async function quoteCommission(
+  id: number,
+  amountInCents: number,
+  options: { estimatedCompletionAt?: Date; notes?: string } = {},
+): Promise<void> {
+  const user = await getUser();
+
+  await db
+    .update(orders)
+    .set({
+      quotedInCents: amountInCents,
+      status: "quoted",
+      ...(options.estimatedCompletionAt
+        ? { estimatedCompletionAt: options.estimatedCompletionAt }
+        : {}),
+      ...(options.notes ? { internalNotes: options.notes } : {}),
+      updatedAt: new Date(),
+    })
+    .where(eq(orders.id, id));
+
+  // Reload order for email data
+  try {
+    const [order] = await db
+      .select({
+        clientId: orders.clientId,
+        orderNumber: orders.orderNumber,
+        title: orders.title,
+        estimatedCompletionAt: orders.estimatedCompletionAt,
+      })
+      .from(orders)
+      .where(eq(orders.id, id));
+
+    if (!order) return;
+
+    const [profile] = await db
+      .select({ email: profiles.email, firstName: profiles.firstName })
+      .from(profiles)
+      .where(eq(profiles.id, order.clientId));
+
+    if (profile?.email) {
+      await sendEmail({
+        to: profile.email,
+        subject: `Your commission quote is ready — T Creative`,
+        react: CommissionQuote({
+          clientName: profile.firstName,
+          orderNumber: order.orderNumber,
+          title: order.title,
+          quotedAmountInCents: amountInCents,
+          estimatedCompletion: order.estimatedCompletionAt
+            ? order.estimatedCompletionAt.toLocaleDateString("en-US", {
+                month: "long",
+                day: "numeric",
+                year: "numeric",
+              })
+            : undefined,
+          notes: options.notes,
+        }),
+        entityType: "commission_quote",
+        localId: String(id),
+      });
+    }
+  } catch {
+    // Non-fatal
+  }
+
+  revalidatePath(PATH);
+}
 
 export async function updateOrderStatus(id: number, status: OrderStatus): Promise<void> {
   await getUser();

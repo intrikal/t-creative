@@ -17,6 +17,7 @@ import {
   ChevronRight,
   ExternalLink,
 } from "lucide-react";
+import { type ClientCommission } from "@/app/dashboard/commissions/actions";
 import {
   placeOrder,
   addToWishlist,
@@ -29,6 +30,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Dialog } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { useCartStore, cartTotalInCents, cartItemCount } from "@/stores/useCartStore";
+import { CommissionsTab } from "./CommissionsTab";
 
 /* ------------------------------------------------------------------ */
 /*  Category config                                                     */
@@ -370,13 +372,15 @@ export function ClientShopPage({
   products,
   orders,
   wishlistIds,
+  commissions,
 }: {
   products: ShopProduct[];
   orders: ClientOrder[];
   wishlistIds: number[];
+  commissions: ClientCommission[];
 }) {
   const router = useRouter();
-  const [tab, setTab] = useState<"products" | "orders" | "saved">("products");
+  const [tab, setTab] = useState<"products" | "orders" | "saved" | "commissions">("products");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [savedIds, setSavedIds] = useState<Set<number>>(() => new Set(wishlistIds));
   const [, startWishlistTransition] = useTransition();
@@ -496,9 +500,9 @@ export function ClientShopPage({
         </div>
       )}
 
-      {/* Products / Saved / Orders tab toggle */}
+      {/* Products / Saved / Orders / Commissions tab toggle */}
       <div className="flex items-center gap-1 bg-surface border border-border rounded-lg p-0.5 w-fit">
-        {(["products", "saved", "orders"] as const).map((t) => (
+        {(["products", "saved", "orders", "commissions"] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -514,7 +518,9 @@ export function ClientShopPage({
               ? "Products"
               : t === "saved"
                 ? `Saved${savedIds.size > 0 ? ` (${savedIds.size})` : ""}`
-                : "Order History"}
+                : t === "orders"
+                  ? "Order History"
+                  : `Commissions${commissions.length > 0 ? ` (${commissions.length})` : ""}`}
           </button>
         ))}
       </div>
@@ -811,6 +817,9 @@ export function ClientShopPage({
           )}
         </div>
       )}
+
+      {/* Commissions tab */}
+      {tab === "commissions" && <CommissionsTab commissions={commissions} />}
 
       {/* Cart drawer */}
       {cartOpen && (

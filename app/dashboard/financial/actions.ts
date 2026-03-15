@@ -1217,6 +1217,96 @@ export async function getTipTrends(): Promise<TipStats> {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Expense Stats                                                      */
+/* ------------------------------------------------------------------ */
+
+export type ExpenseStats = {
+  totalExpenses: number;
+  thisMonthExpenses: number;
+  expenseVsPriorMonthPct: number | null;
+  expenseCount: number;
+  avgMonthlyExpenses: number;
+};
+
+export async function getExpenseStats(): Promise<ExpenseStats> {
+  await getUser();
+
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const priorMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 6, 1);
+
+  const [[totalRow], [thisMonthRow], [priorMonthRow], [avgRow]] = await Promise.all([
+    db
+      .select({
+        total: sql<number>`coalesce(sum(${expenses.amountInCents}), 0)`,
+        count: sql<number>`count(*)`,
+      })
+      .from(expenses),
+    db
+      .select({ total: sql<number>`coalesce(sum(${expenses.amountInCents}), 0)` })
+      .from(expenses)
+      .where(gte(expenses.expenseDate, monthStart)),
+    db
+      .select({ total: sql<number>`coalesce(sum(${expenses.amountInCents}), 0)` })
+      .from(expenses)
+      .where(and(gte(expenses.expenseDate, priorMonthStart), lt(expenses.expenseDate, monthStart))),
+    db
+      .select({ total: sql<number>`coalesce(sum(${expenses.amountInCents}), 0)` })
+      .from(expenses)
+      .where(gte(expenses.expenseDate, sixMonthsAgo)),
+  ]);
+
+  const total = Math.round(Number(totalRow.total) / 100);
+  const thisMonth = Math.round(Number(thisMonthRow.total) / 100);
+  const priorMonth = Math.round(Number(priorMonthRow.total) / 100);
+  const count = Number(totalRow.count);
+  const sixMonthTotal = Math.round(Number(avgRow.total) / 100);
+
+  return {
+    totalExpenses: total,
+    thisMonthExpenses: thisMonth,
+    expenseVsPriorMonthPct:
+      priorMonth === 0 ? null : Math.round(((thisMonth - priorMonth) / priorMonth) * 100),
+    expenseCount: count,
+    avgMonthlyExpenses: Math.round(sixMonthTotal / 6),
+  };
+}
+
+export type MonthlyExpense = {
+  month: string;
+  amount: number;
+};
+
+export async function getMonthlyExpenses(): Promise<MonthlyExpense[]> {
+  await getUser();
+
+  const rows = await db
+    .select({
+      month: sql<string>`to_char(${expenses.expenseDate}, 'YYYY-MM')`,
+      total: sql<number>`coalesce(sum(${expenses.amountInCents}), 0)`,
+    })
+    .from(expenses)
+    .where(gte(expenses.expenseDate, sql`now() - interval '6 months'`))
+    .groupBy(sql`to_char(${expenses.expenseDate}, 'YYYY-MM')`)
+    .orderBy(sql`to_char(${expenses.expenseDate}, 'YYYY-MM')`);
+
+  // Fill in any missing months in the last 6
+  const now = new Date();
+  const result: MonthlyExpense[] = [];
+  const byMonth = new Map(rows.map((r) => [r.month, Math.round(Number(r.total) / 100)]));
+
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const label = d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
+    result.push({ month: label, amount: byMonth.get(key) ?? 0 });
+  }
+
+  return result;
+}
+
+/* ------------------------------------------------------------------ */
 /*  Expense Category Breakdown                                         */
 /* ------------------------------------------------------------------ */
 

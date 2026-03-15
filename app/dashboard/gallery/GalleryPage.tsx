@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useTransition } from "react";
+import Image from "next/image";
 import {
   X,
   Sparkles,
@@ -12,11 +13,13 @@ import {
   ZoomIn,
   Camera,
   ImageIcon,
+  CheckCircle2,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import type { GalleryItem, GalleryCategory, ClientGalleryData } from "./actions";
+import { grantPhotoConsent } from "./actions";
 
 /* ------------------------------------------------------------------ */
 /*  Config                                                              */
@@ -243,6 +246,20 @@ export function ClientGalleryPage({ data }: { data: ClientGalleryData }) {
   const [tab, setTab] = useState<Tab>(data.myPhotos.length > 0 ? "my-photos" : "portfolio");
   const [categoryFilter, setCategoryFilter] = useState<"all" | GalleryCategory>("all");
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [approvedIds, setApprovedIds] = useState<Set<number>>(new Set());
+  const [, startConsentTransition] = useTransition();
+
+  function handleApproveConsent(itemId: number) {
+    setApprovedIds((prev) => new Set(prev).add(itemId));
+    startConsentTransition(async () => {
+      await grantPhotoConsent(itemId);
+    });
+  }
+
+  const pendingConsentItems = useMemo(
+    () => data.myPhotos.filter((i) => !i.clientConsentGiven && !approvedIds.has(i.id)),
+    [data.myPhotos, approvedIds],
+  );
 
   const items = tab === "my-photos" ? data.myPhotos : data.portfolio;
 
@@ -301,6 +318,69 @@ export function ClientGalleryPage({ data }: { data: ClientGalleryData }) {
             Portfolio
             <span className="text-[10px] opacity-60">({data.portfolio.length})</span>
           </button>
+        </div>
+      )}
+
+      {/* Pending consent — before/after photos awaiting approval */}
+      {tab === "my-photos" && pendingConsentItems.length > 0 && (
+        <div className="space-y-3">
+          <p className="text-xs font-semibold text-foreground uppercase tracking-wide">
+            Pending your approval
+          </p>
+          {pendingConsentItems.map((item) => (
+            <div
+              key={item.id}
+              className="rounded-xl border border-border bg-surface overflow-hidden"
+            >
+              <div className="flex gap-0 divide-x divide-border">
+                {item.beforeImageUrl && (
+                  <div className="relative flex-1 aspect-[4/3]">
+                    <Image
+                      fill
+                      src={item.beforeImageUrl}
+                      alt="Before"
+                      className="object-cover"
+                      sizes="50vw"
+                      unoptimized
+                    />
+                    <span className="absolute bottom-1.5 left-1.5 text-[9px] font-semibold bg-black/50 text-white px-1.5 py-0.5 rounded">
+                      BEFORE
+                    </span>
+                  </div>
+                )}
+                {item.imageUrl && (
+                  <div className="relative flex-1 aspect-[4/3]">
+                    <Image
+                      fill
+                      src={item.imageUrl}
+                      alt="After"
+                      className="object-cover"
+                      sizes="50vw"
+                      unoptimized
+                    />
+                    <span className="absolute bottom-1.5 left-1.5 text-[9px] font-semibold bg-black/50 text-white px-1.5 py-0.5 rounded">
+                      AFTER
+                    </span>
+                  </div>
+                )}
+              </div>
+              <div className="px-4 py-3 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-medium text-foreground">
+                    T Creative would like to feature this in the portfolio
+                  </p>
+                  {item.caption && <p className="text-[11px] text-muted mt-0.5">{item.caption}</p>}
+                </div>
+                <button
+                  onClick={() => handleApproveConsent(item.id)}
+                  className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent text-white text-xs font-medium hover:bg-accent/90 transition-colors"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  Approve
+                </button>
+              </div>
+            </div>
+          ))}
         </div>
       )}
 

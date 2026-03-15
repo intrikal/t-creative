@@ -1,8 +1,17 @@
 "use client";
 
-import { useState } from "react";
-import { Dialog, DialogFooter, Field, Input, Textarea, Select } from "@/components/ui/dialog";
-import { getServiceRecord, upsertServiceRecord } from "../actions";
+import { useRef, useState, useTransition } from "react";
+import Image from "next/image";
+import { Camera, CheckCircle2, X } from "lucide-react";
+import type { MediaCategory } from "@/app/dashboard/media/actions";
+import { Dialog, DialogFooter, Field, Input, Select, Textarea } from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
+import {
+  getServiceRecord,
+  upsertServiceRecord,
+  uploadServicePhoto,
+  promoteToPortfolio,
+} from "../actions";
 import type { ServiceRecordInput } from "../actions";
 
 export type ServiceRecordFormState = {
@@ -44,6 +53,91 @@ const DIAMETER_OPTIONS = [
   "0.20mm",
 ] as const;
 
+const CATEGORY_OPTIONS: { value: MediaCategory; label: string }[] = [
+  { value: "lash", label: "Lash" },
+  { value: "jewelry", label: "Jewelry" },
+  { value: "crochet", label: "Crochet" },
+  { value: "consulting", label: "Consulting" },
+];
+
+/* ------------------------------------------------------------------ */
+/*  Photo slot component                                               */
+/* ------------------------------------------------------------------ */
+
+function PhotoSlot({
+  label,
+  previewUrl,
+  uploading,
+  onPick,
+  onClear,
+}: {
+  label: string;
+  previewUrl: string | null;
+  uploading: boolean;
+  onPick: (file: File) => void;
+  onClear: () => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  return (
+    <div className="flex-1">
+      <p className="text-xs font-medium text-muted mb-1.5">{label}</p>
+      <div
+        className={cn(
+          "relative rounded-xl overflow-hidden border border-dashed border-border aspect-[4/3] flex items-center justify-center cursor-pointer hover:border-accent/50 hover:bg-surface transition-colors",
+          previewUrl && "border-solid border-border",
+        )}
+        onClick={() => !previewUrl && inputRef.current?.click()}
+      >
+        {previewUrl ? (
+          <>
+            <Image
+              fill
+              src={previewUrl}
+              alt={label}
+              className="object-cover"
+              sizes="50vw"
+              unoptimized
+            />
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onClear();
+              }}
+              className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black/80"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </>
+        ) : uploading ? (
+          <p className="text-xs text-muted">Uploading…</p>
+        ) : (
+          <div className="flex flex-col items-center gap-1.5 text-muted">
+            <Camera className="w-6 h-6 opacity-50" />
+            <p className="text-xs">Add photo</p>
+          </div>
+        )}
+      </div>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) onPick(file);
+          e.target.value = "";
+        }}
+      />
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Main dialog                                                        */
+/* ------------------------------------------------------------------ */
+
 export function ServiceRecordDialog({
   open,
   onClose,
@@ -63,13 +157,37 @@ export function ServiceRecordDialog({
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loadedBookingId, setLoadedBookingId] = useState<number | null>(null);
-  const isLash = serviceCategory === "lash";
 
-  // Detect when a new booking is opened and trigger fetch
+  // Photo state
+  const [beforePath, setBeforePath] = useState<string | null>(null);
+  const [afterPath, setAfterPath] = useState<string | null>(null);
+  const [beforeUrl, setBeforeUrl] = useState<string | null>(null);
+  const [afterUrl, setAfterUrl] = useState<string | null>(null);
+  const [uploadingBefore, setUploadingBefore] = useState(false);
+  const [uploadingAfter, setUploadingAfter] = useState(false);
+
+  // Promote state
+  const [promoteCategory, setPromoteCategory] = useState<MediaCategory>(
+    (serviceCategory as MediaCategory) ?? "lash",
+  );
+  const [promoteCaption, setPromoteCaption] = useState("");
+  const [promoting, startPromoteTransition] = useTransition();
+  const [promoted, setPromoted] = useState(false);
+
+  const isLash = serviceCategory === "lash";
+  const canPromote = !!beforePath && !!afterPath && !promoted;
+
+  // Load record when dialog opens for a new booking
   if (open && loadedBookingId !== bookingId) {
     setLoadedBookingId(bookingId);
     setLoading(true);
     setForm(EMPTY);
+    setBeforePath(null);
+    setAfterPath(null);
+    setBeforeUrl(null);
+    setAfterUrl(null);
+    setPromoted(false);
+
     getServiceRecord(bookingId).then((record) => {
       if (record) {
         setForm({
@@ -84,18 +202,45 @@ export function ServiceRecordDialog({
           reactions: record.reactions ?? "",
           nextVisitNotes: record.nextVisitNotes ?? "",
         });
+        setBeforePath(record.beforePhotoPath);
+        setAfterPath(record.afterPhotoPath);
+        setBeforeUrl(record.beforePhotoUrl);
+        setAfterUrl(record.afterPhotoUrl);
       }
       setLoading(false);
     });
   }
 
-  // Reset tracked bookingId when dialog closes
   if (!open && loadedBookingId !== null) {
     setLoadedBookingId(null);
   }
 
   function set<K extends keyof ServiceRecordFormState>(key: K, val: string) {
     setForm((prev) => ({ ...prev, [key]: val }));
+  }
+
+  async function handleUpload(file: File, slot: "before" | "after") {
+    if (slot === "before") setUploadingBefore(true);
+    else setUploadingAfter(true);
+
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("bookingId", String(bookingId));
+      fd.append("slot", slot);
+      const result = await uploadServicePhoto(fd);
+
+      if (slot === "before") {
+        setBeforePath(result.path);
+        setBeforeUrl(result.publicUrl);
+      } else {
+        setAfterPath(result.path);
+        setAfterUrl(result.publicUrl);
+      }
+    } finally {
+      if (slot === "before") setUploadingBefore(false);
+      else setUploadingAfter(false);
+    }
   }
 
   async function handleSave() {
@@ -113,10 +258,23 @@ export function ServiceRecordDialog({
       notes: form.notes || undefined,
       reactions: form.reactions || undefined,
       nextVisitNotes: form.nextVisitNotes || undefined,
+      beforePhotoPath: beforePath ?? undefined,
+      afterPhotoPath: afterPath ?? undefined,
     };
     await upsertServiceRecord(input);
     setSaving(false);
     onClose();
+  }
+
+  function handlePromote() {
+    startPromoteTransition(async () => {
+      await promoteToPortfolio({
+        bookingId,
+        category: promoteCategory,
+        caption: promoteCaption || undefined,
+      });
+      setPromoted(true);
+    });
   }
 
   return (
@@ -130,7 +288,80 @@ export function ServiceRecordDialog({
       {loading ? (
         <div className="py-8 text-center text-sm text-muted">Loading…</div>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-5">
+          {/* Before / After photos */}
+          <div>
+            <p className="text-xs font-semibold text-foreground uppercase tracking-wide mb-2">
+              Photos
+            </p>
+            <div className="flex gap-3">
+              <PhotoSlot
+                label="Before"
+                previewUrl={beforeUrl}
+                uploading={uploadingBefore}
+                onPick={(f) => handleUpload(f, "before")}
+                onClear={() => {
+                  setBeforePath(null);
+                  setBeforeUrl(null);
+                }}
+              />
+              <PhotoSlot
+                label="After"
+                previewUrl={afterUrl}
+                uploading={uploadingAfter}
+                onPick={(f) => handleUpload(f, "after")}
+                onClear={() => {
+                  setAfterPath(null);
+                  setAfterUrl(null);
+                }}
+              />
+            </div>
+
+            {/* Promote to portfolio */}
+            {canPromote && (
+              <div className="mt-3 rounded-xl border border-border bg-surface p-3 space-y-3">
+                <p className="text-xs font-medium text-foreground">Submit to portfolio</p>
+                <div className="flex gap-3">
+                  <Field label="Category" className="flex-1">
+                    <Select
+                      value={promoteCategory}
+                      onChange={(e) => setPromoteCategory(e.target.value as MediaCategory)}
+                    >
+                      {CATEGORY_OPTIONS.map((o) => (
+                        <option key={o.value} value={o.value}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+                </div>
+                <Field label="Caption" hint="Optional — shown in the public gallery">
+                  <Input
+                    placeholder="e.g. Classic full set — CC curl, 10–14mm"
+                    value={promoteCaption}
+                    onChange={(e) => setPromoteCaption(e.target.value)}
+                  />
+                </Field>
+                <button
+                  onClick={handlePromote}
+                  disabled={promoting}
+                  className="w-full py-2 rounded-lg border border-accent text-accent text-xs font-medium hover:bg-accent/5 transition-colors disabled:opacity-50"
+                >
+                  {promoting ? "Sending…" : "Request client approval"}
+                </button>
+              </div>
+            )}
+
+            {promoted && (
+              <div className="mt-3 flex items-center gap-2 rounded-xl bg-[#4e6b51]/10 border border-[#4e6b51]/20 px-3 py-2">
+                <CheckCircle2 className="w-4 h-4 text-[#4e6b51] shrink-0" />
+                <p className="text-xs text-foreground">
+                  Consent request sent — client will see it in their gallery.
+                </p>
+              </div>
+            )}
+          </div>
+
           {/* Lash-specific fields */}
           {isLash && (
             <>
@@ -187,7 +418,7 @@ export function ServiceRecordDialog({
             </>
           )}
 
-          {/* General fields (all service types) */}
+          {/* General fields */}
           <Field label="Products Used">
             <Textarea
               rows={2}
@@ -229,7 +460,7 @@ export function ServiceRecordDialog({
         onCancel={onClose}
         onConfirm={handleSave}
         confirmLabel={saving ? "Saving…" : "Save Notes"}
-        disabled={loading || saving}
+        disabled={loading || saving || uploadingBefore || uploadingAfter}
       />
     </Dialog>
   );

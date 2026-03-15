@@ -22,6 +22,7 @@ import {
   Clock,
   ImagePlus,
   Trash2,
+  CalendarPlus,
 } from "lucide-react";
 import {
   getStudioAvailability,
@@ -104,6 +105,59 @@ function generateSlots(
   }
 
   return slots;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Calendar helpers                                                    */
+/* ------------------------------------------------------------------ */
+
+/** Build a Google Calendar "add event" URL for a booking request. */
+function buildGoogleCalendarUrl(service: Service, date: Date, time: string): string {
+  const [h, m] = time.split(":").map(Number);
+  const start = new Date(date);
+  start.setHours(h, m, 0, 0);
+  const end = new Date(start.getTime() + (service.durationMinutes ?? 60) * 60 * 1000);
+  const fmt = (d: Date) => d.toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
+  const params = new URLSearchParams({
+    action: "TEMPLATE",
+    text: `${service.name} at T Creative Studio`,
+    dates: `${fmt(start)}/${fmt(end)}`,
+    details: "Your booking request has been submitted. We'll confirm your appointment soon.",
+    location: "T Creative Studio",
+  });
+  return `https://calendar.google.com/calendar/render?${params}`;
+}
+
+/** Trigger an ICS file download for Apple Calendar / Outlook. */
+function downloadIcs(service: Service, date: Date, time: string): void {
+  const [h, m] = time.split(":").map(Number);
+  const start = new Date(date);
+  start.setHours(h, m, 0, 0);
+  const end = new Date(start.getTime() + (service.durationMinutes ?? 60) * 60 * 1000);
+  const fmt = (d: Date) => d.toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
+  const ics = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//T Creative Studio//Bookings//EN",
+    "CALSCALE:GREGORIAN",
+    "METHOD:PUBLISH",
+    "BEGIN:VEVENT",
+    `DTSTART:${fmt(start)}`,
+    `DTEND:${fmt(end)}`,
+    `SUMMARY:${service.name} at T Creative Studio`,
+    "DESCRIPTION:Your booking request has been submitted. We'll confirm your appointment soon.",
+    "LOCATION:T Creative Studio",
+    "STATUS:TENTATIVE",
+    "END:VEVENT",
+    "END:VCALENDAR",
+  ].join("\r\n");
+  const blob = new Blob([ics], { type: "text/calendar" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "appointment.ics";
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 /* ------------------------------------------------------------------ */
@@ -380,6 +434,30 @@ export function BookingRequestDialog({
                 receive a {formatPrice(service.depositInCents)} deposit link by email to secure your
                 spot.
               </p>
+            )}
+            {selectedDate && selectedTime && (
+              <div className="mt-5 w-full max-w-xs mx-auto space-y-2">
+                <p className="text-xs text-stone-500 font-medium flex items-center justify-center gap-1.5">
+                  <CalendarPlus className="w-3.5 h-3.5" />
+                  Add to your calendar
+                </p>
+                <div className="flex gap-2">
+                  <a
+                    href={buildGoogleCalendarUrl(service, selectedDate, selectedTime)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-1 py-2 rounded-xl border border-stone-200 text-xs text-stone-700 hover:bg-stone-50 transition-colors"
+                  >
+                    Google
+                  </a>
+                  <button
+                    onClick={() => downloadIcs(service, selectedDate, selectedTime)}
+                    className="flex-1 py-2 rounded-xl border border-stone-200 text-xs text-stone-700 hover:bg-stone-50 transition-colors"
+                  >
+                    Apple / Outlook
+                  </button>
+                </div>
+              </div>
             )}
             <button
               onClick={handleClose}

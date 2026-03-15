@@ -37,12 +37,13 @@ import { BookingCompleted } from "@/emails/BookingCompleted";
 import { BookingConfirmation } from "@/emails/BookingConfirmation";
 import { BookingNoShow } from "@/emails/BookingNoShow";
 import { BookingReschedule } from "@/emails/BookingReschedule";
+import { PaymentLinkEmail } from "@/emails/PaymentLinkEmail";
 import { RecurringBookingConfirmation } from "@/emails/RecurringBookingConfirmation";
 import { WaitlistNotification } from "@/emails/WaitlistNotification";
 import { logAction } from "@/lib/audit";
 import { trackEvent } from "@/lib/posthog";
 import { sendEmail } from "@/lib/resend";
-import { isSquareConfigured, createSquareOrder } from "@/lib/square";
+import { isSquareConfigured, createSquareOrder, createSquarePaymentLink } from "@/lib/square";
 import { createZohoDeal, updateZohoDeal } from "@/lib/zoho";
 import { createZohoBooksInvoice } from "@/lib/zoho-books";
 import { createClient } from "@/utils/supabase/server";
@@ -173,6 +174,9 @@ export async function updateBookingStatus(
 
     // Send booking confirmation email
     await trySendBookingConfirmation(id);
+
+    // Auto-send deposit payment link if the service requires one
+    await tryAutoSendDepositLink(id);
   }
 
   if (status === "cancelled") {
@@ -243,6 +247,9 @@ export async function createBooking(input: BookingInput): Promise<void> {
 
   // Send booking confirmation email
   await trySendBookingConfirmation(newBooking.id);
+
+  // Auto-send deposit payment link if the service requires one
+  await tryAutoSendDepositLink(newBooking.id);
 
   trackEvent(input.clientId, "booking_created", {
     bookingId: newBooking.id,
@@ -696,6 +703,87 @@ async function tryCreateZohoBooksInvoice(bookingId: number): Promise<void> {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Auto-send deposit payment link on confirmation (non-fatal)        */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Automatically creates a Square deposit payment link and emails it to the
+ * client when their booking is confirmed. Skips silently if:
+ *   - The service has no deposit requirement
+ *   - A deposit has already been collected
+ *   - Square is not configured
+ *   - The client has no email or has opted out of email notifications
+ */
+async function tryAutoSendDepositLink(bookingId: number): Promise<void> {
+  if (!isSquareConfigured()) return;
+
+  try {
+    const depositClient = alias(profiles, "depositClient");
+    const [row] = await db
+      .select({
+        clientEmail: depositClient.email,
+        clientFirstName: depositClient.firstName,
+        notifyEmail: depositClient.notifyEmail,
+        serviceName: services.name,
+        depositInCents: services.depositInCents,
+        depositPaidInCents: bookings.depositPaidInCents,
+        squareOrderId: bookings.squareOrderId,
+      })
+      .from(bookings)
+      .innerJoin(depositClient, eq(bookings.clientId, depositClient.id))
+      .innerJoin(services, eq(bookings.serviceId, services.id))
+      .where(eq(bookings.id, bookingId));
+
+    if (
+      !row?.depositInCents ||
+      (row.depositPaidInCents && row.depositPaidInCents > 0) ||
+      !row.clientEmail ||
+      !row.notifyEmail
+    ) {
+      return;
+    }
+
+    const { url, orderId } = await createSquarePaymentLink({
+      bookingId,
+      serviceName: row.serviceName,
+      amountInCents: row.depositInCents,
+      type: "deposit",
+    });
+
+    // Store the Square order ID for webhook matching (only if not already set)
+    if (!row.squareOrderId) {
+      await db.update(bookings).set({ squareOrderId: orderId }).where(eq(bookings.id, bookingId));
+    }
+
+    await db.insert(syncLog).values({
+      provider: "square",
+      direction: "outbound",
+      status: "success",
+      entityType: "payment_link",
+      localId: String(bookingId),
+      remoteId: orderId,
+      message: `Auto-sent deposit payment link for booking #${bookingId}`,
+      payload: { url, orderId, amountInCents: row.depositInCents },
+    });
+
+    await sendEmail({
+      to: row.clientEmail,
+      subject: `Deposit required — ${row.serviceName} — T Creative`,
+      react: PaymentLinkEmail({
+        clientName: row.clientFirstName,
+        serviceName: row.serviceName,
+        amountInCents: row.depositInCents,
+        type: "deposit",
+        paymentUrl: url,
+      }),
+      entityType: "payment_link_delivery",
+      localId: String(bookingId),
+    });
+  } catch {
+    // Non-fatal — deposit link failure shouldn't block the confirmation flow
+  }
+}
+
 /*  Booking confirmation email (non-fatal)                             */
 /* ------------------------------------------------------------------ */
 

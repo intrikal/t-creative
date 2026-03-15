@@ -15,6 +15,7 @@ import type { Metadata } from "next";
 import { ConditionalNavbar } from "@/components/ConditionalNavbar";
 import { NavbarWrapper } from "@/components/NavbarWrapper";
 import { PostHogProvider } from "@/components/providers/PostHogProvider";
+import { ServiceWorkerRegistration } from "@/components/providers/ServiceWorkerRegistration";
 import { SmoothScroll } from "@/components/providers/SmoothScroll";
 import { GrainOverlay } from "@/components/ui/GrainOverlay";
 import { LoadingScreen } from "@/components/ui/LoadingScreen";
@@ -47,6 +48,12 @@ export const metadata: Metadata = {
     "Premium lash extensions, permanent jewelry, custom crochet commissions, and business consulting. Crafted with intention and care, serving San Jose and the Bay Area.",
   alternates: {
     canonical: "/",
+  },
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "T Creative",
   },
   openGraph: {
     title: "T Creative Studio",
@@ -108,6 +115,7 @@ export default function RootLayout({
         >
           Skip to main content
         </a>
+        <ServiceWorkerRegistration />
         <PostHogProvider>
           <LoadingScreen />
           <GrainOverlay />

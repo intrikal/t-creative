@@ -31,144 +31,37 @@ import { cn } from "@/lib/utils";
 import { RevenueChart } from "./RevenueChart";
 
 /* ------------------------------------------------------------------ */
-/*  Types & mock data                                                  */
+/*  Types                                                               */
 /* ------------------------------------------------------------------ */
 
 type Trend = "up" | "down" | "neutral";
 
-const MOCK_STATS: {
-  label: string;
-  value: string;
-  sub: string;
-  trend: Trend;
-  icon: React.ComponentType<{ className?: string }>;
-  iconColor: string;
-  iconBg: string;
-}[] = [
-  {
-    label: "Revenue Today",
-    value: "$1,240",
-    sub: "+12% vs yesterday",
-    trend: "up",
-    icon: TrendingUp,
-    iconColor: "text-[#4e6b51]",
-    iconBg: "bg-[#4e6b51]/10",
-  },
-  {
-    label: "Appointments",
-    value: "6",
-    sub: "2 remaining today",
-    trend: "neutral",
-    icon: CalendarDays,
-    iconColor: "text-blush",
-    iconBg: "bg-blush/10",
-  },
-  {
-    label: "Active Clients",
-    value: "48",
-    sub: "+3 this week",
-    trend: "up",
-    icon: Users,
-    iconColor: "text-accent",
-    iconBg: "bg-accent/10",
-  },
-  {
-    label: "Waitlist",
-    value: "5",
-    sub: "3 still waiting",
-    trend: "neutral",
-    icon: ListOrdered,
-    iconColor: "text-[#7a5c10]",
-    iconBg: "bg-[#7a5c10]/10",
-  },
-  {
-    label: "Outstanding",
-    value: "$350",
-    sub: "2 unpaid invoices",
-    trend: "neutral",
-    icon: DollarSign,
-    iconColor: "text-destructive",
-    iconBg: "bg-destructive/10",
-  },
-  {
-    label: "Open Inquiries",
-    value: "3",
-    sub: "1 new today",
-    trend: "neutral",
-    icon: MessageSquare,
-    iconColor: "text-[#5b8a8a]",
-    iconBg: "bg-[#5b8a8a]/10",
-  },
-];
+type BookingStatus =
+  | "completed"
+  | "in_progress"
+  | "confirmed"
+  | "pending"
+  | "cancelled"
+  | "no_show";
+type ServiceCategory = "lash" | "jewelry" | "crochet" | "consulting" | "3d_printing" | "aesthetics";
+type InquiryStatus = "new" | "read" | "replied" | "archived";
 
-const QUICK_ACTIONS = [
-  { label: "New Booking", icon: CalendarPlus, href: "/dashboard/bookings" },
-  { label: "New Invoice", icon: FileText, href: "/dashboard/financial" },
-  { label: "View Calendar", icon: CalendarDays, href: "/dashboard/calendar" },
-  { label: "Messages", icon: MessageSquare, href: "/dashboard/messages" },
-  { label: "Upload Media", icon: Image, href: "/dashboard/media" },
-  { label: "Inventory", icon: Package, href: "/dashboard/marketplace" },
-];
+export interface AdminStats {
+  revenueTodayCents: number;
+  revenueTodayVsYesterdayPct: number | null;
+  appointmentsToday: number;
+  appointmentsRemaining: number;
+  activeClientsThisMonth: number;
+  newClientsThisWeek: number;
+  waitlistTotal: number;
+  waitlistNotContacted: number;
+  outstandingCents: number;
+  unpaidInvoiceCount: number;
+  openInquiries: number;
+  newInquiriesToday: number;
+}
 
-const MOCK_ALERTS = [
-  {
-    id: "stock",
-    type: "warning" as const,
-    message: "3 products are low on stock or out of stock",
-    href: "/dashboard/marketplace",
-    cta: "View Inventory",
-  },
-  {
-    id: "invoice",
-    type: "error" as const,
-    message: "INV-004 is overdue — $200 owed by Keisha Williams (was due Feb 21)",
-    href: "/dashboard/financial",
-    cta: "View Invoice",
-  },
-  {
-    id: "waitlist",
-    type: "info" as const,
-    message: "5 clients on the waitlist — 3 have not been contacted yet",
-    href: "/dashboard/bookings",
-    cta: "View Waitlist",
-  },
-];
-
-const STAFF_TODAY = [
-  {
-    initials: "JC",
-    name: "Jasmine Carter",
-    role: "Lead Lash Tech",
-    hours: "10am – 6pm",
-    status: "active" as const,
-  },
-  {
-    initials: "BM",
-    name: "Brianna Moss",
-    role: "Jewelry & Crochet",
-    hours: "11am – 5pm",
-    status: "active" as const,
-  },
-  {
-    initials: "SO",
-    name: "Simone Owens",
-    role: "Admin & Relations",
-    hours: "9am – 3pm",
-    status: "active" as const,
-  },
-  {
-    initials: "KT",
-    name: "Kezia Thompson",
-    role: "Lash Tech — Jr",
-    hours: "—",
-    status: "on_leave" as const,
-  },
-];
-
-type BookingStatus = "completed" | "in_progress" | "confirmed" | "pending" | "cancelled";
-type ServiceCategory = "lash" | "jewelry" | "crochet" | "consulting";
-
-interface Booking {
+export interface AdminBooking {
   id: number;
   time: string;
   service: string;
@@ -181,179 +74,66 @@ interface Booking {
   location?: string;
 }
 
-const MOCK_BOOKINGS: Booking[] = [
-  {
-    id: 1,
-    time: "10:00 AM",
-    service: "Volume Lashes — Full Set",
-    category: "lash",
-    client: "Sarah M.",
-    clientInitials: "SM",
-    staff: "Trini",
-    status: "completed",
-    durationMin: 120,
-  },
-  {
-    id: 2,
-    time: "12:00 PM",
-    service: "Classic Lash Fill",
-    category: "lash",
-    client: "Maya R.",
-    clientInitials: "MR",
-    staff: "Trini",
-    status: "in_progress",
-    durationMin: 90,
-  },
-  {
-    id: 3,
-    time: "1:00 PM",
-    service: "Permanent Jewelry Weld",
-    category: "jewelry",
-    client: "Priya K.",
-    clientInitials: "PK",
-    staff: "Jasmine",
-    status: "confirmed",
-    durationMin: 45,
-  },
-  {
-    id: 4,
-    time: "2:30 PM",
-    service: "Classic Lash Fill",
-    category: "lash",
-    client: "Chloe T.",
-    clientInitials: "CT",
-    staff: "Trini",
-    status: "confirmed",
-    durationMin: 75,
-  },
-  {
-    id: 5,
-    time: "4:00 PM",
-    service: "Business Consulting",
-    category: "consulting",
-    client: "Marcus B.",
-    clientInitials: "MB",
-    staff: "Trini",
-    status: "confirmed",
-    durationMin: 60,
-    location: "Virtual",
-  },
-  {
-    id: 6,
-    time: "5:30 PM",
-    service: "Custom Crochet Pickup",
-    category: "crochet",
-    client: "Amy L.",
-    clientInitials: "AL",
-    staff: "Trini",
-    status: "pending",
-    durationMin: 30,
-  },
-];
-
-type InquiryStatus = "new" | "read" | "replied" | "archived";
-
-interface Inquiry {
+export interface AdminInquiry {
   id: number;
   name: string;
   initials: string;
-  interest: ServiceCategory;
+  interest: ServiceCategory | null;
   message: string;
   time: string;
   status: InquiryStatus;
 }
 
-const MOCK_INQUIRIES: Inquiry[] = [
-  {
-    id: 1,
-    name: "Jordan Lee",
-    initials: "JL",
-    interest: "lash",
-    message:
-      "Hi! I'm interested in a full set of volume lashes for my graduation next month. Do you have availability in late March?",
-    time: "1 hour ago",
-    status: "new",
-  },
-  {
-    id: 2,
-    name: "Camille Foster",
-    initials: "CF",
-    interest: "jewelry",
-    message:
-      "Do you do matching sets? I'd love permanent jewelry for me and my sister as a birthday gift.",
-    time: "3 hours ago",
-    status: "new",
-  },
-  {
-    id: 3,
-    name: "Marcus Webb",
-    initials: "MW",
-    interest: "consulting",
-    message:
-      "I'm launching a beauty brand and need help structuring HR processes for a small team of 5.",
-    time: "Yesterday",
-    status: "read",
-  },
-];
-
-type ClientSource = "instagram" | "word_of_mouth" | "google_search" | "referral" | "website_direct";
-
-interface RecentClient {
-  id: number;
+export interface AdminClient {
+  id: string;
   name: string;
   initials: string;
-  source: ClientSource;
+  source: string | null;
   joinedAgo: string;
   vip: boolean;
-  services: ServiceCategory[];
+  services: string[];
 }
 
-const MOCK_RECENT_CLIENTS: RecentClient[] = [
-  {
-    id: 1,
-    name: "Amara Johnson",
-    initials: "AJ",
-    source: "instagram",
-    joinedAgo: "2 hours ago",
-    vip: false,
-    services: ["lash"],
-  },
-  {
-    id: 2,
-    name: "Destiny Cruz",
-    initials: "DC",
-    source: "referral",
-    joinedAgo: "Yesterday",
-    vip: true,
-    services: ["lash", "jewelry"],
-  },
-  {
-    id: 3,
-    name: "Keisha Williams",
-    initials: "KW",
-    source: "word_of_mouth",
-    joinedAgo: "2 days ago",
-    vip: false,
-    services: ["crochet"],
-  },
-  {
-    id: 4,
-    name: "Tanya Brown",
-    initials: "TB",
-    source: "google_search",
-    joinedAgo: "3 days ago",
-    vip: false,
-    services: ["consulting"],
-  },
-  {
-    id: 5,
-    name: "Nina Patel",
-    initials: "NP",
-    source: "instagram",
-    joinedAgo: "4 days ago",
-    vip: true,
-    services: ["jewelry"],
-  },
+export interface AdminAlert {
+  id: string;
+  type: "warning" | "error" | "info";
+  message: string;
+  href: string;
+  cta: string;
+}
+
+export interface AdminStaff {
+  initials: string;
+  name: string;
+  role: string | null;
+  hours: string;
+  status: "active" | "on_leave";
+}
+
+export interface DashboardPageProps {
+  firstName: string;
+  stats: AdminStats;
+  alerts: AdminAlert[];
+  todayBookings: AdminBooking[];
+  inquiries: AdminInquiry[];
+  weeklyRevenue: { day: string; amount: number }[];
+  weeklyRevenueTotal: number;
+  weeklyRevenueVsPriorPct: number | null;
+  recentClients: AdminClient[];
+  teamToday: AdminStaff[];
+}
+
+/* ------------------------------------------------------------------ */
+/*  Quick actions (static)                                             */
+/* ------------------------------------------------------------------ */
+
+const QUICK_ACTIONS = [
+  { label: "New Booking", icon: CalendarPlus, href: "/dashboard/bookings" },
+  { label: "New Invoice", icon: FileText, href: "/dashboard/financial" },
+  { label: "View Calendar", icon: CalendarDays, href: "/dashboard/calendar" },
+  { label: "Messages", icon: MessageSquare, href: "/dashboard/messages" },
+  { label: "Upload Media", icon: Image, href: "/dashboard/media" },
+  { label: "Inventory", icon: Package, href: "/dashboard/marketplace" },
 ];
 
 /* ------------------------------------------------------------------ */
@@ -381,10 +161,15 @@ function bookingStatusConfig(status: BookingStatus) {
         label: "Cancelled",
         className: "bg-destructive/10 text-destructive border-destructive/20",
       };
+    case "no_show":
+      return {
+        label: "No Show",
+        className: "bg-destructive/10 text-destructive border-destructive/20",
+      };
   }
 }
 
-function categoryDot(category: ServiceCategory) {
+function categoryDot(category: string) {
   switch (category) {
     case "lash":
       return "bg-[#c4907a]";
@@ -394,13 +179,19 @@ function categoryDot(category: ServiceCategory) {
       return "bg-[#7ba3a3]";
     case "consulting":
       return "bg-[#5b8a8a]";
+    default:
+      return "bg-muted";
   }
 }
 
-function sourceBadge(source: ClientSource) {
+function sourceBadge(source: string | null) {
   switch (source) {
     case "instagram":
       return { label: "Instagram", className: "bg-pink-50 text-pink-700 border-pink-100" };
+    case "tiktok":
+      return { label: "TikTok", className: "bg-pink-50 text-pink-700 border-pink-100" };
+    case "pinterest":
+      return { label: "Pinterest", className: "bg-rose-50 text-rose-700 border-rose-100" };
     case "word_of_mouth":
       return { label: "Word of Mouth", className: "bg-teal-50 text-teal-700 border-teal-100" };
     case "google_search":
@@ -409,6 +200,13 @@ function sourceBadge(source: ClientSource) {
       return { label: "Referral", className: "bg-amber-50 text-amber-700 border-amber-100" };
     case "website_direct":
       return { label: "Website", className: "bg-stone-50 text-stone-600 border-stone-100" };
+    case "event":
+      return { label: "Event", className: "bg-purple-50 text-purple-700 border-purple-100" };
+    default:
+      return {
+        label: source ?? "Unknown",
+        className: "bg-stone-50 text-stone-600 border-stone-100",
+      };
   }
 }
 
@@ -425,10 +223,20 @@ function inquiryStatusConfig(status: InquiryStatus) {
   }
 }
 
-function categoryLabel(category: ServiceCategory) {
-  return { lash: "Lash", jewelry: "Jewelry", crochet: "Crochet", consulting: "Consulting" }[
-    category
-  ];
+function categoryLabel(category: string) {
+  const labels: Record<string, string> = {
+    lash: "Lash",
+    jewelry: "Jewelry",
+    crochet: "Crochet",
+    consulting: "Consulting",
+    "3d_printing": "3D Printing",
+    aesthetics: "Aesthetics",
+  };
+  return labels[category] ?? category;
+}
+
+function formatDollars(cents: number) {
+  return `$${Math.round(cents / 100).toLocaleString()}`;
 }
 
 /* ------------------------------------------------------------------ */
@@ -443,7 +251,15 @@ function StatCard({
   icon: Icon,
   iconColor,
   iconBg,
-}: (typeof MOCK_STATS)[number]) {
+}: {
+  label: string;
+  value: string;
+  sub: string;
+  trend: Trend;
+  icon: React.ComponentType<{ className?: string }>;
+  iconColor: string;
+  iconBg: string;
+}) {
   return (
     <Card className="gap-0 py-4">
       <CardContent className="px-4">
@@ -466,7 +282,7 @@ function StatCard({
   );
 }
 
-function BookingRow({ booking }: { booking: Booking }) {
+function BookingRow({ booking }: { booking: AdminBooking }) {
   const status = bookingStatusConfig(booking.status);
   return (
     <div className="flex items-center gap-3 py-3 border-b border-border/50 last:border-0">
@@ -505,7 +321,7 @@ function BookingRow({ booking }: { booking: Booking }) {
   );
 }
 
-function InquiryRow({ inquiry }: { inquiry: Inquiry }) {
+function InquiryRow({ inquiry }: { inquiry: AdminInquiry }) {
   const status = inquiryStatusConfig(inquiry.status);
   return (
     <div className="flex gap-3 py-3 border-b border-border/50 last:border-0">
@@ -520,9 +336,11 @@ function InquiryRow({ inquiry }: { inquiry: Inquiry }) {
           <Badge className={cn("border text-[10px] px-1.5 py-0.5", status.className)}>
             {status.label}
           </Badge>
-          <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full border bg-foreground/5 text-muted border-foreground/8">
-            {categoryLabel(inquiry.interest)}
-          </span>
+          {inquiry.interest && (
+            <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full border bg-foreground/5 text-muted border-foreground/8">
+              {categoryLabel(inquiry.interest)}
+            </span>
+          )}
         </div>
         <p className="text-xs text-muted mt-1 line-clamp-2 leading-relaxed">{inquiry.message}</p>
         <p className="text-[10px] text-muted/60 mt-1">{inquiry.time}</p>
@@ -531,7 +349,7 @@ function InquiryRow({ inquiry }: { inquiry: Inquiry }) {
   );
 }
 
-function ClientRow({ client }: { client: RecentClient }) {
+function ClientRow({ client }: { client: AdminClient }) {
   const src = sourceBadge(client.source);
   return (
     <div className="flex items-center gap-3 py-3 border-b border-border/50 last:border-0">
@@ -569,7 +387,18 @@ function ClientRow({ client }: { client: RecentClient }) {
 /*  Main export                                                        */
 /* ------------------------------------------------------------------ */
 
-export function DashboardPage() {
+export function DashboardPage({
+  firstName,
+  stats,
+  alerts,
+  todayBookings,
+  inquiries,
+  weeklyRevenue,
+  weeklyRevenueTotal,
+  weeklyRevenueVsPriorPct,
+  recentClients,
+  teamToday,
+}: DashboardPageProps) {
   const [dismissedAlerts, setDismissedAlerts] = useState<string[]>([]);
 
   const today = new Date().toLocaleDateString("en-US", {
@@ -578,14 +407,94 @@ export function DashboardPage() {
     day: "numeric",
   });
 
-  const visibleAlerts = MOCK_ALERTS.filter((a) => !dismissedAlerts.includes(a.id));
+  const visibleAlerts = alerts.filter((a) => !dismissedAlerts.includes(a.id));
+
+  // Build stats cards from real data
+  const revTodayDisplay = formatDollars(stats.revenueTodayCents);
+  const revVsYesterday =
+    stats.revenueTodayVsYesterdayPct !== null
+      ? `${stats.revenueTodayVsYesterdayPct > 0 ? "+" : ""}${stats.revenueTodayVsYesterdayPct}% vs yesterday`
+      : "vs yesterday";
+  const revTrend: Trend =
+    stats.revenueTodayVsYesterdayPct !== null && stats.revenueTodayVsYesterdayPct > 0
+      ? "up"
+      : stats.revenueTodayVsYesterdayPct !== null && stats.revenueTodayVsYesterdayPct < 0
+        ? "down"
+        : "neutral";
+
+  const STATS = [
+    {
+      label: "Revenue Today",
+      value: revTodayDisplay,
+      sub: revVsYesterday,
+      trend: revTrend,
+      icon: TrendingUp,
+      iconColor: "text-[#4e6b51]",
+      iconBg: "bg-[#4e6b51]/10",
+    },
+    {
+      label: "Appointments",
+      value: String(stats.appointmentsToday),
+      sub: `${stats.appointmentsRemaining} remaining today`,
+      trend: "neutral" as Trend,
+      icon: CalendarDays,
+      iconColor: "text-blush",
+      iconBg: "bg-blush/10",
+    },
+    {
+      label: "Active Clients",
+      value: String(stats.activeClientsThisMonth),
+      sub: `+${stats.newClientsThisWeek} this week`,
+      trend: stats.newClientsThisWeek > 0 ? ("up" as Trend) : ("neutral" as Trend),
+      icon: Users,
+      iconColor: "text-accent",
+      iconBg: "bg-accent/10",
+    },
+    {
+      label: "Waitlist",
+      value: String(stats.waitlistTotal),
+      sub: `${stats.waitlistNotContacted} not contacted`,
+      trend: "neutral" as Trend,
+      icon: ListOrdered,
+      iconColor: "text-[#7a5c10]",
+      iconBg: "bg-[#7a5c10]/10",
+    },
+    {
+      label: "Outstanding",
+      value: formatDollars(stats.outstandingCents),
+      sub: `${stats.unpaidInvoiceCount} unpaid invoice${stats.unpaidInvoiceCount !== 1 ? "s" : ""}`,
+      trend: stats.outstandingCents > 0 ? ("down" as Trend) : ("neutral" as Trend),
+      icon: DollarSign,
+      iconColor: "text-destructive",
+      iconBg: "bg-destructive/10",
+    },
+    {
+      label: "Open Inquiries",
+      value: String(stats.openInquiries),
+      sub: `${stats.newInquiriesToday} new today`,
+      trend: "neutral" as Trend,
+      icon: MessageSquare,
+      iconColor: "text-[#5b8a8a]",
+      iconBg: "bg-[#5b8a8a]/10",
+    },
+  ] as const;
+
+  const weeklyTotalDisplay = `$${weeklyRevenueTotal.toLocaleString()}`;
+  const weeklyVsPriorDisplay =
+    weeklyRevenueVsPriorPct !== null
+      ? weeklyRevenueVsPriorPct > 0
+        ? `↑ ${weeklyRevenueVsPriorPct}% vs prior week`
+        : weeklyRevenueVsPriorPct < 0
+          ? `↓ ${Math.abs(weeklyRevenueVsPriorPct)}% vs prior week`
+          : "flat vs prior week"
+      : null;
 
   return (
     <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
       {/* ── Header ─────────────────────────────────────────────────── */}
       <div>
         <h1 className="text-xl font-semibold text-foreground tracking-tight">
-          Good morning, Trini ✦
+          Good morning, {firstName} ✦
         </h1>
         <p className="text-sm text-muted mt-0.5">{today}</p>
       </div>
@@ -606,7 +515,7 @@ export function DashboardPage() {
 
       {/* ── Stats ───────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-        {MOCK_STATS.map((stat) => (
+        {STATS.map((stat) => (
           <StatCard key={stat.label} {...stat} />
         ))}
       </div>
@@ -680,9 +589,11 @@ export function DashboardPage() {
             </div>
           </CardHeader>
           <CardContent className="px-5 pb-4 pt-2">
-            {MOCK_BOOKINGS.map((booking) => (
-              <BookingRow key={booking.id} booking={booking} />
-            ))}
+            {todayBookings.length > 0 ? (
+              todayBookings.map((booking) => <BookingRow key={booking.id} booking={booking} />)
+            ) : (
+              <p className="text-sm text-muted py-4 text-center">No appointments today</p>
+            )}
           </CardContent>
         </Card>
 
@@ -699,9 +610,11 @@ export function DashboardPage() {
             </div>
           </CardHeader>
           <CardContent className="px-5 pb-4 pt-2">
-            {MOCK_INQUIRIES.map((inquiry) => (
-              <InquiryRow key={inquiry.id} inquiry={inquiry} />
-            ))}
+            {inquiries.length > 0 ? (
+              inquiries.map((inquiry) => <InquiryRow key={inquiry.id} inquiry={inquiry} />)
+            ) : (
+              <p className="text-sm text-muted py-4 text-center">No open inquiries</p>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -713,8 +626,19 @@ export function DashboardPage() {
             <div>
               <CardTitle className="text-sm font-semibold">Revenue — Last 7 Days</CardTitle>
               <p className="text-xs text-muted mt-0.5">
-                Total: <span className="font-medium text-foreground">$9,030</span>
-                <span className="ml-2 text-[#4e6b51]">↑ 8% vs prior week</span>
+                Total: <span className="font-medium text-foreground">{weeklyTotalDisplay}</span>
+                {weeklyVsPriorDisplay && (
+                  <span
+                    className={cn(
+                      "ml-2",
+                      weeklyRevenueVsPriorPct !== null && weeklyRevenueVsPriorPct >= 0
+                        ? "text-[#4e6b51]"
+                        : "text-destructive",
+                    )}
+                  >
+                    {weeklyVsPriorDisplay}
+                  </span>
+                )}
               </p>
             </div>
             <div className="flex items-center gap-3 text-[11px] text-muted">
@@ -728,7 +652,7 @@ export function DashboardPage() {
           </div>
         </CardHeader>
         <CardContent className="px-5 pb-5 pt-4">
-          <RevenueChart />
+          <RevenueChart data={weeklyRevenue} />
         </CardContent>
       </Card>
 
@@ -748,39 +672,43 @@ export function DashboardPage() {
             </div>
           </CardHeader>
           <CardContent className="px-5 pb-4 pt-2">
-            {STAFF_TODAY.map((s) => (
-              <div
-                key={s.name}
-                className="flex items-center gap-3 py-3 border-b border-border/50 last:border-0"
-              >
-                <Avatar size="sm">
-                  <AvatarFallback className="text-[10px] bg-surface text-muted font-semibold">
-                    {s.initials}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="flex-1 min-w-0">
-                  <p
-                    className={cn(
-                      "text-sm font-medium",
-                      s.status === "on_leave" ? "text-muted" : "text-foreground",
-                    )}
-                  >
-                    {s.name}
-                  </p>
-                  <p className="text-xs text-muted mt-0.5">{s.role}</p>
+            {teamToday.length > 0 ? (
+              teamToday.map((s) => (
+                <div
+                  key={s.name}
+                  className="flex items-center gap-3 py-3 border-b border-border/50 last:border-0"
+                >
+                  <Avatar size="sm">
+                    <AvatarFallback className="text-[10px] bg-surface text-muted font-semibold">
+                      {s.initials}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <p
+                      className={cn(
+                        "text-sm font-medium",
+                        s.status === "on_leave" ? "text-muted" : "text-foreground",
+                      )}
+                    >
+                      {s.name}
+                    </p>
+                    <p className="text-xs text-muted mt-0.5">{s.role}</p>
+                  </div>
+                  {s.status === "on_leave" ? (
+                    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full border bg-[#7a5c10]/10 text-[#7a5c10] border-[#7a5c10]/20 shrink-0">
+                      On Leave
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-muted shrink-0 flex items-center gap-0.5">
+                      <Clock className="w-3 h-3" />
+                      {s.hours}
+                    </span>
+                  )}
                 </div>
-                {s.status === "on_leave" ? (
-                  <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full border bg-[#7a5c10]/10 text-[#7a5c10] border-[#7a5c10]/20 shrink-0">
-                    On Leave
-                  </span>
-                ) : (
-                  <span className="text-[10px] text-muted shrink-0 flex items-center gap-0.5">
-                    <Clock className="w-3 h-3" />
-                    {s.hours}
-                  </span>
-                )}
-              </div>
-            ))}
+              ))
+            ) : (
+              <p className="text-sm text-muted py-4 text-center">No shifts scheduled today</p>
+            )}
           </CardContent>
         </Card>
 
@@ -798,9 +726,11 @@ export function DashboardPage() {
             </div>
           </CardHeader>
           <CardContent className="px-5 pb-4 pt-2">
-            {MOCK_RECENT_CLIENTS.map((client) => (
-              <ClientRow key={client.id} client={client} />
-            ))}
+            {recentClients.length > 0 ? (
+              recentClients.map((client) => <ClientRow key={client.id} client={client} />)
+            ) : (
+              <p className="text-sm text-muted py-4 text-center">No recent clients</p>
+            )}
           </CardContent>
         </Card>
       </div>

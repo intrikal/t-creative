@@ -3,17 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import * as d3 from "d3";
 
-const DATA = [
-  { day: "Mon", amount: 890 },
-  { day: "Tue", amount: 1120 },
-  { day: "Wed", amount: 760 },
-  { day: "Thu", amount: 1340 },
-  { day: "Fri", amount: 1480 },
-  { day: "Sat", amount: 2100 },
-  { day: "Today", amount: 1240 },
-] as const;
-
-type Datum = (typeof DATA)[number];
+type Datum = { day: string; amount: number };
 
 interface Tooltip {
   x: number;
@@ -22,7 +12,7 @@ interface Tooltip {
   day: string;
 }
 
-export function RevenueChart() {
+export function RevenueChart({ data }: { data: Datum[] }) {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [tooltip, setTooltip] = useState<Tooltip | null>(null);
@@ -47,11 +37,11 @@ export function RevenueChart() {
 
       const xScale = d3
         .scaleBand()
-        .domain(DATA.map((d) => d.day))
+        .domain(data.map((d) => d.day))
         .range([0, iW])
         .padding(0.38);
 
-      const maxVal = d3.max(DATA, (d) => d.amount) ?? 0;
+      const maxVal = d3.max(data, (d) => d.amount) ?? 0;
       const yScale = d3
         .scaleLinear()
         .domain([0, maxVal * 1.15])
@@ -105,7 +95,7 @@ export function RevenueChart() {
 
       // Bars
       g.selectAll<SVGRectElement, Datum>(".bar")
-        .data([...DATA])
+        .data([...data])
         .join("rect")
         .attr("class", "bar")
         .attr("x", (d) => xScale(d.day) ?? 0)
@@ -136,7 +126,7 @@ export function RevenueChart() {
     const observer = new ResizeObserver(draw);
     if (containerRef.current) observer.observe(containerRef.current);
     return () => observer.disconnect();
-  }, []);
+  }, [data]);
 
   return (
     <div ref={containerRef} className="relative w-full select-none">

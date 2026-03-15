@@ -9,9 +9,17 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { eq, desc, asc, sql, ilike } from "drizzle-orm";
+import { eq, desc, asc, sql, ilike, and } from "drizzle-orm";
 import { db } from "@/db";
-import { products, orders, profiles, syncLog, giftCards, giftCardTransactions } from "@/db/schema";
+import {
+  products,
+  orders,
+  profiles,
+  syncLog,
+  giftCards,
+  giftCardTransactions,
+  wishlistItems,
+} from "@/db/schema";
 import { OrderConfirmation } from "@/emails/OrderConfirmation";
 import { trackEvent } from "@/lib/posthog";
 import { sendEmail } from "@/lib/resend";
@@ -453,4 +461,55 @@ export async function getClientOrders(): Promise<ClientOrder[]> {
       year: "numeric",
     }),
   }));
+}
+
+/* ------------------------------------------------------------------ */
+/*  Wishlist                                                           */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Returns the product IDs the logged-in client has saved to their wishlist.
+ */
+export async function getWishlistProductIds(): Promise<number[]> {
+  const user = await getUser();
+
+  const rows = await db
+    .select({ productId: wishlistItems.productId })
+    .from(wishlistItems)
+    .where(eq(wishlistItems.clientId, user.id));
+
+  return rows.map((r) => r.productId);
+}
+
+/**
+ * Adds a product to the logged-in client's wishlist.
+ * Silently no-ops if the product is already saved.
+ */
+export async function addToWishlist(productId: number): Promise<void> {
+  const user = await getUser();
+
+  const [existing] = await db
+    .select({ id: wishlistItems.id })
+    .from(wishlistItems)
+    .where(and(eq(wishlistItems.clientId, user.id), eq(wishlistItems.productId, productId)))
+    .limit(1);
+
+  if (!existing) {
+    await db.insert(wishlistItems).values({ clientId: user.id, productId });
+  }
+
+  revalidatePath("/dashboard/shop");
+}
+
+/**
+ * Removes a product from the logged-in client's wishlist.
+ */
+export async function removeFromWishlist(productId: number): Promise<void> {
+  const user = await getUser();
+
+  await db
+    .delete(wishlistItems)
+    .where(and(eq(wishlistItems.clientId, user.id), eq(wishlistItems.productId, productId)));
+
+  revalidatePath("/dashboard/shop");
 }

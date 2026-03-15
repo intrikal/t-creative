@@ -17,7 +17,13 @@ import {
   ChevronRight,
   ExternalLink,
 } from "lucide-react";
-import { placeOrder, type ShopProduct, type ClientOrder } from "@/app/shop/actions";
+import {
+  placeOrder,
+  addToWishlist,
+  removeFromWishlist,
+  type ShopProduct,
+  type ClientOrder,
+} from "@/app/shop/actions";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog } from "@/components/ui/dialog";
@@ -363,13 +369,17 @@ function ProductModal({
 export function ClientShopPage({
   products,
   orders,
+  wishlistIds,
 }: {
   products: ShopProduct[];
   orders: ClientOrder[];
+  wishlistIds: number[];
 }) {
   const router = useRouter();
-  const [tab, setTab] = useState<"products" | "orders">("products");
+  const [tab, setTab] = useState<"products" | "orders" | "saved">("products");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [savedIds, setSavedIds] = useState<Set<number>>(() => new Set(wishlistIds));
+  const [, startWishlistTransition] = useTransition();
   const [cartOpen, setCartOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<ShopProduct | null>(null);
   const [orderResult, setOrderResult] = useState<{
@@ -391,6 +401,23 @@ export function ClientShopPage({
       title: product.title,
       priceInCents: product.priceInCents!,
       imageUrl: product.imageUrl,
+    });
+  }
+
+  function handleToggleWishlist(e: React.MouseEvent, product: ShopProduct) {
+    e.stopPropagation();
+    const isSaved = savedIds.has(product.id);
+    setSavedIds((prev) => {
+      const next = new Set(prev);
+      isSaved ? next.delete(product.id) : next.add(product.id);
+      return next;
+    });
+    startWishlistTransition(async () => {
+      if (isSaved) {
+        await removeFromWishlist(product.id);
+      } else {
+        await addToWishlist(product.id);
+      }
     });
   }
 
@@ -469,20 +496,25 @@ export function ClientShopPage({
         </div>
       )}
 
-      {/* Products / Orders tab toggle */}
+      {/* Products / Saved / Orders tab toggle */}
       <div className="flex items-center gap-1 bg-surface border border-border rounded-lg p-0.5 w-fit">
-        {(["products", "orders"] as const).map((t) => (
+        {(["products", "saved", "orders"] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
             className={cn(
-              "px-3 py-1.5 rounded-md text-xs font-medium transition-colors capitalize",
+              "px-3 py-1.5 rounded-md text-xs font-medium transition-colors flex items-center gap-1",
               tab === t
                 ? "bg-background text-foreground shadow-sm"
                 : "text-muted hover:text-foreground",
             )}
           >
-            {t === "products" ? "Products" : "Order History"}
+            {t === "saved" && <Heart className="w-3 h-3" />}
+            {t === "products"
+              ? "Products"
+              : t === "saved"
+                ? `Saved${savedIds.size > 0 ? ` (${savedIds.size})` : ""}`
+                : "Order History"}
           </button>
         ))}
       </div>
@@ -530,7 +562,26 @@ export function ClientShopPage({
                     onClick={() => setSelectedProduct(product)}
                   >
                     <CardContent className="px-4 pt-4 pb-4 flex flex-col h-full">
-                      <ProductThumb category={product.category} available={available} />
+                      <div className="relative">
+                        <ProductThumb category={product.category} available={available} />
+                        <button
+                          onClick={(e) => handleToggleWishlist(e, product)}
+                          className={cn(
+                            "absolute top-2 right-2 w-7 h-7 rounded-full flex items-center justify-center transition-colors",
+                            savedIds.has(product.id)
+                              ? "bg-rose-50 text-rose-500"
+                              : "bg-background/80 text-muted hover:text-rose-400",
+                          )}
+                          aria-label={
+                            savedIds.has(product.id) ? "Remove from saved" : "Save product"
+                          }
+                        >
+                          <Heart
+                            className="w-3.5 h-3.5"
+                            fill={savedIds.has(product.id) ? "currentColor" : "none"}
+                          />
+                        </button>
+                      </div>
                       <div className="flex items-start justify-between gap-2 mb-1.5">
                         <h3 className="text-sm font-semibold text-foreground leading-snug group-hover:text-accent transition-colors">
                           {product.title}
@@ -592,6 +643,111 @@ export function ClientShopPage({
                   </Card>
                 );
               })}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Saved tab */}
+      {tab === "saved" && (
+        <>
+          {savedIds.size === 0 ? (
+            <div className="py-16 text-center border border-dashed border-border rounded-2xl">
+              <Heart className="w-8 h-8 text-muted/40 mx-auto mb-2" />
+              <p className="text-sm text-muted">No saved products yet</p>
+              <p className="text-xs text-muted/60 mt-1">Tap the heart on any product to save it</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+              {products
+                .filter((p) => savedIds.has(p.id))
+                .map((product) => {
+                  const cat = getCatConfig(product.category);
+                  const available = canAddToCart(product);
+                  const inCart = items.some((i) => i.productId === product.id);
+                  return (
+                    <Card
+                      key={product.id}
+                      className={cn(
+                        "gap-0 flex flex-col h-full cursor-pointer group",
+                        !available && "opacity-60",
+                      )}
+                      onClick={() => setSelectedProduct(product)}
+                    >
+                      <CardContent className="px-4 pt-4 pb-4 flex flex-col h-full">
+                        <div className="relative">
+                          <ProductThumb category={product.category} available={available} />
+                          <button
+                            onClick={(e) => handleToggleWishlist(e, product)}
+                            className="absolute top-2 right-2 w-7 h-7 rounded-full flex items-center justify-center transition-colors bg-rose-50 text-rose-500"
+                            aria-label="Remove from saved"
+                          >
+                            <Heart className="w-3.5 h-3.5" fill="currentColor" />
+                          </button>
+                        </div>
+                        <div className="flex items-start justify-between gap-2 mb-1.5">
+                          <h3 className="text-sm font-semibold text-foreground leading-snug group-hover:text-accent transition-colors">
+                            {product.title}
+                          </h3>
+                          <Badge
+                            className={cn(
+                              "border text-[10px] px-1.5 py-0.5 shrink-0",
+                              cat.bg,
+                              cat.text,
+                              cat.border,
+                            )}
+                          >
+                            {cat.label}
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-muted leading-relaxed flex-1">
+                          {product.description}
+                        </p>
+                        <div className="flex items-center justify-between gap-3 mt-4 pt-3 border-t border-border/50">
+                          <span className="text-base font-bold text-foreground">
+                            {priceLabel(product)}
+                          </span>
+                          {product.availability === "out_of_stock" ? (
+                            <span className="text-xs text-destructive font-medium">
+                              Out of stock
+                            </span>
+                          ) : available ? (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleAddToCart(product);
+                              }}
+                              className={cn(
+                                "flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-colors",
+                                inCart
+                                  ? "bg-[#4e6b51] text-white"
+                                  : "bg-accent text-white hover:bg-accent/90",
+                              )}
+                            >
+                              {inCart ? (
+                                <>
+                                  <CheckCircle2 className="w-3 h-3" /> In cart
+                                </>
+                              ) : (
+                                <>
+                                  <ShoppingCart className="w-3 h-3" /> Add
+                                </>
+                              )}
+                            </button>
+                          ) : (
+                            <a
+                              href="/contact"
+                              onClick={(e) => e.stopPropagation()}
+                              className="text-xs font-medium text-accent hover:underline"
+                            >
+                              Inquire <ChevronRight className="w-3 h-3 inline" />
+                            </a>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
             </div>
           )}
         </>

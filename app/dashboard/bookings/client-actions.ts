@@ -7,6 +7,7 @@ import { db } from "@/db";
 import { bookings, bookingAddOns, services, profiles, reviews } from "@/db/schema";
 import { logAction } from "@/lib/audit";
 import { trackEvent } from "@/lib/posthog";
+import { notifyWaitlistForCancelledBooking } from "@/lib/waitlist-notify";
 import { updateZohoDeal, logZohoNote } from "@/lib/zoho";
 import { createClient } from "@/utils/supabase/server";
 
@@ -366,6 +367,9 @@ export async function cancelClientBooking(bookingId: number) {
 
   // Zoho CRM: mark deal as lost
   updateZohoDeal(bookingId, "Closed Lost");
+
+  // Notify the next waitlisted client that this slot opened up
+  notifyWaitlistForCancelledBooking(bookingId).catch(() => {});
 
   revalidatePath(PATH);
 }

@@ -6,7 +6,17 @@
  * where high-demand slots (weekends, evenings) fill up fast.
  */
 import { relations } from "drizzle-orm";
-import { date, index, integer, pgTable, serial, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import {
+  date,
+  index,
+  integer,
+  pgTable,
+  serial,
+  text,
+  timestamp,
+  uuid,
+  varchar,
+} from "drizzle-orm/pg-core";
 import { waitlistStatusEnum } from "./enums";
 import { services } from "./services";
 import { profiles } from "./users";
@@ -49,6 +59,24 @@ export const waitlist = pgTable(
 
     /** The booking ID if they successfully booked from the waitlist. */
     bookedBookingId: integer("booked_booking_id"),
+
+    /**
+     * One-time claim token (UUID) included in the notification email link.
+     * Allows the waitlisted client to self-book the specific opened slot
+     * without logging in. Cleared after the slot is claimed or expires.
+     */
+    claimToken: varchar("claim_token", { length: 100 }).unique(),
+
+    /** When the claim token expires (default: 24 hours after notification). */
+    claimTokenExpiresAt: timestamp("claim_token_expires_at", { withTimezone: true }),
+
+    /** The specific appointment slot offered to this waitlist entry. */
+    offeredSlotStartsAt: timestamp("offered_slot_starts_at", { withTimezone: true }),
+
+    /** Staff assigned to the offered slot (nullable — some services have no assigned staff). */
+    offeredStaffId: uuid("offered_staff_id").references(() => profiles.id, {
+      onDelete: "set null",
+    }),
 
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true })

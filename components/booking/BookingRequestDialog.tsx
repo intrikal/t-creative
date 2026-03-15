@@ -306,6 +306,13 @@ export function BookingRequestDialog({
               We&apos;ll review your request and reach out soon to confirm your appointment. Check
               your messages for updates.
             </p>
+            {service.depositInCents && (
+              <p className="mt-4 text-xs text-amber-700 bg-amber-50 border border-amber-200/50 rounded-lg px-3 py-2.5 max-w-xs mx-auto text-left leading-relaxed">
+                <span className="font-medium">Deposit required:</span> Once confirmed, you&apos;ll
+                receive a {formatPrice(service.depositInCents)} deposit link by email to secure your
+                spot.
+              </p>
+            )}
             <button
               onClick={handleClose}
               className="mt-6 px-6 py-2.5 rounded-xl bg-[#96604a] text-white text-sm font-medium hover:bg-[#7a4e3a] transition-colors"

@@ -1,6 +1,7 @@
 "use server";
 
-import { eq, and, desc, asc } from "drizzle-orm";
+import { revalidatePath } from "next/cache";
+import { eq, and, desc, asc, or } from "drizzle-orm";
 import { db } from "@/db";
 import { mediaItems } from "@/db/schema";
 import { createClient } from "@/utils/supabase/server";
@@ -34,6 +35,7 @@ export type GalleryItem = {
   imageUrl: string | null;
   beforeImageUrl: string | null;
   isFeatured: boolean;
+  clientConsentGiven: boolean;
 };
 
 export type ClientGalleryData = {
@@ -47,40 +49,38 @@ export type ClientGalleryData = {
 
 export async function getClientGallery(): Promise<ClientGalleryData> {
   const user = await getUser();
+  const supabase = await createClient();
+
+  const cols = {
+    id: mediaItems.id,
+    type: mediaItems.type,
+    category: mediaItems.category,
+    title: mediaItems.title,
+    caption: mediaItems.caption,
+    publicUrl: mediaItems.publicUrl,
+    beforeStoragePath: mediaItems.beforeStoragePath,
+    isFeatured: mediaItems.isFeatured,
+    clientConsentGiven: mediaItems.clientConsentGiven,
+  } as const;
 
   // 1. Published portfolio items (the public lookbook)
   const portfolioRows = await db
-    .select({
-      id: mediaItems.id,
-      type: mediaItems.type,
-      category: mediaItems.category,
-      title: mediaItems.title,
-      caption: mediaItems.caption,
-      publicUrl: mediaItems.publicUrl,
-      storagePath: mediaItems.storagePath,
-      beforeStoragePath: mediaItems.beforeStoragePath,
-      isFeatured: mediaItems.isFeatured,
-    })
+    .select(cols)
     .from(mediaItems)
     .where(eq(mediaItems.isPublished, true))
     .orderBy(asc(mediaItems.sortOrder), desc(mediaItems.createdAt));
 
-  // 2. Photos tagged to this client (my session photos)
+  // 2. Photos tagged to this client — all of them, including pending consent
   const myPhotoRows = await db
-    .select({
-      id: mediaItems.id,
-      type: mediaItems.type,
-      category: mediaItems.category,
-      title: mediaItems.title,
-      caption: mediaItems.caption,
-      publicUrl: mediaItems.publicUrl,
-      storagePath: mediaItems.storagePath,
-      beforeStoragePath: mediaItems.beforeStoragePath,
-      isFeatured: mediaItems.isFeatured,
-    })
+    .select(cols)
     .from(mediaItems)
     .where(eq(mediaItems.clientId, user.id))
     .orderBy(desc(mediaItems.createdAt));
+
+  function getBeforeUrl(beforeStoragePath: string | null): string | null {
+    if (!beforeStoragePath) return null;
+    return supabase.storage.from("media").getPublicUrl(beforeStoragePath).data.publicUrl;
+  }
 
   function mapRow(r: (typeof portfolioRows)[number]): GalleryItem {
     return {
@@ -90,8 +90,9 @@ export async function getClientGallery(): Promise<ClientGalleryData> {
       title: r.title ?? "",
       caption: r.caption ?? "",
       imageUrl: r.publicUrl ?? null,
-      beforeImageUrl: r.beforeStoragePath ? r.publicUrl : null,
+      beforeImageUrl: getBeforeUrl(r.beforeStoragePath ?? null),
       isFeatured: r.isFeatured,
+      clientConsentGiven: r.clientConsentGiven,
     };
   }
 
@@ -99,4 +100,25 @@ export async function getClientGallery(): Promise<ClientGalleryData> {
     portfolio: portfolioRows.map(mapRow),
     myPhotos: myPhotoRows.map(mapRow),
   };
+}
+
+/* ------------------------------------------------------------------ */
+/*  Client consent                                                     */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Approves a before/after photo for public portfolio display.
+ * Sets clientConsentGiven = true and publishes the item.
+ * Only works on media items tagged to the logged-in client.
+ */
+export async function grantPhotoConsent(mediaItemId: number): Promise<void> {
+  const user = await getUser();
+
+  await db
+    .update(mediaItems)
+    .set({ clientConsentGiven: true, isPublished: true, updatedAt: new Date() })
+    .where(and(eq(mediaItems.id, mediaItemId), eq(mediaItems.clientId, user.id)));
+
+  revalidatePath("/dashboard/gallery");
+  revalidatePath("/dashboard/media");
 }

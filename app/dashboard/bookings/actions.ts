@@ -30,11 +30,14 @@
 import { revalidatePath } from "next/cache";
 import { eq, desc, ne, and, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
+import type { MediaCategory } from "@/app/dashboard/media/actions";
 import { db } from "@/db";
 import {
   bookings,
   bookingSubscriptions,
   clientPreferences,
+  mediaItems,
+  notifications,
   profiles,
   services,
   serviceRecords,
@@ -1232,6 +1235,8 @@ export type ServiceRecordRow = {
   nextVisitNotes: string | null;
   beforePhotoPath: string | null;
   afterPhotoPath: string | null;
+  beforePhotoUrl: string | null;
+  afterPhotoUrl: string | null;
   createdAt: string;
 };
 
@@ -1248,10 +1253,13 @@ export type ServiceRecordInput = {
   notes?: string;
   reactions?: string;
   nextVisitNotes?: string;
+  beforePhotoPath?: string;
+  afterPhotoPath?: string;
 };
 
 export async function getServiceRecord(bookingId: number): Promise<ServiceRecordRow | null> {
   await getUser();
+  const supabase = await createClient();
 
   const staffProfile = alias(profiles, "recordStaff");
 
@@ -1284,7 +1292,15 @@ export async function getServiceRecord(bookingId: number): Promise<ServiceRecord
   if (rows.length === 0) return null;
 
   const r = rows[0];
-  return { ...r, createdAt: r.createdAt.toISOString() };
+  const getUrl = (path: string | null) =>
+    path ? supabase.storage.from("media").getPublicUrl(path).data.publicUrl : null;
+
+  return {
+    ...r,
+    beforePhotoUrl: getUrl(r.beforePhotoPath),
+    afterPhotoUrl: getUrl(r.afterPhotoPath),
+    createdAt: r.createdAt.toISOString(),
+  };
 }
 
 export async function upsertServiceRecord(input: ServiceRecordInput): Promise<void> {
@@ -1311,6 +1327,8 @@ export async function upsertServiceRecord(input: ServiceRecordInput): Promise<vo
         notes: input.notes ?? null,
         reactions: input.reactions ?? null,
         nextVisitNotes: input.nextVisitNotes ?? null,
+        ...(input.beforePhotoPath !== undefined ? { beforePhotoPath: input.beforePhotoPath } : {}),
+        ...(input.afterPhotoPath !== undefined ? { afterPhotoPath: input.afterPhotoPath } : {}),
       })
       .where(eq(serviceRecords.id, existing[0].id));
   } else {
@@ -1328,6 +1346,8 @@ export async function upsertServiceRecord(input: ServiceRecordInput): Promise<vo
       notes: input.notes ?? null,
       reactions: input.reactions ?? null,
       nextVisitNotes: input.nextVisitNotes ?? null,
+      beforePhotoPath: input.beforePhotoPath ?? null,
+      afterPhotoPath: input.afterPhotoPath ?? null,
     });
   }
 
@@ -1544,4 +1564,110 @@ export async function cancelBookingSeries(bookingId: number): Promise<void> {
   });
 
   revalidatePath("/dashboard/bookings");
+}
+
+/* ------------------------------------------------------------------ */
+/*  Before / After photo upload                                        */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Uploads a single before or after photo to Supabase Storage and returns
+ * the storage path + public URL. Called from the service record dialog
+ * immediately on file selection so the tech sees a preview before saving.
+ */
+export async function uploadServicePhoto(
+  formData: FormData,
+): Promise<{ path: string; publicUrl: string }> {
+  await getUser();
+  const supabase = await createClient();
+
+  const file = formData.get("file") as File | null;
+  const bookingId = formData.get("bookingId") as string | null;
+  const slot = (formData.get("slot") as string) ?? "photo";
+
+  if (!file) throw new Error("No file provided");
+
+  const ext = file.name.split(".").pop()?.toLowerCase() ?? "jpg";
+  const timestamp = Date.now();
+  const path = `service-records/${bookingId ?? "unknown"}/${slot}-${timestamp}.${ext}`;
+
+  const { error } = await supabase.storage.from("media").upload(path, file, {
+    contentType: file.type,
+    upsert: false,
+  });
+  if (error) throw new Error(`Upload failed: ${error.message}`);
+
+  const {
+    data: { publicUrl },
+  } = supabase.storage.from("media").getPublicUrl(path);
+  return { path, publicUrl };
+}
+
+/* ------------------------------------------------------------------ */
+/*  Promote service record photos to portfolio                         */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Creates a media_items row from a service record's before/after photos
+ * and queues a consent notification for the client.
+ * The item is unpublished until the client approves.
+ */
+export async function promoteToPortfolio(input: {
+  bookingId: number;
+  category: MediaCategory;
+  caption?: string;
+}): Promise<void> {
+  await getUser();
+  const supabase = await createClient();
+
+  const [record] = await db
+    .select({
+      clientId: serviceRecords.clientId,
+      beforePhotoPath: serviceRecords.beforePhotoPath,
+      afterPhotoPath: serviceRecords.afterPhotoPath,
+    })
+    .from(serviceRecords)
+    .where(eq(serviceRecords.bookingId, input.bookingId))
+    .limit(1);
+
+  if (!record) throw new Error("Service record not found");
+  if (!record.beforePhotoPath || !record.afterPhotoPath) {
+    throw new Error("Both before and after photos are required");
+  }
+
+  const {
+    data: { publicUrl },
+  } = supabase.storage.from("media").getPublicUrl(record.afterPhotoPath);
+
+  const [inserted] = await db
+    .insert(mediaItems)
+    .values({
+      type: "before_after",
+      category: input.category,
+      clientId: record.clientId,
+      caption: input.caption?.trim() || null,
+      storagePath: record.afterPhotoPath,
+      beforeStoragePath: record.beforePhotoPath,
+      publicUrl,
+      clientConsentGiven: false,
+      isPublished: false,
+    })
+    .returning({ id: mediaItems.id });
+
+  // Notify the client so they see the pending approval in their gallery
+  await db.insert(notifications).values({
+    profileId: record.clientId,
+    type: "general",
+    channel: "internal",
+    status: "sent",
+    title: "Your photos are ready for the portfolio",
+    body: "T Creative would like to feature your before & after photos in the portfolio. Open your gallery to approve.",
+    relatedEntityType: "media_item",
+    relatedEntityId: inserted.id,
+    sentAt: new Date(),
+  });
+
+  revalidatePath("/dashboard/bookings");
+  revalidatePath("/dashboard/gallery");
+  revalidatePath("/dashboard/media");
 }

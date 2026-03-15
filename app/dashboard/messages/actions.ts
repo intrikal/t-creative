@@ -622,6 +622,7 @@ export async function createBookingRequest(input: {
   message: string;
   preferredDates?: string;
   referencePhotoUrls?: string[];
+  preferredCadence?: string;
 }): Promise<{ threadId: number; bookingId: number }> {
   const user = await getUser();
 
@@ -648,9 +649,13 @@ export async function createBookingRequest(input: {
       startsAt: new Date(), // Placeholder — admin will set actual time
       durationMinutes: service.durationMinutes ?? 60,
       totalInCents: service.priceInCents ?? 0,
-      clientNotes: input.preferredDates
-        ? `Preferred dates: ${input.preferredDates}\n\n${input.message}`
-        : input.message,
+      clientNotes: [
+        input.preferredDates ? `Preferred dates: ${input.preferredDates}` : null,
+        input.preferredCadence ? `Preferred cadence: ${input.preferredCadence}` : null,
+        input.message || null,
+      ]
+        .filter(Boolean)
+        .join("\n\n"),
     })
     .returning({ id: bookings.id });
 
@@ -671,9 +676,11 @@ export async function createBookingRequest(input: {
     .returning({ id: threads.id });
 
   // Insert the client's initial message
-  const body = input.preferredDates
-    ? `Hi! I'd love to book a ${service.name}.\n\nPreferred dates: ${input.preferredDates}\n\n${input.message}`
-    : `Hi! I'd love to book a ${service.name}.\n\n${input.message}`;
+  const bodyParts = [`Hi! I'd love to book a ${service.name}.`];
+  if (input.preferredDates) bodyParts.push(`Preferred dates: ${input.preferredDates}`);
+  if (input.preferredCadence) bodyParts.push(`Repeat: ${input.preferredCadence}`);
+  if (input.message) bodyParts.push(input.message);
+  const body = bodyParts.join("\n\n");
 
   await db.insert(messages).values({
     threadId: thread.id,

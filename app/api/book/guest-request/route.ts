@@ -19,8 +19,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { name, email, phone, serviceId, preferredDate, notes, referencePhotoUrls } =
-    body as Record<string, string> & { referencePhotoUrls?: string[] };
+  const {
+    name,
+    email,
+    phone,
+    serviceId,
+    preferredDate,
+    notes,
+    referencePhotoUrls,
+    preferredCadence,
+  } = body as Record<string, string> & { referencePhotoUrls?: string[] };
 
   if (!name?.trim() || !email?.trim() || !serviceId || !preferredDate?.trim()) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
@@ -67,6 +75,7 @@ export async function POST(request: Request) {
             <tr><td style="padding:8px 0;color:#78716c">Email</td><td style="padding:8px 0;color:#1c1917"><a href="mailto:${email.trim()}">${email.trim()}</a></td></tr>
             ${phone?.trim() ? `<tr><td style="padding:8px 0;color:#78716c">Phone</td><td style="padding:8px 0;color:#1c1917">${phone.trim()}</td></tr>` : ""}
             <tr><td style="padding:8px 0;color:#78716c">Preferred time</td><td style="padding:8px 0;color:#1c1917">${preferredDate.trim()}</td></tr>
+            ${preferredCadence?.trim() ? `<tr><td style="padding:8px 0;color:#78716c">Repeat</td><td style="padding:8px 0;color:#1c1917">${preferredCadence.trim()}</td></tr>` : ""}
             ${notes?.trim() ? `<tr><td style="padding:8px 0;color:#78716c;vertical-align:top">Notes</td><td style="padding:8px 0;color:#1c1917">${notes.trim()}</td></tr>` : ""}
           </table>
           ${

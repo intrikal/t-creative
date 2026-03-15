@@ -112,6 +112,16 @@ function generateSlots(
 
 type Step = "date" | "time" | "confirm";
 
+const CADENCE_OPTIONS = [
+  { value: "", label: "Does not repeat" },
+  { value: "Every week", label: "Every week" },
+  { value: "Every 2 weeks", label: "Every 2 weeks" },
+  { value: "Every 3 weeks", label: "Every 3 weeks" },
+  { value: "Every month", label: "Every month" },
+  { value: "Every 6 weeks", label: "Every 6 weeks" },
+  { value: "Every 8 weeks", label: "Every 8 weeks" },
+] as const;
+
 type PhotoPreview = { file: File; preview: string };
 
 export function BookingRequestDialog({
@@ -129,6 +139,7 @@ export function BookingRequestDialog({
   const [selectedDate, setSelectedDate] = useState<Date | undefined>();
   const [selectedTime, setSelectedTime] = useState("");
   const [notes, setNotes] = useState("");
+  const [cadence, setCadence] = useState("");
   const [guestName, setGuestName] = useState("");
   const [guestEmail, setGuestEmail] = useState("");
   const [guestPhone, setGuestPhone] = useState("");
@@ -267,6 +278,7 @@ export function BookingRequestDialog({
             preferredDate: preferredDates,
             notes: notes.trim(),
             referencePhotoUrls,
+            preferredCadence: cadence || undefined,
           }),
         });
         if (!res.ok) throw new Error("Failed to send request");
@@ -276,6 +288,7 @@ export function BookingRequestDialog({
           message: notes.trim() || `I'd like to book ${service.name} on ${preferredDates}.`,
           preferredDates,
           referencePhotoUrls,
+          preferredCadence: cadence || undefined,
         });
       }
       setSubmitted(true);
@@ -293,6 +306,7 @@ export function BookingRequestDialog({
     setSelectedDate(undefined);
     setSelectedTime("");
     setNotes("");
+    setCadence("");
     setGuestName("");
     setGuestEmail("");
     setGuestPhone("");
@@ -524,6 +538,24 @@ export function BookingRequestDialog({
                     />
                   </div>
                 )}
+
+                {/* Cadence */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-stone-600">
+                    Repeat <span className="text-stone-400">(optional)</span>
+                  </label>
+                  <select
+                    value={cadence}
+                    onChange={(e) => setCadence(e.target.value)}
+                    className="w-full px-3.5 py-2.5 text-sm bg-white border border-stone-200 rounded-xl text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#e8c4b8] focus:border-[#96604a] transition"
+                  >
+                    {CADENCE_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
                 {/* Notes */}
                 <div className="space-y-1.5">

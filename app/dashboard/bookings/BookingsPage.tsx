@@ -172,9 +172,15 @@ export function BookingsPage({
   clients,
   serviceOptions,
   staffOptions,
+  activeSubscriptions = [],
 }: {
   initialBookings: BookingRow[];
-  clients: { id: string; name: string; phone: string | null }[];
+  clients: {
+    id: string;
+    name: string;
+    phone: string | null;
+    preferredRebookIntervalDays: number | null;
+  }[];
   serviceOptions: {
     id: number;
     name: string;
@@ -184,6 +190,7 @@ export function BookingsPage({
     depositInCents: number;
   }[];
   staffOptions: { id: string; name: string }[];
+  activeSubscriptions?: { id: number; clientId: string; name: string; sessionsRemaining: number }[];
 }) {
   const router = useRouter();
   const [bookings, setBookings] = useState<Booking[]>(() => initialBookings.map(mapBookingRow));
@@ -312,6 +319,7 @@ export function BookingsPage({
         location: data.location || undefined,
         clientNotes: data.notes || undefined,
         recurrenceRule,
+        subscriptionId: data.subscriptionId !== "" ? Number(data.subscriptionId) : undefined,
       } satisfies BookingInput);
       router.refresh();
     }
@@ -493,6 +501,7 @@ export function BookingsPage({
         clients={clients}
         serviceOptions={serviceOptions}
         staffOptions={staffOptions}
+        activeSubscriptions={activeSubscriptions}
       />
 
       <CancelDialog

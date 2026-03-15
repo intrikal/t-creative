@@ -44,6 +44,7 @@ export {
   notificationStatusEnum,
   auditActionEnum,
   giftCardTxTypeEnum,
+  subscriptionStatusEnum,
 } from "./enums";
 
 /* Users & RBAC */
@@ -221,3 +222,6 @@ export { giftCardTransactions, giftCardTransactionsRelations } from "./gift-card
 
 /* Client preferences (beauty/service prefs) */
 export { clientPreferences, clientPreferencesRelations } from "./client-preferences";
+
+/* Booking subscriptions (pre-paid session packages) */
+export { bookingSubscriptions, bookingSubscriptionsRelations } from "./subscriptions";

@@ -18,6 +18,7 @@ export type BookingFormState = {
   recurrenceRule: string; // base frequency from dropdown (FREQ=...;INTERVAL=...)
   seriesEndDate: string; // YYYY-MM-DD — sets UNTIL in the full RRULE
   seriesMaxOccurrences: string; // numeric string — sets COUNT in the full RRULE
+  subscriptionId: number | "";
 };
 
 const RECURRENCE_OPTIONS = [
@@ -29,6 +30,16 @@ const RECURRENCE_OPTIONS = [
   { value: "FREQ=WEEKLY;INTERVAL=6", label: "Every 6 weeks" },
   { value: "FREQ=WEEKLY;INTERVAL=8", label: "Every 8 weeks" },
 ] as const;
+
+/** Maps preferredRebookIntervalDays → RRULE base frequency string. */
+const INTERVAL_DAYS_TO_RRULE: Record<number, string> = {
+  7: "FREQ=WEEKLY;INTERVAL=1",
+  14: "FREQ=WEEKLY;INTERVAL=2",
+  21: "FREQ=WEEKLY;INTERVAL=3",
+  30: "FREQ=MONTHLY;INTERVAL=1",
+  42: "FREQ=WEEKLY;INTERVAL=6",
+  56: "FREQ=WEEKLY;INTERVAL=8",
+};
 
 const EMPTY_FORM: BookingFormState = {
   clientId: "",
@@ -44,6 +55,7 @@ const EMPTY_FORM: BookingFormState = {
   recurrenceRule: "",
   seriesEndDate: "",
   seriesMaxOccurrences: "",
+  subscriptionId: "",
 };
 
 /** Strips UNTIL and COUNT from a stored RRULE, returning just FREQ+INTERVAL. */
@@ -86,6 +98,7 @@ function bookingToForm(b: Booking): BookingFormState {
     recurrenceRule: extractBaseFreq(rule),
     seriesEndDate: extractUntilDate(rule),
     seriesMaxOccurrences: extractCount(rule),
+    subscriptionId: "",
   };
 }
 
@@ -97,12 +110,18 @@ export function BookingDialog({
   clients,
   serviceOptions,
   staffOptions,
+  activeSubscriptions = [],
 }: {
   open: boolean;
   onClose: () => void;
   onSave: (data: BookingFormState) => void;
   initial?: Booking | null;
-  clients: { id: string; name: string; phone: string | null }[];
+  clients: {
+    id: string;
+    name: string;
+    phone: string | null;
+    preferredRebookIntervalDays: number | null;
+  }[];
   serviceOptions: {
     id: number;
     name: string;
@@ -111,6 +130,7 @@ export function BookingDialog({
     priceInCents: number;
   }[];
   staffOptions: { id: string; name: string }[];
+  activeSubscriptions?: { id: number; clientId: string; name: string; sessionsRemaining: number }[];
 }) {
   const [form, setForm] = useState<BookingFormState>(initial ? bookingToForm(initial) : EMPTY_FORM);
 
@@ -136,6 +156,23 @@ export function BookingDialog({
       };
     });
   }
+
+  function onClientChange(clientId: string) {
+    const client = clients.find((c) => c.id === clientId);
+    const preferredDays = client?.preferredRebookIntervalDays;
+    setForm((prev) => ({
+      ...prev,
+      clientId,
+      subscriptionId: "",
+      // On new bookings, auto-fill recurrence from client's preferred cadence
+      recurrenceRule:
+        !initial && preferredDays && INTERVAL_DAYS_TO_RRULE[preferredDays]
+          ? INTERVAL_DAYS_TO_RRULE[preferredDays]
+          : prev.recurrenceRule,
+    }));
+  }
+
+  const clientSubscriptions = activeSubscriptions.filter((s) => s.clientId === form.clientId);
 
   function onRepeatChange(rule: string) {
     setForm((prev) => ({
@@ -167,7 +204,7 @@ export function BookingDialog({
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-3">
           <Field label="Client" required>
-            <Select value={form.clientId} onChange={(e) => set("clientId", e.target.value)}>
+            <Select value={form.clientId} onChange={(e) => onClientChange(e.target.value)}>
               <option value="">Select client…</option>
               {clients.map((c) => (
                 <option key={c.id} value={c.id}>
@@ -261,6 +298,23 @@ export function BookingDialog({
             </Select>
           </Field>
         </div>
+        {clientSubscriptions.length > 0 && (
+          <Field label="Link to subscription" hint="Optional — tracks sessions against a package">
+            <Select
+              value={String(form.subscriptionId)}
+              onChange={(e) =>
+                set("subscriptionId", e.target.value === "" ? "" : Number(e.target.value))
+              }
+            >
+              <option value="">None</option>
+              {clientSubscriptions.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name} ({s.sessionsRemaining} remaining)
+                </option>
+              ))}
+            </Select>
+          </Field>
+        )}
         {form.recurrenceRule && (
           <div className="grid grid-cols-2 gap-3">
             <Field label="Series end date" hint="Stop after this date">

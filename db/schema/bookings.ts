@@ -31,6 +31,7 @@ import { promotions } from "./promotions";
 import { reviews } from "./reviews";
 import { serviceRecords } from "./service-records";
 import { services } from "./services";
+import { bookingSubscriptions } from "./subscriptions";
 import { profiles } from "./users";
 
 /* ------------------------------------------------------------------ */
@@ -134,6 +135,14 @@ export const bookings = pgTable(
     /** When the deposit was collected. */
     depositPaidAt: timestamp("deposit_paid_at", { withTimezone: true }),
 
+    /**
+     * FK to booking_subscriptions. Set when this booking is part of a pre-paid
+     * session package. Drives session tracking in generateNextRecurringBooking.
+     */
+    subscriptionId: integer("subscription_id").references(() => bookingSubscriptions.id, {
+      onDelete: "set null",
+    }),
+
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
@@ -213,6 +222,11 @@ export const bookingsRelations = relations(bookings, ({ one, many }) => ({
   }),
   /** One-to-many: bookings.id → service_records.booking_id (post-service documentation). */
   serviceRecords: many(serviceRecords),
+  /** Many-to-one: bookings.subscription_id → booking_subscriptions.id (package this booking belongs to). */
+  subscription: one(bookingSubscriptions, {
+    fields: [bookings.subscriptionId],
+    references: [bookingSubscriptions.id],
+  }),
 }));
 
 export const bookingAddOnsRelations = relations(bookingAddOns, ({ one }) => ({

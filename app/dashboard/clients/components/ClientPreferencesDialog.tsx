@@ -20,6 +20,7 @@ type PreferencesFormState = {
   preferredContactMethod: string;
   preferredServiceTypes: string;
   generalNotes: string;
+  preferredRebookIntervalDays: string; // stored as string for select, parsed to number on save
 };
 
 const EMPTY: PreferencesFormState = {
@@ -37,7 +38,18 @@ const EMPTY: PreferencesFormState = {
   preferredContactMethod: "",
   preferredServiceTypes: "",
   generalNotes: "",
+  preferredRebookIntervalDays: "",
 };
+
+const REBOOK_CADENCE_OPTIONS = [
+  { value: "", label: "No preference" },
+  { value: "7", label: "Every week" },
+  { value: "14", label: "Every 2 weeks" },
+  { value: "21", label: "Every 3 weeks" },
+  { value: "30", label: "Every month" },
+  { value: "42", label: "Every 6 weeks" },
+  { value: "56", label: "Every 8 weeks" },
+] as const;
 
 const CURL_OPTIONS = ["", "B", "C", "CC", "D", "DD", "L", "L+", "M"] as const;
 const DIAMETER_OPTIONS = [
@@ -92,6 +104,7 @@ export function ClientPreferencesDialog({
           preferredContactMethod: record.preferredContactMethod ?? "",
           preferredServiceTypes: record.preferredServiceTypes ?? "",
           generalNotes: record.generalNotes ?? "",
+          preferredRebookIntervalDays: record.preferredRebookIntervalDays?.toString() ?? "",
         });
       }
       setLoading(false);
@@ -125,6 +138,9 @@ export function ClientPreferencesDialog({
       preferredContactMethod: form.preferredContactMethod || undefined,
       preferredServiceTypes: form.preferredServiceTypes || undefined,
       generalNotes: form.generalNotes || undefined,
+      preferredRebookIntervalDays: form.preferredRebookIntervalDays
+        ? Number(form.preferredRebookIntervalDays)
+        : undefined,
     };
     await upsertClientPreferences(input);
     setSaving(false);
@@ -287,6 +303,18 @@ export function ClientPreferencesDialog({
                   </Select>
                 </Field>
               </div>
+              <Field label="Rebook Cadence" hint="How often they typically come back">
+                <Select
+                  value={form.preferredRebookIntervalDays}
+                  onChange={(e) => set("preferredRebookIntervalDays", e.target.value)}
+                >
+                  {REBOOK_CADENCE_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
               <Field label="Preferred Service Types" hint="e.g. lash, jewelry">
                 <Input
                   placeholder="lash, jewelry"

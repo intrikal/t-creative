@@ -307,6 +307,7 @@ export type ClientPreferencesRow = {
   preferredContactMethod: string | null;
   preferredServiceTypes: string | null;
   generalNotes: string | null;
+  preferredRebookIntervalDays: number | null;
 };
 
 export type ClientPreferencesInput = {
@@ -325,6 +326,7 @@ export type ClientPreferencesInput = {
   preferredContactMethod?: string;
   preferredServiceTypes?: string;
   generalNotes?: string;
+  preferredRebookIntervalDays?: number;
 };
 
 export async function getClientPreferences(
@@ -353,6 +355,7 @@ export async function getClientPreferences(
     preferredContactMethod: row.preferredContactMethod,
     preferredServiceTypes: row.preferredServiceTypes,
     generalNotes: row.generalNotes,
+    preferredRebookIntervalDays: row.preferredRebookIntervalDays,
   };
 }
 
@@ -375,6 +378,7 @@ export async function upsertClientPreferences(input: ClientPreferencesInput): Pr
     preferredContactMethod: input.preferredContactMethod ?? null,
     preferredServiceTypes: input.preferredServiceTypes ?? null,
     generalNotes: input.generalNotes ?? null,
+    preferredRebookIntervalDays: input.preferredRebookIntervalDays ?? null,
   };
 
   await db

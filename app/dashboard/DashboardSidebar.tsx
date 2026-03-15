@@ -31,6 +31,7 @@ import {
   X,
   ChevronUp,
   UsersRound,
+  PackageCheck,
 } from "lucide-react";
 import { TCLogo } from "@/components/TCLogo";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -57,6 +58,7 @@ const ADMIN_NAV_GROUPS: NavGroup[] = [
       { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
       { href: "/dashboard/calendar", label: "Calendar", icon: CalendarRange },
       { href: "/dashboard/bookings", label: "Bookings", icon: CalendarCheck },
+      { href: "/dashboard/subscriptions", label: "Subscriptions", icon: PackageCheck },
       { href: "/dashboard/messages", label: "Messages", icon: MessageSquare },
     ],
   },

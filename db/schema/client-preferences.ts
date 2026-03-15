@@ -9,7 +9,17 @@
  * One row per client (1:1 with profiles where role = 'client').
  */
 import { relations } from "drizzle-orm";
-import { boolean, date, index, pgTable, text, timestamp, uuid, varchar } from "drizzle-orm/pg-core";
+import {
+  boolean,
+  date,
+  index,
+  integer,
+  pgTable,
+  text,
+  timestamp,
+  uuid,
+  varchar,
+} from "drizzle-orm/pg-core";
 import { profiles } from "./users";
 
 /* ------------------------------------------------------------------ */
@@ -71,6 +81,13 @@ export const clientPreferences = pgTable(
 
     /** General preference notes (e.g. "likes quiet appointments, no music"). */
     generalNotes: text("general_notes"),
+
+    /**
+     * How often this client prefers to rebook, in days.
+     * E.g. 14 = every 2 weeks, 21 = every 3 weeks.
+     * Used to pre-fill the recurrence dropdown when creating a new booking.
+     */
+    preferredRebookIntervalDays: integer("preferred_rebook_interval_days"),
 
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true })

@@ -216,3 +216,15 @@ export const giftCardTxTypeEnum = pgEnum("gift_card_tx_type", [
   "refund",
   "adjustment",
 ]);
+
+/* ------------------------------------------------------------------ */
+/*  Booking Subscriptions                                              */
+/* ------------------------------------------------------------------ */
+
+/** Subscription package lifecycle — active until all sessions are used, cancelled, or expired. */
+export const subscriptionStatusEnum = pgEnum("subscription_status", [
+  "active",
+  "paused",
+  "completed",
+  "cancelled",
+]);

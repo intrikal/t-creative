@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { getCurrentUser } from "@/lib/auth";
+import { getSubscriptions } from "../subscriptions/actions";
 import {
   getBookings,
   getClientsForSelect,
@@ -33,12 +34,21 @@ export default async function Page() {
     return <AssistantBookingsPage initialBookings={bookings} stats={stats} />;
   }
 
-  const [initialBookings, clients, serviceOptions, staffOptions] = await Promise.all([
-    getBookings(),
-    getClientsForSelect(),
-    getServicesForSelect(),
-    getStaffForSelect(),
-  ]);
+  const [initialBookings, clients, serviceOptions, staffOptions, allSubscriptions] =
+    await Promise.all([
+      getBookings(),
+      getClientsForSelect(),
+      getServicesForSelect(),
+      getStaffForSelect(),
+      getSubscriptions("active"),
+    ]);
+
+  const activeSubscriptions = allSubscriptions.map((s) => ({
+    id: s.id,
+    clientId: s.clientId,
+    name: s.name,
+    sessionsRemaining: s.sessionsRemaining,
+  }));
 
   return (
     <BookingsPage
@@ -46,6 +56,7 @@ export default async function Page() {
       clients={clients}
       serviceOptions={serviceOptions}
       staffOptions={staffOptions}
+      activeSubscriptions={activeSubscriptions}
     />
   );
 }

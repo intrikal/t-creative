@@ -31,7 +31,16 @@ import { revalidatePath } from "next/cache";
 import { eq, desc, ne, and, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
-import { bookings, profiles, services, serviceRecords, syncLog, waitlist } from "@/db/schema";
+import {
+  bookings,
+  bookingSubscriptions,
+  clientPreferences,
+  profiles,
+  services,
+  serviceRecords,
+  syncLog,
+  waitlist,
+} from "@/db/schema";
 import { BookingCancellation } from "@/emails/BookingCancellation";
 import { BookingCompleted } from "@/emails/BookingCompleted";
 import { BookingConfirmation } from "@/emails/BookingConfirmation";
@@ -88,6 +97,7 @@ export type BookingInput = {
   location?: string;
   clientNotes?: string;
   recurrenceRule?: string;
+  subscriptionId?: number;
 };
 
 async function getUser() {
@@ -238,6 +248,7 @@ export async function createBooking(input: BookingInput): Promise<void> {
       location: input.location ?? undefined,
       clientNotes: input.clientNotes ?? undefined,
       recurrenceRule: input.recurrenceRule ?? undefined,
+      subscriptionId: input.subscriptionId ?? undefined,
       status: "confirmed",
       confirmedAt: new Date(),
     })
@@ -390,7 +401,7 @@ export async function deleteBooking(id: number): Promise<void> {
 }
 
 export async function getClientsForSelect(): Promise<
-  { id: string; name: string; phone: string | null }[]
+  { id: string; name: string; phone: string | null; preferredRebookIntervalDays: number | null }[]
 > {
   await getUser();
   const rows = await db
@@ -399,8 +410,10 @@ export async function getClientsForSelect(): Promise<
       firstName: profiles.firstName,
       lastName: profiles.lastName,
       phone: profiles.phone,
+      preferredRebookIntervalDays: clientPreferences.preferredRebookIntervalDays,
     })
     .from(profiles)
+    .leftJoin(clientPreferences, eq(clientPreferences.profileId, profiles.id))
     .where(eq(profiles.role, "client"))
     .orderBy(profiles.firstName);
 
@@ -408,6 +421,7 @@ export async function getClientsForSelect(): Promise<
     id: r.id,
     name: [r.firstName, r.lastName].filter(Boolean).join(" "),
     phone: r.phone,
+    preferredRebookIntervalDays: r.preferredRebookIntervalDays ?? null,
   }));
 }
 
@@ -518,16 +532,113 @@ async function generateNextRecurringBooking(bookingId: number): Promise<void> {
         location: bookings.location,
         recurrenceRule: bookings.recurrenceRule,
         parentBookingId: bookings.parentBookingId,
+        subscriptionId: bookings.subscriptionId,
       })
       .from(bookings)
       .where(eq(bookings.id, bookingId));
 
-    if (!booking?.recurrenceRule) return;
+    if (!booking) return;
+
+    const nextStart = new Date(booking.startsAt);
+
+    // ── Subscription path ───────────────────────────────────────────
+    if (booking.subscriptionId) {
+      const [sub] = await db
+        .select()
+        .from(bookingSubscriptions)
+        .where(eq(bookingSubscriptions.id, booking.subscriptionId))
+        .limit(1);
+
+      if (!sub || sub.status !== "active") return;
+
+      const newSessionsUsed = sub.sessionsUsed + 1;
+
+      // Package exhausted — mark complete, don't schedule next
+      if (newSessionsUsed >= sub.totalSessions) {
+        await db
+          .update(bookingSubscriptions)
+          .set({ sessionsUsed: newSessionsUsed, status: "completed" })
+          .where(eq(bookingSubscriptions.id, sub.id));
+        return;
+      }
+
+      // Increment sessions used
+      await db
+        .update(bookingSubscriptions)
+        .set({ sessionsUsed: newSessionsUsed })
+        .where(eq(bookingSubscriptions.id, sub.id));
+
+      nextStart.setDate(nextStart.getDate() + sub.intervalDays);
+
+      const seriesRoot = booking.parentBookingId ?? bookingId;
+      const [newBooking] = await db
+        .insert(bookings)
+        .values({
+          clientId: booking.clientId,
+          serviceId: booking.serviceId,
+          staffId: booking.staffId ?? undefined,
+          startsAt: nextStart,
+          durationMinutes: booking.durationMinutes,
+          totalInCents: booking.totalInCents,
+          location: booking.location ?? undefined,
+          recurrenceRule: booking.recurrenceRule ?? undefined,
+          parentBookingId: seriesRoot,
+          subscriptionId: sub.id,
+          status: "confirmed",
+          confirmedAt: new Date(),
+        })
+        .returning({ id: bookings.id });
+
+      // Send confirmation email for the subscription's next booking
+      try {
+        const recurClient = alias(profiles, "recurClient");
+        const [row] = await db
+          .select({
+            clientEmail: recurClient.email,
+            clientFirstName: recurClient.firstName,
+            notifyEmail: recurClient.notifyEmail,
+            serviceName: services.name,
+          })
+          .from(bookings)
+          .innerJoin(recurClient, eq(bookings.clientId, recurClient.id))
+          .innerJoin(services, eq(bookings.serviceId, services.id))
+          .where(eq(bookings.id, newBooking.id));
+
+        if (row?.clientEmail && row.notifyEmail) {
+          const dateFormatted = nextStart.toLocaleDateString("en-US", {
+            weekday: "long",
+            month: "long",
+            day: "numeric",
+            year: "numeric",
+            hour: "numeric",
+            minute: "2-digit",
+          });
+          await sendEmail({
+            to: row.clientEmail,
+            subject: `Next appointment scheduled — ${row.serviceName} — T Creative`,
+            react: RecurringBookingConfirmation({
+              clientName: row.clientFirstName,
+              serviceName: row.serviceName,
+              startsAt: dateFormatted,
+              durationMinutes: booking.durationMinutes,
+              totalInCents: booking.totalInCents,
+            }),
+            entityType: "recurring_booking_confirmation",
+            localId: String(newBooking.id),
+          });
+        }
+      } catch {
+        // Non-fatal
+      }
+      return;
+    }
+
+    // ── RRULE path (no subscription) ────────────────────────────────
+    if (!booking.recurrenceRule) return;
 
     const interval = parseRRule(booking.recurrenceRule);
     if (!interval) return;
 
-    const nextStart = new Date(booking.startsAt);
     if (interval.days) {
       nextStart.setDate(nextStart.getDate() + interval.days);
     } else if (interval.months) {

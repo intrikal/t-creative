@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
-import { getEvents, getClientEvents } from "./actions";
+import { getEvents, getClientEvents, getVenues } from "./actions";
 import { ClientEventsPage } from "./ClientEventsPage";
 import { EventsPage } from "./EventsPage";
 
@@ -14,6 +14,6 @@ export default async function Page() {
   }
 
   // Admin and assistant both see the full events management view
-  const events = await getEvents();
-  return <EventsPage initialEvents={events} />;
+  const [events, venues] = await Promise.all([getEvents(), getVenues()]);
+  return <EventsPage initialEvents={events} initialVenues={venues} />;
 }

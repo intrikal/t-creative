@@ -14,12 +14,21 @@ import {
   UserPlus,
   Mail,
   X,
+  Building2,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, Field, Input, Textarea, Select, DialogFooter } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import type { EventRow, EventType, EventStatus, EventInput } from "./actions";
+import type {
+  EventRow,
+  EventType,
+  EventStatus,
+  EventInput,
+  VenueRow,
+  VenueType,
+  VenueInput,
+} from "./actions";
 import {
   createEvent,
   updateEvent,
@@ -28,6 +37,8 @@ import {
   removeGuest,
   toggleGuestPaid,
   sendEventRsvpInvite,
+  createVenue,
+  updateVenue,
 } from "./actions";
 
 /* ------------------------------------------------------------------ */
@@ -87,6 +98,14 @@ const TYPE_CONFIG: Record<
     border: "border-slate-200",
     dot: "bg-slate-400",
   },
+};
+
+const VENUE_TYPE_LABELS: Record<VenueType, string> = {
+  studio: "Studio",
+  client_home: "Client's Home",
+  external_venue: "External Venue",
+  pop_up_venue: "Pop-Up Venue",
+  corporate_venue: "Corporate Venue",
 };
 
 function statusConfig(status: EventStatus) {
@@ -155,12 +174,14 @@ type EventForm = {
   date: string;
   time: string;
   endTime: string;
-  location: string;
+  venueId: string; // "" = custom/no venue, otherwise string of numeric id
+  location: string; // used when venueId = ""
   capacity: string;
   revenue: string;
   deposit: string;
   travelFee: string;
   notes: string;
+  equipmentNotes: string;
 };
 
 function emptyEventForm(): EventForm {
@@ -171,12 +192,14 @@ function emptyEventForm(): EventForm {
     date: "",
     time: "",
     endTime: "",
+    venueId: "",
     location: "",
     capacity: "",
     revenue: "0",
     deposit: "",
     travelFee: "",
     notes: "",
+    equipmentNotes: "",
   };
 }
 
@@ -193,12 +216,14 @@ function eventToForm(e: EventRow): EventForm {
     date: dateStr,
     time: timeStr,
     endTime: endTimeStr,
+    venueId: e.venueId != null ? String(e.venueId) : "",
     location: e.location ?? "",
     capacity: e.maxAttendees != null ? String(e.maxAttendees) : "",
     revenue: e.expectedRevenueInCents != null ? String(e.expectedRevenueInCents / 100) : "0",
     deposit: e.depositInCents != null ? String(e.depositInCents / 100) : "",
     travelFee: e.travelFeeInCents != null ? String(e.travelFeeInCents / 100) : "",
     notes: e.internalNotes ?? "",
+    equipmentNotes: e.equipmentNotes ?? "",
   };
 }
 
@@ -211,18 +236,24 @@ function formToInput(form: EventForm): EventInput {
   const endsAt =
     form.date && form.endTime ? new Date(`${form.date}T${form.endTime}`).toISOString() : null;
 
+  const venueId = form.venueId ? Number(form.venueId) : null;
+
   return {
     title: form.title,
     eventType: form.type,
     status: form.status,
     startsAt,
     endsAt,
-    location: form.location || null,
+    venueId,
+    // When a saved venue is selected, location/address are resolved server-side from the venue.
+    // For custom locations, pass the free-text value.
+    location: venueId ? null : form.location || null,
     maxAttendees: form.capacity ? Number(form.capacity) : null,
     expectedRevenueInCents: dollarsToCents(form.revenue),
     depositInCents: dollarsToCents(form.deposit),
     travelFeeInCents: dollarsToCents(form.travelFee),
     internalNotes: form.notes || null,
+    equipmentNotes: form.equipmentNotes || null,
   };
 }
 
@@ -234,11 +265,13 @@ function EventDialog({
   open,
   onClose,
   initial,
+  venues,
   onSave,
 }: {
   open: boolean;
   onClose: () => void;
   initial: EventForm;
+  venues: VenueRow[];
   onSave: (form: EventForm) => void;
 }) {
   const [form, setForm] = useState<EventForm>(initial);
@@ -246,6 +279,29 @@ function EventDialog({
     (field: keyof EventForm) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
       setForm((f) => ({ ...f, [field]: e.target.value }));
+
+  const activeVenues = venues.filter((v) => v.isActive);
+  const selectedVenue = form.venueId
+    ? activeVenues.find((v) => String(v.id) === form.venueId)
+    : null;
+
+  function handleVenueChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    const vid = e.target.value;
+    if (vid) {
+      const venue = activeVenues.find((v) => String(v.id) === vid);
+      setForm((f) => ({
+        ...f,
+        venueId: vid,
+        // Auto-fill travel fee from venue default if the field is currently empty or zero
+        travelFee:
+          venue?.defaultTravelFeeInCents && (f.travelFee === "" || f.travelFee === "0")
+            ? String(venue.defaultTravelFeeInCents / 100)
+            : f.travelFee,
+      }));
+    } else {
+      setForm((f) => ({ ...f, venueId: "" }));
+    }
+  }
 
   const valid = form.title.trim() !== "" && form.date.trim() !== "";
 
@@ -298,11 +354,59 @@ function EventDialog({
           </Field>
         </div>
 
+        {/* Location — saved venue selector or free-text */}
         <Field label="Location">
+          <Select value={form.venueId} onChange={handleVenueChange}>
+            <option value="">Custom / one-off location</option>
+            {activeVenues.map((v) => (
+              <option key={v.id} value={String(v.id)}>
+                {v.name} · {VENUE_TYPE_LABELS[v.venueType]}
+              </option>
+            ))}
+          </Select>
+        </Field>
+
+        {/* Show venue details when a saved venue is selected */}
+        {selectedVenue &&
+          (selectedVenue.address || selectedVenue.parkingInfo || selectedVenue.setupNotes) && (
+            <div className="text-xs space-y-1 px-3 py-2.5 bg-foreground/[0.03] border border-border/50 rounded-lg">
+              {selectedVenue.address && (
+                <p className="text-muted">
+                  <span className="font-medium text-foreground/70">Address:</span>{" "}
+                  {selectedVenue.address}
+                </p>
+              )}
+              {selectedVenue.parkingInfo && (
+                <p className="text-muted">
+                  <span className="font-medium text-foreground/70">Parking:</span>{" "}
+                  {selectedVenue.parkingInfo}
+                </p>
+              )}
+              {selectedVenue.setupNotes && (
+                <p className="text-muted">
+                  <span className="font-medium text-foreground/70">Setup:</span>{" "}
+                  {selectedVenue.setupNotes}
+                </p>
+              )}
+            </div>
+          )}
+
+        {/* Free-text location when no saved venue selected */}
+        {!form.venueId && (
+          <Field label="Custom location" hint="Address or venue name">
+            <Input
+              value={form.location}
+              onChange={set("location")}
+              placeholder="e.g. 123 Main St, San Jose"
+            />
+          </Field>
+        )}
+
+        <Field label="Equipment needed" hint="Portable gear for off-site events">
           <Input
-            value={form.location}
-            onChange={set("location")}
-            placeholder="Address or venue name"
+            value={form.equipmentNotes}
+            onChange={set("equipmentNotes")}
+            placeholder="e.g. Jewelry station, ring display, extension cord"
           />
         </Field>
 
@@ -365,6 +469,257 @@ function EventDialog({
         />
       </div>
     </Dialog>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Venue form dialog                                                   */
+/* ------------------------------------------------------------------ */
+
+type VenueForm = {
+  name: string;
+  venueType: VenueType;
+  address: string;
+  parkingInfo: string;
+  setupNotes: string;
+  travelFee: string;
+};
+
+function emptyVenueForm(): VenueForm {
+  return {
+    name: "",
+    venueType: "external_venue",
+    address: "",
+    parkingInfo: "",
+    setupNotes: "",
+    travelFee: "",
+  };
+}
+
+function venueToForm(v: VenueRow): VenueForm {
+  return {
+    name: v.name,
+    venueType: v.venueType,
+    address: v.address ?? "",
+    parkingInfo: v.parkingInfo ?? "",
+    setupNotes: v.setupNotes ?? "",
+    travelFee: v.defaultTravelFeeInCents != null ? String(v.defaultTravelFeeInCents / 100) : "",
+  };
+}
+
+function venueFormToInput(form: VenueForm): VenueInput {
+  return {
+    name: form.name,
+    venueType: form.venueType,
+    address: form.address || null,
+    parkingInfo: form.parkingInfo || null,
+    setupNotes: form.setupNotes || null,
+    defaultTravelFeeInCents: dollarsToCents(form.travelFee),
+  };
+}
+
+function VenueFormDialog({
+  open,
+  onClose,
+  initial,
+  onSave,
+}: {
+  open: boolean;
+  onClose: () => void;
+  initial: VenueForm;
+  onSave: (form: VenueForm) => void;
+}) {
+  const [form, setForm] = useState<VenueForm>(initial);
+  const set =
+    (field: keyof VenueForm) =>
+    (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
+      setForm((f) => ({ ...f, [field]: e.target.value }));
+
+  return (
+    <Dialog
+      open={open}
+      onClose={onClose}
+      title={initial.name ? "Edit Venue" : "New Venue"}
+      size="md"
+    >
+      <div className="space-y-4" key={String(open)}>
+        <Field label="Venue name" required>
+          <Input
+            value={form.name}
+            onChange={set("name")}
+            placeholder="e.g. Valley Fair Pop-up, Main Studio"
+          />
+        </Field>
+
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Type">
+            <Select value={form.venueType} onChange={set("venueType")}>
+              {(Object.entries(VENUE_TYPE_LABELS) as [VenueType, string][]).map(([k, label]) => (
+                <option key={k} value={k}>
+                  {label}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Default travel fee ($)" hint="Optional">
+            <Input
+              type="number"
+              value={form.travelFee}
+              onChange={set("travelFee")}
+              placeholder="0"
+              min={0}
+            />
+          </Field>
+        </div>
+
+        <Field label="Address">
+          <Input
+            value={form.address}
+            onChange={set("address")}
+            placeholder="Full street address for navigation"
+          />
+        </Field>
+
+        <Field label="Parking info" hint="Optional">
+          <Input
+            value={form.parkingInfo}
+            onChange={set("parkingInfo")}
+            placeholder="e.g. Lot B, level 2, free 2 hrs"
+          />
+        </Field>
+
+        <Field label="Setup notes" hint="Optional">
+          <Textarea
+            value={form.setupNotes}
+            onChange={set("setupNotes")}
+            rows={2}
+            placeholder="Power needs, table layout, load-in instructions…"
+          />
+        </Field>
+
+        <DialogFooter
+          onCancel={onClose}
+          onConfirm={() => {
+            if (form.name.trim()) {
+              onSave(form);
+              onClose();
+            }
+          }}
+          confirmLabel={initial.name ? "Save venue" : "Add venue"}
+          disabled={!form.name.trim()}
+        />
+      </div>
+    </Dialog>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Venues list dialog                                                  */
+/* ------------------------------------------------------------------ */
+
+function VenuesDialog({
+  open,
+  onClose,
+  venues,
+  onAdd,
+  onUpdate,
+}: {
+  open: boolean;
+  onClose: () => void;
+  venues: VenueRow[];
+  onAdd: (form: VenueForm) => void;
+  onUpdate: (id: number, form: VenueForm, isActive: boolean) => void;
+}) {
+  const [addOpen, setAddOpen] = useState(false);
+  const [editingVenue, setEditingVenue] = useState<VenueRow | null>(null);
+
+  return (
+    <>
+      <Dialog open={open} onClose={onClose} title="Saved Venues" size="lg">
+        <div className="space-y-2">
+          {venues.length === 0 && (
+            <p className="text-sm text-muted text-center py-6">
+              No saved venues yet. Add your first venue below.
+            </p>
+          )}
+
+          {venues.map((v) => (
+            <div
+              key={v.id}
+              className={cn(
+                "flex items-start gap-3 px-3 py-2.5 rounded-lg border",
+                v.isActive ? "border-border/60" : "border-border/30 opacity-60",
+              )}
+            >
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-sm font-medium text-foreground">{v.name}</span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-foreground/8 text-muted border border-foreground/10">
+                    {VENUE_TYPE_LABELS[v.venueType]}
+                  </span>
+                  {!v.isActive && <span className="text-[10px] text-muted italic">Inactive</span>}
+                </div>
+                {v.address && <p className="text-xs text-muted mt-0.5 truncate">{v.address}</p>}
+                <div className="flex items-center gap-3 mt-0.5 flex-wrap">
+                  {v.defaultTravelFeeInCents != null && v.defaultTravelFeeInCents > 0 && (
+                    <span className="text-xs text-muted">
+                      Travel: {centsToDisplay(v.defaultTravelFeeInCents)}
+                    </span>
+                  )}
+                  {v.parkingInfo && (
+                    <span className="text-xs text-muted">Parking: {v.parkingInfo}</span>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-1 shrink-0">
+                <button
+                  onClick={() => setEditingVenue(v)}
+                  className="p-1.5 rounded-lg hover:bg-foreground/5 text-muted hover:text-foreground transition-colors"
+                  aria-label="Edit venue"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={() => onUpdate(v.id, venueToForm(v), !v.isActive)}
+                  className="p-1.5 rounded-lg hover:bg-foreground/5 text-muted hover:text-foreground transition-colors text-[11px] font-medium"
+                  title={v.isActive ? "Deactivate venue" : "Reactivate venue"}
+                >
+                  {v.isActive ? <X className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
+                </button>
+              </div>
+            </div>
+          ))}
+
+          <button
+            onClick={() => setAddOpen(true)}
+            className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-sm text-accent hover:bg-accent/5 rounded-lg transition-colors border border-dashed border-accent/30 mt-2"
+          >
+            <Plus className="w-3.5 h-3.5" /> Add venue
+          </button>
+        </div>
+      </Dialog>
+
+      <VenueFormDialog
+        key={`add-${addOpen}`}
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        initial={emptyVenueForm()}
+        onSave={onAdd}
+      />
+
+      {editingVenue && (
+        <VenueFormDialog
+          key={`edit-${editingVenue.id}`}
+          open={!!editingVenue}
+          onClose={() => setEditingVenue(null)}
+          initial={venueToForm(editingVenue)}
+          onSave={(form) => {
+            onUpdate(editingVenue.id, form, editingVenue.isActive);
+            setEditingVenue(null);
+          }}
+        />
+      )}
+    </>
   );
 }
 
@@ -453,6 +808,7 @@ function EventCard({
   const revDisplay = centsToDisplay(event.expectedRevenueInCents);
   const depDisplay = centsToDisplay(event.depositInCents);
   const travelDisplay = centsToDisplay(event.travelFeeInCents);
+  const displayLocation = event.venueName ?? event.location;
 
   return (
     <>
@@ -503,10 +859,10 @@ function EventCard({
               </div>
 
               <div className="flex items-center gap-4 mt-3 flex-wrap">
-                {event.location && (
+                {displayLocation && (
                   <span className="text-xs text-muted flex items-center gap-1">
                     <MapPin className="w-3 h-3 shrink-0" />
-                    {event.location}
+                    {displayLocation}
                   </span>
                 )}
                 <span className="text-xs text-muted flex items-center gap-1">
@@ -540,6 +896,17 @@ function EventCard({
                   </p>
                   <p className="text-sm text-foreground/80 leading-relaxed">
                     {event.internalNotes}
+                  </p>
+                </div>
+              )}
+
+              {event.equipmentNotes && (
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-muted mb-1">
+                    Equipment
+                  </p>
+                  <p className="text-sm text-foreground/80 leading-relaxed">
+                    {event.equipmentNotes}
                   </p>
                 </div>
               )}
@@ -634,11 +1001,19 @@ function EventCard({
 /*  Main export                                                         */
 /* ------------------------------------------------------------------ */
 
-export function EventsPage({ initialEvents }: { initialEvents: EventRow[] }) {
+export function EventsPage({
+  initialEvents,
+  initialVenues,
+}: {
+  initialEvents: EventRow[];
+  initialVenues: VenueRow[];
+}) {
   const [events, setEvents] = useState<EventRow[]>(initialEvents);
+  const [venues, setVenues] = useState<VenueRow[]>(initialVenues);
   const [filter, setFilter] = useState<"all" | EventType>("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<EventRow | null>(null);
+  const [venuesDialogOpen, setVenuesDialogOpen] = useState(false);
   const [, startTransition] = useTransition();
 
   const filtered = filter === "all" ? events : events.filter((e) => e.eventType === filter);
@@ -656,9 +1031,10 @@ export function EventsPage({ initialEvents }: { initialEvents: EventRow[] }) {
 
   function handleSave(form: EventForm) {
     const input = formToInput(form);
+    const venue = input.venueId ? venues.find((v) => v.id === input.venueId) : null;
+    const resolvedLocation = venue ? venue.name : (input.location ?? null);
 
     if (editingEvent) {
-      // Optimistic update
       setEvents((prev) =>
         prev.map((e) =>
           e.id === editingEvent.id
@@ -669,12 +1045,15 @@ export function EventsPage({ initialEvents }: { initialEvents: EventRow[] }) {
                 status: input.status,
                 startsAt: input.startsAt,
                 endsAt: input.endsAt ?? null,
-                location: input.location ?? null,
+                venueId: input.venueId ?? null,
+                venueName: venue?.name ?? null,
+                location: resolvedLocation,
                 maxAttendees: input.maxAttendees ?? null,
                 expectedRevenueInCents: input.expectedRevenueInCents ?? null,
                 depositInCents: input.depositInCents ?? null,
                 travelFeeInCents: input.travelFeeInCents ?? null,
                 internalNotes: input.internalNotes ?? null,
+                equipmentNotes: input.equipmentNotes ?? null,
               }
             : e,
         ),
@@ -691,8 +1070,10 @@ export function EventsPage({ initialEvents }: { initialEvents: EventRow[] }) {
             status: input.status,
             startsAt: input.startsAt,
             endsAt: input.endsAt ?? null,
-            location: input.location ?? null,
-            address: null,
+            venueId: input.venueId ?? null,
+            venueName: venue?.name ?? null,
+            location: resolvedLocation,
+            address: venue?.address ?? null,
             maxAttendees: input.maxAttendees ?? null,
             expectedRevenueInCents: input.expectedRevenueInCents ?? null,
             depositInCents: input.depositInCents ?? null,
@@ -702,6 +1083,7 @@ export function EventsPage({ initialEvents }: { initialEvents: EventRow[] }) {
             contactPhone: null,
             services: input.services ?? null,
             internalNotes: input.internalNotes ?? null,
+            equipmentNotes: input.equipmentNotes ?? null,
             description: null,
             guests: [],
           },
@@ -757,6 +1139,43 @@ export function EventsPage({ initialEvents }: { initialEvents: EventRow[] }) {
     startTransition(() => toggleGuestPaid(guestId));
   }
 
+  function handleCreateVenue(form: VenueForm) {
+    startTransition(async () => {
+      const newId = await createVenue(venueFormToInput(form));
+      const newVenue: VenueRow = {
+        id: newId,
+        name: form.name,
+        venueType: form.venueType,
+        address: form.address || null,
+        parkingInfo: form.parkingInfo || null,
+        setupNotes: form.setupNotes || null,
+        defaultTravelFeeInCents: dollarsToCents(form.travelFee),
+        isActive: true,
+      };
+      setVenues((prev) => [...prev, newVenue].sort((a, b) => a.name.localeCompare(b.name)));
+    });
+  }
+
+  function handleUpdateVenue(id: number, form: VenueForm, isActive: boolean) {
+    setVenues((prev) =>
+      prev.map((v) =>
+        v.id === id
+          ? {
+              ...v,
+              name: form.name,
+              venueType: form.venueType,
+              address: form.address || null,
+              parkingInfo: form.parkingInfo || null,
+              setupNotes: form.setupNotes || null,
+              defaultTravelFeeInCents: dollarsToCents(form.travelFee),
+              isActive,
+            }
+          : v,
+      ),
+    );
+    startTransition(() => updateVenue(id, { ...venueFormToInput(form), isActive }));
+  }
+
   // Collect unique event types from current events for filter pills
   const activeTypes = [...new Set(events.map((e) => e.eventType))].sort();
 
@@ -769,12 +1188,26 @@ export function EventsPage({ initialEvents }: { initialEvents: EventRow[] }) {
             Bridal parties, pop-ups, travel, workshops, and more
           </p>
         </div>
-        <button
-          onClick={openNew}
-          className="flex items-center gap-1.5 px-3.5 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent/90 transition-colors"
-        >
-          <Plus className="w-3.5 h-3.5" /> New Event
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setVenuesDialogOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-2 text-sm text-muted hover:text-foreground rounded-lg hover:bg-foreground/5 transition-colors border border-border/60"
+          >
+            <Building2 className="w-3.5 h-3.5" />
+            Venues
+            {venues.filter((v) => v.isActive).length > 0 && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-foreground/8 text-muted ml-0.5">
+                {venues.filter((v) => v.isActive).length}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={openNew}
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent/90 transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" /> New Event
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -859,7 +1292,16 @@ export function EventsPage({ initialEvents }: { initialEvents: EventRow[] }) {
         open={dialogOpen}
         onClose={() => setDialogOpen(false)}
         initial={editingEvent ? eventToForm(editingEvent) : emptyEventForm()}
+        venues={venues}
         onSave={handleSave}
+      />
+
+      <VenuesDialog
+        open={venuesDialogOpen}
+        onClose={() => setVenuesDialogOpen(false)}
+        venues={venues}
+        onAdd={handleCreateVenue}
+        onUpdate={handleUpdateVenue}
       />
     </div>
   );

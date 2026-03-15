@@ -9,7 +9,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { eq, desc, asc, sql, ilike, and } from "drizzle-orm";
+import { eq, desc, asc, sql, ilike, and, isNotNull } from "drizzle-orm";
 import { db } from "@/db";
 import {
   products,
@@ -450,7 +450,7 @@ export async function getClientOrders(): Promise<ClientOrder[]> {
       createdAt: orders.createdAt,
     })
     .from(orders)
-    .where(eq(orders.clientId, user.id))
+    .where(and(eq(orders.clientId, user.id), isNotNull(orders.productId)))
     .orderBy(desc(orders.createdAt));
 
   return rows.map((r) => ({

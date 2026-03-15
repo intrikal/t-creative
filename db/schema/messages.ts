@@ -113,6 +113,9 @@ export const threads = pgTable(
 
     lastMessageAt: timestamp("last_message_at", { withTimezone: true }).notNull().defaultNow(),
 
+    /** Reference/inspo photo URLs uploaded by the client at booking time. */
+    referencePhotoUrls: text("reference_photo_urls").array(),
+
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [

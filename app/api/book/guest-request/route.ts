@@ -19,7 +19,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { name, email, phone, serviceId, preferredDate, notes } = body as Record<string, string>;
+  const { name, email, phone, serviceId, preferredDate, notes, referencePhotoUrls } =
+    body as Record<string, string> & { referencePhotoUrls?: string[] };
 
   if (!name?.trim() || !email?.trim() || !serviceId || !preferredDate?.trim()) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
@@ -68,6 +69,21 @@ export async function POST(request: Request) {
             <tr><td style="padding:8px 0;color:#78716c">Preferred time</td><td style="padding:8px 0;color:#1c1917">${preferredDate.trim()}</td></tr>
             ${notes?.trim() ? `<tr><td style="padding:8px 0;color:#78716c;vertical-align:top">Notes</td><td style="padding:8px 0;color:#1c1917">${notes.trim()}</td></tr>` : ""}
           </table>
+          ${
+            Array.isArray(referencePhotoUrls) && referencePhotoUrls.length > 0
+              ? `<div style="margin-top:20px">
+                  <p style="margin:0 0 10px;font-size:13px;font-weight:600;color:#1c1917">Reference photos (${referencePhotoUrls.length})</p>
+                  <div style="display:flex;flex-wrap:wrap;gap:8px">
+                    ${referencePhotoUrls
+                      .map(
+                        (url) =>
+                          `<a href="${url}" target="_blank" style="display:block;border-radius:8px;overflow:hidden;border:1px solid #e7e5e4"><img src="${url}" alt="Reference photo" style="width:120px;height:120px;object-fit:cover;display:block" /></a>`,
+                      )
+                      .join("")}
+                  </div>
+                </div>`
+              : ""
+          }
           <p style="margin:20px 0 0;font-size:13px;color:#a8a29e">Reply directly to this email to reach ${name.trim()}.</p>
         </div>
       `,

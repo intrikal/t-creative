@@ -260,8 +260,8 @@ export function BookingRequestDialog({
         <div className="px-6 pt-6 pb-4 border-b border-stone-100">
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-rose-50 flex items-center justify-center shrink-0">
-                <CalendarDays className="w-5 h-5 text-rose-400" />
+              <div className="w-10 h-10 rounded-full bg-[#faf6f1] flex items-center justify-center shrink-0">
+                <CalendarDays className="w-5 h-5 text-[#96604a]" />
               </div>
               <div>
                 <h2 className="text-base font-semibold text-stone-900">{service.name}</h2>
@@ -287,7 +287,7 @@ export function BookingRequestDialog({
                   key={i}
                   className={cn(
                     "h-0.5 flex-1 rounded-full transition-colors duration-300",
-                    i <= stepNum ? "bg-rose-400" : "bg-stone-200",
+                    i <= stepNum ? "bg-[#96604a]" : "bg-stone-200",
                   )}
                 />
               ))}
@@ -298,8 +298,8 @@ export function BookingRequestDialog({
         {submitted ? (
           /* ── Success state ── */
           <div className="px-6 py-10 text-center">
-            <div className="w-14 h-14 rounded-full bg-rose-50 flex items-center justify-center mx-auto mb-4">
-              <Sparkles className="w-6 h-6 text-rose-400" />
+            <div className="w-14 h-14 rounded-full bg-[#faf6f1] flex items-center justify-center mx-auto mb-4">
+              <Sparkles className="w-6 h-6 text-[#96604a]" />
             </div>
             <h3 className="text-lg font-semibold text-stone-900 mb-1">Request sent!</h3>
             <p className="text-sm text-stone-500 max-w-xs mx-auto leading-relaxed">
@@ -308,7 +308,7 @@ export function BookingRequestDialog({
             </p>
             <button
               onClick={handleClose}
-              className="mt-6 px-6 py-2.5 rounded-xl bg-stone-900 text-white text-sm font-medium hover:bg-rose-500 transition-colors"
+              className="mt-6 px-6 py-2.5 rounded-xl bg-[#96604a] text-white text-sm font-medium hover:bg-[#7a4e3a] transition-colors"
             >
               Got it
             </button>
@@ -366,8 +366,8 @@ export function BookingRequestDialog({
                         className={cn(
                           "py-2.5 rounded-xl border text-sm font-medium transition-colors",
                           selectedTime === slot
-                            ? "border-rose-400 bg-rose-50 text-rose-600"
-                            : "border-stone-200 text-stone-700 hover:border-rose-300 hover:bg-rose-50/50",
+                            ? "border-[#96604a] bg-[#faf6f1] text-[#96604a]"
+                            : "border-stone-200 text-stone-700 hover:border-[#e8c4b8] hover:bg-[#faf6f1]/50",
                         )}
                       >
                         {fmt12(slot)}
@@ -444,7 +444,7 @@ export function BookingRequestDialog({
                       value={guestName}
                       onChange={(e) => setGuestName(e.target.value)}
                       required
-                      className="w-full px-3.5 py-2.5 text-sm bg-white border border-stone-200 rounded-xl text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-rose-200 focus:border-rose-300 transition"
+                      className="w-full px-3.5 py-2.5 text-sm bg-white border border-stone-200 rounded-xl text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-[#e8c4b8] focus:border-[#96604a] transition"
                     />
                     <input
                       type="email"
@@ -452,14 +452,14 @@ export function BookingRequestDialog({
                       value={guestEmail}
                       onChange={(e) => setGuestEmail(e.target.value)}
                       required
-                      className="w-full px-3.5 py-2.5 text-sm bg-white border border-stone-200 rounded-xl text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-rose-200 focus:border-rose-300 transition"
+                      className="w-full px-3.5 py-2.5 text-sm bg-white border border-stone-200 rounded-xl text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-[#e8c4b8] focus:border-[#96604a] transition"
                     />
                     <input
                       type="tel"
                       placeholder="Phone (optional)"
                       value={guestPhone}
                       onChange={(e) => setGuestPhone(e.target.value)}
-                      className="w-full px-3.5 py-2.5 text-sm bg-white border border-stone-200 rounded-xl text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-rose-200 focus:border-rose-300 transition"
+                      className="w-full px-3.5 py-2.5 text-sm bg-white border border-stone-200 rounded-xl text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-[#e8c4b8] focus:border-[#96604a] transition"
                     />
                   </div>
                 )}
@@ -474,7 +474,7 @@ export function BookingRequestDialog({
                     onChange={(e) => setNotes(e.target.value)}
                     placeholder="First time getting lashes, have sensitive eyes, preferred time of day..."
                     rows={2}
-                    className="w-full px-3.5 py-2.5 text-sm bg-white border border-stone-200 rounded-xl text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-rose-200 focus:border-rose-300 transition resize-none"
+                    className="w-full px-3.5 py-2.5 text-sm bg-white border border-stone-200 rounded-xl text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-[#e8c4b8] focus:border-[#96604a] transition resize-none"
                   />
                 </div>
 
@@ -494,7 +494,7 @@ export function BookingRequestDialog({
                     "w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold transition-colors",
                     submitting
                       ? "bg-stone-300 text-stone-500 cursor-wait"
-                      : "bg-stone-900 text-white hover:bg-rose-500 active:scale-[0.98]",
+                      : "bg-[#96604a] text-white hover:bg-[#7a4e3a] active:scale-[0.98]",
                   )}
                 >
                   {submitting ? (

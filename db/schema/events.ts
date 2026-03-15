@@ -10,6 +10,13 @@
  * the title, type badge, date/time, location, guest count, and revenue.
  *
  * Admin actions: Create Event, Edit, Cancel, Mark Complete.
+ *
+ * Multi-location support: event_venues stores reusable venue records
+ * (studio, pop-up venues, corporate offices, client homes) with address,
+ * parking info, setup notes, and a default travel fee. Events reference
+ * a saved venue via venueId, or use the free-text location/address fields
+ * for one-off locations. Equipment needed for off-site events is tracked
+ * in equipmentNotes.
  */
 import { relations } from "drizzle-orm";
 import {
@@ -31,6 +38,22 @@ import { profiles } from "./users";
 /*  Enums                                                              */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Venue type — categorises saved event locations for display and filtering.
+ * studio: The primary studio (default home base).
+ * client_home: Event at a client's residence.
+ * external_venue: General external venue (wedding halls, event spaces, etc.).
+ * pop_up_venue: Mall kiosks, market stalls, pop-up locations.
+ * corporate_venue: Office buildings, corporate campuses.
+ */
+export const venueTypeEnum = pgEnum("venue_type", [
+  "studio",
+  "client_home",
+  "external_venue",
+  "pop_up_venue",
+  "corporate_venue",
+]);
+
 /** Event type — shown as a badge on the event card and used for filtering. */
 export const eventTypeEnum = pgEnum("event_type", [
   "private_party",
@@ -51,6 +74,45 @@ export const eventStatusEnum = pgEnum("event_status", [
   "completed",
   "cancelled",
 ]);
+
+/* ------------------------------------------------------------------ */
+/*  Event venues — reusable saved locations                           */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Saved venue records that can be reused across multiple events.
+ * Stores address, parking info, setup notes, and a default travel fee
+ * so they don't need to be re-entered every time.
+ */
+export const eventVenues = pgTable("event_venues", {
+  id: serial("id").primaryKey(),
+
+  /** Display name for the venue (e.g. "Valley Fair Pop-up", "Main Studio"). */
+  name: varchar("name", { length: 300 }).notNull(),
+
+  /** Full street address for navigation. */
+  address: text("address"),
+
+  venueType: venueTypeEnum("venue_type").notNull().default("external_venue"),
+
+  /** Parking instructions or lot/level info for off-site venues. */
+  parkingInfo: text("parking_info"),
+
+  /** Setup requirements, power needs, table layout notes, etc. */
+  setupNotes: text("setup_notes"),
+
+  /** Default travel fee in cents pre-filled when this venue is selected on an event. */
+  defaultTravelFeeInCents: integer("default_travel_fee_in_cents"),
+
+  /** Soft-delete: inactive venues are hidden from selectors but preserved for history. */
+  isActive: boolean("is_active").notNull().default(true),
+
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
+});
 
 /* ------------------------------------------------------------------ */
 /*  Events                                                             */
@@ -84,11 +146,21 @@ export const events = pgTable(
 
     /* ------ Location ------ */
 
+    /**
+     * FK to a saved event_venues record.
+     * When set, location/address are denormalized from the venue for display
+     * and email templates. Null means a one-off free-text location.
+     */
+    venueId: integer("venue_id").references(() => eventVenues.id, { onDelete: "set null" }),
+
     /** Venue name or short label (e.g. "Trini's Studio", "Client's Home"). */
     location: varchar("location", { length: 500 }),
 
     /** Full street address for navigation and event logistics. */
     address: text("address"),
+
+    /** Portable equipment to bring for off-site events (e.g. "jewelry station, ring display, extension cord"). */
+    equipmentNotes: text("equipment_notes"),
 
     /* ------ Capacity & pricing ------ */
 
@@ -188,6 +260,10 @@ export const eventsRelations = relations(events, ({ one, many }) => ({
     references: [profiles.id],
     relationName: "eventStaff",
   }),
+  venue: one(eventVenues, {
+    fields: [events.venueId],
+    references: [eventVenues.id],
+  }),
   guests: many(eventGuests),
 }));
 
@@ -196,4 +272,8 @@ export const eventGuestsRelations = relations(eventGuests, ({ one }) => ({
     fields: [eventGuests.eventId],
     references: [events.id],
   }),
+}));
+
+export const eventVenuesRelations = relations(eventVenues, ({ many }) => ({
+  events: many(events),
 }));

@@ -134,10 +134,13 @@ export {
 
 /* Events */
 export {
+  venueTypeEnum,
   eventTypeEnum,
   eventStatusEnum,
+  eventVenues,
   events,
   eventGuests,
+  eventVenuesRelations,
   eventsRelations,
   eventGuestsRelations,
 } from "./events";

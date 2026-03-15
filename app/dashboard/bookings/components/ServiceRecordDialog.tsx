@@ -322,18 +322,20 @@ export function ServiceRecordDialog({
               <div className="mt-3 rounded-xl border border-border bg-surface p-3 space-y-3">
                 <p className="text-xs font-medium text-foreground">Submit to portfolio</p>
                 <div className="flex gap-3">
-                  <Field label="Category" className="flex-1">
-                    <Select
-                      value={promoteCategory}
-                      onChange={(e) => setPromoteCategory(e.target.value as MediaCategory)}
-                    >
-                      {CATEGORY_OPTIONS.map((o) => (
-                        <option key={o.value} value={o.value}>
-                          {o.label}
-                        </option>
-                      ))}
-                    </Select>
-                  </Field>
+                  <div className="flex-1">
+                    <Field label="Category">
+                      <Select
+                        value={promoteCategory}
+                        onChange={(e) => setPromoteCategory(e.target.value as MediaCategory)}
+                      >
+                        {CATEGORY_OPTIONS.map((o) => (
+                          <option key={o.value} value={o.value}>
+                            {o.label}
+                          </option>
+                        ))}
+                      </Select>
+                    </Field>
+                  </div>
                 </div>
                 <Field label="Caption" hint="Optional — shown in the public gallery">
                   <Input

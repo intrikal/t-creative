@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { eq, desc, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { events, eventGuests } from "@/db/schema";
+import { events, eventGuests, eventVenues } from "@/db/schema";
 import { EventInviteEmail } from "@/emails/EventInviteEmail";
 import { trackEvent } from "@/lib/posthog";
 import { sendEmail } from "@/lib/resend";
@@ -39,6 +39,33 @@ export type EventType =
 
 export type EventStatus = "draft" | "upcoming" | "confirmed" | "completed" | "cancelled";
 
+export type VenueType =
+  | "studio"
+  | "client_home"
+  | "external_venue"
+  | "pop_up_venue"
+  | "corporate_venue";
+
+export type VenueRow = {
+  id: number;
+  name: string;
+  address: string | null;
+  venueType: VenueType;
+  parkingInfo: string | null;
+  setupNotes: string | null;
+  defaultTravelFeeInCents: number | null;
+  isActive: boolean;
+};
+
+export type VenueInput = {
+  name: string;
+  address?: string | null;
+  venueType: VenueType;
+  parkingInfo?: string | null;
+  setupNotes?: string | null;
+  defaultTravelFeeInCents?: number | null;
+};
+
 export type EventGuestRow = {
   id: number;
   name: string;
@@ -53,8 +80,11 @@ export type EventRow = {
   status: EventStatus;
   startsAt: string;
   endsAt: string | null;
+  venueId: number | null;
+  venueName: string | null;
   location: string | null;
   address: string | null;
+  equipmentNotes: string | null;
   maxAttendees: number | null;
   expectedRevenueInCents: number | null;
   depositInCents: number | null;
@@ -74,8 +104,10 @@ export type EventInput = {
   status: EventStatus;
   startsAt: string;
   endsAt?: string | null;
+  venueId?: number | null;
   location?: string | null;
   address?: string | null;
+  equipmentNotes?: string | null;
   maxAttendees?: number | null;
   expectedRevenueInCents?: number | null;
   depositInCents?: number | null;
@@ -87,6 +119,70 @@ export type EventInput = {
   internalNotes?: string | null;
   description?: string | null;
 };
+
+/* ------------------------------------------------------------------ */
+/*  Venue queries                                                      */
+/* ------------------------------------------------------------------ */
+
+export async function getVenues(): Promise<VenueRow[]> {
+  await getUser();
+
+  const rows = await db
+    .select({
+      id: eventVenues.id,
+      name: eventVenues.name,
+      address: eventVenues.address,
+      venueType: eventVenues.venueType,
+      parkingInfo: eventVenues.parkingInfo,
+      setupNotes: eventVenues.setupNotes,
+      defaultTravelFeeInCents: eventVenues.defaultTravelFeeInCents,
+      isActive: eventVenues.isActive,
+    })
+    .from(eventVenues)
+    .orderBy(eventVenues.name);
+
+  return rows.map((r) => ({ ...r, venueType: r.venueType as VenueType }));
+}
+
+/* ------------------------------------------------------------------ */
+/*  Venue mutations                                                    */
+/* ------------------------------------------------------------------ */
+
+export async function createVenue(data: VenueInput): Promise<number> {
+  await getUser();
+
+  const [row] = await db
+    .insert(eventVenues)
+    .values({
+      name: data.name,
+      address: data.address ?? null,
+      venueType: data.venueType,
+      parkingInfo: data.parkingInfo ?? null,
+      setupNotes: data.setupNotes ?? null,
+      defaultTravelFeeInCents: data.defaultTravelFeeInCents ?? null,
+    })
+    .returning({ id: eventVenues.id });
+
+  revalidatePath(PATH);
+  return row.id;
+}
+
+export async function updateVenue(id: number, data: Partial<VenueInput> & { isActive?: boolean }) {
+  await getUser();
+
+  const set: Record<string, unknown> = {};
+  if (data.name !== undefined) set.name = data.name;
+  if (data.address !== undefined) set.address = data.address;
+  if (data.venueType !== undefined) set.venueType = data.venueType;
+  if (data.parkingInfo !== undefined) set.parkingInfo = data.parkingInfo;
+  if (data.setupNotes !== undefined) set.setupNotes = data.setupNotes;
+  if (data.defaultTravelFeeInCents !== undefined)
+    set.defaultTravelFeeInCents = data.defaultTravelFeeInCents;
+  if (data.isActive !== undefined) set.isActive = data.isActive;
+
+  await db.update(eventVenues).set(set).where(eq(eventVenues.id, id));
+  revalidatePath(PATH);
+}
 
 /* ------------------------------------------------------------------ */
 /*  Query                                                              */
@@ -103,8 +199,11 @@ export async function getEvents(): Promise<EventRow[]> {
       status: events.status,
       startsAt: events.startsAt,
       endsAt: events.endsAt,
+      venueId: events.venueId,
+      venueName: eventVenues.name,
       location: events.location,
       address: events.address,
+      equipmentNotes: events.equipmentNotes,
       maxAttendees: events.maxAttendees,
       expectedRevenueInCents: events.expectedRevenueInCents,
       depositInCents: events.depositInCents,
@@ -117,6 +216,7 @@ export async function getEvents(): Promise<EventRow[]> {
       description: events.description,
     })
     .from(events)
+    .leftJoin(eventVenues, eq(events.venueId, eventVenues.id))
     .orderBy(desc(events.startsAt));
 
   // Fetch guests for all events in one query
@@ -143,6 +243,7 @@ export async function getEvents(): Promise<EventRow[]> {
     status: r.status as EventStatus,
     startsAt: r.startsAt.toISOString(),
     endsAt: r.endsAt?.toISOString() ?? null,
+    venueName: r.venueName ?? null,
     guests: guestsByEvent.get(r.id) ?? [],
   }));
 }
@@ -162,8 +263,11 @@ export async function getClientEvents(): Promise<EventRow[]> {
       status: events.status,
       startsAt: events.startsAt,
       endsAt: events.endsAt,
+      venueId: events.venueId,
+      venueName: eventVenues.name,
       location: events.location,
       address: events.address,
+      equipmentNotes: events.equipmentNotes,
       maxAttendees: events.maxAttendees,
       expectedRevenueInCents: events.expectedRevenueInCents,
       depositInCents: events.depositInCents,
@@ -175,6 +279,7 @@ export async function getClientEvents(): Promise<EventRow[]> {
       description: events.description,
     })
     .from(events)
+    .leftJoin(eventVenues, eq(events.venueId, eventVenues.id))
     .where(eq(events.hostId, user.id))
     .orderBy(desc(events.startsAt));
 
@@ -206,6 +311,7 @@ export async function getClientEvents(): Promise<EventRow[]> {
     status: r.status as EventStatus,
     startsAt: r.startsAt.toISOString(),
     endsAt: r.endsAt?.toISOString() ?? null,
+    venueName: r.venueName ?? null,
     internalNotes: null, // Don't expose internal notes to clients
     guests: guestsByEvent.get(r.id) ?? [],
   }));
@@ -215,8 +321,34 @@ export async function getClientEvents(): Promise<EventRow[]> {
 /*  Mutations                                                          */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Resolves location/address from a saved venue when venueId is provided.
+ * Returns the denormalized values to store on the event row.
+ */
+async function resolveVenueLocation(
+  venueId: number | null | undefined,
+  fallbackLocation: string | null | undefined,
+  fallbackAddress: string | null | undefined,
+): Promise<{ location: string | null; address: string | null }> {
+  if (!venueId) {
+    return { location: fallbackLocation ?? null, address: fallbackAddress ?? null };
+  }
+  const [venue] = await db
+    .select({ name: eventVenues.name, address: eventVenues.address })
+    .from(eventVenues)
+    .where(eq(eventVenues.id, venueId));
+  if (!venue) return { location: fallbackLocation ?? null, address: fallbackAddress ?? null };
+  return { location: venue.name, address: venue.address };
+}
+
 export async function createEvent(data: EventInput): Promise<number> {
   const user = await getUser();
+
+  const { location, address } = await resolveVenueLocation(
+    data.venueId,
+    data.location,
+    data.address,
+  );
 
   const [row] = await db
     .insert(events)
@@ -227,8 +359,10 @@ export async function createEvent(data: EventInput): Promise<number> {
       status: data.status,
       startsAt: new Date(data.startsAt),
       endsAt: data.endsAt ? new Date(data.endsAt) : null,
-      location: data.location ?? null,
-      address: data.address ?? null,
+      venueId: data.venueId ?? null,
+      location,
+      address,
+      equipmentNotes: data.equipmentNotes ?? null,
       maxAttendees: data.maxAttendees ?? null,
       expectedRevenueInCents: data.expectedRevenueInCents ?? null,
       depositInCents: data.depositInCents ?? null,
@@ -256,8 +390,8 @@ export async function updateEvent(id: number, data: Partial<EventInput>) {
   if (data.status !== undefined) set.status = data.status;
   if (data.startsAt !== undefined) set.startsAt = new Date(data.startsAt);
   if (data.endsAt !== undefined) set.endsAt = data.endsAt ? new Date(data.endsAt) : null;
-  if (data.location !== undefined) set.location = data.location;
-  if (data.address !== undefined) set.address = data.address;
+  if (data.venueId !== undefined) set.venueId = data.venueId;
+  if (data.equipmentNotes !== undefined) set.equipmentNotes = data.equipmentNotes;
   if (data.maxAttendees !== undefined) set.maxAttendees = data.maxAttendees;
   if (data.expectedRevenueInCents !== undefined)
     set.expectedRevenueInCents = data.expectedRevenueInCents;
@@ -269,6 +403,17 @@ export async function updateEvent(id: number, data: Partial<EventInput>) {
   if (data.services !== undefined) set.services = data.services;
   if (data.internalNotes !== undefined) set.internalNotes = data.internalNotes;
   if (data.description !== undefined) set.description = data.description;
+
+  // Resolve location from venue if venueId is being updated
+  if (data.venueId !== undefined || data.location !== undefined || data.address !== undefined) {
+    const { location, address } = await resolveVenueLocation(
+      data.venueId,
+      data.location,
+      data.address,
+    );
+    set.location = location;
+    set.address = address;
+  }
 
   if (data.status === "completed") set.completedAt = new Date();
   if (data.status === "cancelled") set.cancelledAt = new Date();

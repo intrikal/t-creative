@@ -39,11 +39,11 @@ import { BookingNoShow } from "@/emails/BookingNoShow";
 import { BookingReschedule } from "@/emails/BookingReschedule";
 import { PaymentLinkEmail } from "@/emails/PaymentLinkEmail";
 import { RecurringBookingConfirmation } from "@/emails/RecurringBookingConfirmation";
-import { WaitlistNotification } from "@/emails/WaitlistNotification";
 import { logAction } from "@/lib/audit";
 import { trackEvent } from "@/lib/posthog";
 import { sendEmail } from "@/lib/resend";
 import { isSquareConfigured, createSquareOrder, createSquarePaymentLink } from "@/lib/square";
+import { notifyWaitlistForCancelledBooking } from "@/lib/waitlist-notify";
 import { createZohoDeal, updateZohoDeal } from "@/lib/zoho";
 import { createZohoBooksInvoice } from "@/lib/zoho-books";
 import { createClient } from "@/utils/supabase/server";
@@ -911,55 +911,12 @@ async function trySendBookingStatusEmail(
 }
 
 /**
- * Notifies waiting clients when a booking is cancelled and a spot opens up.
- * Queries the waitlist for the same service, sends WaitlistNotification emails,
- * and marks each entry as "notified".
+ * Notifies the next waiting client when a booking is cancelled and a slot
+ * opens up. Delegates to lib/waitlist-notify for the core logic so the same
+ * path is reused by client-side cancellations.
  */
 async function tryNotifyWaitlist(cancelledBookingId: number): Promise<void> {
-  try {
-    const [cancelled] = await db
-      .select({ serviceId: bookings.serviceId })
-      .from(bookings)
-      .where(eq(bookings.id, cancelledBookingId));
-
-    if (!cancelled) return;
-
-    const waitingEntries = await db
-      .select({
-        id: waitlist.id,
-        clientId: waitlist.clientId,
-        clientEmail: profiles.email,
-        clientFirstName: profiles.firstName,
-        notifyEmail: profiles.notifyEmail,
-        serviceName: services.name,
-      })
-      .from(waitlist)
-      .innerJoin(profiles, eq(waitlist.clientId, profiles.id))
-      .innerJoin(services, eq(waitlist.serviceId, services.id))
-      .where(and(eq(waitlist.serviceId, cancelled.serviceId), eq(waitlist.status, "waiting")));
-
-    for (const entry of waitingEntries) {
-      if (!entry.clientEmail || !entry.notifyEmail) continue;
-
-      await sendEmail({
-        to: entry.clientEmail,
-        subject: `A spot opened up — ${entry.serviceName} — T Creative`,
-        react: WaitlistNotification({
-          clientName: entry.clientFirstName,
-          serviceName: entry.serviceName,
-        }),
-        entityType: "waitlist_notification",
-        localId: String(entry.id),
-      });
-
-      await db
-        .update(waitlist)
-        .set({ status: "notified", notifiedAt: new Date() })
-        .where(eq(waitlist.id, entry.id));
-    }
-  } catch {
-    // Non-fatal — waitlist notification failure shouldn't block cancellation
-  }
+  await notifyWaitlistForCancelledBooking(cancelledBookingId);
 }
 
 /**

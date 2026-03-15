@@ -39,6 +39,7 @@ import { BookingNoShow } from "@/emails/BookingNoShow";
 import { BookingReschedule } from "@/emails/BookingReschedule";
 import { PaymentLinkEmail } from "@/emails/PaymentLinkEmail";
 import { RecurringBookingConfirmation } from "@/emails/RecurringBookingConfirmation";
+import { WaitlistNotification } from "@/emails/WaitlistNotification";
 import { logAction } from "@/lib/audit";
 import { trackEvent } from "@/lib/posthog";
 import { sendEmail } from "@/lib/resend";

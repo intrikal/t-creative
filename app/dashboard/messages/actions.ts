@@ -64,6 +64,8 @@ export interface ThreadRow {
   lastMessageSenderId: string | null;
   /** Count of unread messages (for the current viewer). */
   unreadCount: number;
+  /** Inspo/reference photo URLs uploaded by the client at booking time. */
+  referencePhotoUrls: string[] | null;
 }
 
 export interface ContactRow {
@@ -147,6 +149,7 @@ export async function getThreads(): Promise<ThreadRow[]> {
       clientEmail: profiles.email,
       clientPhone: profiles.phone,
       clientAvatarUrl: profiles.avatarUrl,
+      referencePhotoUrls: threads.referencePhotoUrls,
     })
     .from(threads)
     .leftJoin(profiles, eq(threads.clientId, profiles.id))
@@ -234,6 +237,7 @@ export async function getClientThreads(): Promise<ThreadRow[]> {
       clientEmail: profiles.email,
       clientPhone: profiles.phone,
       clientAvatarUrl: profiles.avatarUrl,
+      referencePhotoUrls: threads.referencePhotoUrls,
     })
     .from(threads)
     .leftJoin(profiles, eq(threads.clientId, profiles.id))
@@ -617,6 +621,7 @@ export async function createBookingRequest(input: {
   serviceId: number;
   message: string;
   preferredDates?: string;
+  referencePhotoUrls?: string[];
 }): Promise<{ threadId: number; bookingId: number }> {
   const user = await getUser();
 
@@ -658,6 +663,10 @@ export async function createBookingRequest(input: {
       threadType: "request",
       status: "new",
       bookingId: booking.id,
+      referencePhotoUrls:
+        input.referencePhotoUrls && input.referencePhotoUrls.length > 0
+          ? input.referencePhotoUrls
+          : null,
     })
     .returning({ id: threads.id });
 

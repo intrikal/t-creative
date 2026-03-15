@@ -12,8 +12,17 @@
  * valid windows so the sister gets clean, actionable requests.
  */
 
-import { useState, useEffect, useMemo } from "react";
-import { X, CalendarDays, Sparkles, Send, ChevronLeft, Clock } from "lucide-react";
+import { useState, useEffect, useMemo, useRef } from "react";
+import {
+  X,
+  CalendarDays,
+  Sparkles,
+  Send,
+  ChevronLeft,
+  Clock,
+  ImagePlus,
+  Trash2,
+} from "lucide-react";
 import {
   getStudioAvailability,
   checkIsAuthenticated,
@@ -103,6 +112,8 @@ function generateSlots(
 
 type Step = "date" | "time" | "confirm";
 
+type PhotoPreview = { file: File; preview: string };
+
 export function BookingRequestDialog({
   service,
   open,
@@ -121,9 +132,11 @@ export function BookingRequestDialog({
   const [guestName, setGuestName] = useState("");
   const [guestEmail, setGuestEmail] = useState("");
   const [guestPhone, setGuestPhone] = useState("");
+  const [photos, setPhotos] = useState<PhotoPreview[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch availability + auth status on open
   useEffect(() => {
@@ -190,6 +203,41 @@ export function BookingRequestDialog({
     }
   }
 
+  function handlePhotoSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    if (!files.length) return;
+
+    const remaining = 5 - photos.length;
+    const toAdd = files.slice(0, remaining).map((file) => ({
+      file,
+      preview: URL.createObjectURL(file),
+    }));
+    setPhotos((prev) => [...prev, ...toAdd]);
+    // Reset input so same file can be re-selected if removed
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  function removePhoto(index: number) {
+    setPhotos((prev) => {
+      URL.revokeObjectURL(prev[index].preview);
+      return prev.filter((_, i) => i !== index);
+    });
+  }
+
+  async function uploadPhotos(): Promise<string[]> {
+    if (photos.length === 0) return [];
+    const urls: string[] = [];
+    for (const { file } of photos) {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/book/upload-reference", { method: "POST", body: fd });
+      if (!res.ok) throw new Error("Photo upload failed");
+      const { url } = (await res.json()) as { url: string };
+      urls.push(url);
+    }
+    return urls;
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (submitting || !selectedDate) return;
@@ -205,6 +253,8 @@ export function BookingRequestDialog({
     const preferredDates = `${fmtDateLabel(selectedDate)} at ${fmt12(selectedTime)}`;
 
     try {
+      const referencePhotoUrls = await uploadPhotos();
+
       if (isGuest) {
         const res = await fetch("/api/book/guest-request", {
           method: "POST",
@@ -216,6 +266,7 @@ export function BookingRequestDialog({
             serviceId: service.id,
             preferredDate: preferredDates,
             notes: notes.trim(),
+            referencePhotoUrls,
           }),
         });
         if (!res.ok) throw new Error("Failed to send request");
@@ -224,6 +275,7 @@ export function BookingRequestDialog({
           serviceId: service.id,
           message: notes.trim() || `I'd like to book ${service.name} on ${preferredDates}.`,
           preferredDates,
+          referencePhotoUrls,
         });
       }
       setSubmitted(true);
@@ -235,6 +287,7 @@ export function BookingRequestDialog({
   }
 
   function handleClose() {
+    photos.forEach((p) => URL.revokeObjectURL(p.preview));
     setSubmitted(false);
     setStep("date");
     setSelectedDate(undefined);
@@ -243,6 +296,7 @@ export function BookingRequestDialog({
     setGuestName("");
     setGuestEmail("");
     setGuestPhone("");
+    setPhotos([]);
     setError("");
     onClose();
   }
@@ -483,6 +537,76 @@ export function BookingRequestDialog({
                     rows={2}
                     className="w-full px-3.5 py-2.5 text-sm bg-white border border-stone-200 rounded-xl text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-[#e8c4b8] focus:border-[#96604a] transition resize-none"
                   />
+                </div>
+
+                {/* Reference photos */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-medium text-stone-600">
+                      Inspo photos <span className="text-stone-400">(optional, up to 5)</span>
+                    </label>
+                    {photos.length < 5 && (
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="flex items-center gap-1 text-xs text-[#96604a] hover:text-[#7a4e3a] transition-colors"
+                      >
+                        <ImagePlus className="w-3.5 h-3.5" />
+                        Add photo
+                      </button>
+                    )}
+                  </div>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    onChange={handlePhotoSelect}
+                  />
+                  {photos.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {photos.map((p, i) => (
+                        <div
+                          key={i}
+                          className="relative group w-16 h-16 rounded-lg overflow-hidden border border-stone-200 shrink-0"
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={p.preview}
+                            alt={`Reference ${i + 1}`}
+                            className="w-full h-full object-cover"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => removePhoto(i)}
+                            className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                          >
+                            <Trash2 className="w-3.5 h-3.5 text-white" />
+                          </button>
+                        </div>
+                      ))}
+                      {photos.length < 5 && (
+                        <button
+                          type="button"
+                          onClick={() => fileInputRef.current?.click()}
+                          className="w-16 h-16 rounded-lg border border-dashed border-stone-300 flex items-center justify-center text-stone-400 hover:border-[#96604a] hover:text-[#96604a] transition-colors shrink-0"
+                        >
+                          <ImagePlus className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  )}
+                  {photos.length === 0 && (
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-dashed border-stone-200 text-xs text-stone-400 hover:border-[#96604a] hover:text-[#96604a] transition-colors"
+                    >
+                      <ImagePlus className="w-3.5 h-3.5" />
+                      Upload lash style, design, or inspo
+                    </button>
+                  )}
                 </div>
 
                 {error && (

@@ -127,6 +127,13 @@
       "when": 1773018058372,
       "tag": "0017_rare_whirlwind",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1773611642399,
+      "tag": "0018_previous_pet_avengers",
+      "breakpoints": true
     }
   ]
 }

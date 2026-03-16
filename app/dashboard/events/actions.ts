@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import * as Sentry from "@sentry/nextjs";
 import { eq, desc, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { events, eventGuests, eventVenues } from "@/db/schema";
@@ -132,23 +133,28 @@ export type EventInput = {
 /* ------------------------------------------------------------------ */
 
 export async function getVenues(): Promise<VenueRow[]> {
-  await getUser();
+  try {
+    await getUser();
 
-  const rows = await db
-    .select({
-      id: eventVenues.id,
-      name: eventVenues.name,
-      address: eventVenues.address,
-      venueType: eventVenues.venueType,
-      parkingInfo: eventVenues.parkingInfo,
-      setupNotes: eventVenues.setupNotes,
-      defaultTravelFeeInCents: eventVenues.defaultTravelFeeInCents,
-      isActive: eventVenues.isActive,
-    })
-    .from(eventVenues)
-    .orderBy(eventVenues.name);
+    const rows = await db
+      .select({
+        id: eventVenues.id,
+        name: eventVenues.name,
+        address: eventVenues.address,
+        venueType: eventVenues.venueType,
+        parkingInfo: eventVenues.parkingInfo,
+        setupNotes: eventVenues.setupNotes,
+        defaultTravelFeeInCents: eventVenues.defaultTravelFeeInCents,
+        isActive: eventVenues.isActive,
+      })
+      .from(eventVenues)
+      .orderBy(eventVenues.name);
 
-  return rows.map((r) => ({ ...r, venueType: r.venueType as VenueType }));
+    return rows.map((r) => ({ ...r, venueType: r.venueType as VenueType }));
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -156,39 +162,49 @@ export async function getVenues(): Promise<VenueRow[]> {
 /* ------------------------------------------------------------------ */
 
 export async function createVenue(data: VenueInput): Promise<number> {
-  await getUser();
+  try {
+    await getUser();
 
-  const [row] = await db
-    .insert(eventVenues)
-    .values({
-      name: data.name,
-      address: data.address ?? null,
-      venueType: data.venueType,
-      parkingInfo: data.parkingInfo ?? null,
-      setupNotes: data.setupNotes ?? null,
-      defaultTravelFeeInCents: data.defaultTravelFeeInCents ?? null,
-    })
-    .returning({ id: eventVenues.id });
+    const [row] = await db
+      .insert(eventVenues)
+      .values({
+        name: data.name,
+        address: data.address ?? null,
+        venueType: data.venueType,
+        parkingInfo: data.parkingInfo ?? null,
+        setupNotes: data.setupNotes ?? null,
+        defaultTravelFeeInCents: data.defaultTravelFeeInCents ?? null,
+      })
+      .returning({ id: eventVenues.id });
 
-  revalidatePath(PATH);
-  return row.id;
+    revalidatePath(PATH);
+    return row.id;
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 export async function updateVenue(id: number, data: Partial<VenueInput> & { isActive?: boolean }) {
-  await getUser();
+  try {
+    await getUser();
 
-  const set: Record<string, unknown> = {};
-  if (data.name !== undefined) set.name = data.name;
-  if (data.address !== undefined) set.address = data.address;
-  if (data.venueType !== undefined) set.venueType = data.venueType;
-  if (data.parkingInfo !== undefined) set.parkingInfo = data.parkingInfo;
-  if (data.setupNotes !== undefined) set.setupNotes = data.setupNotes;
-  if (data.defaultTravelFeeInCents !== undefined)
-    set.defaultTravelFeeInCents = data.defaultTravelFeeInCents;
-  if (data.isActive !== undefined) set.isActive = data.isActive;
+    const set: Record<string, unknown> = {};
+    if (data.name !== undefined) set.name = data.name;
+    if (data.address !== undefined) set.address = data.address;
+    if (data.venueType !== undefined) set.venueType = data.venueType;
+    if (data.parkingInfo !== undefined) set.parkingInfo = data.parkingInfo;
+    if (data.setupNotes !== undefined) set.setupNotes = data.setupNotes;
+    if (data.defaultTravelFeeInCents !== undefined)
+      set.defaultTravelFeeInCents = data.defaultTravelFeeInCents;
+    if (data.isActive !== undefined) set.isActive = data.isActive;
 
-  await db.update(eventVenues).set(set).where(eq(eventVenues.id, id));
-  revalidatePath(PATH);
+    await db.update(eventVenues).set(set).where(eq(eventVenues.id, id));
+    revalidatePath(PATH);
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -196,66 +212,71 @@ export async function updateVenue(id: number, data: Partial<VenueInput> & { isAc
 /* ------------------------------------------------------------------ */
 
 export async function getEvents(): Promise<EventRow[]> {
-  await getUser();
+  try {
+    await getUser();
 
-  const rows = await db
-    .select({
-      id: events.id,
-      title: events.title,
-      eventType: events.eventType,
-      status: events.status,
-      startsAt: events.startsAt,
-      endsAt: events.endsAt,
-      venueId: events.venueId,
-      venueName: eventVenues.name,
-      location: events.location,
-      address: events.address,
-      equipmentNotes: events.equipmentNotes,
-      maxAttendees: events.maxAttendees,
-      expectedRevenueInCents: events.expectedRevenueInCents,
-      depositInCents: events.depositInCents,
-      travelFeeInCents: events.travelFeeInCents,
-      contactName: events.contactName,
-      contactEmail: events.contactEmail,
-      contactPhone: events.contactPhone,
-      services: events.services,
-      internalNotes: events.internalNotes,
-      description: events.description,
-      companyName: events.companyName,
-      billingEmail: events.billingEmail,
-      poNumber: events.poNumber,
-    })
-    .from(events)
-    .leftJoin(eventVenues, eq(events.venueId, eventVenues.id))
-    .orderBy(desc(events.startsAt));
+    const rows = await db
+      .select({
+        id: events.id,
+        title: events.title,
+        eventType: events.eventType,
+        status: events.status,
+        startsAt: events.startsAt,
+        endsAt: events.endsAt,
+        venueId: events.venueId,
+        venueName: eventVenues.name,
+        location: events.location,
+        address: events.address,
+        equipmentNotes: events.equipmentNotes,
+        maxAttendees: events.maxAttendees,
+        expectedRevenueInCents: events.expectedRevenueInCents,
+        depositInCents: events.depositInCents,
+        travelFeeInCents: events.travelFeeInCents,
+        contactName: events.contactName,
+        contactEmail: events.contactEmail,
+        contactPhone: events.contactPhone,
+        services: events.services,
+        internalNotes: events.internalNotes,
+        description: events.description,
+        companyName: events.companyName,
+        billingEmail: events.billingEmail,
+        poNumber: events.poNumber,
+      })
+      .from(events)
+      .leftJoin(eventVenues, eq(events.venueId, eventVenues.id))
+      .orderBy(desc(events.startsAt));
 
-  // Fetch guests for all events in one query
-  const allGuests = await db
-    .select({
-      id: eventGuests.id,
-      eventId: eventGuests.eventId,
-      name: eventGuests.name,
-      service: eventGuests.service,
-      paid: eventGuests.paid,
-    })
-    .from(eventGuests);
+    // Fetch guests for all events in one query
+    const allGuests = await db
+      .select({
+        id: eventGuests.id,
+        eventId: eventGuests.eventId,
+        name: eventGuests.name,
+        service: eventGuests.service,
+        paid: eventGuests.paid,
+      })
+      .from(eventGuests);
 
-  const guestsByEvent = new Map<number, EventGuestRow[]>();
-  for (const g of allGuests) {
-    const list = guestsByEvent.get(g.eventId) ?? [];
-    list.push({ id: g.id, name: g.name, service: g.service, paid: g.paid });
-    guestsByEvent.set(g.eventId, list);
+    const guestsByEvent = new Map<number, EventGuestRow[]>();
+    for (const g of allGuests) {
+      const list = guestsByEvent.get(g.eventId) ?? [];
+      list.push({ id: g.id, name: g.name, service: g.service, paid: g.paid });
+      guestsByEvent.set(g.eventId, list);
+    }
+
+    return rows.map((r) => ({
+      ...r,
+      eventType: r.eventType as EventType,
+      status: r.status as EventStatus,
+      startsAt: r.startsAt.toISOString(),
+      endsAt: r.endsAt?.toISOString() ?? null,
+      venueName: r.venueName ?? null,
+      guests: guestsByEvent.get(r.id) ?? [],
+    }));
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
   }
-
-  return rows.map((r) => ({
-    ...r,
-    eventType: r.eventType as EventType,
-    status: r.status as EventStatus,
-    startsAt: r.startsAt.toISOString(),
-    endsAt: r.endsAt?.toISOString() ?? null,
-    venueName: r.venueName ?? null,
-    guests: guestsByEvent.get(r.id) ?? [],
-  }));
 }
 
 /* ------------------------------------------------------------------ */
@@ -263,71 +284,76 @@ export async function getEvents(): Promise<EventRow[]> {
 /* ------------------------------------------------------------------ */
 
 export async function getClientEvents(): Promise<EventRow[]> {
-  const user = await getUser();
+  try {
+    const user = await getUser();
 
-  const rows = await db
-    .select({
-      id: events.id,
-      title: events.title,
-      eventType: events.eventType,
-      status: events.status,
-      startsAt: events.startsAt,
-      endsAt: events.endsAt,
-      venueId: events.venueId,
-      venueName: eventVenues.name,
-      location: events.location,
-      address: events.address,
-      equipmentNotes: events.equipmentNotes,
-      maxAttendees: events.maxAttendees,
-      expectedRevenueInCents: events.expectedRevenueInCents,
-      depositInCents: events.depositInCents,
-      travelFeeInCents: events.travelFeeInCents,
-      contactName: events.contactName,
-      contactEmail: events.contactEmail,
-      contactPhone: events.contactPhone,
-      services: events.services,
-      description: events.description,
-      companyName: events.companyName,
-    })
-    .from(events)
-    .leftJoin(eventVenues, eq(events.venueId, eventVenues.id))
-    .where(eq(events.hostId, user.id))
-    .orderBy(desc(events.startsAt));
+    const rows = await db
+      .select({
+        id: events.id,
+        title: events.title,
+        eventType: events.eventType,
+        status: events.status,
+        startsAt: events.startsAt,
+        endsAt: events.endsAt,
+        venueId: events.venueId,
+        venueName: eventVenues.name,
+        location: events.location,
+        address: events.address,
+        equipmentNotes: events.equipmentNotes,
+        maxAttendees: events.maxAttendees,
+        expectedRevenueInCents: events.expectedRevenueInCents,
+        depositInCents: events.depositInCents,
+        travelFeeInCents: events.travelFeeInCents,
+        contactName: events.contactName,
+        contactEmail: events.contactEmail,
+        contactPhone: events.contactPhone,
+        services: events.services,
+        description: events.description,
+        companyName: events.companyName,
+      })
+      .from(events)
+      .leftJoin(eventVenues, eq(events.venueId, eventVenues.id))
+      .where(eq(events.hostId, user.id))
+      .orderBy(desc(events.startsAt));
 
-  const eventIds = rows.map((r) => r.id);
-  const allGuests =
-    eventIds.length > 0
-      ? await db
-          .select({
-            id: eventGuests.id,
-            eventId: eventGuests.eventId,
-            name: eventGuests.name,
-            service: eventGuests.service,
-            paid: eventGuests.paid,
-          })
-          .from(eventGuests)
-      : [];
+    const eventIds = rows.map((r) => r.id);
+    const allGuests =
+      eventIds.length > 0
+        ? await db
+            .select({
+              id: eventGuests.id,
+              eventId: eventGuests.eventId,
+              name: eventGuests.name,
+              service: eventGuests.service,
+              paid: eventGuests.paid,
+            })
+            .from(eventGuests)
+        : [];
 
-  const guestsByEvent = new Map<number, EventGuestRow[]>();
-  for (const g of allGuests) {
-    if (!eventIds.includes(g.eventId)) continue;
-    const list = guestsByEvent.get(g.eventId) ?? [];
-    list.push({ id: g.id, name: g.name, service: g.service, paid: g.paid });
-    guestsByEvent.set(g.eventId, list);
+    const guestsByEvent = new Map<number, EventGuestRow[]>();
+    for (const g of allGuests) {
+      if (!eventIds.includes(g.eventId)) continue;
+      const list = guestsByEvent.get(g.eventId) ?? [];
+      list.push({ id: g.id, name: g.name, service: g.service, paid: g.paid });
+      guestsByEvent.set(g.eventId, list);
+    }
+
+    return rows.map((r) => ({
+      ...r,
+      eventType: r.eventType as EventType,
+      status: r.status as EventStatus,
+      startsAt: r.startsAt.toISOString(),
+      endsAt: r.endsAt?.toISOString() ?? null,
+      venueName: r.venueName ?? null,
+      internalNotes: null, // Don't expose internal notes to clients
+      billingEmail: null, // Don't expose billing details to clients
+      poNumber: null, // Don't expose billing details to clients
+      guests: guestsByEvent.get(r.id) ?? [],
+    }));
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
   }
-
-  return rows.map((r) => ({
-    ...r,
-    eventType: r.eventType as EventType,
-    status: r.status as EventStatus,
-    startsAt: r.startsAt.toISOString(),
-    endsAt: r.endsAt?.toISOString() ?? null,
-    venueName: r.venueName ?? null,
-    internalNotes: null, // Don't expose internal notes to clients
-    billingEmail: null, // Don't expose billing details to clients
-    poNumber: null, // Don't expose billing details to clients
-    guests: guestsByEvent.get(r.id) ?? [],
-  }));
 }
 
 /* ------------------------------------------------------------------ */
@@ -355,98 +381,113 @@ async function resolveVenueLocation(
 }
 
 export async function createEvent(data: EventInput): Promise<number> {
-  const user = await getUser();
+  try {
+    const user = await getUser();
 
-  const { location, address } = await resolveVenueLocation(
-    data.venueId,
-    data.location,
-    data.address,
-  );
-
-  const [row] = await db
-    .insert(events)
-    .values({
-      hostId: user.id,
-      title: data.title,
-      eventType: data.eventType,
-      status: data.status,
-      startsAt: new Date(data.startsAt),
-      endsAt: data.endsAt ? new Date(data.endsAt) : null,
-      venueId: data.venueId ?? null,
-      location,
-      address,
-      equipmentNotes: data.equipmentNotes ?? null,
-      maxAttendees: data.maxAttendees ?? null,
-      expectedRevenueInCents: data.expectedRevenueInCents ?? null,
-      depositInCents: data.depositInCents ?? null,
-      travelFeeInCents: data.travelFeeInCents ?? null,
-      contactName: data.contactName ?? null,
-      contactEmail: data.contactEmail ?? null,
-      contactPhone: data.contactPhone ?? null,
-      services: data.services ?? null,
-      internalNotes: data.internalNotes ?? null,
-      description: data.description ?? null,
-      companyName: data.companyName ?? null,
-      billingEmail: data.billingEmail ?? null,
-      poNumber: data.poNumber ?? null,
-    })
-    .returning({ id: events.id });
-
-  trackEvent(user.id, "event_created", { title: data.title, eventType: data.eventType });
-  revalidatePath(PATH);
-  return row.id;
-}
-
-export async function updateEvent(id: number, data: Partial<EventInput>) {
-  const user = await getUser();
-
-  const set: Record<string, unknown> = {};
-  if (data.title !== undefined) set.title = data.title;
-  if (data.eventType !== undefined) set.eventType = data.eventType;
-  if (data.status !== undefined) set.status = data.status;
-  if (data.startsAt !== undefined) set.startsAt = new Date(data.startsAt);
-  if (data.endsAt !== undefined) set.endsAt = data.endsAt ? new Date(data.endsAt) : null;
-  if (data.venueId !== undefined) set.venueId = data.venueId;
-  if (data.equipmentNotes !== undefined) set.equipmentNotes = data.equipmentNotes;
-  if (data.maxAttendees !== undefined) set.maxAttendees = data.maxAttendees;
-  if (data.expectedRevenueInCents !== undefined)
-    set.expectedRevenueInCents = data.expectedRevenueInCents;
-  if (data.depositInCents !== undefined) set.depositInCents = data.depositInCents;
-  if (data.travelFeeInCents !== undefined) set.travelFeeInCents = data.travelFeeInCents;
-  if (data.contactName !== undefined) set.contactName = data.contactName;
-  if (data.contactEmail !== undefined) set.contactEmail = data.contactEmail;
-  if (data.contactPhone !== undefined) set.contactPhone = data.contactPhone;
-  if (data.services !== undefined) set.services = data.services;
-  if (data.internalNotes !== undefined) set.internalNotes = data.internalNotes;
-  if (data.description !== undefined) set.description = data.description;
-  if (data.companyName !== undefined) set.companyName = data.companyName;
-  if (data.billingEmail !== undefined) set.billingEmail = data.billingEmail;
-  if (data.poNumber !== undefined) set.poNumber = data.poNumber;
-
-  // Resolve location from venue if venueId is being updated
-  if (data.venueId !== undefined || data.location !== undefined || data.address !== undefined) {
     const { location, address } = await resolveVenueLocation(
       data.venueId,
       data.location,
       data.address,
     );
-    set.location = location;
-    set.address = address;
+
+    const [row] = await db
+      .insert(events)
+      .values({
+        hostId: user.id,
+        title: data.title,
+        eventType: data.eventType,
+        status: data.status,
+        startsAt: new Date(data.startsAt),
+        endsAt: data.endsAt ? new Date(data.endsAt) : null,
+        venueId: data.venueId ?? null,
+        location,
+        address,
+        equipmentNotes: data.equipmentNotes ?? null,
+        maxAttendees: data.maxAttendees ?? null,
+        expectedRevenueInCents: data.expectedRevenueInCents ?? null,
+        depositInCents: data.depositInCents ?? null,
+        travelFeeInCents: data.travelFeeInCents ?? null,
+        contactName: data.contactName ?? null,
+        contactEmail: data.contactEmail ?? null,
+        contactPhone: data.contactPhone ?? null,
+        services: data.services ?? null,
+        internalNotes: data.internalNotes ?? null,
+        description: data.description ?? null,
+        companyName: data.companyName ?? null,
+        billingEmail: data.billingEmail ?? null,
+        poNumber: data.poNumber ?? null,
+      })
+      .returning({ id: events.id });
+
+    trackEvent(user.id, "event_created", { title: data.title, eventType: data.eventType });
+    revalidatePath(PATH);
+    return row.id;
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
   }
+}
 
-  if (data.status === "completed") set.completedAt = new Date();
-  if (data.status === "cancelled") set.cancelledAt = new Date();
+export async function updateEvent(id: number, data: Partial<EventInput>) {
+  try {
+    const user = await getUser();
 
-  await db.update(events).set(set).where(eq(events.id, id));
-  trackEvent(user.id, "event_updated", { eventId: id, status: data.status });
-  revalidatePath(PATH);
+    const set: Record<string, unknown> = {};
+    if (data.title !== undefined) set.title = data.title;
+    if (data.eventType !== undefined) set.eventType = data.eventType;
+    if (data.status !== undefined) set.status = data.status;
+    if (data.startsAt !== undefined) set.startsAt = new Date(data.startsAt);
+    if (data.endsAt !== undefined) set.endsAt = data.endsAt ? new Date(data.endsAt) : null;
+    if (data.venueId !== undefined) set.venueId = data.venueId;
+    if (data.equipmentNotes !== undefined) set.equipmentNotes = data.equipmentNotes;
+    if (data.maxAttendees !== undefined) set.maxAttendees = data.maxAttendees;
+    if (data.expectedRevenueInCents !== undefined)
+      set.expectedRevenueInCents = data.expectedRevenueInCents;
+    if (data.depositInCents !== undefined) set.depositInCents = data.depositInCents;
+    if (data.travelFeeInCents !== undefined) set.travelFeeInCents = data.travelFeeInCents;
+    if (data.contactName !== undefined) set.contactName = data.contactName;
+    if (data.contactEmail !== undefined) set.contactEmail = data.contactEmail;
+    if (data.contactPhone !== undefined) set.contactPhone = data.contactPhone;
+    if (data.services !== undefined) set.services = data.services;
+    if (data.internalNotes !== undefined) set.internalNotes = data.internalNotes;
+    if (data.description !== undefined) set.description = data.description;
+    if (data.companyName !== undefined) set.companyName = data.companyName;
+    if (data.billingEmail !== undefined) set.billingEmail = data.billingEmail;
+    if (data.poNumber !== undefined) set.poNumber = data.poNumber;
+
+    // Resolve location from venue if venueId is being updated
+    if (data.venueId !== undefined || data.location !== undefined || data.address !== undefined) {
+      const { location, address } = await resolveVenueLocation(
+        data.venueId,
+        data.location,
+        data.address,
+      );
+      set.location = location;
+      set.address = address;
+    }
+
+    if (data.status === "completed") set.completedAt = new Date();
+    if (data.status === "cancelled") set.cancelledAt = new Date();
+
+    await db.update(events).set(set).where(eq(events.id, id));
+    trackEvent(user.id, "event_updated", { eventId: id, status: data.status });
+    revalidatePath(PATH);
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 export async function deleteEvent(id: number) {
-  const user = await getUser();
-  await db.delete(events).where(eq(events.id, id));
-  trackEvent(user.id, "event_deleted", { eventId: id });
-  revalidatePath(PATH);
+  try {
+    const user = await getUser();
+    await db.delete(events).where(eq(events.id, id));
+    trackEvent(user.id, "event_deleted", { eventId: id });
+    revalidatePath(PATH);
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -457,35 +498,50 @@ export async function addGuest(
   eventId: number,
   guest: { name: string; service?: string; paid?: boolean },
 ) {
-  await getUser();
+  try {
+    await getUser();
 
-  const [row] = await db
-    .insert(eventGuests)
-    .values({
-      eventId,
-      name: guest.name,
-      service: guest.service ?? null,
-      paid: guest.paid ?? false,
-    })
-    .returning({ id: eventGuests.id });
+    const [row] = await db
+      .insert(eventGuests)
+      .values({
+        eventId,
+        name: guest.name,
+        service: guest.service ?? null,
+        paid: guest.paid ?? false,
+      })
+      .returning({ id: eventGuests.id });
 
-  revalidatePath(PATH);
-  return row.id;
+    revalidatePath(PATH);
+    return row.id;
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 export async function removeGuest(guestId: number) {
-  await getUser();
-  await db.delete(eventGuests).where(eq(eventGuests.id, guestId));
-  revalidatePath(PATH);
+  try {
+    await getUser();
+    await db.delete(eventGuests).where(eq(eventGuests.id, guestId));
+    revalidatePath(PATH);
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 export async function toggleGuestPaid(guestId: number) {
-  await getUser();
-  await db
-    .update(eventGuests)
-    .set({ paid: sql`NOT ${eventGuests.paid}` })
-    .where(eq(eventGuests.id, guestId));
-  revalidatePath(PATH);
+  try {
+    await getUser();
+    await db
+      .update(eventGuests)
+      .set({ paid: sql`NOT ${eventGuests.paid}` })
+      .where(eq(eventGuests.id, guestId));
+    revalidatePath(PATH);
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -498,64 +554,69 @@ export async function toggleGuestPaid(guestId: number) {
  * Returns the public RSVP URL.
  */
 export async function sendEventRsvpInvite(eventId: number): Promise<{ url: string }> {
-  await getUser();
+  try {
+    await getUser();
 
-  const [event] = await db
-    .select({
-      id: events.id,
-      title: events.title,
-      startsAt: events.startsAt,
-      location: events.location,
-      services: events.services,
-      contactEmail: events.contactEmail,
-      contactName: events.contactName,
-      metadata: events.metadata,
-    })
-    .from(events)
-    .where(eq(events.id, eventId));
-
-  if (!event) throw new Error("Event not found");
-  if (!event.contactEmail) throw new Error("Event has no contact email");
-
-  // Generate or reuse existing RSVP token
-  const existing = (event.metadata as Record<string, unknown> | null)?.rsvpToken as
-    | string
-    | undefined;
-  const token = existing ?? crypto.randomUUID();
-
-  if (!existing) {
-    await db
-      .update(events)
-      .set({ metadata: { ...(event.metadata ?? {}), rsvpToken: token } })
+    const [event] = await db
+      .select({
+        id: events.id,
+        title: events.title,
+        startsAt: events.startsAt,
+        location: events.location,
+        services: events.services,
+        contactEmail: events.contactEmail,
+        contactName: events.contactName,
+        metadata: events.metadata,
+      })
+      .from(events)
       .where(eq(events.id, eventId));
+
+    if (!event) throw new Error("Event not found");
+    if (!event.contactEmail) throw new Error("Event has no contact email");
+
+    // Generate or reuse existing RSVP token
+    const existing = (event.metadata as Record<string, unknown> | null)?.rsvpToken as
+      | string
+      | undefined;
+    const token = existing ?? crypto.randomUUID();
+
+    if (!existing) {
+      await db
+        .update(events)
+        .set({ metadata: { ...(event.metadata ?? {}), rsvpToken: token } })
+        .where(eq(events.id, eventId));
+    }
+
+    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tcreativestudio.com";
+    const rsvpUrl = `${baseUrl}/rsvp/${token}`;
+
+    const eventDate = new Date(event.startsAt).toLocaleDateString("en-US", {
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+
+    await sendEmail({
+      to: event.contactEmail,
+      subject: `You're invited — ${event.title} — T Creative Studio`,
+      react: EventInviteEmail({
+        eventTitle: event.title,
+        eventDate,
+        eventLocation: event.location,
+        services: event.services,
+        rsvpUrl,
+      }),
+      entityType: "event_invite",
+      localId: String(eventId),
+    });
+
+    revalidatePath(PATH);
+    return { url: rsvpUrl };
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
   }
-
-  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tcreativestudio.com";
-  const rsvpUrl = `${baseUrl}/rsvp/${token}`;
-
-  const eventDate = new Date(event.startsAt).toLocaleDateString("en-US", {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-
-  await sendEmail({
-    to: event.contactEmail,
-    subject: `You're invited — ${event.title} — T Creative Studio`,
-    react: EventInviteEmail({
-      eventTitle: event.title,
-      eventDate,
-      eventLocation: event.location,
-      services: event.services,
-      rsvpUrl,
-    }),
-    entityType: "event_invite",
-    localId: String(eventId),
-  });
-
-  revalidatePath(PATH);
-  return { url: rsvpUrl };
 }

@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import * as Sentry from "@sentry/nextjs";
 import { eq, and, desc, asc, or } from "drizzle-orm";
 import { db } from "@/db";
 import { mediaItems } from "@/db/schema";
@@ -48,58 +49,63 @@ export type ClientGalleryData = {
 /* ------------------------------------------------------------------ */
 
 export async function getClientGallery(): Promise<ClientGalleryData> {
-  const user = await getUser();
-  const supabase = await createClient();
+  try {
+    const user = await getUser();
+    const supabase = await createClient();
 
-  const cols = {
-    id: mediaItems.id,
-    type: mediaItems.type,
-    category: mediaItems.category,
-    title: mediaItems.title,
-    caption: mediaItems.caption,
-    publicUrl: mediaItems.publicUrl,
-    beforeStoragePath: mediaItems.beforeStoragePath,
-    isFeatured: mediaItems.isFeatured,
-    clientConsentGiven: mediaItems.clientConsentGiven,
-  } as const;
+    const cols = {
+      id: mediaItems.id,
+      type: mediaItems.type,
+      category: mediaItems.category,
+      title: mediaItems.title,
+      caption: mediaItems.caption,
+      publicUrl: mediaItems.publicUrl,
+      beforeStoragePath: mediaItems.beforeStoragePath,
+      isFeatured: mediaItems.isFeatured,
+      clientConsentGiven: mediaItems.clientConsentGiven,
+    } as const;
 
-  // 1. Published portfolio items (the public lookbook)
-  const portfolioRows = await db
-    .select(cols)
-    .from(mediaItems)
-    .where(eq(mediaItems.isPublished, true))
-    .orderBy(asc(mediaItems.sortOrder), desc(mediaItems.createdAt));
+    // 1. Published portfolio items (the public lookbook)
+    const portfolioRows = await db
+      .select(cols)
+      .from(mediaItems)
+      .where(eq(mediaItems.isPublished, true))
+      .orderBy(asc(mediaItems.sortOrder), desc(mediaItems.createdAt));
 
-  // 2. Photos tagged to this client — all of them, including pending consent
-  const myPhotoRows = await db
-    .select(cols)
-    .from(mediaItems)
-    .where(eq(mediaItems.clientId, user.id))
-    .orderBy(desc(mediaItems.createdAt));
+    // 2. Photos tagged to this client — all of them, including pending consent
+    const myPhotoRows = await db
+      .select(cols)
+      .from(mediaItems)
+      .where(eq(mediaItems.clientId, user.id))
+      .orderBy(desc(mediaItems.createdAt));
 
-  function getBeforeUrl(beforeStoragePath: string | null): string | null {
-    if (!beforeStoragePath) return null;
-    return supabase.storage.from("media").getPublicUrl(beforeStoragePath).data.publicUrl;
-  }
+    function getBeforeUrl(beforeStoragePath: string | null): string | null {
+      if (!beforeStoragePath) return null;
+      return supabase.storage.from("media").getPublicUrl(beforeStoragePath).data.publicUrl;
+    }
 
-  function mapRow(r: (typeof portfolioRows)[number]): GalleryItem {
+    function mapRow(r: (typeof portfolioRows)[number]): GalleryItem {
+      return {
+        id: r.id,
+        type: (r.type as MediaType) ?? "image",
+        category: (r.category as GalleryCategory) ?? "lash",
+        title: r.title ?? "",
+        caption: r.caption ?? "",
+        imageUrl: r.publicUrl ?? null,
+        beforeImageUrl: getBeforeUrl(r.beforeStoragePath ?? null),
+        isFeatured: r.isFeatured,
+        clientConsentGiven: r.clientConsentGiven,
+      };
+    }
+
     return {
-      id: r.id,
-      type: (r.type as MediaType) ?? "image",
-      category: (r.category as GalleryCategory) ?? "lash",
-      title: r.title ?? "",
-      caption: r.caption ?? "",
-      imageUrl: r.publicUrl ?? null,
-      beforeImageUrl: getBeforeUrl(r.beforeStoragePath ?? null),
-      isFeatured: r.isFeatured,
-      clientConsentGiven: r.clientConsentGiven,
+      portfolio: portfolioRows.map(mapRow),
+      myPhotos: myPhotoRows.map(mapRow),
     };
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
   }
-
-  return {
-    portfolio: portfolioRows.map(mapRow),
-    myPhotos: myPhotoRows.map(mapRow),
-  };
 }
 
 /* ------------------------------------------------------------------ */
@@ -112,13 +118,18 @@ export async function getClientGallery(): Promise<ClientGalleryData> {
  * Only works on media items tagged to the logged-in client.
  */
 export async function grantPhotoConsent(mediaItemId: number): Promise<void> {
-  const user = await getUser();
+  try {
+    const user = await getUser();
 
-  await db
-    .update(mediaItems)
-    .set({ clientConsentGiven: true, isPublished: true, updatedAt: new Date() })
-    .where(and(eq(mediaItems.id, mediaItemId), eq(mediaItems.clientId, user.id)));
+    await db
+      .update(mediaItems)
+      .set({ clientConsentGiven: true, isPublished: true, updatedAt: new Date() })
+      .where(and(eq(mediaItems.id, mediaItemId), eq(mediaItems.clientId, user.id)));
 
-  revalidatePath("/dashboard/gallery");
-  revalidatePath("/dashboard/media");
+    revalidatePath("/dashboard/gallery");
+    revalidatePath("/dashboard/media");
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }

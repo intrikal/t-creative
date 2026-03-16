@@ -9,6 +9,7 @@
  * These actions are client-accessible (auth required as client) but read-only.
  */
 
+import * as Sentry from "@sentry/nextjs";
 import { isNull, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { businessHours, timeOff, settings } from "@/db/schema";
@@ -51,36 +52,46 @@ export interface StudioAvailability {
  * and lunch break config for the client booking calendar.
  */
 export async function getStudioAvailability(): Promise<StudioAvailability> {
-  const [hoursRows, timeOffRows, lunchRow] = await Promise.all([
-    db.select().from(businessHours).where(isNull(businessHours.staffId)),
-    db.select().from(timeOff).where(isNull(timeOff.staffId)),
-    db.select().from(settings).where(eq(settings.key, "lunch_break")),
-  ]);
+  try {
+    const [hoursRows, timeOffRows, lunchRow] = await Promise.all([
+      db.select().from(businessHours).where(isNull(businessHours.staffId)),
+      db.select().from(timeOff).where(isNull(timeOff.staffId)),
+      db.select().from(settings).where(eq(settings.key, "lunch_break")),
+    ]);
 
-  const hours: AvailabilityDay[] = hoursRows
-    .sort((a, b) => a.dayOfWeek - b.dayOfWeek)
-    .map((r) => ({
-      dayOfWeek: r.dayOfWeek,
-      isOpen: r.isOpen,
-      opensAt: r.opensAt,
-      closesAt: r.closesAt,
+    const hours: AvailabilityDay[] = hoursRows
+      .sort((a, b) => a.dayOfWeek - b.dayOfWeek)
+      .map((r) => ({
+        dayOfWeek: r.dayOfWeek,
+        isOpen: r.isOpen,
+        opensAt: r.opensAt,
+        closesAt: r.closesAt,
+      }));
+
+    const timeOffBlocks: TimeOffBlock[] = timeOffRows.map((r) => ({
+      startDate: r.startDate,
+      endDate: r.endDate,
     }));
 
-  const timeOffBlocks: TimeOffBlock[] = timeOffRows.map((r) => ({
-    startDate: r.startDate,
-    endDate: r.endDate,
-  }));
+    const lunchBreak = lunchRow.length > 0 ? (lunchRow[0].value as LunchBreakInfo) : null;
 
-  const lunchBreak = lunchRow.length > 0 ? (lunchRow[0].value as LunchBreakInfo) : null;
-
-  return { hours, timeOff: timeOffBlocks, lunchBreak };
+    return { hours, timeOff: timeOffBlocks, lunchBreak };
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 /** Returns true if the current request has a valid Supabase session. */
 export async function checkIsAuthenticated(): Promise<boolean> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  return !!user;
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    return !!user;
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }

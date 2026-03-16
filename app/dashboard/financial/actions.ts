@@ -13,6 +13,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import * as Sentry from "@sentry/nextjs";
 import { eq, desc, sql, and, gte, lt } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
@@ -141,158 +142,178 @@ export type ExpenseCategoryBreakdown = {
 const clientProfile = alias(profiles, "client");
 
 export async function getPayments(): Promise<PaymentRow[]> {
-  await getUser();
+  try {
+    await getUser();
 
-  const rows = await db
-    .select({
-      id: payments.id,
-      paidAt: payments.paidAt,
-      createdAt: payments.createdAt,
-      clientFirstName: clientProfile.firstName,
-      clientLastName: clientProfile.lastName,
-      serviceName: services.name,
-      serviceCategory: services.category,
-      amountInCents: payments.amountInCents,
-      tipInCents: payments.tipInCents,
-      refundedInCents: payments.refundedInCents,
-      method: payments.method,
-      status: payments.status,
-      squarePaymentId: payments.squarePaymentId,
-    })
-    .from(payments)
-    .leftJoin(bookings, eq(payments.bookingId, bookings.id))
-    .leftJoin(services, eq(bookings.serviceId, services.id))
-    .leftJoin(clientProfile, eq(payments.clientId, clientProfile.id))
-    .orderBy(desc(payments.createdAt));
+    const rows = await db
+      .select({
+        id: payments.id,
+        paidAt: payments.paidAt,
+        createdAt: payments.createdAt,
+        clientFirstName: clientProfile.firstName,
+        clientLastName: clientProfile.lastName,
+        serviceName: services.name,
+        serviceCategory: services.category,
+        amountInCents: payments.amountInCents,
+        tipInCents: payments.tipInCents,
+        refundedInCents: payments.refundedInCents,
+        method: payments.method,
+        status: payments.status,
+        squarePaymentId: payments.squarePaymentId,
+      })
+      .from(payments)
+      .leftJoin(bookings, eq(payments.bookingId, bookings.id))
+      .leftJoin(services, eq(bookings.serviceId, services.id))
+      .leftJoin(clientProfile, eq(payments.clientId, clientProfile.id))
+      .orderBy(desc(payments.createdAt));
 
-  return rows.map((r) => {
-    const dateObj = r.paidAt ?? r.createdAt;
-    return {
-      id: r.id,
-      date: dateObj.toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        hour: "numeric",
-        minute: "2-digit",
-      }),
-      client: [r.clientFirstName, r.clientLastName].filter(Boolean).join(" ") || "Unknown",
-      service: r.serviceName ?? "Unknown Service",
-      category: r.serviceCategory ?? null,
-      amount: Math.round(r.amountInCents / 100),
-      tip: Math.round((r.tipInCents ?? 0) / 100),
-      method: r.method,
-      status: r.status,
-      refundedAmount: Math.round((r.refundedInCents ?? 0) / 100),
-      squarePaymentId: r.squarePaymentId ?? null,
-    };
-  });
+    return rows.map((r) => {
+      const dateObj = r.paidAt ?? r.createdAt;
+      return {
+        id: r.id,
+        date: dateObj.toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+          hour: "numeric",
+          minute: "2-digit",
+        }),
+        client: [r.clientFirstName, r.clientLastName].filter(Boolean).join(" ") || "Unknown",
+        service: r.serviceName ?? "Unknown Service",
+        category: r.serviceCategory ?? null,
+        amount: Math.round(r.amountInCents / 100),
+        tip: Math.round((r.tipInCents ?? 0) / 100),
+        method: r.method,
+        status: r.status,
+        refundedAmount: Math.round((r.refundedInCents ?? 0) / 100),
+        squarePaymentId: r.squarePaymentId ?? null,
+      };
+    });
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 export async function getRevenueStats(): Promise<RevenueStats> {
-  await getUser();
+  try {
+    await getUser();
 
-  const [row] = await db
-    .select({
-      totalRevenue: sql<number>`coalesce(sum(${payments.amountInCents}), 0)`,
-      totalTips: sql<number>`coalesce(sum(${payments.tipInCents}), 0)`,
-      count: sql<number>`count(*)`,
-    })
-    .from(payments)
-    .where(eq(payments.status, "paid"));
+    const [row] = await db
+      .select({
+        totalRevenue: sql<number>`coalesce(sum(${payments.amountInCents}), 0)`,
+        totalTips: sql<number>`coalesce(sum(${payments.tipInCents}), 0)`,
+        count: sql<number>`count(*)`,
+      })
+      .from(payments)
+      .where(eq(payments.status, "paid"));
 
-  const totalRevenue = Math.round(Number(row.totalRevenue) / 100);
-  const totalTips = Math.round(Number(row.totalTips) / 100);
-  const count = Number(row.count);
+    const totalRevenue = Math.round(Number(row.totalRevenue) / 100);
+    const totalTips = Math.round(Number(row.totalTips) / 100);
+    const count = Number(row.count);
 
-  // Period-over-period comparison (current month vs prior month)
-  const now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const priorMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    // Period-over-period comparison (current month vs prior month)
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const priorMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
 
-  const [currentMonth] = await db
-    .select({ total: sql<number>`coalesce(sum(${payments.amountInCents}), 0)` })
-    .from(payments)
-    .where(and(eq(payments.status, "paid"), gte(payments.paidAt, monthStart)));
+    const [currentMonth] = await db
+      .select({ total: sql<number>`coalesce(sum(${payments.amountInCents}), 0)` })
+      .from(payments)
+      .where(and(eq(payments.status, "paid"), gte(payments.paidAt, monthStart)));
 
-  const [priorMonth] = await db
-    .select({ total: sql<number>`coalesce(sum(${payments.amountInCents}), 0)` })
-    .from(payments)
-    .where(
-      and(
-        eq(payments.status, "paid"),
-        gte(payments.paidAt, priorMonthStart),
-        lt(payments.paidAt, monthStart),
-      ),
-    );
+    const [priorMonth] = await db
+      .select({ total: sql<number>`coalesce(sum(${payments.amountInCents}), 0)` })
+      .from(payments)
+      .where(
+        and(
+          eq(payments.status, "paid"),
+          gte(payments.paidAt, priorMonthStart),
+          lt(payments.paidAt, monthStart),
+        ),
+      );
 
-  const currentRev = Number(currentMonth.total);
-  const priorRev = Number(priorMonth.total);
-  const revenueVsPriorPeriodPct =
-    priorRev === 0 ? null : Math.round(((currentRev - priorRev) / priorRev) * 100);
+    const currentRev = Number(currentMonth.total);
+    const priorRev = Number(priorMonth.total);
+    const revenueVsPriorPeriodPct =
+      priorRev === 0 ? null : Math.round(((currentRev - priorRev) / priorRev) * 100);
 
-  return {
-    totalRevenue,
-    totalTips,
-    transactionCount: count,
-    avgTicket: count > 0 ? Math.round(totalRevenue / count) : 0,
-    revenueVsPriorPeriodPct,
-  };
+    return {
+      totalRevenue,
+      totalTips,
+      transactionCount: count,
+      avgTicket: count > 0 ? Math.round(totalRevenue / count) : 0,
+      revenueVsPriorPeriodPct,
+    };
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 export async function getCategoryRevenue(): Promise<CategoryRevenue[]> {
-  await getUser();
+  try {
+    await getUser();
 
-  const rows = await db
-    .select({
-      category: services.category,
-      total: sql<number>`coalesce(sum(${payments.amountInCents}), 0)`,
-    })
-    .from(payments)
-    .leftJoin(bookings, eq(payments.bookingId, bookings.id))
-    .leftJoin(services, eq(bookings.serviceId, services.id))
-    .where(eq(payments.status, "paid"))
-    .groupBy(services.category)
-    .orderBy(sql`sum(${payments.amountInCents}) desc`);
+    const rows = await db
+      .select({
+        category: services.category,
+        total: sql<number>`coalesce(sum(${payments.amountInCents}), 0)`,
+      })
+      .from(payments)
+      .leftJoin(bookings, eq(payments.bookingId, bookings.id))
+      .leftJoin(services, eq(bookings.serviceId, services.id))
+      .where(eq(payments.status, "paid"))
+      .groupBy(services.category)
+      .orderBy(sql`sum(${payments.amountInCents}) desc`);
 
-  const grandTotal = rows.reduce((s, r) => s + Number(r.total), 0);
+    const grandTotal = rows.reduce((s, r) => s + Number(r.total), 0);
 
-  const CATEGORY_LABELS: Record<string, string> = {
-    lash: "Lash Services",
-    jewelry: "Jewelry",
-    consulting: "Consulting",
-    crochet: "Crochet",
-  };
+    const CATEGORY_LABELS: Record<string, string> = {
+      lash: "Lash Services",
+      jewelry: "Jewelry",
+      consulting: "Consulting",
+      crochet: "Crochet",
+    };
 
-  return rows
-    .filter((r) => r.category)
-    .map((r) => ({
-      category: CATEGORY_LABELS[r.category!] ?? r.category!,
-      amount: Math.round(Number(r.total) / 100),
-      pct: grandTotal > 0 ? Math.round((Number(r.total) / grandTotal) * 100) : 0,
-    }));
+    return rows
+      .filter((r) => r.category)
+      .map((r) => ({
+        category: CATEGORY_LABELS[r.category!] ?? r.category!,
+        amount: Math.round(Number(r.total) / 100),
+        pct: grandTotal > 0 ? Math.round((Number(r.total) / grandTotal) * 100) : 0,
+      }));
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 export async function getWeeklyRevenue(): Promise<DailyRevenue[]> {
-  await getUser();
+  try {
+    await getUser();
 
-  const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-  const rows = await db
-    .select({
-      dow: sql<number>`extract(dow from coalesce(${payments.paidAt}, ${payments.createdAt}))`,
-      total: sql<number>`coalesce(sum(${payments.amountInCents}), 0)`,
-    })
-    .from(payments)
-    .where(eq(payments.status, "paid"))
-    .groupBy(sql`extract(dow from coalesce(${payments.paidAt}, ${payments.createdAt}))`)
-    .orderBy(sql`extract(dow from coalesce(${payments.paidAt}, ${payments.createdAt}))`);
+    const rows = await db
+      .select({
+        dow: sql<number>`extract(dow from coalesce(${payments.paidAt}, ${payments.createdAt}))`,
+        total: sql<number>`coalesce(sum(${payments.amountInCents}), 0)`,
+      })
+      .from(payments)
+      .where(eq(payments.status, "paid"))
+      .groupBy(sql`extract(dow from coalesce(${payments.paidAt}, ${payments.createdAt}))`)
+      .orderBy(sql`extract(dow from coalesce(${payments.paidAt}, ${payments.createdAt}))`);
 
-  // Build a full 7-day array
-  const byDow = new Map(rows.map((r) => [Number(r.dow), Math.round(Number(r.total) / 100)]));
-  return DAY_NAMES.map((day, i) => ({
-    day,
-    amount: byDow.get(i) ?? 0,
-  }));
+    // Build a full 7-day array
+    const byDow = new Map(rows.map((r) => [Number(r.dow), Math.round(Number(r.total) / 100)]));
+    return DAY_NAMES.map((day, i) => ({
+      day,
+      amount: byDow.get(i) ?? 0,
+    }));
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 /* ================================================================== */
@@ -318,62 +339,70 @@ export type InvoiceRow = {
 const invoiceClient = alias(profiles, "invoiceClient");
 
 export async function getInvoices(): Promise<InvoiceRow[]> {
-  await getUser();
+  try {
+    await getUser();
 
-  const rows = await db
-    .select({
-      id: invoices.id,
-      number: invoices.number,
-      clientFirstName: invoiceClient.firstName,
-      clientLastName: invoiceClient.lastName,
-      description: invoices.description,
-      amountInCents: invoices.amountInCents,
-      status: invoices.status,
-      issuedAt: invoices.issuedAt,
-      dueAt: invoices.dueAt,
-      paidAt: invoices.paidAt,
-      createdAt: invoices.createdAt,
-      isRecurring: invoices.isRecurring,
-      recurrenceInterval: invoices.recurrenceInterval,
-      nextDueAt: invoices.nextDueAt,
-    })
-    .from(invoices)
-    .leftJoin(invoiceClient, eq(invoices.clientId, invoiceClient.id))
-    .orderBy(desc(invoices.createdAt));
+    const rows = await db
+      .select({
+        id: invoices.id,
+        number: invoices.number,
+        clientFirstName: invoiceClient.firstName,
+        clientLastName: invoiceClient.lastName,
+        description: invoices.description,
+        amountInCents: invoices.amountInCents,
+        status: invoices.status,
+        issuedAt: invoices.issuedAt,
+        dueAt: invoices.dueAt,
+        paidAt: invoices.paidAt,
+        createdAt: invoices.createdAt,
+        isRecurring: invoices.isRecurring,
+        recurrenceInterval: invoices.recurrenceInterval,
+        nextDueAt: invoices.nextDueAt,
+      })
+      .from(invoices)
+      .leftJoin(invoiceClient, eq(invoices.clientId, invoiceClient.id))
+      .orderBy(desc(invoices.createdAt));
 
-  return rows.map((r) => ({
-    id: r.id,
-    number: r.number,
-    client: [r.clientFirstName, r.clientLastName].filter(Boolean).join(" ") || "Unknown",
-    description: r.description,
-    amount: Math.round(r.amountInCents / 100),
-    status: r.status,
-    issuedAt:
-      r.issuedAt?.toLocaleDateString("en-US", {
+    return rows.map((r) => ({
+      id: r.id,
+      number: r.number,
+      client: [r.clientFirstName, r.clientLastName].filter(Boolean).join(" ") || "Unknown",
+      description: r.description,
+      amount: Math.round(r.amountInCents / 100),
+      status: r.status,
+      issuedAt:
+        r.issuedAt?.toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        }) ?? null,
+      dueAt:
+        r.dueAt?.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) ??
+        null,
+      paidAt:
+        r.paidAt?.toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        }) ?? null,
+      createdAt: r.createdAt.toLocaleDateString("en-US", {
         month: "short",
         day: "numeric",
         year: "numeric",
-      }) ?? null,
-    dueAt:
-      r.dueAt?.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) ??
-      null,
-    paidAt:
-      r.paidAt?.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) ??
-      null,
-    createdAt: r.createdAt.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    }),
-    isRecurring: r.isRecurring,
-    recurrenceInterval: r.recurrenceInterval,
-    nextDueAt:
-      r.nextDueAt?.toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      }) ?? null,
-  }));
+      }),
+      isRecurring: r.isRecurring,
+      recurrenceInterval: r.recurrenceInterval,
+      nextDueAt:
+        r.nextDueAt?.toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        }) ?? null,
+    }));
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 export async function createInvoice(input: {
@@ -385,52 +414,58 @@ export async function createInvoice(input: {
   isRecurring?: boolean;
   recurrenceInterval?: string;
 }) {
-  const user = await getUser();
+  try {
+    const user = await getUser();
 
-  // Auto-generate next invoice number
-  const [lastInvoice] = await db
-    .select({ number: invoices.number })
-    .from(invoices)
-    .orderBy(desc(invoices.id))
-    .limit(1);
+    // Auto-generate next invoice number
+    const [lastInvoice] = await db
+      .select({ number: invoices.number })
+      .from(invoices)
+      .orderBy(desc(invoices.id))
+      .limit(1);
 
-  const nextNum = lastInvoice
-    ? String(parseInt(lastInvoice.number.replace("INV-", ""), 10) + 1).padStart(3, "0")
-    : "001";
+    const nextNum = lastInvoice
+      ? String(parseInt(lastInvoice.number.replace("INV-", ""), 10) + 1).padStart(3, "0")
+      : "001";
 
-  const dueDate = input.dueAt ? new Date(input.dueAt) : null;
+    const dueDate = input.dueAt ? new Date(input.dueAt) : null;
 
-  // For recurring invoices, compute the next due date from the current due date
-  let nextDueAt: Date | null = null;
-  if (input.isRecurring && dueDate) {
-    nextDueAt = new Date(dueDate);
-    if (input.recurrenceInterval === "weekly") nextDueAt.setDate(nextDueAt.getDate() + 7);
-    else if (input.recurrenceInterval === "quarterly") nextDueAt.setMonth(nextDueAt.getMonth() + 3);
-    else nextDueAt.setMonth(nextDueAt.getMonth() + 1); // default monthly
+    // For recurring invoices, compute the next due date from the current due date
+    let nextDueAt: Date | null = null;
+    if (input.isRecurring && dueDate) {
+      nextDueAt = new Date(dueDate);
+      if (input.recurrenceInterval === "weekly") nextDueAt.setDate(nextDueAt.getDate() + 7);
+      else if (input.recurrenceInterval === "quarterly")
+        nextDueAt.setMonth(nextDueAt.getMonth() + 3);
+      else nextDueAt.setMonth(nextDueAt.getMonth() + 1); // default monthly
+    }
+
+    await db.insert(invoices).values({
+      clientId: input.clientId,
+      number: `INV-${nextNum}`,
+      description: input.description,
+      amountInCents: input.amountInCents,
+      dueAt: dueDate,
+      notes: input.notes ?? null,
+      isRecurring: input.isRecurring ?? false,
+      recurrenceInterval: input.recurrenceInterval ?? null,
+      nextDueAt,
+    });
+
+    await logAction({
+      actorId: user.id,
+      action: "create",
+      entityType: "invoice",
+      entityId: `INV-${nextNum}`,
+      description: `Invoice INV-${nextNum} created`,
+      metadata: { clientId: input.clientId, amountInCents: input.amountInCents },
+    });
+
+    revalidatePath("/dashboard/financial");
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
   }
-
-  await db.insert(invoices).values({
-    clientId: input.clientId,
-    number: `INV-${nextNum}`,
-    description: input.description,
-    amountInCents: input.amountInCents,
-    dueAt: dueDate,
-    notes: input.notes ?? null,
-    isRecurring: input.isRecurring ?? false,
-    recurrenceInterval: input.recurrenceInterval ?? null,
-    nextDueAt,
-  });
-
-  await logAction({
-    actorId: user.id,
-    action: "create",
-    entityType: "invoice",
-    entityId: `INV-${nextNum}`,
-    description: `Invoice INV-${nextNum} created`,
-    metadata: { clientId: input.clientId, amountInCents: input.amountInCents },
-  });
-
-  revalidatePath("/dashboard/financial");
 }
 
 /* ================================================================== */
@@ -448,23 +483,28 @@ export type ExpenseRow = {
 };
 
 export async function getExpenses(): Promise<ExpenseRow[]> {
-  await getUser();
+  try {
+    await getUser();
 
-  const rows = await db.select().from(expenses).orderBy(desc(expenses.expenseDate));
+    const rows = await db.select().from(expenses).orderBy(desc(expenses.expenseDate));
 
-  return rows.map((r) => ({
-    id: r.id,
-    date: r.expenseDate.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    }),
-    category: r.category,
-    description: r.description,
-    vendor: r.vendor,
-    amount: Math.round(r.amountInCents / 100),
-    hasReceipt: r.hasReceipt,
-  }));
+    return rows.map((r) => ({
+      id: r.id,
+      date: r.expenseDate.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      }),
+      category: r.category,
+      description: r.description,
+      vendor: r.vendor,
+      amount: Math.round(r.amountInCents / 100),
+      hasReceipt: r.hasReceipt,
+    }));
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 export async function createExpense(input: {
@@ -475,28 +515,33 @@ export async function createExpense(input: {
   amountInCents: number;
   hasReceipt?: boolean;
 }) {
-  const user = await getUser();
+  try {
+    const user = await getUser();
 
-  await db.insert(expenses).values({
-    expenseDate: new Date(input.expenseDate),
-    category: input.category,
-    description: input.description,
-    vendor: input.vendor ?? null,
-    amountInCents: input.amountInCents,
-    hasReceipt: input.hasReceipt ?? false,
-    createdBy: user.id,
-  });
+    await db.insert(expenses).values({
+      expenseDate: new Date(input.expenseDate),
+      category: input.category,
+      description: input.description,
+      vendor: input.vendor ?? null,
+      amountInCents: input.amountInCents,
+      hasReceipt: input.hasReceipt ?? false,
+      createdBy: user.id,
+    });
 
-  await logAction({
-    actorId: user.id,
-    action: "create",
-    entityType: "expense",
-    entityId: "new",
-    description: `Expense recorded: ${input.description}`,
-    metadata: { category: input.category, amountInCents: input.amountInCents },
-  });
+    await logAction({
+      actorId: user.id,
+      action: "create",
+      entityType: "expense",
+      entityId: "new",
+      description: `Expense recorded: ${input.description}`,
+      metadata: { category: input.category, amountInCents: input.amountInCents },
+    });
 
-  revalidatePath("/dashboard/financial");
+    revalidatePath("/dashboard/financial");
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 /* ================================================================== */
@@ -518,45 +563,50 @@ export type GiftCardRow = {
 const gcClient = alias(profiles, "gcClient");
 
 export async function getGiftCards(): Promise<GiftCardRow[]> {
-  await getUser();
+  try {
+    await getUser();
 
-  const rows = await db
-    .select({
-      id: giftCards.id,
-      code: giftCards.code,
-      clientFirstName: gcClient.firstName,
-      clientLastName: gcClient.lastName,
-      recipientName: giftCards.recipientName,
-      originalAmountInCents: giftCards.originalAmountInCents,
-      balanceInCents: giftCards.balanceInCents,
-      status: giftCards.status,
-      purchasedAt: giftCards.purchasedAt,
-      expiresAt: giftCards.expiresAt,
-    })
-    .from(giftCards)
-    .leftJoin(gcClient, eq(giftCards.purchasedByClientId, gcClient.id))
-    .orderBy(desc(giftCards.purchasedAt));
+    const rows = await db
+      .select({
+        id: giftCards.id,
+        code: giftCards.code,
+        clientFirstName: gcClient.firstName,
+        clientLastName: gcClient.lastName,
+        recipientName: giftCards.recipientName,
+        originalAmountInCents: giftCards.originalAmountInCents,
+        balanceInCents: giftCards.balanceInCents,
+        status: giftCards.status,
+        purchasedAt: giftCards.purchasedAt,
+        expiresAt: giftCards.expiresAt,
+      })
+      .from(giftCards)
+      .leftJoin(gcClient, eq(giftCards.purchasedByClientId, gcClient.id))
+      .orderBy(desc(giftCards.purchasedAt));
 
-  return rows.map((r) => ({
-    id: r.id,
-    code: r.code,
-    purchasedBy: [r.clientFirstName, r.clientLastName].filter(Boolean).join(" ") || null,
-    recipientName: r.recipientName,
-    originalAmount: Math.round(r.originalAmountInCents / 100),
-    balance: Math.round(r.balanceInCents / 100),
-    status: r.status,
-    purchasedAt: r.purchasedAt.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    }),
-    expiresAt:
-      r.expiresAt?.toLocaleDateString("en-US", {
+    return rows.map((r) => ({
+      id: r.id,
+      code: r.code,
+      purchasedBy: [r.clientFirstName, r.clientLastName].filter(Boolean).join(" ") || null,
+      recipientName: r.recipientName,
+      originalAmount: Math.round(r.originalAmountInCents / 100),
+      balance: Math.round(r.balanceInCents / 100),
+      status: r.status,
+      purchasedAt: r.purchasedAt.toLocaleDateString("en-US", {
         month: "short",
         day: "numeric",
         year: "numeric",
-      }) ?? null,
-  }));
+      }),
+      expiresAt:
+        r.expiresAt?.toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        }) ?? null,
+    }));
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 export async function createGiftCard(input: {
@@ -566,97 +616,102 @@ export async function createGiftCard(input: {
   expiresAt?: string;
   notes?: string;
 }) {
-  const user = await getUser();
+  try {
+    const user = await getUser();
 
-  // Auto-generate next gift card code
-  const [lastCard] = await db
-    .select({ code: giftCards.code })
-    .from(giftCards)
-    .orderBy(desc(giftCards.id))
-    .limit(1);
+    // Auto-generate next gift card code
+    const [lastCard] = await db
+      .select({ code: giftCards.code })
+      .from(giftCards)
+      .orderBy(desc(giftCards.id))
+      .limit(1);
 
-  const nextNum = lastCard
-    ? String(parseInt(lastCard.code.replace("TC-GC-", ""), 10) + 1).padStart(3, "0")
-    : "001";
+    const nextNum = lastCard
+      ? String(parseInt(lastCard.code.replace("TC-GC-", ""), 10) + 1).padStart(3, "0")
+      : "001";
 
-  const [newCard] = await db
-    .insert(giftCards)
-    .values({
-      code: `TC-GC-${nextNum}`,
-      purchasedByClientId: input.purchasedByClientId ?? null,
-      recipientName: input.recipientName ?? null,
-      originalAmountInCents: input.amountInCents,
-      balanceInCents: input.amountInCents,
-      expiresAt: input.expiresAt ? new Date(input.expiresAt) : null,
+    const [newCard] = await db
+      .insert(giftCards)
+      .values({
+        code: `TC-GC-${nextNum}`,
+        purchasedByClientId: input.purchasedByClientId ?? null,
+        recipientName: input.recipientName ?? null,
+        originalAmountInCents: input.amountInCents,
+        balanceInCents: input.amountInCents,
+        expiresAt: input.expiresAt ? new Date(input.expiresAt) : null,
+        notes: input.notes ?? null,
+      })
+      .returning({ id: giftCards.id });
+
+    // Record purchase transaction in the ledger
+    await db.insert(giftCardTransactions).values({
+      giftCardId: newCard.id,
+      type: "purchase",
+      amountInCents: input.amountInCents,
+      balanceAfterInCents: input.amountInCents,
+      performedBy: user.id,
       notes: input.notes ?? null,
-    })
-    .returning({ id: giftCards.id });
+    });
 
-  // Record purchase transaction in the ledger
-  await db.insert(giftCardTransactions).values({
-    giftCardId: newCard.id,
-    type: "purchase",
-    amountInCents: input.amountInCents,
-    balanceAfterInCents: input.amountInCents,
-    performedBy: user.id,
-    notes: input.notes ?? null,
-  });
+    await logAction({
+      actorId: user.id,
+      action: "create",
+      entityType: "gift_card",
+      entityId: String(newCard.id),
+      description: `Gift card TC-GC-${nextNum} created`,
+      metadata: { amountInCents: input.amountInCents, recipientName: input.recipientName ?? null },
+    });
 
-  await logAction({
-    actorId: user.id,
-    action: "create",
-    entityType: "gift_card",
-    entityId: String(newCard.id),
-    description: `Gift card TC-GC-${nextNum} created`,
-    metadata: { amountInCents: input.amountInCents, recipientName: input.recipientName ?? null },
-  });
+    // Send purchase confirmation to buyer
+    if (input.purchasedByClientId) {
+      const buyer = await getEmailRecipient(input.purchasedByClientId);
+      if (buyer) {
+        const expiresFormatted = input.expiresAt
+          ? new Date(input.expiresAt).toLocaleDateString("en-US", {
+              month: "long",
+              day: "numeric",
+              year: "numeric",
+            })
+          : undefined;
 
-  // Send purchase confirmation to buyer
-  if (input.purchasedByClientId) {
-    const buyer = await getEmailRecipient(input.purchasedByClientId);
-    if (buyer) {
-      const expiresFormatted = input.expiresAt
-        ? new Date(input.expiresAt).toLocaleDateString("en-US", {
-            month: "long",
-            day: "numeric",
-            year: "numeric",
-          })
-        : undefined;
-
-      await sendEmail({
-        to: buyer.email,
-        subject: `Gift card purchased — TC-GC-${nextNum} — T Creative`,
-        react: GiftCardPurchase({
-          clientName: buyer.firstName,
-          giftCardCode: `TC-GC-${nextNum}`,
-          amountInCents: input.amountInCents,
-          recipientName: input.recipientName ?? undefined,
-          expiresAt: expiresFormatted,
-        }),
-        entityType: "gift_card_purchase",
-        localId: String(newCard.id),
-      });
-
-      // Send delivery email to recipient if different from buyer
-      if (input.recipientName) {
         await sendEmail({
-          to: buyer.email, // Goes to buyer — they forward or we'd need recipient email
-          subject: `Gift card for ${input.recipientName} — T Creative`,
-          react: GiftCardDelivery({
-            recipientName: input.recipientName,
-            senderName: buyer.firstName,
+          to: buyer.email,
+          subject: `Gift card purchased — TC-GC-${nextNum} — T Creative`,
+          react: GiftCardPurchase({
+            clientName: buyer.firstName,
             giftCardCode: `TC-GC-${nextNum}`,
             amountInCents: input.amountInCents,
+            recipientName: input.recipientName ?? undefined,
             expiresAt: expiresFormatted,
           }),
-          entityType: "gift_card_delivery",
+          entityType: "gift_card_purchase",
           localId: String(newCard.id),
         });
+
+        // Send delivery email to recipient if different from buyer
+        if (input.recipientName) {
+          await sendEmail({
+            to: buyer.email, // Goes to buyer — they forward or we'd need recipient email
+            subject: `Gift card for ${input.recipientName} — T Creative`,
+            react: GiftCardDelivery({
+              recipientName: input.recipientName,
+              senderName: buyer.firstName,
+              giftCardCode: `TC-GC-${nextNum}`,
+              amountInCents: input.amountInCents,
+              expiresAt: expiresFormatted,
+            }),
+            entityType: "gift_card_delivery",
+            localId: String(newCard.id),
+          });
+        }
       }
     }
-  }
 
-  revalidatePath("/dashboard/financial");
+    revalidatePath("/dashboard/financial");
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 /* ================================================================== */
@@ -678,30 +733,38 @@ export type PromotionRow = {
 };
 
 export async function getPromotions(): Promise<PromotionRow[]> {
-  await getUser();
+  try {
+    await getUser();
 
-  const rows = await db.select().from(promotions).orderBy(desc(promotions.createdAt));
+    const rows = await db.select().from(promotions).orderBy(desc(promotions.createdAt));
 
-  return rows.map((r) => ({
-    id: r.id,
-    code: r.code,
-    discountType: r.discountType,
-    discountValue: r.discountValue,
-    description: r.description,
-    appliesTo: r.appliesTo,
-    maxUses: r.maxUses,
-    redemptionCount: r.redemptionCount,
-    isActive: r.isActive,
-    startsAt:
-      r.startsAt?.toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      }) ?? null,
-    endsAt:
-      r.endsAt?.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) ??
-      null,
-  }));
+    return rows.map((r) => ({
+      id: r.id,
+      code: r.code,
+      discountType: r.discountType,
+      discountValue: r.discountValue,
+      description: r.description,
+      appliesTo: r.appliesTo,
+      maxUses: r.maxUses,
+      redemptionCount: r.redemptionCount,
+      isActive: r.isActive,
+      startsAt:
+        r.startsAt?.toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        }) ?? null,
+      endsAt:
+        r.endsAt?.toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        }) ?? null,
+    }));
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 export async function createPromotion(input: {
@@ -714,20 +777,25 @@ export async function createPromotion(input: {
   startsAt?: string;
   endsAt?: string;
 }) {
-  await getUser();
+  try {
+    await getUser();
 
-  await db.insert(promotions).values({
-    code: input.code.toUpperCase(),
-    discountType: input.discountType,
-    discountValue: input.discountValue,
-    description: input.description ?? null,
-    appliesTo: input.appliesTo ?? null,
-    maxUses: input.maxUses ?? null,
-    startsAt: input.startsAt ? new Date(input.startsAt) : null,
-    endsAt: input.endsAt ? new Date(input.endsAt) : null,
-  });
+    await db.insert(promotions).values({
+      code: input.code.toUpperCase(),
+      discountType: input.discountType,
+      discountValue: input.discountValue,
+      description: input.description ?? null,
+      appliesTo: input.appliesTo ?? null,
+      maxUses: input.maxUses ?? null,
+      startsAt: input.startsAt ? new Date(input.startsAt) : null,
+      endsAt: input.endsAt ? new Date(input.endsAt) : null,
+    });
 
-  revalidatePath("/dashboard/financial");
+    revalidatePath("/dashboard/financial");
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 /* ================================================================== */
@@ -739,32 +807,38 @@ export async function redeemGiftCard(input: {
   giftCardId: number;
   amountInCents: number;
 }) {
-  await getUser();
+  try {
+    await getUser();
 
-  const [card] = await db.select().from(giftCards).where(eq(giftCards.id, input.giftCardId));
-  if (!card) throw new Error("Gift card not found");
-  if (card.status !== "active") throw new Error("Gift card is not active");
-  if (card.balanceInCents < input.amountInCents) throw new Error("Insufficient gift card balance");
+    const [card] = await db.select().from(giftCards).where(eq(giftCards.id, input.giftCardId));
+    if (!card) throw new Error("Gift card not found");
+    if (card.status !== "active") throw new Error("Gift card is not active");
+    if (card.balanceInCents < input.amountInCents)
+      throw new Error("Insufficient gift card balance");
 
-  const newBalance = card.balanceInCents - input.amountInCents;
+    const newBalance = card.balanceInCents - input.amountInCents;
 
-  await db
-    .update(giftCards)
-    .set({
-      balanceInCents: newBalance,
-      status: newBalance === 0 ? "redeemed" : "active",
-    })
-    .where(eq(giftCards.id, input.giftCardId));
+    await db
+      .update(giftCards)
+      .set({
+        balanceInCents: newBalance,
+        status: newBalance === 0 ? "redeemed" : "active",
+      })
+      .where(eq(giftCards.id, input.giftCardId));
 
-  await db
-    .update(bookings)
-    .set({
-      giftCardId: input.giftCardId,
-      discountInCents: input.amountInCents,
-    })
-    .where(eq(bookings.id, input.bookingId));
+    await db
+      .update(bookings)
+      .set({
+        giftCardId: input.giftCardId,
+        discountInCents: input.amountInCents,
+      })
+      .where(eq(bookings.id, input.bookingId));
 
-  revalidatePath("/dashboard/financial");
+    revalidatePath("/dashboard/financial");
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 /* ================================================================== */
@@ -785,44 +859,49 @@ export type GiftCardTxRow = {
 const txPerformer = alias(profiles, "txPerformer");
 
 export async function getGiftCardHistory(cardId: number): Promise<GiftCardTxRow[]> {
-  await getUser();
+  try {
+    await getUser();
 
-  const rows = await db
-    .select({
-      id: giftCardTransactions.id,
-      type: giftCardTransactions.type,
-      amountInCents: giftCardTransactions.amountInCents,
-      balanceAfterInCents: giftCardTransactions.balanceAfterInCents,
-      bookingId: giftCardTransactions.bookingId,
-      serviceName: services.name,
-      performedByFirst: txPerformer.firstName,
-      performedByLast: txPerformer.lastName,
-      notes: giftCardTransactions.notes,
-      createdAt: giftCardTransactions.createdAt,
-    })
-    .from(giftCardTransactions)
-    .leftJoin(bookings, eq(giftCardTransactions.bookingId, bookings.id))
-    .leftJoin(services, eq(bookings.serviceId, services.id))
-    .leftJoin(txPerformer, eq(giftCardTransactions.performedBy, txPerformer.id))
-    .where(eq(giftCardTransactions.giftCardId, cardId))
-    .orderBy(desc(giftCardTransactions.createdAt));
+    const rows = await db
+      .select({
+        id: giftCardTransactions.id,
+        type: giftCardTransactions.type,
+        amountInCents: giftCardTransactions.amountInCents,
+        balanceAfterInCents: giftCardTransactions.balanceAfterInCents,
+        bookingId: giftCardTransactions.bookingId,
+        serviceName: services.name,
+        performedByFirst: txPerformer.firstName,
+        performedByLast: txPerformer.lastName,
+        notes: giftCardTransactions.notes,
+        createdAt: giftCardTransactions.createdAt,
+      })
+      .from(giftCardTransactions)
+      .leftJoin(bookings, eq(giftCardTransactions.bookingId, bookings.id))
+      .leftJoin(services, eq(bookings.serviceId, services.id))
+      .leftJoin(txPerformer, eq(giftCardTransactions.performedBy, txPerformer.id))
+      .where(eq(giftCardTransactions.giftCardId, cardId))
+      .orderBy(desc(giftCardTransactions.createdAt));
 
-  return rows.map((r) => ({
-    id: r.id,
-    type: r.type,
-    amount: r.amountInCents / 100,
-    balanceAfter: r.balanceAfterInCents / 100,
-    bookingService: r.serviceName ?? null,
-    performedByName: [r.performedByFirst, r.performedByLast].filter(Boolean).join(" ") || null,
-    notes: r.notes,
-    createdAt: r.createdAt.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-    }),
-  }));
+    return rows.map((r) => ({
+      id: r.id,
+      type: r.type,
+      amount: r.amountInCents / 100,
+      balanceAfter: r.balanceAfterInCents / 100,
+      bookingService: r.serviceName ?? null,
+      performedByName: [r.performedByFirst, r.performedByLast].filter(Boolean).join(" ") || null,
+      notes: r.notes,
+      createdAt: r.createdAt.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      }),
+    }));
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 export async function recordRedemption(input: {
@@ -830,41 +909,47 @@ export async function recordRedemption(input: {
   bookingId: number;
   amountInCents: number;
 }): Promise<void> {
-  const user = await getUser();
+  try {
+    const user = await getUser();
 
-  const [card] = await db.select().from(giftCards).where(eq(giftCards.id, input.giftCardId));
-  if (!card) throw new Error("Gift card not found");
-  if (card.status !== "active") throw new Error("Gift card is not active");
-  if (card.balanceInCents < input.amountInCents) throw new Error("Insufficient gift card balance");
+    const [card] = await db.select().from(giftCards).where(eq(giftCards.id, input.giftCardId));
+    if (!card) throw new Error("Gift card not found");
+    if (card.status !== "active") throw new Error("Gift card is not active");
+    if (card.balanceInCents < input.amountInCents)
+      throw new Error("Insufficient gift card balance");
 
-  const newBalance = card.balanceInCents - input.amountInCents;
+    const newBalance = card.balanceInCents - input.amountInCents;
 
-  await db
-    .update(giftCards)
-    .set({
-      balanceInCents: newBalance,
-      status: newBalance === 0 ? "redeemed" : "active",
-    })
-    .where(eq(giftCards.id, input.giftCardId));
+    await db
+      .update(giftCards)
+      .set({
+        balanceInCents: newBalance,
+        status: newBalance === 0 ? "redeemed" : "active",
+      })
+      .where(eq(giftCards.id, input.giftCardId));
 
-  await db.insert(giftCardTransactions).values({
-    giftCardId: input.giftCardId,
-    type: "redemption",
-    amountInCents: -input.amountInCents,
-    balanceAfterInCents: newBalance,
-    bookingId: input.bookingId,
-    performedBy: user.id,
-  });
-
-  await db
-    .update(bookings)
-    .set({
+    await db.insert(giftCardTransactions).values({
       giftCardId: input.giftCardId,
-      discountInCents: input.amountInCents,
-    })
-    .where(eq(bookings.id, input.bookingId));
+      type: "redemption",
+      amountInCents: -input.amountInCents,
+      balanceAfterInCents: newBalance,
+      bookingId: input.bookingId,
+      performedBy: user.id,
+    });
 
-  revalidatePath("/dashboard/financial");
+    await db
+      .update(bookings)
+      .set({
+        giftCardId: input.giftCardId,
+        discountInCents: input.amountInCents,
+      })
+      .where(eq(bookings.id, input.bookingId));
+
+    revalidatePath("/dashboard/financial");
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 /* ================================================================== */
@@ -875,66 +960,79 @@ export async function validatePromoCode(
   code: string,
   serviceCategory?: string,
 ): Promise<{ valid: boolean; message: string; discountType?: string; discountValue?: number }> {
-  await getUser();
+  try {
+    await getUser();
 
-  const [promo] = await db.select().from(promotions).where(eq(promotions.code, code.toUpperCase()));
-  if (!promo) return { valid: false, message: "Promo code not found" };
-  if (!promo.isActive) return { valid: false, message: "Promo code is no longer active" };
-  if (promo.endsAt && promo.endsAt < new Date())
-    return { valid: false, message: "Promo code has expired" };
-  if (promo.startsAt && promo.startsAt > new Date())
-    return { valid: false, message: "Promo code is not yet active" };
-  if (promo.maxUses && promo.redemptionCount >= promo.maxUses)
-    return { valid: false, message: "Promo code has reached max uses" };
-  if (promo.appliesTo && serviceCategory && promo.appliesTo !== serviceCategory) {
-    return { valid: false, message: `This promo only applies to ${promo.appliesTo} services` };
+    const [promo] = await db
+      .select()
+      .from(promotions)
+      .where(eq(promotions.code, code.toUpperCase()));
+    if (!promo) return { valid: false, message: "Promo code not found" };
+    if (!promo.isActive) return { valid: false, message: "Promo code is no longer active" };
+    if (promo.endsAt && promo.endsAt < new Date())
+      return { valid: false, message: "Promo code has expired" };
+    if (promo.startsAt && promo.startsAt > new Date())
+      return { valid: false, message: "Promo code is not yet active" };
+    if (promo.maxUses && promo.redemptionCount >= promo.maxUses)
+      return { valid: false, message: "Promo code has reached max uses" };
+    if (promo.appliesTo && serviceCategory && promo.appliesTo !== serviceCategory) {
+      return { valid: false, message: `This promo only applies to ${promo.appliesTo} services` };
+    }
+
+    return {
+      valid: true,
+      message: "Promo code is valid",
+      discountType: promo.discountType,
+      discountValue: promo.discountValue,
+    };
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
   }
-
-  return {
-    valid: true,
-    message: "Promo code is valid",
-    discountType: promo.discountType,
-    discountValue: promo.discountValue,
-  };
 }
 
 export async function applyPromoCode(bookingId: number, promoCode: string) {
-  await getUser();
+  try {
+    await getUser();
 
-  const [promo] = await db
-    .select()
-    .from(promotions)
-    .where(eq(promotions.code, promoCode.toUpperCase()));
-  if (!promo) throw new Error("Promo code not found");
+    const [promo] = await db
+      .select()
+      .from(promotions)
+      .where(eq(promotions.code, promoCode.toUpperCase()));
+    if (!promo) throw new Error("Promo code not found");
 
-  const [booking] = await db.select().from(bookings).where(eq(bookings.id, bookingId));
-  if (!booking) throw new Error("Booking not found");
+    const [booking] = await db.select().from(bookings).where(eq(bookings.id, bookingId));
+    if (!booking) throw new Error("Booking not found");
 
-  let discountCents = 0;
-  if (promo.discountType === "percent") {
-    discountCents = Math.round(booking.totalInCents * (promo.discountValue / 100));
-  } else if (promo.discountType === "fixed") {
-    discountCents = Math.min(promo.discountValue, booking.totalInCents);
-  } else if (promo.discountType === "bogo") {
-    discountCents = Math.round(booking.totalInCents / 2);
+    let discountCents = 0;
+    if (promo.discountType === "percent") {
+      discountCents = Math.round(booking.totalInCents * (promo.discountValue / 100));
+    } else if (promo.discountType === "fixed") {
+      discountCents = Math.min(promo.discountValue, booking.totalInCents);
+    } else if (promo.discountType === "bogo") {
+      discountCents = Math.round(booking.totalInCents / 2);
+    }
+
+    await db
+      .update(bookings)
+      .set({
+        promotionId: promo.id,
+        discountInCents: discountCents,
+      })
+      .where(eq(bookings.id, bookingId));
+
+    await db
+      .update(promotions)
+      .set({
+        redemptionCount: promo.redemptionCount + 1,
+      })
+      .where(eq(promotions.id, promo.id));
+
+    revalidatePath("/dashboard/financial");
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
   }
-
-  await db
-    .update(bookings)
-    .set({
-      promotionId: promo.id,
-      discountInCents: discountCents,
-    })
-    .where(eq(bookings.id, bookingId));
-
-  await db
-    .update(promotions)
-    .set({
-      redemptionCount: promo.redemptionCount + 1,
-    })
-    .where(eq(promotions.id, promo.id));
-
-  revalidatePath("/dashboard/financial");
 }
 
 /* ================================================================== */
@@ -942,54 +1040,61 @@ export async function applyPromoCode(bookingId: number, promoCode: string) {
 /* ================================================================== */
 
 export async function getProfitLoss(): Promise<ProfitLossRow[]> {
-  await getUser();
+  try {
+    await getUser();
 
-  const revenueRows = await db
-    .select({
-      month: sql<string>`to_char(coalesce(${payments.paidAt}, ${payments.createdAt}), 'YYYY-MM')`,
-      total: sql<number>`coalesce(sum(${payments.amountInCents}), 0)`,
-    })
-    .from(payments)
-    .where(and(eq(payments.status, "paid"), gte(payments.paidAt, sql`now() - interval '6 months'`)))
-    .groupBy(sql`to_char(coalesce(${payments.paidAt}, ${payments.createdAt}), 'YYYY-MM')`)
-    .orderBy(sql`to_char(coalesce(${payments.paidAt}, ${payments.createdAt}), 'YYYY-MM')`);
+    const revenueRows = await db
+      .select({
+        month: sql<string>`to_char(coalesce(${payments.paidAt}, ${payments.createdAt}), 'YYYY-MM')`,
+        total: sql<number>`coalesce(sum(${payments.amountInCents}), 0)`,
+      })
+      .from(payments)
+      .where(
+        and(eq(payments.status, "paid"), gte(payments.paidAt, sql`now() - interval '6 months'`)),
+      )
+      .groupBy(sql`to_char(coalesce(${payments.paidAt}, ${payments.createdAt}), 'YYYY-MM')`)
+      .orderBy(sql`to_char(coalesce(${payments.paidAt}, ${payments.createdAt}), 'YYYY-MM')`);
 
-  const expenseRows = await db
-    .select({
-      month: sql<string>`to_char(${expenses.expenseDate}, 'YYYY-MM')`,
-      total: sql<number>`coalesce(sum(${expenses.amountInCents}), 0)`,
-    })
-    .from(expenses)
-    .where(gte(expenses.expenseDate, sql`now() - interval '6 months'`))
-    .groupBy(sql`to_char(${expenses.expenseDate}, 'YYYY-MM')`)
-    .orderBy(sql`to_char(${expenses.expenseDate}, 'YYYY-MM')`);
+    const expenseRows = await db
+      .select({
+        month: sql<string>`to_char(${expenses.expenseDate}, 'YYYY-MM')`,
+        total: sql<number>`coalesce(sum(${expenses.amountInCents}), 0)`,
+      })
+      .from(expenses)
+      .where(gte(expenses.expenseDate, sql`now() - interval '6 months'`))
+      .groupBy(sql`to_char(${expenses.expenseDate}, 'YYYY-MM')`)
+      .orderBy(sql`to_char(${expenses.expenseDate}, 'YYYY-MM')`);
 
-  const months = new Map<string, { revenue: number; expenses: number }>();
+    const months = new Map<string, { revenue: number; expenses: number }>();
 
-  for (const r of revenueRows) {
-    months.set(r.month, { revenue: Math.round(Number(r.total) / 100), expenses: 0 });
-  }
-  for (const r of expenseRows) {
-    const existing = months.get(r.month) ?? { revenue: 0, expenses: 0 };
-    existing.expenses = Math.round(Number(r.total) / 100);
-    months.set(r.month, existing);
-  }
+    for (const r of revenueRows) {
+      months.set(r.month, { revenue: Math.round(Number(r.total) / 100), expenses: 0 });
+    }
+    for (const r of expenseRows) {
+      const existing = months.get(r.month) ?? { revenue: 0, expenses: 0 };
+      existing.expenses = Math.round(Number(r.total) / 100);
+      months.set(r.month, existing);
+    }
 
-  return Array.from(months.entries())
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([month, data]) => {
-      const [y, m] = month.split("-");
-      const label = new Date(Number(y), Number(m) - 1).toLocaleDateString("en-US", {
-        month: "short",
-        year: "numeric",
+    return Array.from(months.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([month, data]) => {
+        const [y, m] = month.split("-");
+        const label = new Date(Number(y), Number(m) - 1).toLocaleDateString("en-US", {
+          month: "short",
+          year: "numeric",
+        });
+        return {
+          month: label,
+          revenue: data.revenue,
+          expenses: data.expenses,
+          profit: data.revenue - data.expenses,
+        };
       });
-      return {
-        month: label,
-        revenue: data.revenue,
-        expenses: data.expenses,
-        profit: data.revenue - data.expenses,
-      };
-    });
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 /* ================================================================== */
@@ -997,45 +1102,50 @@ export async function getProfitLoss(): Promise<ProfitLossRow[]> {
 /* ================================================================== */
 
 export async function getTaxEstimate(): Promise<TaxEstimate> {
-  await getUser();
+  try {
+    await getUser();
 
-  const { settings: settingsTable } = await import("@/db/schema");
-  const [settingsRow] = await db
-    .select()
-    .from(settingsTable)
-    .where(eq(settingsTable.key, "financial_config"));
-  const config = (settingsRow?.value as { estimatedTaxRate?: number }) ?? {};
-  const taxRate = config.estimatedTaxRate ?? 25;
+    const { settings: settingsTable } = await import("@/db/schema");
+    const [settingsRow] = await db
+      .select()
+      .from(settingsTable)
+      .where(eq(settingsTable.key, "financial_config"));
+    const config = (settingsRow?.value as { estimatedTaxRate?: number }) ?? {};
+    const taxRate = config.estimatedTaxRate ?? 25;
 
-  const now = new Date();
-  const quarterMonth = Math.floor(now.getMonth() / 3) * 3;
-  const quarterStart = new Date(now.getFullYear(), quarterMonth, 1);
-  const quarterLabels = ["Q1", "Q2", "Q3", "Q4"];
-  const quarterLabel = `${quarterLabels[Math.floor(now.getMonth() / 3)]} ${now.getFullYear()}`;
+    const now = new Date();
+    const quarterMonth = Math.floor(now.getMonth() / 3) * 3;
+    const quarterStart = new Date(now.getFullYear(), quarterMonth, 1);
+    const quarterLabels = ["Q1", "Q2", "Q3", "Q4"];
+    const quarterLabel = `${quarterLabels[Math.floor(now.getMonth() / 3)]} ${now.getFullYear()}`;
 
-  const [revRow] = await db
-    .select({ total: sql<number>`coalesce(sum(${payments.amountInCents}), 0)` })
-    .from(payments)
-    .where(and(eq(payments.status, "paid"), gte(payments.paidAt, quarterStart)));
+    const [revRow] = await db
+      .select({ total: sql<number>`coalesce(sum(${payments.amountInCents}), 0)` })
+      .from(payments)
+      .where(and(eq(payments.status, "paid"), gte(payments.paidAt, quarterStart)));
 
-  const [expRow] = await db
-    .select({ total: sql<number>`coalesce(sum(${expenses.amountInCents}), 0)` })
-    .from(expenses)
-    .where(gte(expenses.expenseDate, quarterStart));
+    const [expRow] = await db
+      .select({ total: sql<number>`coalesce(sum(${expenses.amountInCents}), 0)` })
+      .from(expenses)
+      .where(gte(expenses.expenseDate, quarterStart));
 
-  const revenue = Math.round(Number(revRow.total) / 100);
-  const expenseTotal = Math.round(Number(expRow.total) / 100);
-  const netIncome = revenue - expenseTotal;
-  const estimatedTax = Math.round(netIncome * (taxRate / 100));
+    const revenue = Math.round(Number(revRow.total) / 100);
+    const expenseTotal = Math.round(Number(expRow.total) / 100);
+    const netIncome = revenue - expenseTotal;
+    const estimatedTax = Math.round(netIncome * (taxRate / 100));
 
-  return {
-    quarterLabel,
-    revenue,
-    expenses: expenseTotal,
-    netIncome,
-    taxRate,
-    estimatedTax: Math.max(0, estimatedTax),
-  };
+    return {
+      quarterLabel,
+      revenue,
+      expenses: expenseTotal,
+      netIncome,
+      taxRate,
+      estimatedTax: Math.max(0, estimatedTax),
+    };
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -1043,24 +1153,29 @@ export async function getTaxEstimate(): Promise<TaxEstimate> {
 /* ------------------------------------------------------------------ */
 
 export async function getProductSales(): Promise<ProductSalesStats> {
-  await getUser();
+  try {
+    await getUser();
 
-  const [row] = await db
-    .select({
-      total: sql<number>`coalesce(sum(${orders.finalInCents}), 0)`,
-      count: sql<number>`count(*)`,
-    })
-    .from(orders)
-    .where(eq(orders.status, "completed"));
+    const [row] = await db
+      .select({
+        total: sql<number>`coalesce(sum(${orders.finalInCents}), 0)`,
+        count: sql<number>`count(*)`,
+      })
+      .from(orders)
+      .where(eq(orders.status, "completed"));
 
-  const revenue = Math.round(Number(row.total) / 100);
-  const count = Number(row.count);
+    const revenue = Math.round(Number(row.total) / 100);
+    const count = Number(row.count);
 
-  return {
-    productRevenue: revenue,
-    productOrderCount: count,
-    avgOrderValue: count > 0 ? Math.round(revenue / count) : 0,
-  };
+    return {
+      productRevenue: revenue,
+      productOrderCount: count,
+      avgOrderValue: count > 0 ? Math.round(revenue / count) : 0,
+    };
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -1068,75 +1183,80 @@ export async function getProductSales(): Promise<ProductSalesStats> {
 /* ------------------------------------------------------------------ */
 
 export async function getDepositStats(): Promise<DepositStats> {
-  await getUser();
+  try {
+    await getUser();
 
-  const [row] = await db
-    .select({
-      expectedCents: sql<number>`coalesce(sum(${services.depositInCents}), 0)`,
-      collectedCents: sql<number>`coalesce(sum(${bookings.depositPaidInCents}), 0)`,
-      needingDeposit: sql<number>`count(*)`,
-      withDeposit: sql<number>`count(*) filter (where ${bookings.depositPaidInCents} > 0)`,
-    })
-    .from(bookings)
-    .innerJoin(services, eq(bookings.serviceId, services.id))
-    .where(
-      and(
-        sql`${services.depositInCents} > 0`,
-        gte(bookings.startsAt, sql`now() - interval '90 days'`),
-      ),
-    );
+    const [row] = await db
+      .select({
+        expectedCents: sql<number>`coalesce(sum(${services.depositInCents}), 0)`,
+        collectedCents: sql<number>`coalesce(sum(${bookings.depositPaidInCents}), 0)`,
+        needingDeposit: sql<number>`count(*)`,
+        withDeposit: sql<number>`count(*) filter (where ${bookings.depositPaidInCents} > 0)`,
+      })
+      .from(bookings)
+      .innerJoin(services, eq(bookings.serviceId, services.id))
+      .where(
+        and(
+          sql`${services.depositInCents} > 0`,
+          gte(bookings.startsAt, sql`now() - interval '90 days'`),
+        ),
+      );
 
-  const expected = Math.round(Number(row.expectedCents) / 100);
-  const collected = Math.round(Number(row.collectedCents) / 100);
-  const needing = Number(row.needingDeposit);
-  const withDep = Number(row.withDeposit);
+    const expected = Math.round(Number(row.expectedCents) / 100);
+    const collected = Math.round(Number(row.collectedCents) / 100);
+    const needing = Number(row.needingDeposit);
+    const withDep = Number(row.withDeposit);
 
-  // Pending deposits — individual bookings still awaiting deposit
-  const depositClient = alias(profiles, "depositClient");
-  const pendingRows = await db
-    .select({
-      bookingId: bookings.id,
-      clientFirstName: depositClient.firstName,
-      clientLastName: depositClient.lastName,
-      serviceName: services.name,
-      depositRequired: services.depositInCents,
-      depositPaid: bookings.depositPaidInCents,
-      startsAt: bookings.startsAt,
-    })
-    .from(bookings)
-    .innerJoin(services, eq(bookings.serviceId, services.id))
-    .innerJoin(depositClient, eq(bookings.clientId, depositClient.id))
-    .where(
-      and(
-        sql`${services.depositInCents} > 0`,
-        sql`coalesce(${bookings.depositPaidInCents}, 0) < ${services.depositInCents}`,
-        sql`${bookings.status} in ('pending', 'confirmed')`,
-      ),
-    )
-    .orderBy(bookings.startsAt)
-    .limit(10);
+    // Pending deposits — individual bookings still awaiting deposit
+    const depositClient = alias(profiles, "depositClient");
+    const pendingRows = await db
+      .select({
+        bookingId: bookings.id,
+        clientFirstName: depositClient.firstName,
+        clientLastName: depositClient.lastName,
+        serviceName: services.name,
+        depositRequired: services.depositInCents,
+        depositPaid: bookings.depositPaidInCents,
+        startsAt: bookings.startsAt,
+      })
+      .from(bookings)
+      .innerJoin(services, eq(bookings.serviceId, services.id))
+      .innerJoin(depositClient, eq(bookings.clientId, depositClient.id))
+      .where(
+        and(
+          sql`${services.depositInCents} > 0`,
+          sql`coalesce(${bookings.depositPaidInCents}, 0) < ${services.depositInCents}`,
+          sql`${bookings.status} in ('pending', 'confirmed')`,
+        ),
+      )
+      .orderBy(bookings.startsAt)
+      .limit(10);
 
-  const pendingDeposits: PendingDeposit[] = pendingRows.map((r) => ({
-    bookingId: r.bookingId,
-    clientName: [r.clientFirstName, r.clientLastName].filter(Boolean).join(" ") || "Unknown",
-    serviceName: r.serviceName,
-    depositRequiredInCents: r.depositRequired ?? 0,
-    depositPaidInCents: r.depositPaid ?? 0,
-    date: r.startsAt.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    }),
-  }));
+    const pendingDeposits: PendingDeposit[] = pendingRows.map((r) => ({
+      bookingId: r.bookingId,
+      clientName: [r.clientFirstName, r.clientLastName].filter(Boolean).join(" ") || "Unknown",
+      serviceName: r.serviceName,
+      depositRequiredInCents: r.depositRequired ?? 0,
+      depositPaidInCents: r.depositPaid ?? 0,
+      date: r.startsAt.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      }),
+    }));
 
-  return {
-    totalExpected: expected,
-    totalCollected: collected,
-    collectionRate: expected > 0 ? Math.round((collected / expected) * 100) : 0,
-    bookingsNeedingDeposit: needing,
-    bookingsWithDeposit: withDep,
-    pendingDeposits,
-  };
+    return {
+      totalExpected: expected,
+      totalCollected: collected,
+      collectionRate: expected > 0 ? Math.round((collected / expected) * 100) : 0,
+      bookingsNeedingDeposit: needing,
+      bookingsWithDeposit: withDep,
+      pendingDeposits,
+    };
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -1155,58 +1275,63 @@ function weekLabel(d: Date): string {
 }
 
 export async function getTipTrends(): Promise<TipStats> {
-  await getUser();
+  try {
+    await getUser();
 
-  const [overallRows, weeklyRows, categoryRows] = await Promise.all([
-    db
-      .select({
-        avgPct: sql<number>`round(avg(${payments.tipInCents}::numeric / nullif(${payments.amountInCents}, 0) * 100), 1)`,
-      })
-      .from(payments)
-      .where(and(eq(payments.status, "paid"), sql`${payments.amountInCents} > 0`)),
-    db
-      .select({
-        weekStart: sql<Date>`date_trunc('week', coalesce(${payments.paidAt}, ${payments.createdAt}))`,
-        avgPct: sql<number>`round(avg(${payments.tipInCents}::numeric / nullif(${payments.amountInCents}, 0) * 100), 1)`,
-      })
-      .from(payments)
-      .where(
-        and(
-          eq(payments.status, "paid"),
-          sql`${payments.amountInCents} > 0`,
-          gte(payments.paidAt, sql`now() - interval '8 weeks'`),
+    const [overallRows, weeklyRows, categoryRows] = await Promise.all([
+      db
+        .select({
+          avgPct: sql<number>`round(avg(${payments.tipInCents}::numeric / nullif(${payments.amountInCents}, 0) * 100), 1)`,
+        })
+        .from(payments)
+        .where(and(eq(payments.status, "paid"), sql`${payments.amountInCents} > 0`)),
+      db
+        .select({
+          weekStart: sql<Date>`date_trunc('week', coalesce(${payments.paidAt}, ${payments.createdAt}))`,
+          avgPct: sql<number>`round(avg(${payments.tipInCents}::numeric / nullif(${payments.amountInCents}, 0) * 100), 1)`,
+        })
+        .from(payments)
+        .where(
+          and(
+            eq(payments.status, "paid"),
+            sql`${payments.amountInCents} > 0`,
+            gte(payments.paidAt, sql`now() - interval '8 weeks'`),
+          ),
+        )
+        .groupBy(sql`date_trunc('week', coalesce(${payments.paidAt}, ${payments.createdAt}))`)
+        .orderBy(sql`date_trunc('week', coalesce(${payments.paidAt}, ${payments.createdAt}))`),
+      db
+        .select({
+          category: services.category,
+          avgPct: sql<number>`round(avg(${payments.tipInCents}::numeric / nullif(${payments.amountInCents}, 0) * 100), 1)`,
+        })
+        .from(payments)
+        .innerJoin(bookings, eq(payments.bookingId, bookings.id))
+        .innerJoin(services, eq(bookings.serviceId, services.id))
+        .where(and(eq(payments.status, "paid"), sql`${payments.amountInCents} > 0`))
+        .groupBy(services.category)
+        .orderBy(
+          sql`avg(${payments.tipInCents}::numeric / nullif(${payments.amountInCents}, 0) * 100) desc`,
         ),
-      )
-      .groupBy(sql`date_trunc('week', coalesce(${payments.paidAt}, ${payments.createdAt}))`)
-      .orderBy(sql`date_trunc('week', coalesce(${payments.paidAt}, ${payments.createdAt}))`),
-    db
-      .select({
-        category: services.category,
-        avgPct: sql<number>`round(avg(${payments.tipInCents}::numeric / nullif(${payments.amountInCents}, 0) * 100), 1)`,
-      })
-      .from(payments)
-      .innerJoin(bookings, eq(payments.bookingId, bookings.id))
-      .innerJoin(services, eq(bookings.serviceId, services.id))
-      .where(and(eq(payments.status, "paid"), sql`${payments.amountInCents} > 0`))
-      .groupBy(services.category)
-      .orderBy(
-        sql`avg(${payments.tipInCents}::numeric / nullif(${payments.amountInCents}, 0) * 100) desc`,
-      ),
-  ]);
+    ]);
 
-  return {
-    overallAvgPct: Number(overallRows[0]?.avgPct ?? 0),
-    weeklyTrend: weeklyRows.map((r) => ({
-      week: weekLabel(new Date(r.weekStart)),
-      avgTipPct: Number(r.avgPct ?? 0),
-    })),
-    byCategory: categoryRows
-      .filter((r) => r.category)
-      .map((r) => ({
-        category: CATEGORY_LABELS[r.category!] ?? r.category!,
+    return {
+      overallAvgPct: Number(overallRows[0]?.avgPct ?? 0),
+      weeklyTrend: weeklyRows.map((r) => ({
+        week: weekLabel(new Date(r.weekStart)),
         avgTipPct: Number(r.avgPct ?? 0),
       })),
-  };
+      byCategory: categoryRows
+        .filter((r) => r.category)
+        .map((r) => ({
+          category: CATEGORY_LABELS[r.category!] ?? r.category!,
+          avgTipPct: Number(r.avgPct ?? 0),
+        })),
+    };
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -1222,48 +1347,55 @@ export type ExpenseStats = {
 };
 
 export async function getExpenseStats(): Promise<ExpenseStats> {
-  await getUser();
+  try {
+    await getUser();
 
-  const now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const priorMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 6, 1);
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const priorMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 6, 1);
 
-  const [[totalRow], [thisMonthRow], [priorMonthRow], [avgRow]] = await Promise.all([
-    db
-      .select({
-        total: sql<number>`coalesce(sum(${expenses.amountInCents}), 0)`,
-        count: sql<number>`count(*)`,
-      })
-      .from(expenses),
-    db
-      .select({ total: sql<number>`coalesce(sum(${expenses.amountInCents}), 0)` })
-      .from(expenses)
-      .where(gte(expenses.expenseDate, monthStart)),
-    db
-      .select({ total: sql<number>`coalesce(sum(${expenses.amountInCents}), 0)` })
-      .from(expenses)
-      .where(and(gte(expenses.expenseDate, priorMonthStart), lt(expenses.expenseDate, monthStart))),
-    db
-      .select({ total: sql<number>`coalesce(sum(${expenses.amountInCents}), 0)` })
-      .from(expenses)
-      .where(gte(expenses.expenseDate, sixMonthsAgo)),
-  ]);
+    const [[totalRow], [thisMonthRow], [priorMonthRow], [avgRow]] = await Promise.all([
+      db
+        .select({
+          total: sql<number>`coalesce(sum(${expenses.amountInCents}), 0)`,
+          count: sql<number>`count(*)`,
+        })
+        .from(expenses),
+      db
+        .select({ total: sql<number>`coalesce(sum(${expenses.amountInCents}), 0)` })
+        .from(expenses)
+        .where(gte(expenses.expenseDate, monthStart)),
+      db
+        .select({ total: sql<number>`coalesce(sum(${expenses.amountInCents}), 0)` })
+        .from(expenses)
+        .where(
+          and(gte(expenses.expenseDate, priorMonthStart), lt(expenses.expenseDate, monthStart)),
+        ),
+      db
+        .select({ total: sql<number>`coalesce(sum(${expenses.amountInCents}), 0)` })
+        .from(expenses)
+        .where(gte(expenses.expenseDate, sixMonthsAgo)),
+    ]);
 
-  const total = Math.round(Number(totalRow.total) / 100);
-  const thisMonth = Math.round(Number(thisMonthRow.total) / 100);
-  const priorMonth = Math.round(Number(priorMonthRow.total) / 100);
-  const count = Number(totalRow.count);
-  const sixMonthTotal = Math.round(Number(avgRow.total) / 100);
+    const total = Math.round(Number(totalRow.total) / 100);
+    const thisMonth = Math.round(Number(thisMonthRow.total) / 100);
+    const priorMonth = Math.round(Number(priorMonthRow.total) / 100);
+    const count = Number(totalRow.count);
+    const sixMonthTotal = Math.round(Number(avgRow.total) / 100);
 
-  return {
-    totalExpenses: total,
-    thisMonthExpenses: thisMonth,
-    expenseVsPriorMonthPct:
-      priorMonth === 0 ? null : Math.round(((thisMonth - priorMonth) / priorMonth) * 100),
-    expenseCount: count,
-    avgMonthlyExpenses: Math.round(sixMonthTotal / 6),
-  };
+    return {
+      totalExpenses: total,
+      thisMonthExpenses: thisMonth,
+      expenseVsPriorMonthPct:
+        priorMonth === 0 ? null : Math.round(((thisMonth - priorMonth) / priorMonth) * 100),
+      expenseCount: count,
+      avgMonthlyExpenses: Math.round(sixMonthTotal / 6),
+    };
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 export type MonthlyExpense = {
@@ -1272,31 +1404,36 @@ export type MonthlyExpense = {
 };
 
 export async function getMonthlyExpenses(): Promise<MonthlyExpense[]> {
-  await getUser();
+  try {
+    await getUser();
 
-  const rows = await db
-    .select({
-      month: sql<string>`to_char(${expenses.expenseDate}, 'YYYY-MM')`,
-      total: sql<number>`coalesce(sum(${expenses.amountInCents}), 0)`,
-    })
-    .from(expenses)
-    .where(gte(expenses.expenseDate, sql`now() - interval '6 months'`))
-    .groupBy(sql`to_char(${expenses.expenseDate}, 'YYYY-MM')`)
-    .orderBy(sql`to_char(${expenses.expenseDate}, 'YYYY-MM')`);
+    const rows = await db
+      .select({
+        month: sql<string>`to_char(${expenses.expenseDate}, 'YYYY-MM')`,
+        total: sql<number>`coalesce(sum(${expenses.amountInCents}), 0)`,
+      })
+      .from(expenses)
+      .where(gte(expenses.expenseDate, sql`now() - interval '6 months'`))
+      .groupBy(sql`to_char(${expenses.expenseDate}, 'YYYY-MM')`)
+      .orderBy(sql`to_char(${expenses.expenseDate}, 'YYYY-MM')`);
 
-  // Fill in any missing months in the last 6
-  const now = new Date();
-  const result: MonthlyExpense[] = [];
-  const byMonth = new Map(rows.map((r) => [r.month, Math.round(Number(r.total) / 100)]));
+    // Fill in any missing months in the last 6
+    const now = new Date();
+    const result: MonthlyExpense[] = [];
+    const byMonth = new Map(rows.map((r) => [r.month, Math.round(Number(r.total) / 100)]));
 
-  for (let i = 5; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-    const label = d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
-    result.push({ month: label, amount: byMonth.get(key) ?? 0 });
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const label = d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
+      result.push({ month: label, amount: byMonth.get(key) ?? 0 });
+    }
+
+    return result;
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
   }
-
-  return result;
 }
 
 /* ------------------------------------------------------------------ */
@@ -1314,22 +1451,27 @@ const EXPENSE_LABELS: Record<string, string> = {
 };
 
 export async function getExpenseCategoryBreakdown(): Promise<ExpenseCategoryBreakdown[]> {
-  await getUser();
+  try {
+    await getUser();
 
-  const rows = await db
-    .select({
-      category: expenses.category,
-      total: sql<number>`coalesce(sum(${expenses.amountInCents}), 0)`,
-    })
-    .from(expenses)
-    .groupBy(expenses.category)
-    .orderBy(sql`sum(${expenses.amountInCents}) desc`);
+    const rows = await db
+      .select({
+        category: expenses.category,
+        total: sql<number>`coalesce(sum(${expenses.amountInCents}), 0)`,
+      })
+      .from(expenses)
+      .groupBy(expenses.category)
+      .orderBy(sql`sum(${expenses.amountInCents}) desc`);
 
-  const grandTotal = rows.reduce((s, r) => s + Number(r.total), 0);
+    const grandTotal = rows.reduce((s, r) => s + Number(r.total), 0);
 
-  return rows.map((r) => ({
-    category: EXPENSE_LABELS[r.category] ?? r.category,
-    amount: Math.round(Number(r.total) / 100),
-    pct: grandTotal > 0 ? Math.round((Number(r.total) / grandTotal) * 100) : 0,
-  }));
+    return rows.map((r) => ({
+      category: EXPENSE_LABELS[r.category] ?? r.category,
+      amount: Math.round(Number(r.total) / 100),
+      pct: grandTotal > 0 ? Math.round((Number(r.total) / grandTotal) * 100) : 0,
+    }));
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }

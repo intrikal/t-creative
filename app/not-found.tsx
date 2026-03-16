@@ -1,4 +1,11 @@
 import Link from "next/link";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Page Not Found | T Creative Studio",
+  description: "The page you're looking for doesn't exist or may have moved.",
+  robots: { index: false, follow: false },
+};
 
 /**
  * Not Found — branded 404 page shown when a URL doesn't match any route.

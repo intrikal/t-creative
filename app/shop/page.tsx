@@ -2,11 +2,26 @@ import type { Metadata } from "next";
 import { getPublishedProducts } from "./actions";
 import { PublicShopPage } from "./PublicShopPage";
 
+export const revalidate = 3600;
+
 export const metadata: Metadata = {
-  title: "Shop — T Creative Studio",
+  title: "Shop | Aftercare Products & Studio Merch | T Creative Studio",
   description:
     "Aftercare products, permanent jewelry, and studio merch from T Creative Studio in San Jose, CA.",
-  robots: { index: true, follow: true },
+  alternates: {
+    canonical: "/shop",
+  },
+  openGraph: {
+    title: "Shop | Aftercare Products & Studio Merch | T Creative Studio",
+    description:
+      "Aftercare products, permanent jewelry, and studio merch from T Creative Studio in San Jose, CA.",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Shop | Aftercare Products & Studio Merch | T Creative Studio",
+    description:
+      "Aftercare products, permanent jewelry, and studio merch from T Creative Studio in San Jose, CA.",
+  },
 };
 
 const BASE_URL = "https://tcreativestudio.com";

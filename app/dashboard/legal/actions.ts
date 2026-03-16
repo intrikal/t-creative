@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import * as Sentry from "@sentry/nextjs";
 import { eq, desc } from "drizzle-orm";
 import { db } from "@/db";
 import { legalDocuments } from "@/db/schema";
@@ -51,30 +52,35 @@ export type LegalDocInput = {
 export async function getLegalDoc(
   type: "privacy_policy" | "terms_of_service",
 ): Promise<LegalDocEntry | null> {
-  await getUser();
+  try {
+    await getUser();
 
-  // Prefer published; fall back to most recent draft
-  const rows = await db
-    .select()
-    .from(legalDocuments)
-    .where(eq(legalDocuments.type, type))
-    .orderBy(desc(legalDocuments.isPublished), desc(legalDocuments.id))
-    .limit(1);
+    // Prefer published; fall back to most recent draft
+    const rows = await db
+      .select()
+      .from(legalDocuments)
+      .where(eq(legalDocuments.type, type))
+      .orderBy(desc(legalDocuments.isPublished), desc(legalDocuments.id))
+      .limit(1);
 
-  const row = rows[0];
-  if (!row) return null;
+    const row = rows[0];
+    if (!row) return null;
 
-  return {
-    id: row.id,
-    type: row.type,
-    version: row.version,
-    intro: row.intro,
-    sections: (row.sections as LegalSection[]) ?? [],
-    effectiveDate: row.effectiveDate,
-    changeNotes: row.changeNotes,
-    isPublished: row.isPublished,
-    publishedAt: row.publishedAt?.toISOString() ?? null,
-  };
+    return {
+      id: row.id,
+      type: row.type,
+      version: row.version,
+      intro: row.intro,
+      sections: (row.sections as LegalSection[]) ?? [],
+      effectiveDate: row.effectiveDate,
+      changeNotes: row.changeNotes,
+      isPublished: row.isPublished,
+      publishedAt: row.publishedAt?.toISOString() ?? null,
+    };
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -92,19 +98,32 @@ export async function saveLegalDoc(
   type: "privacy_policy" | "terms_of_service",
   input: LegalDocInput,
 ): Promise<void> {
-  await getUser();
+  try {
+    await getUser();
 
-  const existing = await db
-    .select({ id: legalDocuments.id })
-    .from(legalDocuments)
-    .where(eq(legalDocuments.type, type))
-    .orderBy(desc(legalDocuments.id))
-    .limit(1);
+    const existing = await db
+      .select({ id: legalDocuments.id })
+      .from(legalDocuments)
+      .where(eq(legalDocuments.type, type))
+      .orderBy(desc(legalDocuments.id))
+      .limit(1);
 
-  if (existing.length > 0) {
-    await db
-      .update(legalDocuments)
-      .set({
+    if (existing.length > 0) {
+      await db
+        .update(legalDocuments)
+        .set({
+          version: input.version,
+          intro: input.intro,
+          sections: input.sections,
+          effectiveDate: input.effectiveDate,
+          changeNotes: input.changeNotes ?? null,
+          isPublished: true,
+          publishedAt: new Date(),
+        })
+        .where(eq(legalDocuments.id, existing[0].id));
+    } else {
+      await db.insert(legalDocuments).values({
+        type,
         version: input.version,
         intro: input.intro,
         sections: input.sections,
@@ -112,25 +131,17 @@ export async function saveLegalDoc(
         changeNotes: input.changeNotes ?? null,
         isPublished: true,
         publishedAt: new Date(),
-      })
-      .where(eq(legalDocuments.id, existing[0].id));
-  } else {
-    await db.insert(legalDocuments).values({
-      type,
-      version: input.version,
-      intro: input.intro,
-      sections: input.sections,
-      effectiveDate: input.effectiveDate,
-      changeNotes: input.changeNotes ?? null,
-      isPublished: true,
-      publishedAt: new Date(),
-      sortOrder: type === "privacy_policy" ? 0 : 1,
-    });
-  }
+        sortOrder: type === "privacy_policy" ? 0 : 1,
+      });
+    }
 
-  revalidatePath("/dashboard/legal");
-  // Revalidate the public-facing pages
-  revalidatePath(type === "privacy_policy" ? "/privacy" : "/terms");
+    revalidatePath("/dashboard/legal");
+    // Revalidate the public-facing pages
+    revalidatePath(type === "privacy_policy" ? "/privacy" : "/terms");
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -340,33 +351,38 @@ const TERMS_INTRO =
   'Please read these Terms of Service ("Terms") carefully before booking an appointment, purchasing products, or using any services provided by T Creative Studio ("we," "us," or "our"). By booking an appointment or using our services, you agree to be bound by these Terms. If you do not agree, please do not use our services.';
 
 export async function seedLegalDefaults(): Promise<void> {
-  await getUser();
+  try {
+    await getUser();
 
-  // Only seed if the table is empty
-  const existing = await db.select({ id: legalDocuments.id }).from(legalDocuments).limit(1);
+    // Only seed if the table is empty
+    const existing = await db.select({ id: legalDocuments.id }).from(legalDocuments).limit(1);
 
-  if (existing.length > 0) return;
+    if (existing.length > 0) return;
 
-  await db.insert(legalDocuments).values([
-    {
-      type: "privacy_policy",
-      version: "1.0",
-      intro: PRIVACY_INTRO,
-      sections: PRIVACY_SECTIONS,
-      effectiveDate: "2025-03-16",
-      isPublished: true,
-      publishedAt: new Date(),
-      sortOrder: 0,
-    },
-    {
-      type: "terms_of_service",
-      version: "1.0",
-      intro: TERMS_INTRO,
-      sections: TERMS_SECTIONS,
-      effectiveDate: "2025-03-16",
-      isPublished: true,
-      publishedAt: new Date(),
-      sortOrder: 1,
-    },
-  ]);
+    await db.insert(legalDocuments).values([
+      {
+        type: "privacy_policy",
+        version: "1.0",
+        intro: PRIVACY_INTRO,
+        sections: PRIVACY_SECTIONS,
+        effectiveDate: "2025-03-16",
+        isPublished: true,
+        publishedAt: new Date(),
+        sortOrder: 0,
+      },
+      {
+        type: "terms_of_service",
+        version: "1.0",
+        intro: TERMS_INTRO,
+        sections: TERMS_SECTIONS,
+        effectiveDate: "2025-03-16",
+        isPublished: true,
+        publishedAt: new Date(),
+        sortOrder: 1,
+      },
+    ]);
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }

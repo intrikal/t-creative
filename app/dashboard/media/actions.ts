@@ -11,6 +11,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import * as Sentry from "@sentry/nextjs";
 import { eq, desc, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { mediaItems, profiles } from "@/db/schema";
@@ -64,72 +65,82 @@ export type MediaStats = {
 /* ------------------------------------------------------------------ */
 
 export async function getMediaItems(): Promise<MediaRow[]> {
-  await getUser();
+  try {
+    await getUser();
 
-  const rows = await db
-    .select({
-      id: mediaItems.id,
-      type: mediaItems.type,
-      category: mediaItems.category,
-      firstName: profiles.firstName,
-      lastName: profiles.lastName,
-      title: mediaItems.title,
-      caption: mediaItems.caption,
-      publicUrl: mediaItems.publicUrl,
-      storagePath: mediaItems.storagePath,
-      fileSizeBytes: mediaItems.fileSizeBytes,
-      isPublished: mediaItems.isPublished,
-      isFeatured: mediaItems.isFeatured,
-      createdAt: mediaItems.createdAt,
-    })
-    .from(mediaItems)
-    .leftJoin(profiles, eq(mediaItems.clientId, profiles.id))
-    .orderBy(desc(mediaItems.createdAt));
+    const rows = await db
+      .select({
+        id: mediaItems.id,
+        type: mediaItems.type,
+        category: mediaItems.category,
+        firstName: profiles.firstName,
+        lastName: profiles.lastName,
+        title: mediaItems.title,
+        caption: mediaItems.caption,
+        publicUrl: mediaItems.publicUrl,
+        storagePath: mediaItems.storagePath,
+        fileSizeBytes: mediaItems.fileSizeBytes,
+        isPublished: mediaItems.isPublished,
+        isFeatured: mediaItems.isFeatured,
+        createdAt: mediaItems.createdAt,
+      })
+      .from(mediaItems)
+      .leftJoin(profiles, eq(mediaItems.clientId, profiles.id))
+      .orderBy(desc(mediaItems.createdAt));
 
-  return rows.map((r) => {
-    const first = r.firstName ?? "";
-    const last = r.lastName ?? "";
-    const name = [first, last].filter(Boolean).join(" ") || null;
+    return rows.map((r) => {
+      const first = r.firstName ?? "";
+      const last = r.lastName ?? "";
+      const name = [first, last].filter(Boolean).join(" ") || null;
 
-    return {
-      id: r.id,
-      type: r.type as MediaRow["type"],
-      category: r.category as MediaCategory | null,
-      client: name,
-      title: r.title,
-      caption: r.caption,
-      publicUrl: r.publicUrl,
-      storagePath: r.storagePath,
-      fileSizeBytes: r.fileSizeBytes,
-      isPublished: r.isPublished,
-      isFeatured: r.isFeatured,
-      date: new Date(r.createdAt).toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      }),
-    };
-  });
+      return {
+        id: r.id,
+        type: r.type as MediaRow["type"],
+        category: r.category as MediaCategory | null,
+        client: name,
+        title: r.title,
+        caption: r.caption,
+        publicUrl: r.publicUrl,
+        storagePath: r.storagePath,
+        fileSizeBytes: r.fileSizeBytes,
+        isPublished: r.isPublished,
+        isFeatured: r.isFeatured,
+        date: new Date(r.createdAt).toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        }),
+      };
+    });
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 export async function getMediaStats(): Promise<MediaStats> {
-  await getUser();
+  try {
+    await getUser();
 
-  const [row] = await db
-    .select({
-      total: sql<number>`count(*)`,
-      published: sql<number>`count(*) filter (where ${mediaItems.isPublished} = true)`,
-      featured: sql<number>`count(*) filter (where ${mediaItems.isFeatured} = true)`,
-      totalSize: sql<number>`coalesce(sum(${mediaItems.fileSizeBytes}), 0)`,
-    })
-    .from(mediaItems);
+    const [row] = await db
+      .select({
+        total: sql<number>`count(*)`,
+        published: sql<number>`count(*) filter (where ${mediaItems.isPublished} = true)`,
+        featured: sql<number>`count(*) filter (where ${mediaItems.isFeatured} = true)`,
+        totalSize: sql<number>`coalesce(sum(${mediaItems.fileSizeBytes}), 0)`,
+      })
+      .from(mediaItems);
 
-  return {
-    total: Number(row.total),
-    published: Number(row.published),
-    featured: Number(row.featured),
-    totalSizeBytes: Number(row.totalSize),
-  };
+    return {
+      total: Number(row.total),
+      published: Number(row.published),
+      featured: Number(row.featured),
+      totalSizeBytes: Number(row.totalSize),
+    };
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -137,49 +148,54 @@ export async function getMediaStats(): Promise<MediaStats> {
 /* ------------------------------------------------------------------ */
 
 export async function uploadMedia(formData: FormData) {
-  await getUser();
-  const supabase = await createClient();
+  try {
+    await getUser();
+    const supabase = await createClient();
 
-  const files = formData.getAll("files") as File[];
-  const caption = formData.get("caption") as string | null;
-  const category = formData.get("category") as MediaCategory | null;
-  const featured = formData.get("featured") === "true";
+    const files = formData.getAll("files") as File[];
+    const caption = formData.get("caption") as string | null;
+    const category = formData.get("category") as MediaCategory | null;
+    const featured = formData.get("featured") === "true";
 
-  if (files.length === 0) throw new Error("No files provided");
+    if (files.length === 0) throw new Error("No files provided");
 
-  for (const file of files) {
-    const ext = file.name.split(".").pop()?.toLowerCase() ?? "jpg";
-    const timestamp = Date.now();
-    const safeName = file.name
-      .replace(/\.[^.]+$/, "")
-      .replace(/[^a-zA-Z0-9_-]/g, "_")
-      .slice(0, 60);
-    const path = `portfolio/${category ?? "general"}/${timestamp}-${safeName}.${ext}`;
+    for (const file of files) {
+      const ext = file.name.split(".").pop()?.toLowerCase() ?? "jpg";
+      const timestamp = Date.now();
+      const safeName = file.name
+        .replace(/\.[^.]+$/, "")
+        .replace(/[^a-zA-Z0-9_-]/g, "_")
+        .slice(0, 60);
+      const path = `portfolio/${category ?? "general"}/${timestamp}-${safeName}.${ext}`;
 
-    const { error: uploadError } = await supabase.storage.from(BUCKET).upload(path, file, {
-      contentType: file.type,
-      upsert: false,
-    });
+      const { error: uploadError } = await supabase.storage.from(BUCKET).upload(path, file, {
+        contentType: file.type,
+        upsert: false,
+      });
 
-    if (uploadError) throw new Error(`Upload failed: ${uploadError.message}`);
+      if (uploadError) throw new Error(`Upload failed: ${uploadError.message}`);
 
-    const {
-      data: { publicUrl },
-    } = supabase.storage.from(BUCKET).getPublicUrl(path);
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from(BUCKET).getPublicUrl(path);
 
-    await db.insert(mediaItems).values({
-      type: "image",
-      category: category ?? null,
-      caption: caption?.trim() || null,
-      storagePath: path,
-      publicUrl,
-      fileSizeBytes: file.size,
-      isPublished: featured,
-      isFeatured: featured,
-    });
+      await db.insert(mediaItems).values({
+        type: "image",
+        category: category ?? null,
+        caption: caption?.trim() || null,
+        storagePath: path,
+        publicUrl,
+        fileSizeBytes: file.size,
+        isPublished: featured,
+        isFeatured: featured,
+      });
+    }
+
+    revalidatePath("/dashboard/media");
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
   }
-
-  revalidatePath("/dashboard/media");
 }
 
 /* ------------------------------------------------------------------ */
@@ -187,66 +203,86 @@ export async function uploadMedia(formData: FormData) {
 /* ------------------------------------------------------------------ */
 
 export async function togglePublish(id: number, publish: boolean) {
-  await getUser();
-  await db
-    .update(mediaItems)
-    .set({
-      isPublished: publish,
-      // Un-feature if unpublishing
-      ...(publish ? {} : { isFeatured: false }),
-      updatedAt: new Date(),
-    })
-    .where(eq(mediaItems.id, id));
-  revalidatePath("/dashboard/media");
+  try {
+    await getUser();
+    await db
+      .update(mediaItems)
+      .set({
+        isPublished: publish,
+        // Un-feature if unpublishing
+        ...(publish ? {} : { isFeatured: false }),
+        updatedAt: new Date(),
+      })
+      .where(eq(mediaItems.id, id));
+    revalidatePath("/dashboard/media");
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 export async function toggleFeatured(id: number, feature: boolean) {
-  await getUser();
-  await db
-    .update(mediaItems)
-    .set({
-      isFeatured: feature,
-      // Auto-publish if featuring
-      ...(feature ? { isPublished: true } : {}),
-      updatedAt: new Date(),
-    })
-    .where(eq(mediaItems.id, id));
-  revalidatePath("/dashboard/media");
+  try {
+    await getUser();
+    await db
+      .update(mediaItems)
+      .set({
+        isFeatured: feature,
+        // Auto-publish if featuring
+        ...(feature ? { isPublished: true } : {}),
+        updatedAt: new Date(),
+      })
+      .where(eq(mediaItems.id, id));
+    revalidatePath("/dashboard/media");
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 export async function updateMediaItem(
   id: number,
   data: { caption?: string; title?: string; category?: MediaCategory | null },
 ) {
-  await getUser();
-  await db
-    .update(mediaItems)
-    .set({
-      ...(data.caption !== undefined ? { caption: data.caption.trim() || null } : {}),
-      ...(data.title !== undefined ? { title: data.title.trim() || null } : {}),
-      ...(data.category !== undefined ? { category: data.category } : {}),
-      updatedAt: new Date(),
-    })
-    .where(eq(mediaItems.id, id));
-  revalidatePath("/dashboard/media");
+  try {
+    await getUser();
+    await db
+      .update(mediaItems)
+      .set({
+        ...(data.caption !== undefined ? { caption: data.caption.trim() || null } : {}),
+        ...(data.title !== undefined ? { title: data.title.trim() || null } : {}),
+        ...(data.category !== undefined ? { category: data.category } : {}),
+        updatedAt: new Date(),
+      })
+      .where(eq(mediaItems.id, id));
+    revalidatePath("/dashboard/media");
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 export async function deleteMediaItem(id: number) {
-  await getUser();
-  const supabase = await createClient();
+  try {
+    await getUser();
+    const supabase = await createClient();
 
-  // Get storage path before deleting
-  const [item] = await db
-    .select({ storagePath: mediaItems.storagePath })
-    .from(mediaItems)
-    .where(eq(mediaItems.id, id));
+    // Get storage path before deleting
+    const [item] = await db
+      .select({ storagePath: mediaItems.storagePath })
+      .from(mediaItems)
+      .where(eq(mediaItems.id, id));
 
-  if (item) {
-    // Delete from Storage
-    await supabase.storage.from(BUCKET).remove([item.storagePath]);
-    // Delete DB row
-    await db.delete(mediaItems).where(eq(mediaItems.id, id));
+    if (item) {
+      // Delete from Storage
+      await supabase.storage.from(BUCKET).remove([item.storagePath]);
+      // Delete DB row
+      await db.delete(mediaItems).where(eq(mediaItems.id, id));
+    }
+
+    revalidatePath("/dashboard/media");
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
   }
-
-  revalidatePath("/dashboard/media");
 }

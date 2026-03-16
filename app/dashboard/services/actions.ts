@@ -25,6 +25,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import * as Sentry from "@sentry/nextjs";
 import { eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { bookings, services } from "@/db/schema";
@@ -336,29 +337,34 @@ const FULL_CATALOG: CatalogEntry[] = [
 
 /** One-click action to replace generic onboarding placeholders with the full real catalog. */
 export async function seedServiceCatalog(): Promise<ServiceRow[]> {
-  await getUser();
+  try {
+    await getUser();
 
-  // Remove the generic single-service placeholders the onboarding created.
-  // These names are safe to delete — the real services have more specific names.
-  const GENERIC_NAMES = ["Lash Extensions", "Permanent Jewelry", "Crochet", "Consulting"];
-  const existing = await db.select({ id: services.id, name: services.name }).from(services);
-  const genericIds = existing.filter((s) => GENERIC_NAMES.includes(s.name)).map((s) => s.id);
+    // Remove the generic single-service placeholders the onboarding created.
+    // These names are safe to delete — the real services have more specific names.
+    const GENERIC_NAMES = ["Lash Extensions", "Permanent Jewelry", "Crochet", "Consulting"];
+    const existing = await db.select({ id: services.id, name: services.name }).from(services);
+    const genericIds = existing.filter((s) => GENERIC_NAMES.includes(s.name)).map((s) => s.id);
 
-  if (genericIds.length > 0) {
-    await db.delete(services).where(inArray(services.id, genericIds));
+    if (genericIds.length > 0) {
+      await db.delete(services).where(inArray(services.id, genericIds));
+    }
+
+    // Only insert services whose name doesn't already exist (safe to re-run).
+    const existingNames = new Set(
+      existing.filter((s) => !genericIds.includes(s.id)).map((s) => s.name),
+    );
+    const toInsert = FULL_CATALOG.filter((c) => !existingNames.has(c.name));
+
+    const rows = toInsert.length > 0 ? await db.insert(services).values(toInsert).returning() : [];
+
+    revalidatePath("/dashboard/services");
+    revalidatePath("/services");
+    return rows;
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
   }
-
-  // Only insert services whose name doesn't already exist (safe to re-run).
-  const existingNames = new Set(
-    existing.filter((s) => !genericIds.includes(s.id)).map((s) => s.name),
-  );
-  const toInsert = FULL_CATALOG.filter((c) => !existingNames.has(c.name));
-
-  const rows = toInsert.length > 0 ? await db.insert(services).values(toInsert).returning() : [];
-
-  revalidatePath("/dashboard/services");
-  revalidatePath("/services");
-  return rows;
 }
 
 export type ServiceRow = typeof services.$inferSelect;
@@ -376,93 +382,118 @@ export type ServiceInput = {
 const getUser = requireAdmin;
 
 export async function getServices(): Promise<ServiceRow[]> {
-  await getUser();
-  return db.select().from(services).orderBy(services.category, services.sortOrder);
+  try {
+    await getUser();
+    return db.select().from(services).orderBy(services.category, services.sortOrder);
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 export async function createService(input: ServiceInput): Promise<ServiceRow> {
-  const user = await getUser();
-  const [row] = await db
-    .insert(services)
-    .values({
-      name: input.name,
-      category: input.category,
-      description: input.description || null,
-      durationMinutes: input.durationMinutes || null,
-      priceInCents: input.priceInCents,
-      depositInCents: input.depositInCents || null,
-      isActive: input.isActive,
-    })
-    .returning();
-  trackEvent(user.id, "service_created", { name: input.name, category: input.category });
+  try {
+    const user = await getUser();
+    const [row] = await db
+      .insert(services)
+      .values({
+        name: input.name,
+        category: input.category,
+        description: input.description || null,
+        durationMinutes: input.durationMinutes || null,
+        priceInCents: input.priceInCents,
+        depositInCents: input.depositInCents || null,
+        isActive: input.isActive,
+      })
+      .returning();
+    trackEvent(user.id, "service_created", { name: input.name, category: input.category });
 
-  await logAction({
-    actorId: user.id,
-    action: "create",
-    entityType: "service",
-    entityId: String(row.id),
-    description: "Service created",
-    metadata: { name: input.name, category: input.category },
-  });
+    await logAction({
+      actorId: user.id,
+      action: "create",
+      entityType: "service",
+      entityId: String(row.id),
+      description: "Service created",
+      metadata: { name: input.name, category: input.category },
+    });
 
-  revalidatePath("/dashboard/services");
-  revalidatePath("/services");
-  return row;
+    revalidatePath("/dashboard/services");
+    revalidatePath("/services");
+    return row;
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 export async function updateService(id: number, input: ServiceInput): Promise<ServiceRow> {
-  const user = await getUser();
-  const [row] = await db
-    .update(services)
-    .set({
-      name: input.name,
-      category: input.category,
-      description: input.description || null,
-      durationMinutes: input.durationMinutes || null,
-      priceInCents: input.priceInCents,
-      depositInCents: input.depositInCents || null,
-      isActive: input.isActive,
-    })
-    .where(eq(services.id, id))
-    .returning();
-  trackEvent(user.id, "service_updated", { serviceId: id, name: input.name });
+  try {
+    const user = await getUser();
+    const [row] = await db
+      .update(services)
+      .set({
+        name: input.name,
+        category: input.category,
+        description: input.description || null,
+        durationMinutes: input.durationMinutes || null,
+        priceInCents: input.priceInCents,
+        depositInCents: input.depositInCents || null,
+        isActive: input.isActive,
+      })
+      .where(eq(services.id, id))
+      .returning();
+    trackEvent(user.id, "service_updated", { serviceId: id, name: input.name });
 
-  await logAction({
-    actorId: user.id,
-    action: "update",
-    entityType: "service",
-    entityId: String(id),
-    description: "Service updated",
-    metadata: { name: input.name, category: input.category },
-  });
+    await logAction({
+      actorId: user.id,
+      action: "update",
+      entityType: "service",
+      entityId: String(id),
+      description: "Service updated",
+      metadata: { name: input.name, category: input.category },
+    });
 
-  revalidatePath("/dashboard/services");
-  revalidatePath("/services");
-  return row;
+    revalidatePath("/dashboard/services");
+    revalidatePath("/services");
+    return row;
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 export async function deleteService(id: number): Promise<void> {
-  const user = await getUser();
-  await db.delete(services).where(eq(services.id, id));
-  trackEvent(user.id, "service_deleted", { serviceId: id });
+  try {
+    const user = await getUser();
+    await db.delete(services).where(eq(services.id, id));
+    trackEvent(user.id, "service_deleted", { serviceId: id });
 
-  await logAction({
-    actorId: user.id,
-    action: "delete",
-    entityType: "service",
-    entityId: String(id),
-    description: "Service deleted",
-  });
+    await logAction({
+      actorId: user.id,
+      action: "delete",
+      entityType: "service",
+      entityId: String(id),
+      description: "Service deleted",
+    });
 
-  revalidatePath("/dashboard/services");
-  revalidatePath("/services");
+    revalidatePath("/dashboard/services");
+    revalidatePath("/services");
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 export async function toggleServiceActive(id: number, isActive: boolean): Promise<void> {
-  await getUser();
-  await db.update(services).set({ isActive }).where(eq(services.id, id));
-  revalidatePath("/dashboard/services");
-  revalidatePath("/services");
+  try {
+    await getUser();
+    await db.update(services).set({ isActive }).where(eq(services.id, id));
+    revalidatePath("/dashboard/services");
+    revalidatePath("/services");
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -492,64 +523,69 @@ export async function getAssistantServices(): Promise<{
   services: AssistantServiceRow[];
   stats: AssistantServiceStats;
 }> {
-  const user = await getUser();
+  try {
+    const user = await getUser();
 
-  // Get all active services
-  const allServices = await db
-    .select()
-    .from(services)
-    .where(eq(services.isActive, true))
-    .orderBy(services.category, services.sortOrder);
+    // Get all active services
+    const allServices = await db
+      .select()
+      .from(services)
+      .where(eq(services.isActive, true))
+      .orderBy(services.category, services.sortOrder);
 
-  // Get services this assistant has completed (certification + times performed)
-  const completedServices = await db
-    .select({
-      serviceId: bookings.serviceId,
-      firstCompleted: sql<Date>`min(${bookings.startsAt})`.as("first_completed"),
-      timesPerformed: sql<number>`count(*)`.as("times_performed"),
-    })
-    .from(bookings)
-    .where(sql`${bookings.staffId} = ${user.id} AND ${bookings.status} = 'completed'`)
-    .groupBy(bookings.serviceId);
+    // Get services this assistant has completed (certification + times performed)
+    const completedServices = await db
+      .select({
+        serviceId: bookings.serviceId,
+        firstCompleted: sql<Date>`min(${bookings.startsAt})`.as("first_completed"),
+        timesPerformed: sql<number>`count(*)`.as("times_performed"),
+      })
+      .from(bookings)
+      .where(sql`${bookings.staffId} = ${user.id} AND ${bookings.status} = 'completed'`)
+      .groupBy(bookings.serviceId);
 
-  const certMap = new Map(
-    completedServices.map((r) => [
-      r.serviceId,
-      { firstDate: new Date(r.firstCompleted), count: Number(r.timesPerformed) },
-    ]),
-  );
+    const certMap = new Map(
+      completedServices.map((r) => [
+        r.serviceId,
+        { firstDate: new Date(r.firstCompleted), count: Number(r.timesPerformed) },
+      ]),
+    );
 
-  const mapped: AssistantServiceRow[] = allServices.map((s) => {
-    const cert = certMap.get(s.id);
+    const mapped: AssistantServiceRow[] = allServices.map((s) => {
+      const cert = certMap.get(s.id);
+      return {
+        id: s.id,
+        name: s.name,
+        category: s.category,
+        description: s.description,
+        durationMin: s.durationMinutes,
+        price: (s.priceInCents ?? 0) / 100,
+        deposit: s.depositInCents ? s.depositInCents / 100 : null,
+        certified: !!cert,
+        certDate: cert
+          ? cert.firstDate.toLocaleDateString("en-US", { month: "short", year: "numeric" })
+          : null,
+        timesPerformed: cert?.count ?? 0,
+      };
+    });
+
+    const certifiedCount = mapped.filter((s) => s.certified).length;
+    const withDuration = mapped.filter((s) => s.durationMin != null);
+    const avgDuration =
+      withDuration.length > 0
+        ? Math.round(withDuration.reduce((sum, s) => sum + s.durationMin!, 0) / withDuration.length)
+        : 0;
+
     return {
-      id: s.id,
-      name: s.name,
-      category: s.category,
-      description: s.description,
-      durationMin: s.durationMinutes,
-      price: (s.priceInCents ?? 0) / 100,
-      deposit: s.depositInCents ? s.depositInCents / 100 : null,
-      certified: !!cert,
-      certDate: cert
-        ? cert.firstDate.toLocaleDateString("en-US", { month: "short", year: "numeric" })
-        : null,
-      timesPerformed: cert?.count ?? 0,
+      services: mapped,
+      stats: {
+        totalServices: mapped.length,
+        certifiedCount,
+        avgDuration,
+      },
     };
-  });
-
-  const certifiedCount = mapped.filter((s) => s.certified).length;
-  const withDuration = mapped.filter((s) => s.durationMin != null);
-  const avgDuration =
-    withDuration.length > 0
-      ? Math.round(withDuration.reduce((sum, s) => sum + s.durationMin!, 0) / withDuration.length)
-      : 0;
-
-  return {
-    services: mapped,
-    stats: {
-      totalServices: mapped.length,
-      certifiedCount,
-      avgDuration,
-    },
-  };
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }

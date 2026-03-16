@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
-import { profiles } from "@/db/schema";
+import { profiles, clientPreferences } from "@/db/schema";
 import { trackEvent } from "@/lib/posthog";
 import { syncCampaignsSubscriber, unsubscribeFromCampaigns } from "@/lib/zoho-campaigns";
 import { createClient } from "@/utils/supabase/server";
@@ -41,9 +41,28 @@ export type ClientNotifications = {
   notifyMarketing: boolean;
 };
 
+export type ClientPreferences = {
+  preferredLashStyle: string | null;
+  preferredCurlType: string | null;
+  preferredLengths: string | null;
+  preferredDiameter: string | null;
+  naturalLashNotes: string | null;
+  retentionProfile: string | null;
+  allergies: string | null;
+  skinType: string | null;
+  adhesiveSensitivity: boolean;
+  healthNotes: string | null;
+  birthday: string | null;
+  preferredContactMethod: string | null;
+  preferredServiceTypes: string | null;
+  generalNotes: string | null;
+  preferredRebookIntervalDays: number | null;
+};
+
 export type ClientSettingsData = {
   profile: ClientProfile;
   notifications: ClientNotifications;
+  preferences: ClientPreferences | null;
 };
 
 /* ------------------------------------------------------------------ */
@@ -53,20 +72,23 @@ export type ClientSettingsData = {
 export async function getClientSettings(): Promise<ClientSettingsData> {
   const user = await getUser();
 
-  const [row] = await db
-    .select({
-      firstName: profiles.firstName,
-      lastName: profiles.lastName,
-      email: profiles.email,
-      phone: profiles.phone,
-      onboardingData: profiles.onboardingData,
-      notifySms: profiles.notifySms,
-      notifyEmail: profiles.notifyEmail,
-      notifyMarketing: profiles.notifyMarketing,
-    })
-    .from(profiles)
-    .where(eq(profiles.id, user.id))
-    .limit(1);
+  const [[row], [prefRow]] = await Promise.all([
+    db
+      .select({
+        firstName: profiles.firstName,
+        lastName: profiles.lastName,
+        email: profiles.email,
+        phone: profiles.phone,
+        onboardingData: profiles.onboardingData,
+        notifySms: profiles.notifySms,
+        notifyEmail: profiles.notifyEmail,
+        notifyMarketing: profiles.notifyMarketing,
+      })
+      .from(profiles)
+      .where(eq(profiles.id, user.id))
+      .limit(1),
+    db.select().from(clientPreferences).where(eq(clientPreferences.profileId, user.id)).limit(1),
+  ]);
 
   const onboarding = (row?.onboardingData ?? {}) as Record<string, unknown>;
 
@@ -96,6 +118,25 @@ export async function getClientSettings(): Promise<ClientSettingsData> {
       notifyEmail: row?.notifyEmail ?? true,
       notifyMarketing: row?.notifyMarketing ?? false,
     },
+    preferences: prefRow
+      ? {
+          preferredLashStyle: prefRow.preferredLashStyle,
+          preferredCurlType: prefRow.preferredCurlType,
+          preferredLengths: prefRow.preferredLengths,
+          preferredDiameter: prefRow.preferredDiameter,
+          naturalLashNotes: prefRow.naturalLashNotes,
+          retentionProfile: prefRow.retentionProfile,
+          allergies: prefRow.allergies,
+          skinType: prefRow.skinType,
+          adhesiveSensitivity: prefRow.adhesiveSensitivity,
+          healthNotes: prefRow.healthNotes,
+          birthday: prefRow.birthday,
+          preferredContactMethod: prefRow.preferredContactMethod,
+          preferredServiceTypes: prefRow.preferredServiceTypes,
+          generalNotes: prefRow.generalNotes,
+          preferredRebookIntervalDays: prefRow.preferredRebookIntervalDays,
+        }
+      : null,
   };
 }
 
@@ -214,6 +255,61 @@ export async function saveClientNotifications(prefs: ClientNotifications) {
   } else {
     unsubscribeFromCampaigns(user.id);
   }
+
+  revalidatePath(PATH);
+}
+
+/* ------------------------------------------------------------------ */
+/*  Preferences mutation                                               */
+/* ------------------------------------------------------------------ */
+
+export async function saveClientPreferences(prefs: Omit<ClientPreferences, never>): Promise<void> {
+  const user = await getUser();
+
+  const values = {
+    profileId: user.id,
+    preferredLashStyle: prefs.preferredLashStyle,
+    preferredCurlType: prefs.preferredCurlType,
+    preferredLengths: prefs.preferredLengths,
+    preferredDiameter: prefs.preferredDiameter,
+    naturalLashNotes: prefs.naturalLashNotes,
+    retentionProfile: prefs.retentionProfile,
+    allergies: prefs.allergies,
+    skinType: prefs.skinType,
+    adhesiveSensitivity: prefs.adhesiveSensitivity,
+    healthNotes: prefs.healthNotes,
+    birthday: prefs.birthday,
+    preferredContactMethod: prefs.preferredContactMethod,
+    preferredServiceTypes: prefs.preferredServiceTypes,
+    generalNotes: prefs.generalNotes,
+    preferredRebookIntervalDays: prefs.preferredRebookIntervalDays,
+  };
+
+  await db
+    .insert(clientPreferences)
+    .values(values)
+    .onConflictDoUpdate({
+      target: clientPreferences.profileId,
+      set: {
+        preferredLashStyle: values.preferredLashStyle,
+        preferredCurlType: values.preferredCurlType,
+        preferredLengths: values.preferredLengths,
+        preferredDiameter: values.preferredDiameter,
+        naturalLashNotes: values.naturalLashNotes,
+        retentionProfile: values.retentionProfile,
+        allergies: values.allergies,
+        skinType: values.skinType,
+        adhesiveSensitivity: values.adhesiveSensitivity,
+        healthNotes: values.healthNotes,
+        birthday: values.birthday,
+        preferredContactMethod: values.preferredContactMethod,
+        preferredServiceTypes: values.preferredServiceTypes,
+        generalNotes: values.generalNotes,
+        preferredRebookIntervalDays: values.preferredRebookIntervalDays,
+      },
+    });
+
+  trackEvent(user.id, "client_preferences_updated");
 
   revalidatePath(PATH);
 }

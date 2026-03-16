@@ -10,6 +10,7 @@ import { Resend } from "resend";
 import { db } from "@/db";
 import { profiles, services } from "@/db/schema";
 import { RESEND_FROM, isResendConfigured } from "@/lib/resend";
+import { verifyTurnstileToken } from "@/lib/turnstile";
 
 export async function POST(request: Request) {
   let body: unknown;
@@ -28,10 +29,16 @@ export async function POST(request: Request) {
     notes,
     referencePhotoUrls,
     preferredCadence,
+    turnstileToken,
   } = body as Record<string, string> & { referencePhotoUrls?: string[] };
 
   if (!name?.trim() || !email?.trim() || !serviceId || !preferredDate?.trim()) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+  }
+
+  const validToken = await verifyTurnstileToken(turnstileToken ?? "");
+  if (!validToken) {
+    return NextResponse.json({ error: "Bot check failed. Please try again." }, { status: 403 });
   }
 
   // Validate email format minimally

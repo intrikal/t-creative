@@ -13,6 +13,7 @@
  */
 
 import { useState, useEffect, useMemo, useRef } from "react";
+import { Turnstile } from "@marsidev/react-turnstile";
 import {
   X,
   CalendarDays,
@@ -201,6 +202,7 @@ export function BookingRequestDialog({
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState("");
+  const [turnstileToken, setTurnstileToken] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch availability + auth status on open
@@ -333,6 +335,7 @@ export function BookingRequestDialog({
             notes: notes.trim(),
             referencePhotoUrls,
             preferredCadence: cadence || undefined,
+            turnstileToken,
           }),
         });
         if (!res.ok) throw new Error("Failed to send request");
@@ -366,6 +369,7 @@ export function BookingRequestDialog({
     setGuestPhone("");
     setPhotos([]);
     setError("");
+    setTurnstileToken("");
     onClose();
   }
 
@@ -719,6 +723,15 @@ export function BookingRequestDialog({
                   )}
                 </div>
 
+                {isGuest && (
+                  <Turnstile
+                    siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY!}
+                    onSuccess={setTurnstileToken}
+                    onExpire={() => setTurnstileToken("")}
+                    options={{ theme: "light", size: "flexible" }}
+                  />
+                )}
+
                 {error && (
                   <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>
                 )}
@@ -730,7 +743,7 @@ export function BookingRequestDialog({
 
                 <button
                   type="submit"
-                  disabled={submitting}
+                  disabled={submitting || (isGuest === true && !turnstileToken)}
                   className={cn(
                     "w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold transition-colors",
                     submitting

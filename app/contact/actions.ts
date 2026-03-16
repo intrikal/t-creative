@@ -9,6 +9,7 @@
 import { db } from "@/db";
 import { inquiries } from "@/db/schema";
 import { trackEvent } from "@/lib/posthog";
+import { verifyTurnstileToken } from "@/lib/turnstile";
 
 type ServiceCategory = "lash" | "jewelry" | "crochet" | "consulting" | null;
 
@@ -30,7 +31,11 @@ export async function submitContactForm(data: {
   email: string;
   interest: string;
   message: string;
+  turnstileToken: string;
 }) {
+  const valid = await verifyTurnstileToken(data.turnstileToken);
+  if (!valid) throw new Error("Bot check failed. Please try again.");
+
   const category = interestMap[data.interest] ?? null;
 
   await db.insert(inquiries).values({

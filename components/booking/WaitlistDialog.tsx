@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { Turnstile } from "@marsidev/react-turnstile";
 import { X, Clock, Sparkles, Send } from "lucide-react";
 import { checkIsAuthenticated } from "@/app/dashboard/book/actions";
 import { cn } from "@/lib/utils";
@@ -23,6 +24,7 @@ export function WaitlistDialog({
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState("");
+  const [turnstileToken, setTurnstileToken] = useState("");
 
   useEffect(() => {
     if (!open) return;
@@ -36,6 +38,7 @@ export function WaitlistDialog({
     setDatePreference("");
     setNotes("");
     setError("");
+    setTurnstileToken("");
     onClose();
   }
 
@@ -61,6 +64,7 @@ export function WaitlistDialog({
           serviceId: service.id,
           datePreference: datePreference.trim(),
           notes: notes.trim(),
+          turnstileToken,
         }),
       });
       if (!res.ok) throw new Error("Failed to join waitlist");
@@ -162,13 +166,22 @@ export function WaitlistDialog({
                 className="w-full px-3.5 py-2.5 text-sm bg-white border border-stone-200 rounded-xl text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-amber-200 focus:border-amber-300 transition resize-none"
               />
 
+              {isGuest && (
+                <Turnstile
+                  siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY!}
+                  onSuccess={setTurnstileToken}
+                  onExpire={() => setTurnstileToken("")}
+                  options={{ theme: "light", size: "flexible" }}
+                />
+              )}
+
               {error && (
                 <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>
               )}
 
               <button
                 type="submit"
-                disabled={submitting}
+                disabled={submitting || (isGuest === true && !turnstileToken)}
                 className={cn(
                   "w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold transition-colors",
                   submitting

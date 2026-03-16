@@ -76,11 +76,31 @@ export const assistantProfiles = pgTable("assistant_profiles", {
   hourlyRateInCents: integer("hourly_rate_in_cents"),
 
   /**
+   * How commission is calculated: "percentage" (default) or "flat_fee".
+   * "percentage" uses commissionRatePercent × booking total.
+   * "flat_fee" uses commissionFlatFeeInCents per completed session.
+   */
+  commissionType: varchar("commission_type", { length: 20 }).notNull().default("percentage"),
+
+  /**
    * Commission rate as a whole-number percentage (e.g. 60 = 60%).
    * Applied to the booking total to compute the assistant's cut.
-   * Defaults to 60% if null.
+   * Used when commissionType = "percentage". Defaults to 60% if null.
    */
   commissionRatePercent: integer("commission_rate_percent"),
+
+  /**
+   * Flat fee per completed session in cents (e.g. 5000 = $50/session).
+   * Used when commissionType = "flat_fee".
+   */
+  commissionFlatFeeInCents: integer("commission_flat_fee_in_cents"),
+
+  /**
+   * Percentage of the client tip the assistant keeps (0–100).
+   * 100 = assistant keeps the full tip (default).
+   * 50 = tip is split 50/50 between assistant and house.
+   */
+  tipSplitPercent: integer("tip_split_percent").notNull().default(100),
 
   /**
    * Cached average rating (0.00–5.00) from client reviews where this

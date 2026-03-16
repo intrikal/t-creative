@@ -2,8 +2,16 @@
 
 import { revalidatePath } from "next/cache";
 import { eq, ne, sql, and, gte, lte, lt } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
-import { profiles, assistantProfiles, businessHours, bookings } from "@/db/schema";
+import {
+  profiles,
+  assistantProfiles,
+  businessHours,
+  bookings,
+  payments,
+  services,
+} from "@/db/schema";
 import { createClient as createSupabaseClient } from "@/utils/supabase/server";
 
 /* ------------------------------------------------------------------ */
@@ -23,6 +31,8 @@ async function getUser() {
 /*  Types                                                              */
 /* ------------------------------------------------------------------ */
 
+export type CommissionType = "percentage" | "flat_fee";
+
 export type AssistantRow = {
   id: string;
   firstName: string;
@@ -36,7 +46,10 @@ export type AssistantRow = {
   averageRating: string | null;
   isAvailable: boolean;
   startDate: Date | null;
+  commissionType: CommissionType;
   commissionRatePercent: number | null;
+  commissionFlatFeeInCents: number | null;
+  tipSplitPercent: number;
   totalSessions: number;
   totalRevenue: number;
   thisMonthSessions: number;
@@ -49,7 +62,10 @@ export type AssistantInput = {
   phone?: string;
   title?: string;
   specialties?: string;
+  commissionType?: CommissionType;
   commissionRate?: number;
+  commissionFlatFee?: number;
+  tipSplitPercent?: number;
 };
 
 export type AvailabilityRow = {
@@ -108,7 +124,10 @@ export async function getAssistants(): Promise<AssistantRow[]> {
       averageRating: assistantProfiles.averageRating,
       isAvailable: assistantProfiles.isAvailable,
       startDate: assistantProfiles.startDate,
+      commissionType: assistantProfiles.commissionType,
       commissionRatePercent: assistantProfiles.commissionRatePercent,
+      commissionFlatFeeInCents: assistantProfiles.commissionFlatFeeInCents,
+      tipSplitPercent: assistantProfiles.tipSplitPercent,
       totalSessions: allBookingStats.totalSessions,
       totalRevenue: allBookingStats.totalRevenue,
       thisMonthSessions: monthBookingStats.thisMonthSessions,
@@ -123,7 +142,10 @@ export async function getAssistants(): Promise<AssistantRow[]> {
   return rows.map((r) => ({
     ...r,
     isAvailable: r.isAvailable ?? true,
+    commissionType: (r.commissionType as CommissionType) ?? "percentage",
     commissionRatePercent: r.commissionRatePercent ?? null,
+    commissionFlatFeeInCents: r.commissionFlatFeeInCents ?? null,
+    tipSplitPercent: r.tipSplitPercent ?? 100,
     totalSessions: Number(r.totalSessions ?? 0),
     totalRevenue: Number(r.totalRevenue ?? 0),
     thisMonthSessions: Number(r.thisMonthSessions ?? 0),
@@ -179,7 +201,10 @@ export async function createAssistant(input: AssistantInput): Promise<void> {
     profileId: id,
     title: input.title ?? null,
     specialties: input.specialties ?? null,
+    commissionType: input.commissionType ?? "percentage",
     commissionRatePercent: input.commissionRate ?? null,
+    commissionFlatFeeInCents: input.commissionFlatFee ?? null,
+    tipSplitPercent: input.tipSplitPercent ?? 100,
     isAvailable: true,
     startDate: new Date(),
   });
@@ -213,9 +238,12 @@ export async function updateAssistant(id: string, input: AssistantInput): Promis
       .set({
         title: input.title ?? null,
         specialties: input.specialties ?? null,
-        ...(input.commissionRate !== undefined && {
-          commissionRatePercent: input.commissionRate,
+        ...(input.commissionType !== undefined && { commissionType: input.commissionType }),
+        ...(input.commissionRate !== undefined && { commissionRatePercent: input.commissionRate }),
+        ...(input.commissionFlatFee !== undefined && {
+          commissionFlatFeeInCents: input.commissionFlatFee,
         }),
+        ...(input.tipSplitPercent !== undefined && { tipSplitPercent: input.tipSplitPercent }),
       })
       .where(eq(assistantProfiles.profileId, id));
   } else {
@@ -223,7 +251,10 @@ export async function updateAssistant(id: string, input: AssistantInput): Promis
       profileId: id,
       title: input.title ?? null,
       specialties: input.specialties ?? null,
+      commissionType: input.commissionType ?? "percentage",
       commissionRatePercent: input.commissionRate ?? null,
+      commissionFlatFeeInCents: input.commissionFlatFee ?? null,
+      tipSplitPercent: input.tipSplitPercent ?? 100,
     });
   }
 
@@ -238,7 +269,6 @@ export async function toggleAssistantStatus(
 
   if (status === "inactive") {
     await db.update(profiles).set({ isActive: false }).where(eq(profiles.id, id));
-    // Also mark unavailable
     await db
       .update(assistantProfiles)
       .set({ isAvailable: false })
@@ -250,12 +280,46 @@ export async function toggleAssistantStatus(
       .set({ isAvailable: false })
       .where(eq(assistantProfiles.profileId, id));
   } else {
-    // active
     await db.update(profiles).set({ isActive: true }).where(eq(profiles.id, id));
     await db
       .update(assistantProfiles)
       .set({ isAvailable: true })
       .where(eq(assistantProfiles.profileId, id));
+  }
+
+  revalidatePath("/dashboard/assistants");
+}
+
+export async function updateCommissionSettings(
+  id: string,
+  settings: {
+    commissionType: CommissionType;
+    commissionRate?: number;
+    commissionFlatFee?: number;
+    tipSplitPercent?: number;
+  },
+): Promise<void> {
+  await getUser();
+
+  const existing = await db
+    .select({ profileId: assistantProfiles.profileId })
+    .from(assistantProfiles)
+    .where(eq(assistantProfiles.profileId, id))
+    .limit(1);
+
+  const values = {
+    commissionType: settings.commissionType,
+    commissionRatePercent:
+      settings.commissionType === "percentage" ? (settings.commissionRate ?? null) : null,
+    commissionFlatFeeInCents:
+      settings.commissionType === "flat_fee" ? (settings.commissionFlatFee ?? null) : null,
+    ...(settings.tipSplitPercent !== undefined && { tipSplitPercent: settings.tipSplitPercent }),
+  };
+
+  if (existing.length > 0) {
+    await db.update(assistantProfiles).set(values).where(eq(assistantProfiles.profileId, id));
+  } else {
+    await db.insert(assistantProfiles).values({ profileId: id, ...values });
   }
 
   revalidatePath("/dashboard/assistants");
@@ -301,14 +365,23 @@ export type CommissionRow = {
   id: string;
   name: string;
   initials: string;
+  commissionType: CommissionType;
   /** Commission rate as a whole-number percent (e.g. 60 = 60%). */
   rate: number;
+  /** Flat fee per session in cents. */
+  flatFeeInCents: number;
+  /** Tip split percentage the assistant keeps (0–100). */
+  tipSplitPercent: number;
   /** All-time completed session count. */
   sessions: number;
   /** All-time gross booking revenue in cents. */
   revenueInCents: number;
-  /** All-time earned (revenueInCents × rate). */
+  /** All-time tips received in cents (before split). */
+  totalTipsInCents: number;
+  /** All-time earned from service commission (revenueInCents × rate or sessions × flatFee). */
   earnedInCents: number;
+  /** All-time earned from tips (totalTipsInCents × tipSplitPercent / 100). */
+  tipEarnedInCents: number;
   /** Prior months earned — treated as already paid out. */
   paidOutInCents: number;
 };
@@ -317,11 +390,21 @@ export type PayrollRow = {
   id: string;
   name: string;
   role: string | null;
+  commissionType: CommissionType;
+  rate: number;
+  flatFeeInCents: number;
+  tipSplitPercent: number;
   /** Completed sessions in the current calendar month. */
   sessions: number;
   /** Gross booking revenue this month in cents. */
   revenueInCents: number;
-  /** Amount owed this month (revenueInCents × rate). */
+  /** Tips this month in cents (before split). */
+  tipsInCents: number;
+  /** Amount owed from services this month. */
+  serviceOwedInCents: number;
+  /** Amount owed from tips this month. */
+  tipOwedInCents: number;
+  /** Total owed this month (service + tips). */
   owedInCents: number;
   /** Year-to-date gross earnings in cents (for 1099 summary). */
   ytdRevenueInCents: number;
@@ -333,6 +416,19 @@ export type PayrollSummary = {
   /** Sum of owedInCents across all assistants. */
   totalOwedInCents: number;
 };
+
+function calcServiceEarned(
+  commissionType: CommissionType,
+  rate: number,
+  flatFeeInCents: number,
+  revenueInCents: number,
+  sessions: number,
+): number {
+  if (commissionType === "flat_fee") {
+    return flatFeeInCents * sessions;
+  }
+  return Math.round((revenueInCents * rate) / 100);
+}
 
 export async function getCommissionsData(): Promise<CommissionRow[]> {
   await getUser();
@@ -353,40 +449,92 @@ export async function getCommissionsData(): Promise<CommissionRow[]> {
     .groupBy(bookings.staffId)
     .as("all_time_stats");
 
+  // All-time tips per staff member (via bookings → payments join)
+  const allTimeTips = db
+    .select({
+      staffId: bookings.staffId,
+      totalTips: sql<number>`coalesce(sum(${payments.tipInCents}), 0)`.as("total_tips"),
+    })
+    .from(bookings)
+    .innerJoin(payments, eq(payments.bookingId, bookings.id))
+    .where(eq(bookings.status, "completed"))
+    .groupBy(bookings.staffId)
+    .as("all_time_tips");
+
   // Prior-month completed booking revenue per staff member (= "paid out")
   const priorStats = db
     .select({
       staffId: bookings.staffId,
       priorRevenue: sql<number>`coalesce(sum(${bookings.totalInCents}), 0)`.as("prior_revenue"),
+      priorSessions: sql<number>`count(*)`.as("prior_sessions"),
     })
     .from(bookings)
     .where(and(eq(bookings.status, "completed"), lt(bookings.startsAt, startOfThisMonth)))
     .groupBy(bookings.staffId)
     .as("prior_stats");
 
+  // Prior-month tips
+  const priorTips = db
+    .select({
+      staffId: bookings.staffId,
+      priorTips: sql<number>`coalesce(sum(${payments.tipInCents}), 0)`.as("prior_tips"),
+    })
+    .from(bookings)
+    .innerJoin(payments, eq(payments.bookingId, bookings.id))
+    .where(and(eq(bookings.status, "completed"), lt(bookings.startsAt, startOfThisMonth)))
+    .groupBy(bookings.staffId)
+    .as("prior_tips");
+
   const rows = await db
     .select({
       id: profiles.id,
       firstName: profiles.firstName,
       lastName: profiles.lastName,
+      commissionType: assistantProfiles.commissionType,
       rate: assistantProfiles.commissionRatePercent,
+      flatFeeInCents: assistantProfiles.commissionFlatFeeInCents,
+      tipSplitPercent: assistantProfiles.tipSplitPercent,
       totalSessions: allTimeStats.totalSessions,
       totalRevenue: allTimeStats.totalRevenue,
+      totalTips: allTimeTips.totalTips,
       priorRevenue: priorStats.priorRevenue,
+      priorSessions: priorStats.priorSessions,
+      priorTips: priorTips.priorTips,
     })
     .from(profiles)
     .where(ne(profiles.role, "client"))
     .leftJoin(assistantProfiles, eq(profiles.id, assistantProfiles.profileId))
     .leftJoin(allTimeStats, eq(profiles.id, allTimeStats.staffId))
+    .leftJoin(allTimeTips, eq(profiles.id, allTimeTips.staffId))
     .leftJoin(priorStats, eq(profiles.id, priorStats.staffId))
+    .leftJoin(priorTips, eq(profiles.id, priorTips.staffId))
     .orderBy(profiles.firstName);
 
   return rows.map((r) => {
+    const commissionType = (r.commissionType as CommissionType) ?? "percentage";
     const rate = r.rate ?? DEFAULT_COMMISSION_RATE;
+    const flatFeeInCents = r.flatFeeInCents ?? 0;
+    const tipSplitPercent = r.tipSplitPercent ?? 100;
+
     const totalRevenue = Number(r.totalRevenue ?? 0);
+    const totalSessions = Number(r.totalSessions ?? 0);
+    const totalTips = Number(r.totalTips ?? 0);
     const priorRevenue = Number(r.priorRevenue ?? 0);
-    const earnedInCents = Math.round((totalRevenue * rate) / 100);
-    const paidOutInCents = Math.round((priorRevenue * rate) / 100);
+    const priorSessions = Number(r.priorSessions ?? 0);
+    const priorTips = Number(r.priorTips ?? 0);
+
+    const earnedInCents = calcServiceEarned(
+      commissionType,
+      rate,
+      flatFeeInCents,
+      totalRevenue,
+      totalSessions,
+    );
+    const paidOutInCents =
+      calcServiceEarned(commissionType, rate, flatFeeInCents, priorRevenue, priorSessions) +
+      Math.round((priorTips * tipSplitPercent) / 100);
+    const tipEarnedInCents = Math.round((totalTips * tipSplitPercent) / 100);
+
     const name = [r.firstName, r.lastName].filter(Boolean).join(" ");
 
     return {
@@ -399,10 +547,15 @@ export async function getCommissionsData(): Promise<CommissionRow[]> {
         .join("")
         .slice(0, 2)
         .toUpperCase(),
+      commissionType,
       rate,
-      sessions: Number(r.totalSessions ?? 0),
+      flatFeeInCents,
+      tipSplitPercent,
+      sessions: totalSessions,
       revenueInCents: totalRevenue,
+      totalTipsInCents: totalTips,
       earnedInCents,
+      tipEarnedInCents,
       paidOutInCents,
     };
   });
@@ -437,6 +590,24 @@ export async function getPayrollData(): Promise<{
     .groupBy(bookings.staffId)
     .as("month_stats");
 
+  // This month's tips per staff
+  const monthTips = db
+    .select({
+      staffId: bookings.staffId,
+      tips: sql<number>`coalesce(sum(${payments.tipInCents}), 0)`.as("tips"),
+    })
+    .from(bookings)
+    .innerJoin(payments, eq(payments.bookingId, bookings.id))
+    .where(
+      and(
+        eq(bookings.status, "completed"),
+        gte(bookings.startsAt, startOfThisMonth),
+        lte(bookings.startsAt, endOfThisMonth),
+      ),
+    )
+    .groupBy(bookings.staffId)
+    .as("month_tips");
+
   // YTD completed booking revenue per staff (for 1099 section)
   const ytdStats = db
     .select({
@@ -454,30 +625,54 @@ export async function getPayrollData(): Promise<{
       firstName: profiles.firstName,
       lastName: profiles.lastName,
       title: assistantProfiles.title,
+      commissionType: assistantProfiles.commissionType,
       rate: assistantProfiles.commissionRatePercent,
+      flatFeeInCents: assistantProfiles.commissionFlatFeeInCents,
+      tipSplitPercent: assistantProfiles.tipSplitPercent,
       sessions: monthStats.sessions,
       revenue: monthStats.revenue,
+      tips: monthTips.tips,
       ytdRevenue: ytdStats.ytdRevenue,
     })
     .from(profiles)
     .where(ne(profiles.role, "client"))
     .leftJoin(assistantProfiles, eq(profiles.id, assistantProfiles.profileId))
     .leftJoin(monthStats, eq(profiles.id, monthStats.staffId))
+    .leftJoin(monthTips, eq(profiles.id, monthTips.staffId))
     .leftJoin(ytdStats, eq(profiles.id, ytdStats.staffId))
     .orderBy(profiles.firstName);
 
   const payrollRows: PayrollRow[] = rows.map((r) => {
+    const commissionType = (r.commissionType as CommissionType) ?? "percentage";
     const rate = r.rate ?? DEFAULT_COMMISSION_RATE;
+    const flatFeeInCents = r.flatFeeInCents ?? 0;
+    const tipSplitPercent = r.tipSplitPercent ?? 100;
+    const sessions = Number(r.sessions ?? 0);
     const revenue = Number(r.revenue ?? 0);
-    const owedInCents = Math.round((revenue * rate) / 100);
+    const tips = Number(r.tips ?? 0);
+    const serviceOwedInCents = calcServiceEarned(
+      commissionType,
+      rate,
+      flatFeeInCents,
+      revenue,
+      sessions,
+    );
+    const tipOwedInCents = Math.round((tips * tipSplitPercent) / 100);
 
     return {
       id: r.id,
       name: [r.firstName, r.lastName].filter(Boolean).join(" "),
       role: r.title ?? null,
-      sessions: Number(r.sessions ?? 0),
+      commissionType,
+      rate,
+      flatFeeInCents,
+      tipSplitPercent,
+      sessions,
       revenueInCents: revenue,
-      owedInCents,
+      tipsInCents: tips,
+      serviceOwedInCents,
+      tipOwedInCents,
+      owedInCents: serviceOwedInCents + tipOwedInCents,
       ytdRevenueInCents: Number(r.ytdRevenue ?? 0),
     };
   });
@@ -487,4 +682,165 @@ export async function getPayrollData(): Promise<{
   const periodLabel = `${startOfThisMonth.toLocaleDateString("en-US", { month: "short", day: "numeric" })} – ${endOfThisMonth.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
 
   return { rows: payrollRows, summary: { periodLabel, totalOwedInCents } };
+}
+
+/* ------------------------------------------------------------------ */
+/*  Pay Stub                                                           */
+/* ------------------------------------------------------------------ */
+
+export type PayStubEntry = {
+  bookingId: number;
+  date: string;
+  service: string;
+  client: string;
+  grossInCents: number;
+  tipInCents: number;
+  serviceEarnedInCents: number;
+  tipEarnedInCents: number;
+  totalEarnedInCents: number;
+};
+
+export type PayStubData = {
+  assistantName: string;
+  role: string | null;
+  periodLabel: string;
+  commissionType: CommissionType;
+  rate: number;
+  flatFeeInCents: number;
+  tipSplitPercent: number;
+  entries: PayStubEntry[];
+  totals: {
+    sessions: number;
+    grossInCents: number;
+    tipsInCents: number;
+    serviceEarnedInCents: number;
+    tipEarnedInCents: number;
+    totalEarnedInCents: number;
+  };
+};
+
+export async function generatePayStub(
+  assistantId: string,
+  month: number,
+  year: number,
+): Promise<PayStubData> {
+  await getUser();
+
+  const startOfPeriod = new Date(year, month - 1, 1);
+  const endOfPeriod = new Date(year, month, 0, 23, 59, 59, 999);
+
+  // Get assistant info + commission settings
+  const [profileRow] = await db
+    .select({
+      firstName: profiles.firstName,
+      lastName: profiles.lastName,
+      title: assistantProfiles.title,
+      commissionType: assistantProfiles.commissionType,
+      rate: assistantProfiles.commissionRatePercent,
+      flatFeeInCents: assistantProfiles.commissionFlatFeeInCents,
+      tipSplitPercent: assistantProfiles.tipSplitPercent,
+    })
+    .from(profiles)
+    .leftJoin(assistantProfiles, eq(profiles.id, assistantProfiles.profileId))
+    .where(eq(profiles.id, assistantId))
+    .limit(1);
+
+  if (!profileRow) throw new Error("Assistant not found");
+
+  const commissionType = (profileRow.commissionType as CommissionType) ?? "percentage";
+  const rate = profileRow.rate ?? DEFAULT_COMMISSION_RATE;
+  const flatFeeInCents = profileRow.flatFeeInCents ?? 0;
+  const tipSplitPercent = profileRow.tipSplitPercent ?? 100;
+
+  // Get all completed bookings in the period for this assistant
+  const clientProfile = alias(profiles, "client");
+
+  const bookingRows = await db
+    .select({
+      id: bookings.id,
+      startsAt: bookings.startsAt,
+      totalInCents: bookings.totalInCents,
+      serviceName: services.name,
+      clientFirstName: clientProfile.firstName,
+      clientLastName: clientProfile.lastName,
+      tipInCents: sql<number>`coalesce(sum(${payments.tipInCents}), 0)`.as("tip_in_cents"),
+    })
+    .from(bookings)
+    .innerJoin(services, eq(bookings.serviceId, services.id))
+    .innerJoin(clientProfile, eq(bookings.clientId, clientProfile.id))
+    .leftJoin(payments, eq(payments.bookingId, bookings.id))
+    .where(
+      and(
+        eq(bookings.staffId, assistantId),
+        eq(bookings.status, "completed"),
+        gte(bookings.startsAt, startOfPeriod),
+        lte(bookings.startsAt, endOfPeriod),
+      ),
+    )
+    .groupBy(
+      bookings.id,
+      bookings.startsAt,
+      bookings.totalInCents,
+      services.name,
+      clientProfile.firstName,
+      clientProfile.lastName,
+    )
+    .orderBy(bookings.startsAt);
+
+  const entries: PayStubEntry[] = bookingRows.map((r, i) => {
+    const gross = r.totalInCents;
+    const tip = Number(r.tipInCents ?? 0);
+    const serviceEarned = calcServiceEarned(commissionType, rate, flatFeeInCents, gross, 1);
+    const tipEarned = Math.round((tip * tipSplitPercent) / 100);
+    const first = r.clientFirstName ?? "";
+    const last = r.clientLastName ?? "";
+
+    return {
+      bookingId: r.id,
+      date: new Date(r.startsAt).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+      }),
+      service: r.serviceName,
+      client: `${first} ${last.charAt(0)}.`.trim(),
+      grossInCents: gross,
+      tipInCents: tip,
+      serviceEarnedInCents: serviceEarned,
+      tipEarnedInCents: tipEarned,
+      totalEarnedInCents: serviceEarned + tipEarned,
+    };
+  });
+
+  const totals = entries.reduce(
+    (acc, e) => ({
+      sessions: acc.sessions + 1,
+      grossInCents: acc.grossInCents + e.grossInCents,
+      tipsInCents: acc.tipsInCents + e.tipInCents,
+      serviceEarnedInCents: acc.serviceEarnedInCents + e.serviceEarnedInCents,
+      tipEarnedInCents: acc.tipEarnedInCents + e.tipEarnedInCents,
+      totalEarnedInCents: acc.totalEarnedInCents + e.totalEarnedInCents,
+    }),
+    {
+      sessions: 0,
+      grossInCents: 0,
+      tipsInCents: 0,
+      serviceEarnedInCents: 0,
+      tipEarnedInCents: 0,
+      totalEarnedInCents: 0,
+    },
+  );
+
+  const periodLabel = `${startOfPeriod.toLocaleDateString("en-US", { month: "long", year: "numeric" })}`;
+
+  return {
+    assistantName: [profileRow.firstName, profileRow.lastName].filter(Boolean).join(" "),
+    role: profileRow.title ?? null,
+    periodLabel,
+    commissionType,
+    rate,
+    flatFeeInCents,
+    tipSplitPercent,
+    entries,
+    totals,
+  };
 }

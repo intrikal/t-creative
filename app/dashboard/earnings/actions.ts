@@ -3,7 +3,7 @@
 import { eq, sql, desc, and, gte, lte } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
-import { bookings, profiles, services, assistantProfiles } from "@/db/schema";
+import { bookings, profiles, services, assistantProfiles, payments } from "@/db/schema";
 import { createClient } from "@/utils/supabase/server";
 
 /* ------------------------------------------------------------------ */
@@ -31,8 +31,12 @@ export type EarningEntry = {
   client: string;
   clientInitials: string;
   gross: number;
+  tip: number;
   commissionRate: number;
+  tipSplitPercent: number;
   net: number;
+  tipNet: number;
+  totalNet: number;
   status: "paid" | "pending";
 };
 
@@ -45,10 +49,14 @@ export type WeeklyBar = {
 export type EarningsData = {
   entries: EarningEntry[];
   weeklyBars: WeeklyBar[];
+  commissionType: "percentage" | "flat_fee";
   commissionRate: number;
+  flatFeeInCents: number;
+  tipSplitPercent: number;
   stats: {
     weekNet: number;
     weekGross: number;
+    weekTips: number;
     pendingTotal: number;
     monthNet: number;
   };
@@ -116,20 +124,34 @@ export async function getAssistantEarnings(): Promise<EarningsData> {
   const weekEnd = endOfWeek(now);
   const monthStart = startOfMonth(now);
 
-  // Get assistant's commission rate
+  // Get assistant's commission settings
+  let commissionType: "percentage" | "flat_fee" = "percentage";
   let commissionRate = DEFAULT_COMMISSION;
+  let flatFeeInCents = 0;
+  let tipSplitPercent = 100;
+
   try {
     const [assistantProfile] = await db
-      .select({ commissionRatePercent: assistantProfiles.commissionRatePercent })
+      .select({
+        commissionType: assistantProfiles.commissionType,
+        commissionRatePercent: assistantProfiles.commissionRatePercent,
+        commissionFlatFeeInCents: assistantProfiles.commissionFlatFeeInCents,
+        tipSplitPercent: assistantProfiles.tipSplitPercent,
+      })
       .from(assistantProfiles)
       .where(eq(assistantProfiles.profileId, user.id))
       .limit(1);
+
+    commissionType =
+      (assistantProfile?.commissionType as "percentage" | "flat_fee") ?? "percentage";
     commissionRate = assistantProfile?.commissionRatePercent ?? DEFAULT_COMMISSION;
+    flatFeeInCents = assistantProfile?.commissionFlatFeeInCents ?? 0;
+    tipSplitPercent = assistantProfile?.tipSplitPercent ?? 100;
   } catch {
-    // Column may not exist yet — use default
+    // Column may not exist yet — use defaults
   }
 
-  // Get all completed bookings for this assistant
+  // Get all completed bookings for this assistant, with tips aggregated per booking
   const clientProfile = alias(profiles, "client");
 
   const rows = await db
@@ -141,18 +163,39 @@ export async function getAssistantEarnings(): Promise<EarningsData> {
       clientFirstName: clientProfile.firstName,
       clientLastName: clientProfile.lastName,
       serviceName: services.name,
+      tipInCents: sql<number>`coalesce(sum(${payments.tipInCents}), 0)`.as("tip_in_cents"),
     })
     .from(bookings)
     .innerJoin(clientProfile, eq(bookings.clientId, clientProfile.id))
     .innerJoin(services, eq(bookings.serviceId, services.id))
+    .leftJoin(payments, eq(payments.bookingId, bookings.id))
     .where(and(eq(bookings.staffId, user.id), eq(bookings.status, "completed")))
+    .groupBy(
+      bookings.id,
+      bookings.startsAt,
+      bookings.totalInCents,
+      bookings.completedAt,
+      clientProfile.firstName,
+      clientProfile.lastName,
+      services.name,
+    )
     .orderBy(desc(bookings.startsAt));
 
   // Map to earning entries
   const entries: EarningEntry[] = rows.map((r) => {
     const d = new Date(r.startsAt);
     const gross = r.totalInCents / 100;
-    const net = Math.round(gross * (commissionRate / 100) * 100) / 100;
+    const tip = Number(r.tipInCents ?? 0) / 100;
+
+    let net: number;
+    if (commissionType === "flat_fee") {
+      net = flatFeeInCents / 100;
+    } else {
+      net = Math.round(gross * (commissionRate / 100) * 100) / 100;
+    }
+    const tipNet = Math.round(tip * (tipSplitPercent / 100) * 100) / 100;
+    const totalNet = Math.round((net + tipNet) * 100) / 100;
+
     const firstName = r.clientFirstName ?? "";
     const lastName = r.clientLastName ?? "";
 
@@ -171,8 +214,12 @@ export async function getAssistantEarnings(): Promise<EarningsData> {
       client: `${firstName} ${lastName.charAt(0)}.`.trim(),
       clientInitials: getInitials(firstName, lastName),
       gross,
+      tip,
       commissionRate,
+      tipSplitPercent,
       net,
+      tipNet,
+      totalNet,
       status,
     };
   });
@@ -188,10 +235,11 @@ export async function getAssistantEarnings(): Promise<EarningsData> {
   });
   const pendingEntries = entries.filter((e) => e.status === "pending");
 
-  const weekNet = weekEntries.reduce((s, e) => s + e.net, 0);
+  const weekNet = weekEntries.reduce((s, e) => s + e.totalNet, 0);
   const weekGross = weekEntries.reduce((s, e) => s + e.gross, 0);
-  const pendingTotal = pendingEntries.reduce((s, e) => s + e.net, 0);
-  const monthNet = monthEntries.reduce((s, e) => s + e.net, 0);
+  const weekTips = weekEntries.reduce((s, e) => s + e.tip, 0);
+  const pendingTotal = pendingEntries.reduce((s, e) => s + e.totalNet, 0);
+  const monthNet = monthEntries.reduce((s, e) => s + e.totalNet, 0);
 
   // Build weekly bars (Mon–Sun)
   const weeklyBars: WeeklyBar[] = [];
@@ -199,7 +247,7 @@ export async function getAssistantEarnings(): Promise<EarningsData> {
     const day = new Date(weekStart);
     day.setDate(weekStart.getDate() + i);
     const key = formatDateKey(day);
-    const dayTotal = weekEntries.filter((e) => e.date === key).reduce((s, e) => s + e.net, 0);
+    const dayTotal = weekEntries.filter((e) => e.date === key).reduce((s, e) => s + e.totalNet, 0);
     weeklyBars.push({
       label: formatShortDay(day),
       dayNum: String(day.getDate()),
@@ -212,10 +260,14 @@ export async function getAssistantEarnings(): Promise<EarningsData> {
   return {
     entries,
     weeklyBars,
+    commissionType,
     commissionRate,
+    flatFeeInCents,
+    tipSplitPercent,
     stats: {
       weekNet: Math.round(weekNet * 100) / 100,
       weekGross: Math.round(weekGross * 100) / 100,
+      weekTips: Math.round(weekTips * 100) / 100,
       pendingTotal: Math.round(pendingTotal * 100) / 100,
       monthNet: Math.round(monthNet * 100) / 100,
     },

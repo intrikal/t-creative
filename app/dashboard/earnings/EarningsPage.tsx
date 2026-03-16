@@ -13,7 +13,16 @@ export function AssistantEarningsPage({ data }: { data: EarningsData }) {
   const [period, setPeriod] = useState<Period>("week");
   const [hoveredBar, setHoveredBar] = useState<string | null>(null);
 
-  const { entries, weeklyBars, commissionRate, stats, weekLabel } = data;
+  const {
+    entries,
+    weeklyBars,
+    commissionType,
+    commissionRate,
+    flatFeeInCents,
+    tipSplitPercent,
+    stats,
+    weekLabel,
+  } = data;
 
   // Filter entries by period
   const now = new Date();
@@ -41,7 +50,9 @@ export function AssistantEarningsPage({ data }: { data: EarningsData }) {
       <div>
         <h1 className="text-xl font-semibold text-foreground tracking-tight">Earnings</h1>
         <p className="text-sm text-muted mt-0.5">
-          Your commission breakdown — {commissionRate}% of service price
+          {commissionType === "flat_fee"
+            ? `$${Math.round(flatFeeInCents / 100)}/session flat fee · ${tipSplitPercent}% of tips`
+            : `${commissionRate}% commission · ${tipSplitPercent}% of tips`}
         </p>
       </div>
 
@@ -58,6 +69,7 @@ export function AssistantEarningsPage({ data }: { data: EarningsData }) {
           {
             label: "This Week (Gross)",
             value: `$${stats.weekGross.toLocaleString()}`,
+            sub: stats.weekTips > 0 ? `+$${stats.weekTips.toLocaleString()} tips` : undefined,
             icon: DollarSign,
             iconColor: "text-blush",
             iconBg: "bg-blush/10",
@@ -221,8 +233,10 @@ export function AssistantEarningsPage({ data }: { data: EarningsData }) {
                       <span className="text-xs text-muted">${e.gross}</span>
                     </td>
                     <td className="px-4 py-3 text-right align-middle">
-                      <span className="text-sm font-semibold text-foreground">${e.net}</span>
-                      <span className="text-[10px] text-muted ml-1">({e.commissionRate}%)</span>
+                      <span className="text-sm font-semibold text-foreground">${e.totalNet}</span>
+                      {e.tipNet > 0 && (
+                        <p className="text-[10px] text-muted mt-0.5">+${e.tipNet} tip</p>
+                      )}
                     </td>
                     <td className="px-5 py-3 text-center align-middle">
                       <Badge

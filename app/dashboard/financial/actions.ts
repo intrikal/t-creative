@@ -31,21 +31,14 @@ import {
 import { GiftCardDelivery } from "@/emails/GiftCardDelivery";
 import { GiftCardPurchase } from "@/emails/GiftCardPurchase";
 import { logAction } from "@/lib/audit";
+import { requireAdmin } from "@/lib/auth";
 import { getEmailRecipient, sendEmail } from "@/lib/resend";
-import { createClient } from "@/utils/supabase/server";
 
 /* ------------------------------------------------------------------ */
 /*  Auth guard                                                         */
 /* ------------------------------------------------------------------ */
 
-async function getUser() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
-  return user;
-}
+const getUser = requireAdmin;
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */

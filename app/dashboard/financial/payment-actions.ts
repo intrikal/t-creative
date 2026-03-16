@@ -24,26 +24,19 @@ import { payments, bookings, services, profiles, syncLog } from "@/db/schema";
 import { PaymentLinkEmail } from "@/emails/PaymentLinkEmail";
 import { RefundNotification } from "@/emails/RefundNotification";
 import { logAction } from "@/lib/audit";
+import { requireAdmin } from "@/lib/auth";
 import { sendEmail, getEmailRecipient } from "@/lib/resend";
 import {
   squareClient,
   isSquareConfigured,
   createSquarePaymentLink as squareCreatePaymentLink,
 } from "@/lib/square";
-import { createClient } from "@/utils/supabase/server";
 
 /* ------------------------------------------------------------------ */
 /*  Auth guard                                                         */
 /* ------------------------------------------------------------------ */
 
-async function getUser() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
-  return user;
-}
+const getUser = requireAdmin;
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */

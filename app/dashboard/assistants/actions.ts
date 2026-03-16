@@ -12,20 +12,13 @@ import {
   payments,
   services,
 } from "@/db/schema";
-import { createClient as createSupabaseClient } from "@/utils/supabase/server";
+import { requireAdmin } from "@/lib/auth";
 
 /* ------------------------------------------------------------------ */
 /*  Auth guard                                                         */
 /* ------------------------------------------------------------------ */
 
-async function getUser() {
-  const supabase = await createSupabaseClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
-  return user;
-}
+const getUser = requireAdmin;
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */

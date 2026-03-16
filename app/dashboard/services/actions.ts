@@ -29,8 +29,8 @@ import { eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { bookings, services } from "@/db/schema";
 import { logAction } from "@/lib/audit";
+import { requireAdmin } from "@/lib/auth";
 import { trackEvent } from "@/lib/posthog";
-import { createClient } from "@/utils/supabase/server";
 
 /* ------------------------------------------------------------------ */
 /*  Full service catalog — Trini's real menu                          */
@@ -373,14 +373,7 @@ export type ServiceInput = {
   isActive: boolean;
 };
 
-async function getUser() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
-  return user;
-}
+const getUser = requireAdmin;
 
 export async function getServices(): Promise<ServiceRow[]> {
   await getUser();

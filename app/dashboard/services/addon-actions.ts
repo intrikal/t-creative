@@ -21,8 +21,8 @@ import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { serviceAddOns } from "@/db/schema";
+import { requireAdmin } from "@/lib/auth";
 import { trackEvent } from "@/lib/posthog";
-import { createClient } from "@/utils/supabase/server";
 
 export type AddOnRow = typeof serviceAddOns.$inferSelect;
 
@@ -33,14 +33,7 @@ export type AddOnInput = {
   additionalMinutes: number;
 };
 
-async function getUser() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
-  return user;
-}
+const getUser = requireAdmin;
 
 export async function getAddOns(serviceId: number): Promise<AddOnRow[]> {
   await getUser();

@@ -18,15 +18,15 @@
  *  3. The operation is admin-only and not on the hot path.
  *
  * ## Auth guard
- * All exports call `getUser()` first. Unauthenticated callers receive a thrown error
- * (Next.js converts this to a 401 on the RSC boundary).
+ * All exports call `requireAdmin()` first. Unauthenticated callers receive "Not authenticated"
+ * and non-admin callers receive "Forbidden" (Next.js converts these to errors on the RSC boundary).
  */
 
 import { revalidatePath } from "next/cache";
 import { eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import { businessHours, timeOff, settings } from "@/db/schema";
-import { createClient } from "@/utils/supabase/server";
+import { requireAdmin } from "@/lib/auth";
 
 /* ------------------------------------------------------------------ */
 /*  Exported types                                                     */
@@ -74,14 +74,7 @@ export interface TimeOffInput {
 /*  Auth helper                                                        */
 /* ------------------------------------------------------------------ */
 
-async function getUser() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
-  return user;
-}
+const getUser = requireAdmin;
 
 /* ------------------------------------------------------------------ */
 /*  Default schedule used when no rows exist yet                      */

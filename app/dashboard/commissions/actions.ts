@@ -55,6 +55,10 @@ export type SubmitCommissionInput = {
     deadline?: string;
     budgetRange?: string;
     referenceNotes?: string;
+    /** Public URLs of uploaded reference images. */
+    referenceUrls?: string[];
+    /** Public URLs of uploaded 3D design files (.stl, .obj, .3mf, etc.). */
+    designUrls?: string[];
   };
 };
 
@@ -224,4 +228,66 @@ export async function declineQuote(orderId: number): Promise<void> {
 
   trackEvent(user.id, "commission_quote_declined", { orderId });
   revalidatePath("/dashboard/shop");
+}
+
+/* ------------------------------------------------------------------ */
+/*  File uploads                                                       */
+/* ------------------------------------------------------------------ */
+
+const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"];
+const DESIGN_EXTENSIONS = new Set(["stl", "obj", "3mf", "step", "stp", "amf"]);
+
+/**
+ * Uploads a single reference image or 3D design file for a commission request.
+ *
+ * Images: JPEG, PNG, WebP, HEIC/HEIF — max 8 MB.
+ * Design files: STL, OBJ, 3MF, STEP, AMF — max 50 MB.
+ *
+ * Storage path: commission-designs/{userId}/{timestamp}-{safeName}.{ext}
+ * Returns the public CDN URL, original filename, and whether it's a design file.
+ */
+export async function uploadCommissionFile(
+  formData: FormData,
+): Promise<{ url: string; filename: string; isDesignFile: boolean }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
+  const file = formData.get("file") as File | null;
+  if (!file) throw new Error("No file provided");
+
+  const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
+  const isDesignFile = DESIGN_EXTENSIONS.has(ext);
+  const isImage = ALLOWED_IMAGE_TYPES.includes(file.type);
+
+  if (!isImage && !isDesignFile) {
+    throw new Error(
+      "Unsupported file type. Upload images (JPEG, PNG, WebP) or design files (STL, OBJ, 3MF, STEP).",
+    );
+  }
+
+  const maxBytes = isDesignFile ? 50 * 1024 * 1024 : 8 * 1024 * 1024;
+  if (file.size > maxBytes) {
+    throw new Error(`File too large (max ${isDesignFile ? "50 MB" : "8 MB"})`);
+  }
+
+  const safeName = file.name
+    .replace(/\.[^.]+$/, "")
+    .replace(/[^a-zA-Z0-9_-]/g, "_")
+    .slice(0, 40);
+  const path = `commission-designs/${user.id}/${Date.now()}-${safeName}.${ext}`;
+
+  const { error } = await supabase.storage.from("media").upload(path, file, {
+    contentType: file.type || "application/octet-stream",
+    upsert: false,
+  });
+  if (error) throw new Error(`Upload failed: ${error.message}`);
+
+  const {
+    data: { publicUrl },
+  } = supabase.storage.from("media").getPublicUrl(path);
+
+  return { url: publicUrl, filename: file.name, isDesignFile };
 }

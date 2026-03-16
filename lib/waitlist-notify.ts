@@ -21,7 +21,7 @@ import { randomUUID } from "crypto";
 import { format } from "date-fns";
 import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { bookings, profiles, services, waitlist } from "@/db/schema";
+import { bookings, notifications, profiles, services, waitlist } from "@/db/schema";
 import { WaitlistNotification } from "@/emails/WaitlistNotification";
 import { sendEmail } from "@/lib/resend";
 
@@ -78,6 +78,7 @@ export async function notifyNextWaitlistEntry({
   const [entry] = await db
     .select({
       id: waitlist.id,
+      clientId: waitlist.clientId,
       clientEmail: profiles.email,
       clientFirstName: profiles.firstName,
       notifyEmail: profiles.notifyEmail,
@@ -123,4 +124,19 @@ export async function notifyNextWaitlistEntry({
     entityType: "waitlist_notification",
     localId: String(entry.id),
   });
+
+  try {
+    await db.insert(notifications).values({
+      profileId: entry.clientId,
+      type: "waitlist_alert",
+      channel: "internal",
+      status: "delivered",
+      title: `A ${entry.serviceName} spot opened up`,
+      body: `Slot available: ${slotDate}. Claim it before it expires.`,
+      relatedEntityType: "waitlist",
+      relatedEntityId: entry.id,
+    });
+  } catch {
+    // Non-fatal
+  }
 }

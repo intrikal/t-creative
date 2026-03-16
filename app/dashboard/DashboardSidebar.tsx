@@ -26,6 +26,7 @@ import {
   Receipt,
   Images,
   Gift,
+  Bell,
   LogOut,
   Menu,
   X,
@@ -62,6 +63,7 @@ const ADMIN_NAV_GROUPS: NavGroup[] = [
       { href: "/dashboard/subscriptions", label: "Subscriptions", icon: PackageCheck },
       { href: "/dashboard/memberships", label: "Memberships", icon: ShieldCheck },
       { href: "/dashboard/messages", label: "Messages", icon: MessageSquare },
+      { href: "/dashboard/notifications", label: "Notifications", icon: Bell },
     ],
   },
   {
@@ -110,6 +112,7 @@ const ASSISTANT_NAV_GROUPS: NavGroup[] = [
       { href: "/dashboard/schedule", label: "Schedule", icon: CalendarRange },
       { href: "/dashboard/bookings", label: "Bookings", icon: CalendarCheck },
       { href: "/dashboard/messages", label: "Messages", icon: MessageSquare },
+      { href: "/dashboard/notifications", label: "Notifications", icon: Bell },
     ],
   },
   {
@@ -150,6 +153,7 @@ const CLIENT_NAV_GROUPS: NavGroup[] = [
       { href: "/dashboard/loyalty", label: "Loyalty & Rewards", icon: Gift },
       { href: "/dashboard/invoices", label: "Invoices", icon: Receipt },
       { href: "/dashboard/messages", label: "Messages", icon: MessageSquare },
+      { href: "/dashboard/notifications", label: "Notifications", icon: Bell },
     ],
   },
   {

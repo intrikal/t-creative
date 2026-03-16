@@ -903,11 +903,35 @@ async function tryAutoSendDepositLink(bookingId: number): Promise<void> {
 /*  Booking confirmation email (non-fatal)                             */
 /* ------------------------------------------------------------------ */
 
+async function tryFireInternalNotification(params: {
+  profileId: string;
+  type: string;
+  title: string;
+  body?: string;
+  relatedEntityId?: number;
+}): Promise<void> {
+  try {
+    await db.insert(notifications).values({
+      profileId: params.profileId,
+      type: params.type as (typeof notifications.type)["_"]["data"],
+      channel: "internal",
+      status: "delivered",
+      title: params.title,
+      body: params.body ?? null,
+      relatedEntityType: "booking",
+      relatedEntityId: params.relatedEntityId ?? null,
+    });
+  } catch {
+    // Non-fatal
+  }
+}
+
 async function trySendBookingConfirmation(bookingId: number): Promise<void> {
   try {
     const confirmClient = alias(profiles, "confirmClient");
     const [row] = await db
       .select({
+        clientId: bookings.clientId,
         clientEmail: confirmClient.email,
         clientPhone: confirmClient.phone,
         clientFirstName: confirmClient.firstName,
@@ -958,6 +982,14 @@ async function trySendBookingConfirmation(bookingId: number): Promise<void> {
         localId: String(bookingId),
       });
     }
+
+    await tryFireInternalNotification({
+      profileId: row.clientId,
+      type: "booking_confirmation",
+      title: `${row.serviceName} confirmed`,
+      body: `Your appointment is confirmed for ${startsAtFormatted}.`,
+      relatedEntityId: bookingId,
+    });
   } catch {
     // Non-fatal — booking confirmation notifications shouldn't break the flow
   }
@@ -976,6 +1008,7 @@ async function trySendBookingStatusEmail(
     const statusClient = alias(profiles, "statusClient");
     const [row] = await db
       .select({
+        clientId: bookings.clientId,
         clientEmail: statusClient.email,
         clientFirstName: statusClient.firstName,
         notifyEmail: statusClient.notifyEmail,
@@ -1011,6 +1044,13 @@ async function trySendBookingStatusEmail(
         entityType: "booking_cancellation",
         localId: String(bookingId),
       });
+      await tryFireInternalNotification({
+        profileId: row.clientId,
+        type: "booking_cancellation",
+        title: `${row.serviceName} booking cancelled`,
+        body: cancellationReason ? `Reason: ${cancellationReason}` : undefined,
+        relatedEntityId: bookingId,
+      });
     } else if (status === "completed") {
       await sendEmail({
         to: row.clientEmail,
@@ -1021,6 +1061,13 @@ async function trySendBookingStatusEmail(
         }),
         entityType: "booking_completed",
         localId: String(bookingId),
+      });
+      await tryFireInternalNotification({
+        profileId: row.clientId,
+        type: "general",
+        title: `Thanks for visiting — ${row.serviceName}`,
+        body: `We hope to see you again soon!`,
+        relatedEntityId: bookingId,
       });
     } else if (status === "no_show") {
       await sendEmail({

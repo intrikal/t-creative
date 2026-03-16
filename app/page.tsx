@@ -37,27 +37,106 @@ import { Testimonials } from "@/components/landing/Testimonials";
 import { TrainingTeaser } from "@/components/landing/TrainingTeaser";
 import { TrustBar } from "@/components/landing/TrustBar";
 
+const BASE_URL = "https://tcreativestudio.com";
+
+const eventServicesJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "ItemList",
+  name: "T Creative Studio Event Services",
+  url: `${BASE_URL}/#events`,
+  itemListElement: [
+    {
+      "@type": "ListItem",
+      position: 1,
+      item: {
+        "@type": "Service",
+        name: "Private Lash Parties",
+        description:
+          "Book the studio for you and your group. Everyone gets lashed while you celebrate — birthdays, bachelorettes, girls' night.",
+        serviceType: "Private Event",
+        provider: { "@type": "LocalBusiness", name: "T Creative Studio", url: BASE_URL },
+        areaServed: {
+          "@type": "City",
+          name: "San Jose",
+          containedInPlace: { "@type": "State", name: "California" },
+        },
+        audience: { "@type": "Audience", audienceType: "Groups up to 6 guests" },
+      },
+    },
+    {
+      "@type": "ListItem",
+      position: 2,
+      item: {
+        "@type": "Service",
+        name: "Pop-Up Events",
+        description:
+          "Permanent jewelry welding at your venue, market, or storefront. Full setup provided — we bring the studio to you.",
+        serviceType: "Pop-Up Event",
+        provider: { "@type": "LocalBusiness", name: "T Creative Studio", url: BASE_URL },
+        areaServed: { "@type": "State", name: "California" },
+      },
+    },
+    {
+      "@type": "ListItem",
+      position: 3,
+      item: {
+        "@type": "Service",
+        name: "Bridal & Wedding Services",
+        description:
+          "Day-of lash services and permanent jewelry for the bridal party. Coordinated scheduling so everyone is ready on time.",
+        serviceType: "Bridal Event",
+        provider: { "@type": "LocalBusiness", name: "T Creative Studio", url: BASE_URL },
+        areaServed: {
+          "@type": "City",
+          name: "San Jose",
+          containedInPlace: { "@type": "State", name: "California" },
+        },
+      },
+    },
+    {
+      "@type": "ListItem",
+      position: 4,
+      item: {
+        "@type": "Service",
+        name: "Corporate & Team Events",
+        description:
+          "Team bonding with permanent jewelry or beauty services. Great for offsites, retreats, and company milestones.",
+        serviceType: "Corporate Event",
+        provider: { "@type": "LocalBusiness", name: "T Creative Studio", url: BASE_URL },
+        audience: { "@type": "Audience", audienceType: "Groups of 10 or more" },
+        areaServed: { "@type": "State", name: "California" },
+      },
+    },
+  ],
+};
+
 export default function Home() {
   return (
-    <main id="main-content">
-      <Hero />
-      <TrustBar />
-      <Services />
-      <HowItWorks />
-      <StudioDiorama />
-      <Stats />
-      <EditorialPortfolio />
-      <Events />
-      <TrainingTeaser />
-      <FeaturedProducts />
-      <Testimonials />
-      <FAQ />
-      <CallToAction />
-      <Footer />
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(eventServicesJsonLd) }}
+      />
+      <main id="main-content">
+        <Hero />
+        <TrustBar />
+        <Services />
+        <HowItWorks />
+        <StudioDiorama />
+        <Stats />
+        <EditorialPortfolio />
+        <Events />
+        <TrainingTeaser />
+        <FeaturedProducts />
+        <Testimonials />
+        <FAQ />
+        <CallToAction />
+        <Footer />
 
-      {/* Sticky mobile booking CTA */}
-      <StickyMobileCTA />
-      <ChatWidgetLoader />
-    </main>
+        {/* Sticky mobile booking CTA */}
+        <StickyMobileCTA />
+        <ChatWidgetLoader />
+      </main>
+    </>
   );
 }

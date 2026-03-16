@@ -190,6 +190,17 @@ export const events = pgTable(
     /** Point of contact phone number. */
     contactPhone: varchar("contact_phone", { length: 30 }),
 
+    /* ------ Corporate event fields ------ */
+
+    /** Company name for corporate events. */
+    companyName: varchar("company_name", { length: 200 }),
+
+    /** Billing email for invoices and PO-based payments. */
+    billingEmail: varchar("billing_email", { length: 200 }),
+
+    /** Purchase order number for corporate billing. */
+    poNumber: varchar("po_number", { length: 100 }),
+
     /* ------ Services & details ------ */
 
     /**

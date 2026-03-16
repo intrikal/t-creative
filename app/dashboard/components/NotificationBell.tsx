@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useEffect, useRef, useTransition } from "react";
+import Link from "next/link";
 import { Bell } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { InboxItem } from "../notification-inbox";
-import { getInboxSummary, markAllInboxRead } from "../notification-inbox";
+import { getInboxSummary, markAllInboxRead, markOneRead } from "../notification-inbox";
 
 const TYPE_LABELS: Record<string, string> = {
   booking_reminder: "Booking Reminder",
@@ -67,6 +68,16 @@ export function NotificationBell() {
     });
   }
 
+  function handleMarkOneRead(id: number) {
+    startTransition(async () => {
+      await markOneRead(id);
+      setItems((prev) =>
+        prev.map((i) => (i.id === id ? { ...i, readAt: new Date().toISOString() } : i)),
+      );
+      setUnreadCount((c) => Math.max(0, c - 1));
+    });
+  }
+
   if (items.length === 0 && unreadCount === 0 && !isPending) return null;
 
   return (
@@ -101,7 +112,7 @@ export function NotificationBell() {
           </div>
 
           {/* Items */}
-          <div className="max-h-72 overflow-y-auto">
+          <div className="max-h-64 overflow-y-auto">
             {items.length === 0 ? (
               <p className="px-3 py-4 text-xs text-muted text-center">No notifications yet</p>
             ) : (
@@ -126,12 +137,30 @@ export function NotificationBell() {
                       </p>
                     </div>
                     {item.readAt === null && (
-                      <div className="w-1.5 h-1.5 rounded-full bg-accent shrink-0 mt-1" />
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleMarkOneRead(item.id);
+                        }}
+                        title="Mark as read"
+                        className="w-1.5 h-1.5 rounded-full bg-accent shrink-0 mt-1 hover:scale-125 transition-transform"
+                      />
                     )}
                   </div>
                 </div>
               ))
             )}
+          </div>
+
+          {/* Footer */}
+          <div className="px-3 py-2 border-t border-border/50">
+            <Link
+              href="/dashboard/notifications"
+              onClick={() => setOpen(false)}
+              className="text-[10px] text-accent hover:underline"
+            >
+              View all notifications
+            </Link>
           </div>
         </div>
       )}

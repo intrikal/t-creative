@@ -13,6 +13,7 @@
  */
 
 import { NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import { and, eq, lt } from "drizzle-orm";
 import { db } from "@/db";
 import { waitlist } from "@/db/schema";
@@ -60,7 +61,8 @@ export async function GET(request: Request) {
         offeredStaffId: entry.offeredStaffId,
       });
       advanced++;
-    } catch {
+    } catch (err) {
+      Sentry.captureException(err);
       // Non-fatal — log but keep going
     }
   }

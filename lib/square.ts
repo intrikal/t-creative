@@ -17,6 +17,7 @@
  *
  * @module lib/square
  */
+import * as Sentry from "@sentry/nextjs";
 import { SquareClient, SquareEnvironment } from "square";
 
 const accessToken = process.env.SQUARE_ACCESS_TOKEN;
@@ -62,31 +63,36 @@ export async function createSquareOrder(params: {
 }): Promise<string> {
   if (!isSquareConfigured()) throw new Error("Square not configured");
 
-  const response = await squareClient.orders.create({
-    order: {
-      locationId: SQUARE_LOCATION_ID,
-      referenceId: String(params.bookingId),
-      lineItems: [
-        {
-          name: params.serviceName,
-          quantity: "1",
-          basePriceMoney: {
-            amount: BigInt(params.amountInCents),
-            currency: "USD",
+  try {
+    const response = await squareClient.orders.create({
+      order: {
+        locationId: SQUARE_LOCATION_ID,
+        referenceId: String(params.bookingId),
+        lineItems: [
+          {
+            name: params.serviceName,
+            quantity: "1",
+            basePriceMoney: {
+              amount: BigInt(params.amountInCents),
+              currency: "USD",
+            },
           },
+        ],
+        metadata: {
+          bookingId: String(params.bookingId),
+          ...(params.clientName ? { clientName: params.clientName } : {}),
         },
-      ],
-      metadata: {
-        bookingId: String(params.bookingId),
-        ...(params.clientName ? { clientName: params.clientName } : {}),
       },
-    },
-    idempotencyKey: crypto.randomUUID(),
-  });
+      idempotencyKey: crypto.randomUUID(),
+    });
 
-  const orderId = response.order?.id;
-  if (!orderId) throw new Error("Square order creation failed — no order ID returned");
-  return orderId;
+    const orderId = response.order?.id;
+    if (!orderId) throw new Error("Square order creation failed — no order ID returned");
+    return orderId;
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -110,35 +116,40 @@ export async function createSquarePaymentLink(params: {
 
   const label = params.type === "deposit" ? `Deposit — ${params.serviceName}` : params.serviceName;
 
-  const response = await squareClient.checkout.paymentLinks.create({
-    idempotencyKey: crypto.randomUUID(),
-    order: {
-      locationId: SQUARE_LOCATION_ID,
-      referenceId: String(params.bookingId),
-      lineItems: [
-        {
-          name: label,
-          quantity: "1",
-          basePriceMoney: {
-            amount: BigInt(params.amountInCents),
-            currency: "USD",
+  try {
+    const response = await squareClient.checkout.paymentLinks.create({
+      idempotencyKey: crypto.randomUUID(),
+      order: {
+        locationId: SQUARE_LOCATION_ID,
+        referenceId: String(params.bookingId),
+        lineItems: [
+          {
+            name: label,
+            quantity: "1",
+            basePriceMoney: {
+              amount: BigInt(params.amountInCents),
+              currency: "USD",
+            },
           },
+        ],
+        metadata: {
+          bookingId: String(params.bookingId),
+          paymentType: params.type,
         },
-      ],
-      metadata: {
-        bookingId: String(params.bookingId),
-        paymentType: params.type,
       },
-    },
-    paymentNote: `Booking #${params.bookingId} (${params.type})`,
-  });
+      paymentNote: `Booking #${params.bookingId} (${params.type})`,
+    });
 
-  const link = response.paymentLink;
-  if (!link?.url || !link?.orderId) {
-    throw new Error("Payment link creation failed — no URL returned");
+    const link = response.paymentLink;
+    if (!link?.url || !link?.orderId) {
+      throw new Error("Payment link creation failed — no URL returned");
+    }
+
+    return { url: link.url, orderId: link.orderId };
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
   }
-
-  return { url: link.url, orderId: link.orderId };
 }
 
 /* ------------------------------------------------------------------ */
@@ -159,31 +170,36 @@ export async function createSquareOrderPaymentLink(params: {
 }): Promise<{ url: string; orderId: string }> {
   if (!isSquareConfigured()) throw new Error("Square not configured");
 
-  const response = await squareClient.checkout.paymentLinks.create({
-    idempotencyKey: crypto.randomUUID(),
-    order: {
-      locationId: SQUARE_LOCATION_ID,
-      referenceId: String(params.orderId),
-      lineItems: params.lineItems.map((item) => ({
-        name: item.name,
-        quantity: String(item.quantity),
-        basePriceMoney: {
-          amount: BigInt(item.amountInCents / item.quantity),
-          currency: "USD",
+  try {
+    const response = await squareClient.checkout.paymentLinks.create({
+      idempotencyKey: crypto.randomUUID(),
+      order: {
+        locationId: SQUARE_LOCATION_ID,
+        referenceId: String(params.orderId),
+        lineItems: params.lineItems.map((item) => ({
+          name: item.name,
+          quantity: String(item.quantity),
+          basePriceMoney: {
+            amount: BigInt(item.amountInCents / item.quantity),
+            currency: "USD",
+          },
+        })),
+        metadata: {
+          orderNumber: params.orderNumber,
+          source: "shop",
         },
-      })),
-      metadata: {
-        orderNumber: params.orderNumber,
-        source: "shop",
       },
-    },
-    paymentNote: `Order ${params.orderNumber}`,
-  });
+      paymentNote: `Order ${params.orderNumber}`,
+    });
 
-  const link = response.paymentLink;
-  if (!link?.url || !link?.orderId) {
-    throw new Error("Payment link creation failed — no URL returned");
+    const link = response.paymentLink;
+    if (!link?.url || !link?.orderId) {
+      throw new Error("Payment link creation failed — no URL returned");
+    }
+
+    return { url: link.url, orderId: link.orderId };
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
   }
-
-  return { url: link.url, orderId: link.orderId };
 }

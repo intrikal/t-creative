@@ -1,4 +1,12 @@
+import * as Sentry from "@sentry/nextjs";
 import posthog from "posthog-js";
+
+Sentry.init({
+  dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
+  tracesSampleRate: 0.1,
+  replaysSessionSampleRate: 0,
+  replaysOnErrorSampleRate: 0,
+});
 
 const key = process.env.NEXT_PUBLIC_POSTHOG_KEY;
 

@@ -12,6 +12,7 @@
  *
  * @module lib/zoho-books
  */
+import * as Sentry from "@sentry/nextjs";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { profiles, bookings, orders, syncLog } from "@/db/schema";
@@ -165,6 +166,7 @@ export async function ensureZohoBooksCustomer(data: {
     });
     return customerId ?? null;
   } catch (err) {
+    Sentry.captureException(err);
     console.error("[zoho-books] Failed to ensure customer:", err);
     await logSync({
       status: "failed",
@@ -290,6 +292,7 @@ export async function createZohoBooksInvoice(data: {
       payload: { customerId, invoiceId, lineItemCount: data.lineItems.length },
     });
   } catch (err) {
+    Sentry.captureException(err);
     console.error("[zoho-books] Failed to create invoice:", err);
     await logSync({
       status: "failed",
@@ -349,6 +352,7 @@ export async function recordZohoBooksPayment(data: {
       message: `Recorded $${(data.amountInCents / 100).toFixed(2)} payment against invoice ${data.zohoInvoiceId}`,
     });
   } catch (err) {
+    Sentry.captureException(err);
     console.error("[zoho-books] Failed to record payment:", err);
     await logSync({
       status: "failed",

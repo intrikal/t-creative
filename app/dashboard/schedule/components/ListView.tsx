@@ -1,6 +1,6 @@
 "use client";
 
-import { Clock, MapPin } from "lucide-react";
+import { Building2, Clock, MapPin } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -54,7 +54,7 @@ export function ListView({
                 const sts = statusConfig(a.status);
                 return (
                   <div
-                    key={a.id}
+                    key={`${a.kind ?? "booking"}-${a.id}`}
                     onClick={() => onApptClick(a)}
                     className="flex items-center gap-3 px-5 py-3.5 border-b border-border/40 last:border-0 hover:bg-surface/60 transition-colors cursor-pointer"
                   >
@@ -69,14 +69,24 @@ export function ListView({
                     </Avatar>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-foreground truncate">{a.service}</p>
+                      {a.companyName && (
+                        <p className="text-xs text-muted/70 mt-0.5 flex items-center gap-1 truncate">
+                          <Building2 className="w-2.5 h-2.5 shrink-0" />
+                          {a.companyName}
+                        </p>
+                      )}
                       <p className="text-xs text-muted mt-0.5 flex items-center gap-2">
-                        {a.client}
+                        {a.kind === "event"
+                          ? a.guestCount != null
+                            ? `${a.guestCount} guests`
+                            : "Group Event"
+                          : a.client}
                         <span className="flex items-center gap-0.5 text-muted/60">
                           <Clock className="w-2.5 h-2.5" />
                           {a.durationMin}m
                         </span>
                         {a.location && (
-                          <span className="flex items-center gap-0.5">
+                          <span className="flex items-center gap-0.5 font-medium text-foreground/70">
                             <MapPin className="w-2.5 h-2.5" />
                             {a.location}
                           </span>

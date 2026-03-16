@@ -8,9 +8,9 @@
  */
 "use server";
 
-import { eq, and, gte, lte, asc } from "drizzle-orm";
+import { eq, and, gte, lte, asc, count, not, inArray } from "drizzle-orm";
 import { db } from "@/db";
-import { bookings, services, profiles } from "@/db/schema";
+import { bookings, services, profiles, events, eventGuests } from "@/db/schema";
 import { createClient } from "@/utils/supabase/server";
 
 /* ------------------------------------------------------------------ */
@@ -55,6 +55,12 @@ export type AppointmentRow = {
   price: number;
   location?: string;
   notes?: string;
+  /** Set for corporate events assigned to this assistant. */
+  companyName?: string;
+  /** Guest count for events assigned to this assistant. */
+  guestCount?: number;
+  /** Distinguishes regular bookings from assigned events. */
+  kind?: "booking" | "event";
 };
 
 export type ScheduleStats = {
@@ -163,7 +169,7 @@ export async function getScheduleData(): Promise<{
     )
     .orderBy(asc(bookings.startsAt));
 
-  const appointments: AppointmentRow[] = rows.map((r) => {
+  const bookingAppointments: AppointmentRow[] = rows.map((r) => {
     const start = new Date(r.startsAt);
     const end = new Date(start.getTime() + r.durationMinutes * 60 * 1000);
     const firstName = r.clientFirstName ?? "";
@@ -185,8 +191,77 @@ export async function getScheduleData(): Promise<{
       price: r.totalInCents / 100,
       location: r.location ?? undefined,
       notes: r.staffNotes ?? r.clientNotes ?? undefined,
+      kind: "booking" as const,
     };
   });
+
+  // Also fetch events that this assistant is staffed for in the same date window.
+  // Use negative IDs to avoid key collisions with booking IDs in the UI.
+  const assignedEvents = await db
+    .select({
+      id: events.id,
+      startsAt: events.startsAt,
+      endsAt: events.endsAt,
+      title: events.title,
+      status: events.status,
+      location: events.location,
+      address: events.address,
+      companyName: events.companyName,
+      maxAttendees: events.maxAttendees,
+      contactName: events.contactName,
+      guestCount: count(eventGuests.id),
+    })
+    .from(events)
+    .leftJoin(eventGuests, eq(eventGuests.eventId, events.id))
+    .where(
+      and(
+        eq(events.staffId, user.id),
+        gte(events.startsAt, rangeStart),
+        lte(events.startsAt, rangeEnd),
+        not(inArray(events.status, ["cancelled", "draft"])),
+      ),
+    )
+    .groupBy(events.id)
+    .orderBy(asc(events.startsAt));
+
+  const eventStatusMap: Record<string, BookingStatus> = {
+    upcoming: "pending",
+    confirmed: "confirmed",
+    in_progress: "in_progress",
+    completed: "completed",
+  };
+
+  const eventAppointments: AppointmentRow[] = assignedEvents.map((r) => {
+    const start = new Date(r.startsAt);
+    const end = r.endsAt ? new Date(r.endsAt) : new Date(start.getTime() + 60 * 60 * 1000); // default 1h if no end time
+    const contactName = r.contactName ?? "Group Event";
+    const parts = contactName.trim().split(" ");
+    const initials = [parts[0]?.[0], parts[1]?.[0]].filter(Boolean).join("").toUpperCase() || "GE";
+
+    return {
+      id: -r.id, // Negative to avoid collision with booking IDs
+      date: formatDateKey(start),
+      dayLabel: formatDayLabel(start),
+      time: formatTime(start),
+      startTime24: formatTime24(start),
+      endTime: formatTime(end),
+      service: r.title,
+      category: "consulting" as ServiceCategory,
+      client: contactName,
+      clientInitials: initials,
+      status: eventStatusMap[r.status] ?? "pending",
+      durationMin: Math.round((end.getTime() - start.getTime()) / 60000),
+      price: 0, // Financial details are admin-only
+      location: r.location ?? r.address ?? undefined,
+      companyName: r.companyName ?? undefined,
+      guestCount: r.guestCount > 0 ? r.guestCount : (r.maxAttendees ?? undefined),
+      kind: "event" as const,
+    };
+  });
+
+  const appointments: AppointmentRow[] = [...bookingAppointments, ...eventAppointments].sort(
+    (a, b) => (a.date + a.startTime24).localeCompare(b.date + b.startTime24),
+  );
 
   // Stats: today + current week
   const { weekStart, weekEnd } = getWeekBounds(now);

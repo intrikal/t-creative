@@ -182,6 +182,11 @@ type EventForm = {
   travelFee: string;
   notes: string;
   equipmentNotes: string;
+  /** Corporate billing — visible when type is "corporate" or isCorporate is checked. */
+  isCorporate: boolean;
+  companyName: string;
+  billingEmail: string;
+  poNumber: string;
 };
 
 function emptyEventForm(): EventForm {
@@ -200,6 +205,10 @@ function emptyEventForm(): EventForm {
     travelFee: "",
     notes: "",
     equipmentNotes: "",
+    isCorporate: false,
+    companyName: "",
+    billingEmail: "",
+    poNumber: "",
   };
 }
 
@@ -224,6 +233,10 @@ function eventToForm(e: EventRow): EventForm {
     travelFee: e.travelFeeInCents != null ? String(e.travelFeeInCents / 100) : "",
     notes: e.internalNotes ?? "",
     equipmentNotes: e.equipmentNotes ?? "",
+    isCorporate: e.companyName != null || e.eventType === "corporate",
+    companyName: e.companyName ?? "",
+    billingEmail: e.billingEmail ?? "",
+    poNumber: e.poNumber ?? "",
   };
 }
 
@@ -254,6 +267,9 @@ function formToInput(form: EventForm): EventInput {
     travelFeeInCents: dollarsToCents(form.travelFee),
     internalNotes: form.notes || null,
     equipmentNotes: form.equipmentNotes || null,
+    companyName: form.type === "corporate" || form.isCorporate ? form.companyName || null : null,
+    billingEmail: form.type === "corporate" || form.isCorporate ? form.billingEmail || null : null,
+    poNumber: form.type === "corporate" || form.isCorporate ? form.poNumber || null : null,
   };
 }
 
@@ -457,6 +473,48 @@ function EventDialog({
             placeholder="Special requests, setup notes, etc."
           />
         </Field>
+
+        {/* Corporate billing — auto-shown for corporate type; checkbox toggle for others */}
+        {form.type !== "corporate" && (
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={form.isCorporate}
+              onChange={(e) => setForm((f) => ({ ...f, isCorporate: e.target.checked }))}
+              className="accent-accent w-4 h-4"
+            />
+            <span className="text-sm text-foreground">Corporate event</span>
+          </label>
+        )}
+
+        {(form.type === "corporate" || form.isCorporate) && (
+          <div className="space-y-3 px-3 py-3 bg-foreground/[0.03] border border-border/50 rounded-lg">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted flex items-center gap-1.5">
+              <Building2 className="w-3 h-3" />
+              Corporate Billing
+            </p>
+            <Field label="Company name">
+              <Input
+                value={form.companyName}
+                onChange={set("companyName")}
+                placeholder="Acme Corp"
+              />
+            </Field>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Billing email" hint="For invoices">
+                <Input
+                  type="email"
+                  value={form.billingEmail}
+                  onChange={set("billingEmail")}
+                  placeholder="billing@company.com"
+                />
+              </Field>
+              <Field label="PO number" hint="Optional">
+                <Input value={form.poNumber} onChange={set("poNumber")} placeholder="PO-12345" />
+              </Field>
+            </div>
+          </div>
+        )}
 
         <DialogFooter
           onCancel={onClose}
@@ -859,6 +917,12 @@ function EventCard({
               </div>
 
               <div className="flex items-center gap-4 mt-3 flex-wrap">
+                {event.companyName && (
+                  <span className="text-xs text-muted flex items-center gap-1">
+                    <Building2 className="w-3 h-3 shrink-0" />
+                    {event.companyName}
+                  </span>
+                )}
                 {displayLocation && (
                   <span className="text-xs text-muted flex items-center gap-1">
                     <MapPin className="w-3 h-3 shrink-0" />
@@ -908,6 +972,28 @@ function EventCard({
                   <p className="text-sm text-foreground/80 leading-relaxed">
                     {event.equipmentNotes}
                   </p>
+                </div>
+              )}
+
+              {(event.billingEmail || event.poNumber) && (
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-muted mb-1.5 flex items-center gap-1">
+                    <Building2 className="w-3 h-3" />
+                    Corporate Billing
+                  </p>
+                  <div className="space-y-1">
+                    {event.billingEmail && (
+                      <p className="text-sm text-foreground/80 flex items-center gap-1.5">
+                        <Mail className="w-3 h-3 text-muted shrink-0" />
+                        {event.billingEmail}
+                      </p>
+                    )}
+                    {event.poNumber && (
+                      <p className="text-sm text-foreground/80">
+                        <span className="text-muted">PO#</span> {event.poNumber}
+                      </p>
+                    )}
+                  </div>
                 </div>
               )}
 
@@ -1054,6 +1140,9 @@ export function EventsPage({
                 travelFeeInCents: input.travelFeeInCents ?? null,
                 internalNotes: input.internalNotes ?? null,
                 equipmentNotes: input.equipmentNotes ?? null,
+                companyName: input.companyName ?? null,
+                billingEmail: input.billingEmail ?? null,
+                poNumber: input.poNumber ?? null,
               }
             : e,
         ),
@@ -1085,6 +1174,9 @@ export function EventsPage({
             internalNotes: input.internalNotes ?? null,
             equipmentNotes: input.equipmentNotes ?? null,
             description: null,
+            companyName: input.companyName ?? null,
+            billingEmail: input.billingEmail ?? null,
+            poNumber: input.poNumber ?? null,
             guests: [],
           },
           ...prev,

@@ -97,7 +97,7 @@ export type CreatePlanInput = {
   perks?: string[];
 };
 
-export type UpdatePlanInput = Partial<Omit<CreatePlanInput, "slug">>;
+export type UpdatePlanInput = Partial<Omit<CreatePlanInput, "slug"> & { isActive: boolean }>;
 
 /* ------------------------------------------------------------------ */
 /*  Plan queries                                                       */

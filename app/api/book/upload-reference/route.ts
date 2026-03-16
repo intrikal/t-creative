@@ -12,7 +12,7 @@
  * Limits: images only, max 8 MB, max filename length enforced.
  */
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 const BUCKET = "media";
 const MAX_SIZE_BYTES = 8 * 1024 * 1024; // 8 MB
@@ -55,8 +55,7 @@ export async function POST(request: Request) {
     .slice(0, 40);
   const path = `booking-references/${Date.now()}-${safeName}.${ext}`;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let supabase: any;
+  let supabase: SupabaseClient;
   try {
     supabase = getAdminClient();
   } catch {

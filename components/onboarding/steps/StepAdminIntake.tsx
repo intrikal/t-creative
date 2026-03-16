@@ -34,6 +34,7 @@
  * @prop stepNum - displayed as the step badge number
  */
 import { useEffect, useCallback, useRef } from "react";
+import type { DeepKeys } from "@tanstack/react-form";
 import { motion } from "framer-motion";
 import { LuEye, LuGem, LuScissors, LuLightbulb } from "react-icons/lu";
 import type { AdminOnboardingForm } from "../OnboardingFlow";
@@ -238,8 +239,10 @@ export function StepAdminIntake({ form, onNext, stepNum }: StepProps) {
                       {/* Intake questions — no label, checkboxes speak for themselves */}
                       <div className="space-y-0.5">
                         {questions.map(({ field: qField, label }) => (
-                          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                          <form.Field key={qField} name={qField as any}>
+                          <form.Field
+                            key={qField}
+                            name={qField as DeepKeys<AdminOnboardingForm["state"]["values"]>}
+                          >
                             {(field) => (
                               <button
                                 type="button"

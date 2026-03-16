@@ -15,6 +15,7 @@
 
 import { useState } from "react";
 import { TrendingUp, DollarSign, CreditCard, TrendingDown } from "lucide-react";
+import { ExportButton } from "@/components/ExportButton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import type {
@@ -120,6 +121,7 @@ export function FinancialPage({
           <p className="text-sm text-muted mt-0.5">Payments, transactions, and earnings</p>
         </div>
         <div className="flex items-center gap-2">
+          <ExportButton />
           <button
             onClick={() => {
               if (bookingsForPayment.length > 0) setPaymentLinkBooking(bookingsForPayment[0]);

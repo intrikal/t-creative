@@ -6,14 +6,14 @@
  * in `client-settings-actions.ts`.
  */
 
-import { Bell, CreditCard, Shield, User } from "lucide-react";
+import { Bell, CreditCard, Shield, Sparkles, User } from "lucide-react";
 
 /* ------------------------------------------------------------------ */
 /*  Nav                                                                */
 /* ------------------------------------------------------------------ */
 
 /** Union of all navigable settings sections. */
-export type Section = "profile" | "notifications" | "payments" | "account";
+export type Section = "profile" | "preferences" | "notifications" | "payments" | "account";
 
 /** Sidebar navigation config — drives both the desktop nav and mobile tabs. */
 export const SECTIONS: {
@@ -22,6 +22,7 @@ export const SECTIONS: {
   icon: React.ComponentType<{ className?: string }>;
 }[] = [
   { id: "profile", label: "Profile", icon: User },
+  { id: "preferences", label: "Preferences", icon: Sparkles },
   { id: "notifications", label: "Notifications", icon: Bell },
   { id: "payments", label: "Payments", icon: CreditCard },
   { id: "account", label: "Account", icon: Shield },

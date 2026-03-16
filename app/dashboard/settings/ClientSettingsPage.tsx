@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { AccountSection } from "./client-components/AccountSection";
 import { NotificationsSection } from "./client-components/NotificationsSection";
 import { PaymentsSection } from "./client-components/PaymentsSection";
+import { PreferencesSection } from "./client-components/PreferencesSection";
 import { ProfileSection } from "./client-components/ProfileSection";
 import type { ClientSettingsData } from "./client-settings-actions";
 import { SECTIONS, type Section } from "./client-types";
@@ -23,6 +24,7 @@ export function ClientSettingsPage({ data }: { data: ClientSettingsData }) {
 
   const PANELS: Record<Section, React.ReactNode> = {
     profile: <ProfileSection initial={data.profile} />,
+    preferences: <PreferencesSection initial={data.preferences} />,
     notifications: <NotificationsSection initial={data.notifications} />,
     payments: <PaymentsSection />,
     account: <AccountSection />,

@@ -6,6 +6,7 @@ import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
 import { bookings, bookingAddOns, services, profiles, reviews } from "@/db/schema";
 import { logAction } from "@/lib/audit";
+import { calendarUrl } from "@/lib/calendar-token";
 import { trackEvent } from "@/lib/posthog";
 import { notifyWaitlistForCancelledBooking } from "@/lib/waitlist-notify";
 import { updateZohoDeal, logZohoNote } from "@/lib/zoho";
@@ -51,6 +52,7 @@ export type ClientBookingRow = {
 
 export type ClientBookingsData = {
   bookings: ClientBookingRow[];
+  calendarUrl: string;
 };
 
 /* ------------------------------------------------------------------ */
@@ -162,7 +164,7 @@ export async function getClientBookings(): Promise<ClientBookingsData> {
     };
   });
 
-  return { bookings: bookingList };
+  return { bookings: bookingList, calendarUrl: calendarUrl(user.id) };
 }
 
 /* ------------------------------------------------------------------ */

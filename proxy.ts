@@ -1,31 +1,111 @@
 /**
- * proxy — Next.js middleware entry point (replaces the default middleware.ts).
+ * proxy.ts — Next.js Proxy entry point (Next.js 16+).
  *
- * ## What is middleware?
- * Next.js runs this function on the server before EVERY page or API request.
- * Think of it as a security guard at the door — it can inspect, redirect, or
- * modify requests before they reach any page component.
+ * Starting with Next.js 16, Middleware is called Proxy to better reflect its
+ * purpose. This file must be named `proxy.ts` at the project root and export
+ * a named `proxy` function (or a default export). The `config.matcher` below
+ * controls which paths it runs on.
  *
- * ## Why does this file exist?
- * Supabase stores login sessions in browser cookies. On every request, those
- * cookies may need to be refreshed (e.g., when a short-lived access token
- * expires and needs to be swapped for a new one). Without this refresh step,
- * users would get unexpectedly logged out mid-session.
+ * Proxy runs before a request is completed and can rewrite, redirect, modify
+ * headers, or respond directly. It is NOT intended for slow data fetching or
+ * full session management — use it for fast, optimistic checks only.
  *
- * ## Responsibilities (in order):
- * 1. **Session refresh** — tells Supabase to check and renew the auth cookie
- *    so the user stays logged in across page navigations.
- * 2. **Ban check** — if an authenticated user's profile has `is_active = false`,
- *    they are immediately signed out and sent to /suspended.
+ * ## Responsibilities (in order of execution):
+ * 1. **Rate limiting** — rejects abusive bursts on public POST endpoints before
+ *    any Supabase work is done. Uses an in-memory sliding-window Map keyed by
+ *    IP + path. Persists across warm invocations on the same instance; resets
+ *    on cold starts. Not perfect, but stops the most common abuse patterns
+ *    (bots hammering the contact/booking form, scripted waitlist signups).
+ *
+ * 2. **Session refresh** — tells Supabase to check and renew the auth cookie so
+ *    the user stays logged in across page navigations.
+ *
+ * 3. **Ban check** — if an authenticated user's profile has `is_active = false`,
+ *    sign them out and redirect to /suspended.
+ *
+ * 4. **Route guards** — /admin requires role "admin"; /dashboard requires admin,
+ *    assistant, or client. Unauthenticated users hitting either are sent home.
  *
  * ## What this does NOT do:
- * - It does not block unauthenticated users from any route (no route guards yet).
- * - It does not redirect to /login for protected pages (handled per-page instead).
+ * - It does not redirect unauthenticated users to /login for arbitrary pages.
+ * - fetch() calls with cache/revalidate/tags options have no effect here.
+ *
+ * @see https://nextjs.org/docs/app/getting-started/proxy
  */
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
+// ---------------------------------------------------------------------------
+// Rate limiting
+// ---------------------------------------------------------------------------
+
+/**
+ * Per-route limits for public, unauthenticated POST endpoints.
+ * Key: exact pathname. Value: { limit: max requests, windowMs: window size }.
+ */
+const RATE_LIMITS: Record<string, { limit: number; windowMs: number }> = {
+  "/api/chat/fallback": { limit: 10, windowMs: 60_000 },
+  "/api/book/guest-request": { limit: 5, windowMs: 60_000 },
+  "/api/book/waitlist": { limit: 5, windowMs: 60_000 },
+  "/api/book/upload-reference": { limit: 20, windowMs: 60_000 },
+};
+
+/**
+ * Module-level store: maps "ip:path" → array of request timestamps (ms).
+ * Populated lazily; old entries are pruned on every write once the Map
+ * exceeds 5 000 entries to prevent unbounded growth.
+ */
+const rateLimitStore = new Map<string, number[]>();
+
+function isRateLimited(ip: string, pathname: string, limit: number, windowMs: number): boolean {
+  const key = `${ip}:${pathname}`;
+  const now = Date.now();
+  const windowStart = now - windowMs;
+
+  // Keep only timestamps inside the current window
+  const timestamps = (rateLimitStore.get(key) ?? []).filter((t) => t > windowStart);
+  timestamps.push(now);
+  rateLimitStore.set(key, timestamps);
+
+  // Prune stale keys to keep memory bounded
+  if (rateLimitStore.size > 5_000) {
+    for (const [k, ts] of rateLimitStore) {
+      if (ts[ts.length - 1] <= windowStart) rateLimitStore.delete(k);
+    }
+  }
+
+  return timestamps.length > limit;
+}
+
+function clientIp(request: NextRequest): string {
+  return (
+    request.headers.get("x-forwarded-for")?.split(",")[0].trim() ??
+    request.headers.get("x-real-ip") ??
+    "unknown"
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Proxy
+// ---------------------------------------------------------------------------
+
 export async function proxy(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+
+  // Rate-limit public POST endpoints before touching Supabase
+  if (request.method === "POST") {
+    const rule = RATE_LIMITS[pathname];
+    if (rule && isRateLimited(clientIp(request), pathname, rule.limit, rule.windowMs)) {
+      return new NextResponse(
+        JSON.stringify({ error: "Too many requests. Please try again later." }),
+        {
+          status: 429,
+          headers: { "Content-Type": "application/json" },
+        },
+      );
+    }
+  }
+
   /**
    * Start with a "pass-through" response — let the request continue normally.
    * We hold a mutable reference so the cookie-sync logic below can replace it
@@ -82,7 +162,7 @@ export async function proxy(request: NextRequest) {
    * Ban check — if the user is logged in, verify their account is still active.
    *
    * We query Supabase directly here (not Drizzle) because Drizzle's Node.js
-   * database driver is not available inside Next.js middleware, which runs in
+   * database driver is not available in Next.js Proxy, which runs in
    * the Edge Runtime (a lightweight V8 environment without Node.js APIs).
    * Supabase's fetch-based client works fine in both environments.
    *
@@ -114,7 +194,7 @@ export async function proxy(request: NextRequest) {
     // pass the request through and let AdminLayout's Drizzle-based check (which
     // bypasses RLS entirely) do the final guard. This prevents a race where
     // a freshly-saved admin profile can't be read via REST yet.
-    if (request.nextUrl.pathname.startsWith("/admin") && profile && profile.role !== "admin") {
+    if (pathname.startsWith("/admin") && profile && profile.role !== "admin") {
       const url = request.nextUrl.clone();
       url.pathname = "/";
       url.search = "";
@@ -125,7 +205,7 @@ export async function proxy(request: NextRequest) {
     // Each role sees different content via role-based rendering in the layout.
     // Same null-profile rationale as the /admin guard above.
     if (
-      request.nextUrl.pathname.startsWith("/dashboard") &&
+      pathname.startsWith("/dashboard") &&
       profile &&
       profile.role !== "admin" &&
       profile.role !== "assistant" &&
@@ -139,10 +219,7 @@ export async function proxy(request: NextRequest) {
 
     // Allow authenticated users to browse the marketing landing page.
     // The Navbar shows their avatar + a "Dashboard" link instead of "Sign In".
-  } else if (
-    request.nextUrl.pathname.startsWith("/admin") ||
-    request.nextUrl.pathname.startsWith("/dashboard")
-  ) {
+  } else if (pathname.startsWith("/admin") || pathname.startsWith("/dashboard")) {
     // Unauthenticated users hitting protected routes go to the home page
     const url = request.nextUrl.clone();
     url.pathname = "/";
@@ -156,7 +233,7 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   /**
-   * `matcher` tells Next.js which URL paths this middleware should run on.
+   * `matcher` filters which URL paths Proxy runs on.
    *
    * The regex below matches EVERY path EXCEPT:
    * - `_next/static`  — pre-built JavaScript/CSS bundles (no auth needed)

@@ -18,6 +18,18 @@ jobs:
           cache: npm
 
       - run: npm ci
+
+      - name: Create build environment
+        run: |
+          cat > .env << 'EOF'
+          DATABASE_URL=postgresql://postgres:postgres@localhost:5432/db
+          NEXT_PUBLIC_SUPABASE_URL=https://placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY=placeholder_anon_key_for_lighthouse_ci
+          NEXT_PUBLIC_SITE_URL=http://localhost:3000
+          NEXT_PUBLIC_POSTHOG_KEY=phc_placeholder
+          NEXT_PUBLIC_POSTHOG_HOST=https://us.i.posthog.com
+          EOF
+
       - run: npm run build
 
       - name: Run Lighthouse CI

@@ -40,6 +40,7 @@ import {
   Globe,
   Users,
   Star,
+  Building2,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -493,6 +494,12 @@ export function InquiriesPage({
                       >
                         {inquiry.name}
                       </span>
+                      {inquiry.message.startsWith("[Corporate Event]") && (
+                        <Building2
+                          className="w-3.5 h-3.5 text-muted shrink-0"
+                          // title="Corporate inquiry"
+                        />
+                      )}
                       <span
                         className={cn(
                           "text-[10px] font-medium px-1.5 py-0.5 rounded-full border",

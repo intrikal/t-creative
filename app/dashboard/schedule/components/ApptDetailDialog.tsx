@@ -1,6 +1,6 @@
 "use client";
 
-import { Clock, Users } from "lucide-react";
+import { Building2, Clock, MapPin, Users } from "lucide-react";
 import { Dialog } from "@/components/ui/dialog";
 import type { AppointmentRow } from "../actions";
 import { parseDate, fmt12, DAY_NAMES_SHORT, MONTH_NAMES, CATEGORY_COLORS } from "./helpers";
@@ -48,10 +48,28 @@ export function ApptDetailDialog({ appt, onClose }: { appt: AppointmentRow; onCl
               {fmt12(appt.startTime24)} – {fmt12(endTime24)} · {appt.durationMin} min
             </span>
           </div>
+          {appt.companyName && (
+            <div className="flex items-center gap-2.5 text-sm text-muted">
+              <Building2 className="w-4 h-4 shrink-0" />
+              <span>{appt.companyName}</span>
+            </div>
+          )}
           <div className="flex items-center gap-2.5 text-sm text-muted">
             <Users className="w-4 h-4 shrink-0" />
-            <span>{appt.client}</span>
+            <span>
+              {appt.kind === "event"
+                ? appt.guestCount != null
+                  ? `${appt.guestCount} guests`
+                  : "Group Event"
+                : appt.client}
+            </span>
           </div>
+          {appt.location && appt.kind === "event" && (
+            <div className="flex items-center gap-2.5 text-sm text-foreground font-medium">
+              <MapPin className="w-4 h-4 shrink-0 text-muted" />
+              <span>{appt.location}</span>
+            </div>
+          )}
           {appt.price > 0 && (
             <div className="flex items-center gap-2.5 text-sm text-foreground font-semibold">
               <span className="w-4 text-center">$</span>

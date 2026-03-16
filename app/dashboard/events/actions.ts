@@ -95,6 +95,10 @@ export type EventRow = {
   services: string | null;
   internalNotes: string | null;
   description: string | null;
+  /** Corporate event fields — admin only (billingEmail/poNumber hidden from clients). */
+  companyName: string | null;
+  billingEmail: string | null;
+  poNumber: string | null;
   guests: EventGuestRow[];
 };
 
@@ -118,6 +122,9 @@ export type EventInput = {
   services?: string | null;
   internalNotes?: string | null;
   description?: string | null;
+  companyName?: string | null;
+  billingEmail?: string | null;
+  poNumber?: string | null;
 };
 
 /* ------------------------------------------------------------------ */
@@ -214,6 +221,9 @@ export async function getEvents(): Promise<EventRow[]> {
       services: events.services,
       internalNotes: events.internalNotes,
       description: events.description,
+      companyName: events.companyName,
+      billingEmail: events.billingEmail,
+      poNumber: events.poNumber,
     })
     .from(events)
     .leftJoin(eventVenues, eq(events.venueId, eventVenues.id))
@@ -277,6 +287,7 @@ export async function getClientEvents(): Promise<EventRow[]> {
       contactPhone: events.contactPhone,
       services: events.services,
       description: events.description,
+      companyName: events.companyName,
     })
     .from(events)
     .leftJoin(eventVenues, eq(events.venueId, eventVenues.id))
@@ -313,6 +324,8 @@ export async function getClientEvents(): Promise<EventRow[]> {
     endsAt: r.endsAt?.toISOString() ?? null,
     venueName: r.venueName ?? null,
     internalNotes: null, // Don't expose internal notes to clients
+    billingEmail: null, // Don't expose billing details to clients
+    poNumber: null, // Don't expose billing details to clients
     guests: guestsByEvent.get(r.id) ?? [],
   }));
 }
@@ -373,6 +386,9 @@ export async function createEvent(data: EventInput): Promise<number> {
       services: data.services ?? null,
       internalNotes: data.internalNotes ?? null,
       description: data.description ?? null,
+      companyName: data.companyName ?? null,
+      billingEmail: data.billingEmail ?? null,
+      poNumber: data.poNumber ?? null,
     })
     .returning({ id: events.id });
 
@@ -403,6 +419,9 @@ export async function updateEvent(id: number, data: Partial<EventInput>) {
   if (data.services !== undefined) set.services = data.services;
   if (data.internalNotes !== undefined) set.internalNotes = data.internalNotes;
   if (data.description !== undefined) set.description = data.description;
+  if (data.companyName !== undefined) set.companyName = data.companyName;
+  if (data.billingEmail !== undefined) set.billingEmail = data.billingEmail;
+  if (data.poNumber !== undefined) set.poNumber = data.poNumber;
 
   // Resolve location from venue if venueId is being updated
   if (data.venueId !== undefined || data.location !== undefined || data.address !== undefined) {

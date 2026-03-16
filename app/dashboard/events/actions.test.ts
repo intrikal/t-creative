@@ -64,9 +64,13 @@ function setupMocks(db: Record<string, unknown> | null = null) {
       internalNotes: "internalNotes",
       description: "description",
       hostId: "hostId",
+      staffId: "staffId",
       metadata: "metadata",
       completedAt: "completedAt",
       cancelledAt: "cancelledAt",
+      companyName: "companyName",
+      billingEmail: "billingEmail",
+      poNumber: "poNumber",
     },
     eventGuests: {
       id: "id",
@@ -238,6 +242,58 @@ describe("events/actions", () => {
       expect(result[0].endsAt).toBeNull();
       expect(result[0].guests).toEqual([]);
     });
+
+    it("returns companyName, billingEmail, and poNumber on corporate events", async () => {
+      vi.resetModules();
+      const startsAt = new Date("2026-05-10T10:00:00Z");
+      let selectCount = 0;
+      setupMocks({
+        select: vi.fn(() => {
+          selectCount++;
+          if (selectCount === 1) {
+            return makeChain([
+              {
+                id: 30,
+                title: "Corp Day",
+                eventType: "corporate",
+                status: "upcoming",
+                startsAt,
+                endsAt: null,
+                venueId: null,
+                venueName: null,
+                location: "Acme HQ",
+                address: null,
+                equipmentNotes: null,
+                maxAttendees: 40,
+                expectedRevenueInCents: null,
+                depositInCents: null,
+                travelFeeInCents: null,
+                contactName: "Bob",
+                contactEmail: "bob@acme.com",
+                contactPhone: null,
+                services: "lash",
+                internalNotes: null,
+                description: null,
+                companyName: "Acme Corp",
+                billingEmail: "billing@acme.com",
+                poNumber: "PO-999",
+              },
+            ]);
+          }
+          return makeChain([]);
+        }),
+        insert: vi.fn(() => ({
+          values: vi.fn(() => ({ returning: vi.fn().mockResolvedValue([{ id: 1 }]) })),
+        })),
+        update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn() })) })),
+        delete: vi.fn(() => ({ where: vi.fn() })),
+      });
+      const { getEvents } = await import("./actions");
+      const result = await getEvents();
+      expect(result[0].companyName).toBe("Acme Corp");
+      expect(result[0].billingEmail).toBe("billing@acme.com");
+      expect(result[0].poNumber).toBe("PO-999");
+    });
   });
 
   /* ---- createEvent ---- */
@@ -355,6 +411,63 @@ describe("events/actions", () => {
         expect.objectContaining({ location: "Grand Hall", address: "456 Venue Blvd" }),
       );
     });
+
+    it("passes companyName, billingEmail, and poNumber to insert", async () => {
+      vi.resetModules();
+      const mockInsertValues = vi.fn(() => ({
+        returning: vi.fn().mockResolvedValue([{ id: 10 }]),
+      }));
+      setupMocks({
+        select: vi.fn(() => makeChain([])),
+        insert: vi.fn(() => ({ values: mockInsertValues })),
+        update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn() })) })),
+        delete: vi.fn(() => ({ where: vi.fn() })),
+      });
+      const { createEvent } = await import("./actions");
+      await createEvent({
+        title: "Corp Event",
+        eventType: "corporate",
+        status: "upcoming",
+        startsAt: "2026-09-01T09:00:00Z",
+        companyName: "Acme Corp",
+        billingEmail: "billing@acme.com",
+        poNumber: "PO-12345",
+      });
+      expect(mockInsertValues).toHaveBeenCalledWith(
+        expect.objectContaining({
+          companyName: "Acme Corp",
+          billingEmail: "billing@acme.com",
+          poNumber: "PO-12345",
+        }),
+      );
+    });
+
+    it("inserts null for corporate fields when not provided", async () => {
+      vi.resetModules();
+      const mockInsertValues = vi.fn(() => ({
+        returning: vi.fn().mockResolvedValue([{ id: 11 }]),
+      }));
+      setupMocks({
+        select: vi.fn(() => makeChain([])),
+        insert: vi.fn(() => ({ values: mockInsertValues })),
+        update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn() })) })),
+        delete: vi.fn(() => ({ where: vi.fn() })),
+      });
+      const { createEvent } = await import("./actions");
+      await createEvent({
+        title: "Regular Event",
+        eventType: "bridal",
+        status: "draft",
+        startsAt: "2026-09-01T09:00:00Z",
+      });
+      expect(mockInsertValues).toHaveBeenCalledWith(
+        expect.objectContaining({
+          companyName: null,
+          billingEmail: null,
+          poNumber: null,
+        }),
+      );
+    });
   });
 
   /* ---- updateEvent ---- */
@@ -454,6 +567,32 @@ describe("events/actions", () => {
       const { updateEvent } = await import("./actions");
       await updateEvent(7, { title: "New" });
       expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/events");
+    });
+
+    it("passes companyName, billingEmail, poNumber when updating corporate fields", async () => {
+      vi.resetModules();
+      const mockUpdateSet = vi.fn(() => ({ where: vi.fn() }));
+      setupMocks({
+        select: vi.fn(() => makeChain([])),
+        insert: vi.fn(() => ({
+          values: vi.fn(() => ({ returning: vi.fn().mockResolvedValue([{ id: 1 }]) })),
+        })),
+        update: vi.fn(() => ({ set: mockUpdateSet })),
+        delete: vi.fn(() => ({ where: vi.fn() })),
+      });
+      const { updateEvent } = await import("./actions");
+      await updateEvent(7, {
+        companyName: "New Corp",
+        billingEmail: "pay@newcorp.com",
+        poNumber: "PO-001",
+      });
+      expect(mockUpdateSet).toHaveBeenCalledWith(
+        expect.objectContaining({
+          companyName: "New Corp",
+          billingEmail: "pay@newcorp.com",
+          poNumber: "PO-001",
+        }),
+      );
     });
   });
 

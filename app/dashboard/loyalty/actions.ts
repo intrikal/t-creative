@@ -1,9 +1,14 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { eq, sum, desc, count } from "drizzle-orm";
+import { and, eq, or, sum, desc, count } from "drizzle-orm";
 import { db } from "@/db";
-import { profiles, loyaltyTransactions } from "@/db/schema";
+import {
+  membershipPlans,
+  membershipSubscriptions,
+  profiles,
+  loyaltyTransactions,
+} from "@/db/schema";
 import { createClient } from "@/utils/supabase/server";
 
 /* ------------------------------------------------------------------ */
@@ -31,12 +36,24 @@ export type LoyaltyTransaction = {
   createdAt: string;
 };
 
+export type ClientMembershipData = {
+  planName: string;
+  priceInCents: number;
+  fillsPerCycle: number;
+  fillsRemainingThisCycle: number;
+  productDiscountPercent: number;
+  cycleEndsAt: string;
+  status: "active" | "paused";
+  perks: string[];
+};
+
 export type LoyaltyPageData = {
   firstName: string;
   totalPoints: number;
   referralCode: string;
   referralCount: number;
   transactions: LoyaltyTransaction[];
+  membership: ClientMembershipData | null;
 };
 
 /* ------------------------------------------------------------------ */
@@ -122,11 +139,55 @@ export async function getClientLoyaltyData(): Promise<LoyaltyPageData> {
         .then((r) => Number(r[0]?.n ?? 0))
     : 0;
 
+  // Active membership (if any)
+  const [memRow] = await db
+    .select({
+      planName: membershipPlans.name,
+      priceInCents: membershipPlans.priceInCents,
+      fillsPerCycle: membershipPlans.fillsPerCycle,
+      fillsRemainingThisCycle: membershipSubscriptions.fillsRemainingThisCycle,
+      productDiscountPercent: membershipPlans.productDiscountPercent,
+      cycleEndsAt: membershipSubscriptions.cycleEndsAt,
+      status: membershipSubscriptions.status,
+      perks: membershipPlans.perks,
+    })
+    .from(membershipSubscriptions)
+    .innerJoin(membershipPlans, eq(membershipSubscriptions.planId, membershipPlans.id))
+    .where(
+      and(
+        eq(membershipSubscriptions.clientId, user.id),
+        or(
+          eq(membershipSubscriptions.status, "active"),
+          eq(membershipSubscriptions.status, "paused"),
+        ),
+      ),
+    )
+    .orderBy(desc(membershipSubscriptions.createdAt))
+    .limit(1);
+
+  const membership: ClientMembershipData | null = memRow
+    ? {
+        planName: memRow.planName,
+        priceInCents: memRow.priceInCents,
+        fillsPerCycle: memRow.fillsPerCycle,
+        fillsRemainingThisCycle: memRow.fillsRemainingThisCycle,
+        productDiscountPercent: memRow.productDiscountPercent,
+        cycleEndsAt: new Date(memRow.cycleEndsAt).toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        }),
+        status: memRow.status as "active" | "paused",
+        perks: (memRow.perks as string[]) ?? [],
+      }
+    : null;
+
   return {
     firstName: profileRow?.firstName ?? "",
     totalPoints,
     referralCode: profileRow?.referralCode ?? "",
     referralCount,
+    membership,
     transactions: txRows.map((tx) => ({
       id: tx.id,
       points: tx.points,

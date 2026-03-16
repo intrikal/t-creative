@@ -59,6 +59,7 @@ import { expenses } from "./expenses";
 import { formSubmissions } from "./form-submissions";
 import { giftCards } from "./gift-cards";
 import { invoices } from "./invoices";
+import { membershipSubscriptions } from "./memberships";
 import { threads, messages } from "./messages";
 import { notifications } from "./notifications";
 import { orders } from "./orders";
@@ -269,4 +270,6 @@ export const profilesRelations = relations(profiles, ({ many }) => ({
   notifications: many(notifications),
   /** One-to-one: profiles.id → client_preferences.profile_id (beauty/service preferences). */
   clientPreferences: many(clientPreferences),
+  /** One-to-many: profiles.id → membership_subscriptions.client_id (Lash Club memberships). */
+  membershipSubscriptions: many(membershipSubscriptions),
 }));

@@ -228,3 +228,15 @@ export const subscriptionStatusEnum = pgEnum("subscription_status", [
   "completed",
   "cancelled",
 ]);
+
+/* ------------------------------------------------------------------ */
+/*  Membership Subscriptions                                           */
+/* ------------------------------------------------------------------ */
+
+/** Membership lifecycle — active monthly plan, paused, cancelled, or expired after non-renewal. */
+export const membershipStatusEnum = pgEnum("membership_status", [
+  "active",
+  "paused",
+  "cancelled",
+  "expired",
+]);

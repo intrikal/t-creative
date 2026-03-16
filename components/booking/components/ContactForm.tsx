@@ -7,6 +7,8 @@
  * Self-contained with its own QueryClientProvider so no root provider is needed.
  */
 
+import { useState } from "react";
+import { Turnstile } from "@marsidev/react-turnstile";
 import { useForm } from "@tanstack/react-form";
 import { QueryClient, QueryClientProvider, useMutation } from "@tanstack/react-query";
 import { LuCheck } from "react-icons/lu";
@@ -22,12 +24,19 @@ export function ContactForm() {
 }
 
 function Form() {
+  const [turnstileToken, setTurnstileToken] = useState("");
+
   const {
     mutate: send,
     isPending,
     isSuccess,
   } = useMutation({
-    mutationFn: async (data: { name: string; email: string; question: string }) => {
+    mutationFn: async (data: {
+      name: string;
+      email: string;
+      question: string;
+      turnstileToken: string;
+    }) => {
       const res = await fetch("/api/chat/fallback", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -40,7 +49,7 @@ function Form() {
   const form = useForm({
     defaultValues: { name: "", email: "", message: "" },
     onSubmit: ({ value }) =>
-      send({ name: value.name, email: value.email, question: value.message }),
+      send({ name: value.name, email: value.email, question: value.message, turnstileToken }),
   });
 
   if (isSuccess) {
@@ -111,9 +120,16 @@ function Form() {
         )}
       </form.Field>
 
+      <Turnstile
+        siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY!}
+        onSuccess={setTurnstileToken}
+        onExpire={() => setTurnstileToken("")}
+        options={{ theme: "light", size: "flexible" }}
+      />
+
       <button
         type="submit"
-        disabled={isPending}
+        disabled={isPending || !turnstileToken}
         className="w-full rounded-xl bg-[#96604a] py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#7a4e3a] disabled:opacity-50 active:scale-[0.98]"
       >
         {isPending ? "Sending…" : "Send message"}

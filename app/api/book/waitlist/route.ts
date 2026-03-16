@@ -11,6 +11,7 @@ import { Resend } from "resend";
 import { db } from "@/db";
 import { profiles, services, waitlist } from "@/db/schema";
 import { RESEND_FROM, isResendConfigured } from "@/lib/resend";
+import { verifyTurnstileToken } from "@/lib/turnstile";
 import { createClient } from "@/utils/supabase/server";
 
 export async function POST(request: Request) {
@@ -21,7 +22,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { name, email, serviceId, datePreference, notes } = body as Record<string, string>;
+  const { name, email, serviceId, datePreference, notes, turnstileToken } = body as Record<
+    string,
+    string
+  >;
 
   if (!serviceId || !Number(serviceId)) {
     return NextResponse.json({ error: "Missing serviceId" }, { status: 400 });
@@ -54,6 +58,11 @@ export async function POST(request: Request) {
     // Guest: validate name + email, then email the admin
     if (!name?.trim() || !email?.trim() || !email.includes("@")) {
       return NextResponse.json({ error: "Name and email are required" }, { status: 400 });
+    }
+
+    const validToken = await verifyTurnstileToken(turnstileToken ?? "");
+    if (!validToken) {
+      return NextResponse.json({ error: "Bot check failed. Please try again." }, { status: 403 });
     }
 
     const [admin] = await db

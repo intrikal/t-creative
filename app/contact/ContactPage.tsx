@@ -6,6 +6,7 @@
 "use client";
 
 import { useState } from "react";
+import { Turnstile } from "@marsidev/react-turnstile";
 import { useForm } from "@tanstack/react-form";
 import { motion } from "framer-motion";
 import { z } from "zod";
@@ -43,6 +44,7 @@ const errorClasses = "text-xs text-error mt-1.5";
 
 export function ContactPage() {
   const [submitted, setSubmitted] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState("");
 
   const form = useForm({
     defaultValues: {
@@ -55,7 +57,7 @@ export function ContactPage() {
       const result = contactSchema.safeParse(value);
       if (!result.success) return;
 
-      await submitContactForm(result.data);
+      await submitContactForm({ ...result.data, turnstileToken });
       setSubmitted(true);
     },
   });
@@ -289,11 +291,18 @@ export function ContactPage() {
                     )}
                   </form.Field>
 
+                  <Turnstile
+                    siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY!}
+                    onSuccess={setTurnstileToken}
+                    onExpire={() => setTurnstileToken("")}
+                    options={{ theme: "light" }}
+                  />
+
                   <form.Subscribe selector={(state) => state.isSubmitting}>
                     {(isSubmitting) => (
                       <button
                         type="submit"
-                        disabled={isSubmitting}
+                        disabled={isSubmitting || !turnstileToken}
                         className="self-start px-8 py-3.5 text-xs tracking-wide uppercase bg-foreground text-background hover:bg-muted transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {isSubmitting ? "Sending..." : "Send Message"}

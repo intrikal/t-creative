@@ -1,0 +1,81 @@
+name: Bundle Analysis
+
+on:
+  pull_request:
+    branches: [main]
+
+env:
+  HUSKY: 0
+
+jobs:
+  analyze:
+    name: Bundle Size Analysis
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Restore Next.js build cache
+        uses: actions/cache@v4
+        with:
+          path: .next/cache
+          key: ${{ runner.os }}-nextjs-${{ hashFiles('**/package-lock.json') }}-${{ hashFiles('**.[jt]s', '**.[jt]sx') }}
+          restore-keys: |
+            ${{ runner.os }}-nextjs-${{ hashFiles('**/package-lock.json') }}-
+            ${{ runner.os }}-nextjs-
+
+      - name: Create build environment
+        run: |
+          cat > .env << 'EOF'
+          DATABASE_URL=postgresql://postgres:postgres@localhost:5432/db
+          NEXT_PUBLIC_SUPABASE_URL=https://placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY=placeholder_anon_key
+          NEXT_PUBLIC_SITE_URL=http://localhost:3000
+          NEXT_PUBLIC_POSTHOG_KEY=phc_placeholder
+          NEXT_PUBLIC_POSTHOG_HOST=https://us.i.posthog.com
+          EOF
+
+      - name: Build and capture output
+        run: npm run build 2>&1 | tee build-output.txt
+
+      - name: Extract bundle size summary
+        id: bundle
+        run: |
+          # Extract the route size table from Next.js build output.
+          # The table starts at "Route (app)" and ends at a blank line after the summary.
+          SUMMARY=$(awk '/Route \(app\)/,/^\s*$/' build-output.txt | head -60)
+
+          # Escape for GitHub Actions multiline output
+          SUMMARY="${SUMMARY//'%'/'%25'}"
+          SUMMARY="${SUMMARY//$'\n'/'%0A'}"
+          SUMMARY="${SUMMARY//$'\r'/'%0D'}"
+
+          echo "summary=$SUMMARY" >> "$GITHUB_OUTPUT"
+
+      - name: Post bundle size comment on PR
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: bundle-analysis
+          message: |
+            ## Bundle Size Report
+
+            <details>
+            <summary>Route sizes from <code>npm run build</code></summary>
+
+            ```
+            ${{ steps.bundle.outputs.summary }}
+            ```
+
+            </details>
+
+            > Generated on commit ${{ github.sha }} — [View full build log](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})

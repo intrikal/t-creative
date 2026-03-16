@@ -6,6 +6,21 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 function makeChain(rows: unknown[] = []) {
   const resolved = Promise.resolve(rows);
+  // emptyChain always resolves to [] — used as the result of groupBy so that
+  // the events sub-query returns nothing in booking-only test cases.
+  const empty = Promise.resolve([] as unknown[]);
+  const emptyChain: any = {
+    from: () => emptyChain,
+    where: () => emptyChain,
+    leftJoin: () => emptyChain,
+    innerJoin: () => emptyChain,
+    orderBy: () => emptyChain,
+    limit: () => emptyChain,
+    groupBy: () => emptyChain,
+    then: empty.then.bind(empty),
+    catch: empty.catch.bind(empty),
+    finally: empty.finally.bind(empty),
+  };
   const chain: any = {
     from: () => chain,
     where: () => chain,
@@ -13,6 +28,26 @@ function makeChain(rows: unknown[] = []) {
     innerJoin: () => chain,
     orderBy: () => chain,
     limit: () => chain,
+    groupBy: () => emptyChain,
+    then: resolved.then.bind(resolved),
+    catch: resolved.catch.bind(resolved),
+    finally: resolved.finally.bind(resolved),
+  };
+  return chain;
+}
+
+// A chain where groupBy stays on the same resolved chain — used to return
+// event rows from the grouped events query in event-specific test cases.
+function makeEventChain(rows: unknown[] = []) {
+  const resolved = Promise.resolve(rows);
+  const chain: any = {
+    from: () => chain,
+    where: () => chain,
+    leftJoin: () => chain,
+    innerJoin: () => chain,
+    orderBy: () => chain,
+    limit: () => chain,
+    groupBy: () => chain,
     then: resolved.then.bind(resolved),
     catch: resolved.catch.bind(resolved),
     finally: resolved.finally.bind(resolved),
@@ -61,6 +96,23 @@ function setupMocks(db: Record<string, unknown> | null = null) {
       firstName: "firstName",
       lastName: "lastName",
     },
+    events: {
+      id: "id",
+      startsAt: "startsAt",
+      endsAt: "endsAt",
+      title: "title",
+      status: "status",
+      location: "location",
+      address: "address",
+      companyName: "companyName",
+      maxAttendees: "maxAttendees",
+      contactName: "contactName",
+      staffId: "staffId",
+    },
+    eventGuests: {
+      id: "id",
+      eventId: "eventId",
+    },
   }));
   vi.doMock("drizzle-orm", () => ({
     eq: vi.fn((...args: unknown[]) => ({ type: "eq", args })),
@@ -68,6 +120,9 @@ function setupMocks(db: Record<string, unknown> | null = null) {
     gte: vi.fn((...args: unknown[]) => ({ type: "gte", args })),
     lte: vi.fn((...args: unknown[]) => ({ type: "lte", args })),
     asc: vi.fn((...args: unknown[]) => ({ type: "asc", args })),
+    count: vi.fn((...args: unknown[]) => ({ type: "count", args })),
+    not: vi.fn((...args: unknown[]) => ({ type: "not", args })),
+    inArray: vi.fn((...args: unknown[]) => ({ type: "inArray", args })),
   }));
   vi.doMock("@/utils/supabase/server", () => ({
     createClient: vi.fn(async () => ({ auth: { getUser: mockGetUser } })),
@@ -391,6 +446,49 @@ describe("schedule/actions", () => {
       const result = await getScheduleData();
       expect(result.stats.todayCount).toBe(2);
       expect(result.stats.todayRevenue).toBe(150); // (10000 + 5000) / 100
+    });
+
+    it("includes assigned events with companyName and kind=event but no billingEmail/poNumber", async () => {
+      vi.resetModules();
+      const eventRow = {
+        id: 100,
+        startsAt: new Date("2026-03-20T14:00:00Z"),
+        endsAt: new Date("2026-03-20T17:00:00Z"),
+        title: "Corporate Lash Day",
+        status: "confirmed",
+        location: "Acme HQ",
+        address: null,
+        companyName: "Acme Corp",
+        maxAttendees: 30,
+        contactName: "Jane Organizer",
+        guestCount: 20,
+      };
+      let selectCount = 0;
+      setupMocks({
+        select: vi.fn(() => {
+          selectCount++;
+          if (selectCount === 1) return makeChain([]); // bookings: empty
+          return makeEventChain([eventRow]); // events: returns row through groupBy
+        }),
+        insert: vi.fn(() => ({
+          values: vi.fn(() => ({ returning: vi.fn().mockResolvedValue([{ id: 1 }]) })),
+        })),
+        update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn() })) })),
+        delete: vi.fn(() => ({ where: vi.fn() })),
+      });
+      const { getScheduleData } = await import("./actions");
+      const result = await getScheduleData();
+
+      expect(result.appointments).toHaveLength(1);
+      const appt = result.appointments[0];
+      expect(appt.kind).toBe("event");
+      expect(appt.companyName).toBe("Acme Corp");
+      expect(appt.guestCount).toBe(20);
+      expect(appt.price).toBe(0); // financial data not exposed to assistants
+      expect(appt.id).toBe(-100); // negative ID to avoid collision with booking IDs
+      // billingEmail and poNumber are never on AppointmentRow
+      expect(appt).not.toHaveProperty("billingEmail");
+      expect(appt).not.toHaveProperty("poNumber");
     });
   });
 });

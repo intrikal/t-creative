@@ -79,6 +79,521 @@ vi.mock("@/lib/square", () => ({
 /*  Tests                                                              */
 /* ------------------------------------------------------------------ */
 
+/* ------------------------------------------------------------------ */
+/*  Chainable DB mock helper (for additional tests below)             */
+/* ------------------------------------------------------------------ */
+
+function makeChain(rows: unknown[] = []) {
+  const resolved = Promise.resolve(rows);
+  const chain: any = {
+    from: () => chain,
+    where: () => chain,
+    leftJoin: () => chain,
+    innerJoin: () => chain,
+    orderBy: () => chain,
+    limit: () => chain,
+    then: resolved.then.bind(resolved),
+    catch: resolved.catch.bind(resolved),
+    finally: resolved.finally.bind(resolved),
+  };
+  return chain;
+}
+
+const mockGetUser = vi.fn();
+const mockRevalidatePath2 = vi.fn();
+
+function setupShopMocks(db: Record<string, unknown> | null = null) {
+  const defaultDb = {
+    select: vi.fn(() => makeChain([])),
+    insert: vi.fn(() => ({
+      values: vi.fn(() => ({ returning: vi.fn().mockResolvedValue([{ id: 1 }]) })),
+    })),
+    update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn() })) })),
+    delete: vi.fn(() => ({ where: vi.fn() })),
+  };
+
+  vi.doMock("@/db", () => ({ db: db ?? defaultDb }));
+  vi.doMock("@/db/schema", () => ({
+    products: {
+      id: "id",
+      title: "title",
+      slug: "slug",
+      description: "description",
+      category: "category",
+      pricingType: "pricingType",
+      priceInCents: "priceInCents",
+      priceMinInCents: "priceMinInCents",
+      priceMaxInCents: "priceMaxInCents",
+      availability: "availability",
+      stockCount: "stockCount",
+      imageUrl: "imageUrl",
+      serviceId: "serviceId",
+      tags: "tags",
+      isFeatured: "isFeatured",
+      isPublished: "isPublished",
+      sortOrder: "sortOrder",
+      createdAt: "createdAt",
+      updatedAt: "updatedAt",
+    },
+    orders: {
+      id: "id",
+      orderNumber: "orderNumber",
+      clientId: "clientId",
+      productId: "productId",
+      status: "status",
+      title: "title",
+      quantity: "quantity",
+      finalInCents: "finalInCents",
+      fulfillmentMethod: "fulfillmentMethod",
+      createdAt: "createdAt",
+      squareOrderId: "squareOrderId",
+    },
+    profiles: { id: "id", email: "email", firstName: "firstName" },
+    syncLog: {},
+    giftCards: {
+      id: "id",
+      code: "code",
+      balanceInCents: "balanceInCents",
+      originalAmountInCents: "originalAmountInCents",
+      status: "status",
+      expiresAt: "expiresAt",
+    },
+    giftCardTransactions: {},
+    wishlistItems: { id: "id", clientId: "clientId", productId: "productId" },
+  }));
+  vi.doMock("drizzle-orm", () => ({
+    eq: vi.fn((...args: unknown[]) => ({ type: "eq", args })),
+    desc: vi.fn((...args: unknown[]) => ({ type: "desc", args })),
+    asc: vi.fn((...args: unknown[]) => ({ type: "asc", args })),
+    and: vi.fn((...args: unknown[]) => ({ type: "and", args })),
+    isNotNull: vi.fn((...args: unknown[]) => ({ type: "isNotNull", args })),
+    ilike: vi.fn((...args: unknown[]) => ({ type: "ilike", args })),
+    sql: Object.assign(
+      vi.fn((...args: unknown[]) => ({ type: "sql", args })),
+      { join: vi.fn(() => ({ type: "sql_join" })) },
+    ),
+  }));
+  vi.doMock("next/cache", () => ({ revalidatePath: mockRevalidatePath2 }));
+  vi.doMock("@/utils/supabase/server", () => ({
+    createClient: vi.fn(async () => ({ auth: { getUser: mockGetUser } })),
+  }));
+  vi.doMock("@/lib/posthog", () => ({ trackEvent: vi.fn() }));
+  vi.doMock("@/lib/resend", () => ({ sendEmail: vi.fn().mockResolvedValue(true) }));
+  vi.doMock("@/lib/square", () => ({
+    isSquareConfigured: vi.fn(() => false),
+    createSquareOrderPaymentLink: vi.fn(),
+  }));
+  vi.doMock("@/lib/zoho", () => ({ createZohoDeal: vi.fn() }));
+  vi.doMock("@/lib/zoho-books", () => ({ createZohoBooksInvoice: vi.fn() }));
+  vi.doMock("@/emails/OrderConfirmation", () => ({ OrderConfirmation: vi.fn(() => null) }));
+}
+
+/* ------------------------------------------------------------------ */
+/*  getPublishedProducts                                               */
+/* ------------------------------------------------------------------ */
+
+describe("getPublishedProducts", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } });
+  });
+
+  it("returns empty array when no products exist", async () => {
+    vi.resetModules();
+    setupShopMocks();
+    const { getPublishedProducts } = await import("./actions");
+    const result = await getPublishedProducts();
+    expect(result).toEqual([]);
+  });
+
+  it("splits tags string into array", async () => {
+    vi.resetModules();
+    setupShopMocks({
+      select: vi.fn(() =>
+        makeChain([
+          {
+            id: 1,
+            title: "Lash Serum",
+            slug: "lash-serum",
+            description: "Growth serum",
+            category: "aftercare",
+            pricingType: "fixed_price",
+            priceInCents: 2500,
+            priceMinInCents: null,
+            priceMaxInCents: null,
+            availability: "in_stock",
+            stockCount: 10,
+            imageUrl: null,
+            serviceId: null,
+            tags: "serum, lash, aftercare",
+            isFeatured: true,
+          },
+        ]),
+      ),
+      insert: vi.fn(() => ({
+        values: vi.fn(() => ({ returning: vi.fn().mockResolvedValue([]) })),
+      })),
+      update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn() })) })),
+      delete: vi.fn(() => ({ where: vi.fn() })),
+    });
+    const { getPublishedProducts } = await import("./actions");
+    const result = await getPublishedProducts();
+    expect(result[0].tags).toEqual(["serum", "lash", "aftercare"]);
+  });
+
+  it("returns empty tags array when tags field is null", async () => {
+    vi.resetModules();
+    setupShopMocks({
+      select: vi.fn(() =>
+        makeChain([
+          {
+            id: 2,
+            title: "Kit",
+            slug: "kit",
+            description: null,
+            category: "jewelry",
+            pricingType: "fixed_price",
+            priceInCents: 1500,
+            priceMinInCents: null,
+            priceMaxInCents: null,
+            availability: "in_stock",
+            stockCount: 5,
+            imageUrl: null,
+            serviceId: null,
+            tags: null,
+            isFeatured: false,
+          },
+        ]),
+      ),
+      insert: vi.fn(() => ({
+        values: vi.fn(() => ({ returning: vi.fn().mockResolvedValue([]) })),
+      })),
+      update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn() })) })),
+      delete: vi.fn(() => ({ where: vi.fn() })),
+    });
+    const { getPublishedProducts } = await import("./actions");
+    const result = await getPublishedProducts();
+    expect(result[0].tags).toEqual([]);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  getClientOrders                                                    */
+/* ------------------------------------------------------------------ */
+
+describe("getClientOrders", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } });
+  });
+
+  it("throws when user is not authenticated", async () => {
+    vi.resetModules();
+    mockGetUser.mockResolvedValue({ data: { user: null } });
+    setupShopMocks();
+    const { getClientOrders } = await import("./actions");
+    await expect(getClientOrders()).rejects.toThrow("Not authenticated");
+  });
+
+  it("returns empty array when client has no orders", async () => {
+    vi.resetModules();
+    setupShopMocks();
+    const { getClientOrders } = await import("./actions");
+    const result = await getClientOrders();
+    expect(result).toEqual([]);
+  });
+
+  it("maps rows and formats createdAt as a date string", async () => {
+    vi.resetModules();
+    const createdAt = new Date("2026-02-15T10:00:00Z");
+    setupShopMocks({
+      select: vi.fn(() =>
+        makeChain([
+          {
+            id: 1,
+            orderNumber: "ord-abc123-1",
+            title: "Lash Serum",
+            status: "accepted",
+            quantity: 2,
+            finalInCents: 5000,
+            fulfillmentMethod: "pickup_cash",
+            createdAt,
+          },
+        ]),
+      ),
+      insert: vi.fn(() => ({
+        values: vi.fn(() => ({ returning: vi.fn().mockResolvedValue([]) })),
+      })),
+      update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn() })) })),
+      delete: vi.fn(() => ({ where: vi.fn() })),
+    });
+    const { getClientOrders } = await import("./actions");
+    const result = await getClientOrders();
+    expect(result).toHaveLength(1);
+    expect(typeof result[0].createdAt).toBe("string");
+    expect(result[0].orderNumber).toBe("ord-abc123-1");
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  getWishlistProductIds / addToWishlist / removeFromWishlist         */
+/* ------------------------------------------------------------------ */
+
+describe("getWishlistProductIds", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } });
+  });
+
+  it("throws when user is not authenticated", async () => {
+    vi.resetModules();
+    mockGetUser.mockResolvedValue({ data: { user: null } });
+    setupShopMocks();
+    const { getWishlistProductIds } = await import("./actions");
+    await expect(getWishlistProductIds()).rejects.toThrow("Not authenticated");
+  });
+
+  it("returns empty array when wishlist is empty", async () => {
+    vi.resetModules();
+    setupShopMocks();
+    const { getWishlistProductIds } = await import("./actions");
+    expect(await getWishlistProductIds()).toEqual([]);
+  });
+
+  it("returns product IDs from wishlist rows", async () => {
+    vi.resetModules();
+    setupShopMocks({
+      select: vi.fn(() => makeChain([{ productId: 3 }, { productId: 7 }])),
+      insert: vi.fn(() => ({
+        values: vi.fn(() => ({ returning: vi.fn().mockResolvedValue([]) })),
+      })),
+      update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn() })) })),
+      delete: vi.fn(() => ({ where: vi.fn() })),
+    });
+    const { getWishlistProductIds } = await import("./actions");
+    expect(await getWishlistProductIds()).toEqual([3, 7]);
+  });
+});
+
+describe("addToWishlist", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } });
+  });
+
+  it("throws when user is not authenticated", async () => {
+    vi.resetModules();
+    mockGetUser.mockResolvedValue({ data: { user: null } });
+    setupShopMocks();
+    const { addToWishlist } = await import("./actions");
+    await expect(addToWishlist(1)).rejects.toThrow("Not authenticated");
+  });
+
+  it("inserts wishlist entry when product is not already saved", async () => {
+    vi.resetModules();
+    const mockInsertValues = vi.fn(() => ({
+      returning: vi.fn().mockResolvedValue([{ id: 1 }]),
+    }));
+    setupShopMocks({
+      select: vi.fn(() => makeChain([])),
+      insert: vi.fn(() => ({ values: mockInsertValues })),
+      update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn() })) })),
+      delete: vi.fn(() => ({ where: vi.fn() })),
+    });
+    const { addToWishlist } = await import("./actions");
+    await addToWishlist(5);
+    expect(mockInsertValues).toHaveBeenCalledWith(
+      expect.objectContaining({ clientId: "user-1", productId: 5 }),
+    );
+  });
+
+  it("skips insert when product is already in wishlist", async () => {
+    vi.resetModules();
+    const mockInsertValues = vi.fn(() => ({
+      returning: vi.fn().mockResolvedValue([{ id: 1 }]),
+    }));
+    setupShopMocks({
+      select: vi.fn(() => makeChain([{ id: 99 }])),
+      insert: vi.fn(() => ({ values: mockInsertValues })),
+      update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn() })) })),
+      delete: vi.fn(() => ({ where: vi.fn() })),
+    });
+    const { addToWishlist } = await import("./actions");
+    await addToWishlist(5);
+    expect(mockInsertValues).not.toHaveBeenCalled();
+  });
+
+  it("revalidates /dashboard/shop", async () => {
+    vi.resetModules();
+    setupShopMocks();
+    const { addToWishlist } = await import("./actions");
+    await addToWishlist(5);
+    expect(mockRevalidatePath2).toHaveBeenCalledWith("/dashboard/shop");
+  });
+});
+
+describe("removeFromWishlist", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } });
+  });
+
+  it("throws when user is not authenticated", async () => {
+    vi.resetModules();
+    mockGetUser.mockResolvedValue({ data: { user: null } });
+    setupShopMocks();
+    const { removeFromWishlist } = await import("./actions");
+    await expect(removeFromWishlist(1)).rejects.toThrow("Not authenticated");
+  });
+
+  it("calls db.delete for the wishlist entry", async () => {
+    vi.resetModules();
+    const mockDeleteWhere = vi.fn();
+    setupShopMocks({
+      select: vi.fn(() => makeChain([])),
+      insert: vi.fn(() => ({
+        values: vi.fn(() => ({ returning: vi.fn().mockResolvedValue([]) })),
+      })),
+      update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn() })) })),
+      delete: vi.fn(() => ({ where: mockDeleteWhere })),
+    });
+    const { removeFromWishlist } = await import("./actions");
+    await removeFromWishlist(3);
+    expect(mockDeleteWhere).toHaveBeenCalled();
+  });
+
+  it("revalidates /dashboard/shop", async () => {
+    vi.resetModules();
+    setupShopMocks();
+    const { removeFromWishlist } = await import("./actions");
+    await removeFromWishlist(3);
+    expect(mockRevalidatePath2).toHaveBeenCalledWith("/dashboard/shop");
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  lookupGiftCard                                                     */
+/* ------------------------------------------------------------------ */
+
+describe("lookupGiftCard", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("throws 'Gift card not found' when code does not match", async () => {
+    vi.resetModules();
+    setupShopMocks({
+      select: vi.fn(() => makeChain([])),
+      insert: vi.fn(() => ({
+        values: vi.fn(() => ({ returning: vi.fn().mockResolvedValue([]) })),
+      })),
+      update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn() })) })),
+      delete: vi.fn(() => ({ where: vi.fn() })),
+    });
+    const { lookupGiftCard } = await import("./actions");
+    await expect(lookupGiftCard("INVALID")).rejects.toThrow("Gift card not found");
+  });
+
+  it("throws when gift card status is not active", async () => {
+    vi.resetModules();
+    setupShopMocks({
+      select: vi.fn(() =>
+        makeChain([
+          {
+            id: 1,
+            balanceInCents: 5000,
+            originalAmountInCents: 5000,
+            status: "redeemed",
+            expiresAt: null,
+          },
+        ]),
+      ),
+      insert: vi.fn(() => ({
+        values: vi.fn(() => ({ returning: vi.fn().mockResolvedValue([]) })),
+      })),
+      update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn() })) })),
+      delete: vi.fn(() => ({ where: vi.fn() })),
+    });
+    const { lookupGiftCard } = await import("./actions");
+    await expect(lookupGiftCard("USED")).rejects.toThrow("already been used");
+  });
+
+  it("throws when gift card has no remaining balance", async () => {
+    vi.resetModules();
+    setupShopMocks({
+      select: vi.fn(() =>
+        makeChain([
+          {
+            id: 1,
+            balanceInCents: 0,
+            originalAmountInCents: 5000,
+            status: "active",
+            expiresAt: null,
+          },
+        ]),
+      ),
+      insert: vi.fn(() => ({
+        values: vi.fn(() => ({ returning: vi.fn().mockResolvedValue([]) })),
+      })),
+      update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn() })) })),
+      delete: vi.fn(() => ({ where: vi.fn() })),
+    });
+    const { lookupGiftCard } = await import("./actions");
+    await expect(lookupGiftCard("EMPTY")).rejects.toThrow("no remaining balance");
+  });
+
+  it("throws when gift card is expired", async () => {
+    vi.resetModules();
+    setupShopMocks({
+      select: vi.fn(() =>
+        makeChain([
+          {
+            id: 1,
+            balanceInCents: 5000,
+            originalAmountInCents: 5000,
+            status: "active",
+            expiresAt: new Date("2020-01-01"),
+          },
+        ]),
+      ),
+      insert: vi.fn(() => ({
+        values: vi.fn(() => ({ returning: vi.fn().mockResolvedValue([]) })),
+      })),
+      update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn() })) })),
+      delete: vi.fn(() => ({ where: vi.fn() })),
+    });
+    const { lookupGiftCard } = await import("./actions");
+    await expect(lookupGiftCard("EXPIRED")).rejects.toThrow("expired");
+  });
+
+  it("returns id, balanceInCents, and originalAmountInCents for a valid card", async () => {
+    vi.resetModules();
+    setupShopMocks({
+      select: vi.fn(() =>
+        makeChain([
+          {
+            id: 5,
+            balanceInCents: 7500,
+            originalAmountInCents: 10000,
+            status: "active",
+            expiresAt: null,
+          },
+        ]),
+      ),
+      insert: vi.fn(() => ({
+        values: vi.fn(() => ({ returning: vi.fn().mockResolvedValue([]) })),
+      })),
+      update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn() })) })),
+      delete: vi.fn(() => ({ where: vi.fn() })),
+    });
+    const { lookupGiftCard } = await import("./actions");
+    const result = await lookupGiftCard("VALID75");
+    expect(result).toEqual({ id: 5, balanceInCents: 7500, originalAmountInCents: 10000 });
+  });
+});
+
+/* ------------------------------------------------------------------ */
+
 describe("placeOrder", () => {
   let placeOrder: typeof import("./actions").placeOrder;
 

@@ -30,8 +30,8 @@ import { revalidatePath } from "next/cache";
 import { eq, desc } from "drizzle-orm";
 import { db } from "@/db";
 import { clientForms, formSubmissions } from "@/db/schema";
+import { requireAdmin } from "@/lib/auth";
 import { trackEvent } from "@/lib/posthog";
-import { createClient } from "@/utils/supabase/server";
 
 export type FormRow = typeof clientForms.$inferSelect;
 
@@ -44,14 +44,7 @@ export type FormInput = {
   isActive: boolean;
 };
 
-async function getUser() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
-  return user;
-}
+const getUser = requireAdmin;
 
 export async function getForms(): Promise<FormRow[]> {
   await getUser();

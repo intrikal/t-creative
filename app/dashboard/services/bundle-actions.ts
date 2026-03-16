@@ -24,8 +24,8 @@ import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { serviceBundles } from "@/db/schema";
+import { requireAdmin } from "@/lib/auth";
 import { trackEvent } from "@/lib/posthog";
-import { createClient } from "@/utils/supabase/server";
 
 export type BundleRow = typeof serviceBundles.$inferSelect;
 
@@ -38,14 +38,7 @@ export type BundleInput = {
   isActive: boolean;
 };
 
-async function getUser() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
-  return user;
-}
+const getUser = requireAdmin;
 
 export async function getBundles(): Promise<BundleRow[]> {
   await getUser();

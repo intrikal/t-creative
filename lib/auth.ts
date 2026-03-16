@@ -38,6 +38,30 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
 }
 
 /**
+ * Require the current user to be authenticated AND have role "admin".
+ * Throws "Not authenticated" (→ 401) or "Forbidden" (→ 403) otherwise.
+ * Returns the Supabase auth user object on success.
+ */
+export async function requireAdmin() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) throw new Error("Not authenticated");
+
+  const [profile] = await db
+    .select({ role: profiles.role })
+    .from(profiles)
+    .where(eq(profiles.id, user.id))
+    .limit(1);
+
+  if (!profile || profile.role !== "admin") throw new Error("Forbidden");
+
+  return user;
+}
+
+/**
  * Check if a profile has completed onboarding (firstName is filled).
  */
 export function isOnboardingComplete(profile: typeof profiles.$inferSelect | null): boolean {

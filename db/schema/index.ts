@@ -45,6 +45,7 @@ export {
   auditActionEnum,
   giftCardTxTypeEnum,
   subscriptionStatusEnum,
+  membershipStatusEnum,
 } from "./enums";
 
 /* Users & RBAC */
@@ -228,3 +229,11 @@ export { clientPreferences, clientPreferencesRelations } from "./client-preferen
 
 /* Booking subscriptions (pre-paid session packages) */
 export { bookingSubscriptions, bookingSubscriptionsRelations } from "./subscriptions";
+
+/* Membership plans & subscriptions (Lash Club recurring memberships) */
+export {
+  membershipPlans,
+  membershipSubscriptions,
+  membershipPlansRelations,
+  membershipSubscriptionsRelations,
+} from "./memberships";

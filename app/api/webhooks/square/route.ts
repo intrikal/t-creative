@@ -16,6 +16,14 @@
 import { createHmac } from "crypto";
 import * as Sentry from "@sentry/nextjs";
 import { eq, and, sql } from "drizzle-orm";
+import type {
+  Payment,
+  PaymentRefund,
+  Tender,
+  PaymentCreatedEventData,
+  PaymentUpdatedEventData,
+  RefundCreatedEventData,
+} from "square";
 import { db } from "@/db";
 import {
   payments,
@@ -77,14 +85,18 @@ function mapTenderType(tenderType?: string): PaymentMethod {
 /*  Event processors                                                   */
 /* ------------------------------------------------------------------ */
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
+// Square webhook payments may include a `tenders` field not present in the SDK's Payment type
+// (Terminal payments still populate it for payment method detection).
+interface SquareWebhookPayment extends Payment {
+  tenders?: Tender[];
+}
 
-async function handlePaymentCompleted(data: any): Promise<string> {
-  const squarePayment = data?.object?.payment;
+async function handlePaymentCompleted(data: PaymentCreatedEventData | undefined): Promise<string> {
+  const squarePayment = data?.object?.payment as SquareWebhookPayment | undefined;
   if (!squarePayment?.id) return "No payment ID in event";
 
   const squarePaymentId = squarePayment.id as string;
-  const squareOrderId = (squarePayment.order_id as string) ?? null;
+  const squareOrderId = squarePayment.orderId ?? null;
 
   // 1. Check if we already have this payment by squarePaymentId
   const [existing] = await db
@@ -97,8 +109,8 @@ async function handlePaymentCompleted(data: any): Promise<string> {
       .update(payments)
       .set({
         status: "paid",
-        paidAt: squarePayment.updated_at ? new Date(squarePayment.updated_at) : new Date(),
-        squareReceiptUrl: squarePayment.receipt_url ?? null,
+        paidAt: squarePayment.updatedAt ? new Date(squarePayment.updatedAt) : new Date(),
+        squareReceiptUrl: squarePayment.receiptUrl ?? null,
         squareOrderId: squareOrderId,
       })
       .where(eq(payments.id, existing.id));
@@ -119,15 +131,15 @@ async function handlePaymentCompleted(data: any): Promise<string> {
   const booking = await findBookingByOrder(squareOrderId);
 
   if (booking) {
-    const amountCents = Number(squarePayment.amount_money?.amount ?? 0);
-    const tenders = squarePayment.tenders as any[] | undefined;
+    const amountCents = Number(squarePayment.amountMoney?.amount ?? 0);
+    const tenders = squarePayment.tenders;
     const method = tenders?.[0]?.type ? mapTenderType(tenders[0].type) : "square_other";
-    const tipCents = Number(squarePayment.tip_money?.amount ?? 0);
+    const tipCents = Number(squarePayment.tipMoney?.amount ?? 0);
 
     // Determine if this is a deposit payment.
     // Primary: Square order metadata.paymentType (set when payment link is created).
     // Fallback: payment note string for payments created before metadata was added.
-    const note = squarePayment.note as string | undefined;
+    const note = squarePayment.note;
     const isDeposit = booking.squareOrderType
       ? booking.squareOrderType === "deposit"
       : (note?.includes("(deposit)") ?? false);
@@ -142,7 +154,7 @@ async function handlePaymentCompleted(data: any): Promise<string> {
       paidAt: new Date(),
       squarePaymentId,
       squareOrderId,
-      squareReceiptUrl: squarePayment.receipt_url ?? null,
+      squareReceiptUrl: squarePayment.receiptUrl ?? null,
       notes: isDeposit ? "Deposit collected via Square" : "Auto-linked via Square order",
     });
 
@@ -178,7 +190,7 @@ async function handlePaymentCompleted(data: any): Promise<string> {
           clientName: bookingClient.firstName,
           amountInCents: amountCents,
           method: method.replace("square_", "").replace("_", " "),
-          receiptUrl: (squarePayment.receipt_url as string) ?? undefined,
+          receiptUrl: squarePayment.receiptUrl ?? undefined,
           description: isDeposit ? "Deposit payment" : "Appointment payment",
         }),
         entityType: "payment_receipt",
@@ -230,9 +242,9 @@ async function handlePaymentCompleted(data: any): Promise<string> {
         subject: "Payment received for your order — T Creative",
         react: PaymentReceipt({
           clientName: orderClient.firstName,
-          amountInCents: Number(squarePayment.amount_money?.amount ?? 0),
+          amountInCents: Number(squarePayment.amountMoney?.amount ?? 0),
           method: "card",
-          receiptUrl: (squarePayment.receipt_url as string) ?? undefined,
+          receiptUrl: squarePayment.receiptUrl ?? undefined,
           description: "Order payment",
         }),
         entityType: "payment_receipt",
@@ -249,7 +261,7 @@ async function handlePaymentCompleted(data: any): Promise<string> {
     if (orderForInvoice?.zohoInvoiceId) {
       recordZohoBooksPayment({
         zohoInvoiceId: orderForInvoice.zohoInvoiceId,
-        amountInCents: Number(squarePayment.amount_money?.amount ?? 0),
+        amountInCents: Number(squarePayment.amountMoney?.amount ?? 0),
         squarePaymentId,
         description: "Order payment via Square",
       });
@@ -275,7 +287,7 @@ async function handlePaymentCompleted(data: any): Promise<string> {
     entityType: "payment",
     remoteId: squarePaymentId,
     message: "Payment received but no matching booking or order found — needs manual linking",
-    payload: { squarePaymentId, squareOrderId, amount: squarePayment.amount_money },
+    payload: { squarePaymentId, squareOrderId, amount: squarePayment.amountMoney },
   });
 
   return "No matching booking or order — logged for manual linking";
@@ -353,8 +365,8 @@ async function findProductOrderBySquareOrder(
   return row ?? null;
 }
 
-async function handlePaymentUpdated(data: any): Promise<string> {
-  const squarePayment = data?.object?.payment;
+async function handlePaymentUpdated(data: PaymentUpdatedEventData | undefined): Promise<string> {
+  const squarePayment = data?.object?.payment as SquareWebhookPayment | undefined;
   if (!squarePayment?.id) return "No payment ID in event";
 
   const [existing] = await db
@@ -364,14 +376,14 @@ async function handlePaymentUpdated(data: any): Promise<string> {
 
   if (!existing) return "No matching local payment found";
 
-  const tenders = squarePayment.tenders as any[] | undefined;
+  const tenders = squarePayment.tenders;
   const method = tenders?.[0]?.type ? mapTenderType(tenders[0].type) : undefined;
 
   await db
     .update(payments)
     .set({
-      squareReceiptUrl: squarePayment.receipt_url ?? undefined,
-      squareOrderId: squarePayment.order_id ?? undefined,
+      squareReceiptUrl: squarePayment.receiptUrl ?? undefined,
+      squareOrderId: squarePayment.orderId ?? undefined,
       ...(method ? { method } : {}),
     })
     .where(eq(payments.id, existing.id));
@@ -388,18 +400,18 @@ async function handlePaymentUpdated(data: any): Promise<string> {
   return `Updated payment #${existing.id}`;
 }
 
-async function handleRefundEvent(data: any): Promise<string> {
-  const refund = data?.object?.refund;
-  if (!refund?.payment_id) return "No payment ID in refund event";
+async function handleRefundEvent(data: RefundCreatedEventData | undefined): Promise<string> {
+  const refund = data?.object?.refund as PaymentRefund | undefined;
+  if (!refund?.paymentId) return "No payment ID in refund event";
 
   const [existing] = await db
     .select()
     .from(payments)
-    .where(eq(payments.squarePaymentId, refund.payment_id));
+    .where(eq(payments.squarePaymentId, refund.paymentId as string));
 
   if (!existing) return "No matching local payment for refund";
 
-  const refundAmountCents = Number(refund.amount_money?.amount ?? 0);
+  const refundAmountCents = Number(refund.amountMoney?.amount ?? 0);
   const newRefundedTotal = existing.refundedInCents + refundAmountCents;
   const isFullRefund = newRefundedTotal >= existing.amountInCents;
 
@@ -418,13 +430,11 @@ async function handleRefundEvent(data: any): Promise<string> {
     entityType: "payment",
     entityId: String(existing.id),
     description: `Refund of $${(refundAmountCents / 100).toFixed(2)} applied via Square webhook`,
-    metadata: { refundAmountCents, isFullRefund, squarePaymentId: refund.payment_id },
+    metadata: { refundAmountCents, isFullRefund, squarePaymentId: refund.paymentId },
   });
 
   return `Refund of $${(refundAmountCents / 100).toFixed(2)} applied to payment #${existing.id}`;
 }
-
-/* eslint-enable @typescript-eslint/no-explicit-any */
 
 /* ------------------------------------------------------------------ */
 /*  Loyalty helpers                                                    */
@@ -563,20 +573,18 @@ export async function POST(request: Request): Promise<Response> {
   let syncStatus: "success" | "failed" | "skipped" = "skipped";
 
   try {
-    const data = event.data as Record<string, unknown> | undefined;
-
     switch (eventType) {
       case "payment.completed":
-        result = await handlePaymentCompleted(data);
+        result = await handlePaymentCompleted(event.data as PaymentCreatedEventData | undefined);
         syncStatus = "success";
         break;
       case "payment.updated":
-        result = await handlePaymentUpdated(data);
+        result = await handlePaymentUpdated(event.data as PaymentUpdatedEventData | undefined);
         syncStatus = "success";
         break;
       case "refund.created":
       case "refund.updated":
-        result = await handleRefundEvent(data);
+        result = await handleRefundEvent(event.data as RefundCreatedEventData | undefined);
         syncStatus = "success";
         break;
       default:

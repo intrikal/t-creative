@@ -17,6 +17,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import type { CommissionType } from "../actions";
 import {
   type Assistant,
   type AssistantStatus,
@@ -26,18 +27,38 @@ import {
   ratingStars,
 } from "../AssistantsPage";
 
+type CommissionDraft = {
+  commissionType: CommissionType;
+  commissionRate: string;
+  commissionFlatFee: string;
+  tipSplitPercent: string;
+};
+
 export function AssistantCard({
   assistant,
   onToggleStatus,
-  onUpdateCommissionRate,
+  onUpdateCommissionSettings,
 }: {
   assistant: Assistant;
   onToggleStatus: (id: string, status: AssistantStatus) => void;
-  onUpdateCommissionRate: (id: string, rate: number) => void;
+  onUpdateCommissionSettings: (
+    id: string,
+    settings: {
+      commissionType: CommissionType;
+      commissionRate?: number;
+      commissionFlatFee?: number;
+      tipSplitPercent?: number;
+    },
+  ) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const [editingRate, setEditingRate] = useState(false);
-  const [rateInput, setRateInput] = useState(String(assistant.commissionRate ?? 60));
+  const [editingCommission, setEditingCommission] = useState(false);
+  const [draft, setDraft] = useState<CommissionDraft>({
+    commissionType: assistant.commissionType,
+    commissionRate: String(assistant.commissionRate ?? 60),
+    commissionFlatFee: String(((assistant.commissionFlatFee ?? 0) / 100).toFixed(2)),
+    tipSplitPercent: String(assistant.tipSplitPercent ?? 100),
+  });
   const status = statusConfig(assistant.status);
 
   const nextStatus: AssistantStatus =
@@ -52,6 +73,36 @@ export function AssistantCard({
       : assistant.status === "on_leave"
         ? "Activate"
         : "Activate";
+
+  function startEditing() {
+    setDraft({
+      commissionType: assistant.commissionType,
+      commissionRate: String(assistant.commissionRate ?? 60),
+      commissionFlatFee: String(((assistant.commissionFlatFee ?? 0) / 100).toFixed(2)),
+      tipSplitPercent: String(assistant.tipSplitPercent ?? 100),
+    });
+    setEditingCommission(true);
+  }
+
+  function saveCommission() {
+    const type = draft.commissionType;
+    const rate = Math.min(100, Math.max(0, Number(draft.commissionRate) || 60));
+    const flatFee = Math.max(0, Math.round(Number(draft.commissionFlatFee) * 100) || 0);
+    const tipSplit = Math.min(100, Math.max(0, Number(draft.tipSplitPercent) || 100));
+    onUpdateCommissionSettings(assistant.id, {
+      commissionType: type,
+      commissionRate: type === "percentage" ? rate : undefined,
+      commissionFlatFee: type === "flat_fee" ? flatFee : undefined,
+      tipSplitPercent: tipSplit,
+    });
+    setEditingCommission(false);
+  }
+
+  // Display label for current commission setting
+  const commissionLabel =
+    assistant.commissionType === "flat_fee"
+      ? `$${((assistant.commissionFlatFee ?? 0) / 100).toFixed(0)}/session`
+      : `${assistant.commissionRate ?? 60}%`;
 
   return (
     <Card className="gap-0">
@@ -130,60 +181,135 @@ export function AssistantCard({
             </div>
           </div>
 
-          {/* Commission rate */}
+          {/* Commission & tip settings */}
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted mb-2">
-              Commission Rate
-            </p>
-            {editingRate ? (
-              <div className="flex items-center gap-2">
-                <div className="flex items-center gap-1">
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    value={rateInput}
-                    onChange={(e) => setRateInput(e.target.value)}
-                    className="w-16 text-sm text-foreground bg-surface border border-border rounded-md px-2 py-1 tabular-nums focus:outline-none focus:ring-1 focus:ring-accent"
-                    autoFocus
-                  />
-                  <span className="text-sm text-muted">%</span>
-                </div>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
+                Commission & Tips
+              </p>
+              {!editingCommission && (
                 <button
-                  onClick={() => {
-                    const rate = Math.min(100, Math.max(0, Number(rateInput) || 60));
-                    onUpdateCommissionRate(assistant.id, rate);
-                    setRateInput(String(rate));
-                    setEditingRate(false);
-                  }}
-                  className="p-1 rounded text-[#4e6b51] hover:bg-[#4e6b51]/10 transition-colors"
-                >
-                  <Check className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  onClick={() => {
-                    setRateInput(String(assistant.commissionRate ?? 60));
-                    setEditingRate(false);
-                  }}
-                  className="p-1 rounded text-muted hover:bg-foreground/5 transition-colors"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-semibold text-foreground tabular-nums">
-                  {assistant.commissionRate ?? 60}%
-                </span>
-                <button
-                  onClick={() => setEditingRate(true)}
+                  onClick={startEditing}
                   className="p-1 rounded text-muted hover:text-foreground hover:bg-foreground/5 transition-colors"
                 >
                   <Pencil className="w-3 h-3" />
                 </button>
+              )}
+            </div>
+
+            {editingCommission ? (
+              <div className="space-y-3 bg-surface/60 rounded-xl p-3 border border-border/60">
+                {/* Commission type */}
+                <div>
+                  <p className="text-[10px] text-muted mb-1.5">Commission type</p>
+                  <div className="flex gap-2">
+                    {(["percentage", "flat_fee"] as CommissionType[]).map((t) => (
+                      <button
+                        key={t}
+                        onClick={() => setDraft((d) => ({ ...d, commissionType: t }))}
+                        className={cn(
+                          "flex-1 text-xs py-1.5 rounded-lg border transition-colors font-medium",
+                          draft.commissionType === t
+                            ? "bg-accent text-white border-accent"
+                            : "bg-background text-muted border-border hover:border-foreground/20",
+                        )}
+                      >
+                        {t === "percentage" ? "% of Revenue" : "Flat / Session"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Rate or flat fee */}
+                {draft.commissionType === "percentage" ? (
+                  <div>
+                    <p className="text-[10px] text-muted mb-1">Commission rate</p>
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={draft.commissionRate}
+                        onChange={(e) =>
+                          setDraft((d) => ({ ...d, commissionRate: e.target.value }))
+                        }
+                        className="w-16 text-sm text-foreground bg-background border border-border rounded-md px-2 py-1 tabular-nums focus:outline-none focus:ring-1 focus:ring-accent"
+                      />
+                      <span className="text-sm text-muted">%</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <p className="text-[10px] text-muted mb-1">Flat fee per session</p>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-sm text-muted">$</span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={draft.commissionFlatFee}
+                        onChange={(e) =>
+                          setDraft((d) => ({ ...d, commissionFlatFee: e.target.value }))
+                        }
+                        className="w-20 text-sm text-foreground bg-background border border-border rounded-md px-2 py-1 tabular-nums focus:outline-none focus:ring-1 focus:ring-accent"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Tip split */}
+                <div>
+                  <p className="text-[10px] text-muted mb-1">Assistant keeps % of tips</p>
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={draft.tipSplitPercent}
+                      onChange={(e) => setDraft((d) => ({ ...d, tipSplitPercent: e.target.value }))}
+                      className="w-16 text-sm text-foreground bg-background border border-border rounded-md px-2 py-1 tabular-nums focus:outline-none focus:ring-1 focus:ring-accent"
+                    />
+                    <span className="text-sm text-muted">%</span>
+                  </div>
+                </div>
+
+                <div className="flex gap-2 pt-1">
+                  <button
+                    onClick={saveCommission}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-accent text-white text-xs font-medium rounded-lg hover:bg-accent/90 transition-colors"
+                  >
+                    <Check className="w-3 h-3" /> Save
+                  </button>
+                  <button
+                    onClick={() => setEditingCommission(false)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-surface border border-border text-xs text-muted rounded-lg hover:bg-foreground/5 transition-colors"
+                  >
+                    <X className="w-3 h-3" /> Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-4">
+                <div>
+                  <p className="text-[10px] text-muted">Service commission</p>
+                  <p className="text-sm font-semibold text-foreground tabular-nums mt-0.5">
+                    {commissionLabel}
+                    <span className="text-[10px] font-normal text-muted ml-1">
+                      {assistant.commissionType === "flat_fee" ? "flat" : "of revenue"}
+                    </span>
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-muted">Tip split</p>
+                  <p className="text-sm font-semibold text-foreground tabular-nums mt-0.5">
+                    {assistant.tipSplitPercent ?? 100}%
+                    <span className="text-[10px] font-normal text-muted ml-1">to assistant</span>
+                  </p>
+                </div>
               </div>
             )}
           </div>
+
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-wide text-muted mb-2">
               Shifts

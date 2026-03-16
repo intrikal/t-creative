@@ -9,9 +9,17 @@ function fmt(cents: number) {
   return "$" + Math.round(cents / 100).toLocaleString();
 }
 
+function commissionLabel(row: CommissionRow): string {
+  if (row.commissionType === "flat_fee") {
+    return `$${Math.round(row.flatFeeInCents / 100)}/session`;
+  }
+  return `${row.rate}%`;
+}
+
 export function CommissionsTab({ data }: { data: CommissionRow[] }) {
   const totalRevenue = data.reduce((s, r) => s + r.revenueInCents, 0);
-  const totalEarned = data.reduce((s, r) => s + r.earnedInCents, 0);
+  const totalTips = data.reduce((s, r) => s + r.totalTipsInCents, 0);
+  const totalEarned = data.reduce((s, r) => s + r.earnedInCents + r.tipEarnedInCents, 0);
   const totalPaidOut = data.reduce((s, r) => s + r.paidOutInCents, 0);
   const totalBalance = totalEarned - totalPaidOut;
 
@@ -38,6 +46,9 @@ export function CommissionsTab({ data }: { data: CommissionRow[] }) {
                 <th className="text-right text-[10px] font-semibold uppercase tracking-wide text-muted px-3 pb-2.5">
                   Revenue
                 </th>
+                <th className="text-right text-[10px] font-semibold uppercase tracking-wide text-muted px-3 pb-2.5 hidden md:table-cell">
+                  Tips
+                </th>
                 <th className="text-right text-[10px] font-semibold uppercase tracking-wide text-muted px-3 pb-2.5">
                   Earned
                 </th>
@@ -51,7 +62,8 @@ export function CommissionsTab({ data }: { data: CommissionRow[] }) {
             </thead>
             <tbody>
               {data.map((c) => {
-                const balance = c.earnedInCents - c.paidOutInCents;
+                const totalEarnedRow = c.earnedInCents + c.tipEarnedInCents;
+                const balance = totalEarnedRow - c.paidOutInCents;
                 return (
                   <tr
                     key={c.id}
@@ -68,7 +80,14 @@ export function CommissionsTab({ data }: { data: CommissionRow[] }) {
                       </div>
                     </td>
                     <td className="px-3 py-3 text-center align-middle">
-                      <span className="text-xs font-semibold text-foreground">{c.rate}%</span>
+                      <div className="flex flex-col items-center gap-0.5">
+                        <span className="text-xs font-semibold text-foreground">
+                          {commissionLabel(c)}
+                        </span>
+                        {c.tipSplitPercent < 100 && (
+                          <span className="text-[9px] text-muted">+{c.tipSplitPercent}% tips</span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-3 py-3 text-center align-middle">
                       <span className="text-sm text-foreground tabular-nums">{c.sessions}</span>
@@ -78,10 +97,29 @@ export function CommissionsTab({ data }: { data: CommissionRow[] }) {
                         {fmt(c.revenueInCents)}
                       </span>
                     </td>
+                    <td className="px-3 py-3 text-right align-middle hidden md:table-cell">
+                      <div className="flex flex-col items-end gap-0.5">
+                        <span className="text-sm text-foreground tabular-nums">
+                          {fmt(c.totalTipsInCents)}
+                        </span>
+                        {c.tipSplitPercent < 100 && (
+                          <span className="text-[10px] text-muted tabular-nums">
+                            {fmt(c.tipEarnedInCents)} earned
+                          </span>
+                        )}
+                      </div>
+                    </td>
                     <td className="px-3 py-3 text-right align-middle">
-                      <span className="text-sm font-semibold text-foreground tabular-nums">
-                        {fmt(c.earnedInCents)}
-                      </span>
+                      <div className="flex flex-col items-end gap-0.5">
+                        <span className="text-sm font-semibold text-foreground tabular-nums">
+                          {fmt(totalEarnedRow)}
+                        </span>
+                        {c.tipEarnedInCents > 0 && (
+                          <span className="text-[10px] text-muted tabular-nums">
+                            incl. {fmt(c.tipEarnedInCents)} tips
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-3 py-3 text-right align-middle hidden lg:table-cell">
                       <span className="text-sm text-muted tabular-nums">
@@ -112,6 +150,9 @@ export function CommissionsTab({ data }: { data: CommissionRow[] }) {
                 </td>
                 <td className="px-3 py-2.5 text-right text-sm font-semibold text-foreground tabular-nums">
                   {fmt(totalRevenue)}
+                </td>
+                <td className="px-3 py-2.5 text-right text-sm text-muted tabular-nums hidden md:table-cell">
+                  {fmt(totalTips)}
                 </td>
                 <td className="px-3 py-2.5 text-right text-sm font-semibold text-foreground tabular-nums">
                   {fmt(totalEarned)}

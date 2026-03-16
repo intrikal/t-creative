@@ -12,7 +12,12 @@ import type {
   PayrollRow,
   PayrollSummary,
 } from "./actions";
-import { createAssistant, toggleAssistantStatus, updateCommissionRate } from "./actions";
+import {
+  createAssistant,
+  toggleAssistantStatus,
+  updateCommissionSettings,
+  type CommissionType,
+} from "./actions";
 import { AddAssistantDialog, type AssistantFormData } from "./components/AddAssistantDialog";
 import { AssistantCard } from "./components/AssistantCard";
 import { AvailabilityTab } from "./components/AvailabilityTab";
@@ -54,7 +59,10 @@ export interface Assistant {
   totalRevenue: number;
   avgRating: number;
   thisMonthSessions: number;
+  commissionType: CommissionType;
   commissionRate: number | null;
+  commissionFlatFee: number | null;
+  tipSplitPercent: number;
   certifications: string[];
   recentSessions: Session[];
 }
@@ -133,7 +141,10 @@ function mapAssistantRow(r: AssistantRow): Assistant {
     totalRevenue: Math.round(r.totalRevenue / 100),
     avgRating: r.averageRating ? parseFloat(r.averageRating) : 0,
     thisMonthSessions: r.thisMonthSessions,
+    commissionType: r.commissionType,
     commissionRate: r.commissionRatePercent,
+    commissionFlatFee: r.commissionFlatFeeInCents,
+    tipSplitPercent: r.tipSplitPercent,
     certifications: [],
     recentSessions: [],
   };
@@ -225,7 +236,10 @@ export function AssistantsPage({
       phone: data.phone || undefined,
       title: data.role,
       specialties: data.specialties || undefined,
+      commissionType: data.commissionType,
       commissionRate: data.commissionRate,
+      commissionFlatFee: data.commissionFlatFee,
+      tipSplitPercent: data.tipSplitPercent,
     });
     router.refresh();
   };
@@ -235,9 +249,34 @@ export function AssistantsPage({
     setAssistants((prev) => prev.map((a) => (a.id === id ? { ...a, status } : a)));
   };
 
-  const handleUpdateCommissionRate = async (id: string, rate: number) => {
-    await updateCommissionRate(id, rate);
-    setAssistants((prev) => prev.map((a) => (a.id === id ? { ...a, commissionRate: rate } : a)));
+  const handleUpdateCommissionSettings = async (
+    id: string,
+    settings: {
+      commissionType: CommissionType;
+      commissionRate?: number;
+      commissionFlatFee?: number;
+      tipSplitPercent?: number;
+    },
+  ) => {
+    await updateCommissionSettings(id, {
+      commissionType: settings.commissionType,
+      commissionRate: settings.commissionRate,
+      commissionFlatFee: settings.commissionFlatFee,
+      tipSplitPercent: settings.tipSplitPercent,
+    });
+    setAssistants((prev) =>
+      prev.map((a) =>
+        a.id === id
+          ? {
+              ...a,
+              commissionType: settings.commissionType,
+              commissionRate: settings.commissionRate ?? a.commissionRate,
+              commissionFlatFee: settings.commissionFlatFee ?? a.commissionFlatFee,
+              tipSplitPercent: settings.tipSplitPercent ?? a.tipSplitPercent,
+            }
+          : a,
+      ),
+    );
   };
 
   return (
@@ -304,7 +343,7 @@ export function AssistantsPage({
               key={a.id}
               assistant={a}
               onToggleStatus={handleToggleStatus}
-              onUpdateCommissionRate={handleUpdateCommissionRate}
+              onUpdateCommissionSettings={handleUpdateCommissionSettings}
             />
           ))}
         </div>

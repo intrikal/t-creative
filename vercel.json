@@ -19,6 +19,14 @@
     {
       "path": "/api/cron/zoho-books",
       "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/cron/fill-reminders",
+      "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/cron/waitlist-expiry",
+      "schedule": "0 * * * *"
     }
   ]
 }

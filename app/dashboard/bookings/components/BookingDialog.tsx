@@ -204,7 +204,11 @@ export function BookingDialog({
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-3">
           <Field label="Client" required>
-            <Select value={form.clientId} onChange={(e) => onClientChange(e.target.value)}>
+            <Select
+              aria-required="true"
+              value={form.clientId}
+              onChange={(e) => onClientChange(e.target.value)}
+            >
               <option value="">Select client…</option>
               {clients.map((c) => (
                 <option key={c.id} value={c.id}>
@@ -215,6 +219,7 @@ export function BookingDialog({
           </Field>
           <Field label="Service" required>
             <Select
+              aria-required="true"
               value={form.serviceId}
               onChange={(e) => onServiceChange(e.target.value === "" ? "" : Number(e.target.value))}
             >
@@ -229,10 +234,20 @@ export function BookingDialog({
         </div>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Date" required>
-            <Input type="date" value={form.date} onChange={(e) => set("date", e.target.value)} />
+            <Input
+              aria-required="true"
+              type="date"
+              value={form.date}
+              onChange={(e) => set("date", e.target.value)}
+            />
           </Field>
           <Field label="Time" required>
-            <Input type="time" value={form.time} onChange={(e) => set("time", e.target.value)} />
+            <Input
+              aria-required="true"
+              type="time"
+              value={form.time}
+              onChange={(e) => set("time", e.target.value)}
+            />
           </Field>
         </div>
         <div className="grid grid-cols-2 gap-3">

@@ -58,6 +58,7 @@ export function ClientFormDialog({
               onChange={(e) => set("firstName")(e.target.value)}
               placeholder="e.g. Amara"
               autoFocus
+              aria-required="true"
             />
           </Field>
           <Field label="Last name" required>
@@ -65,6 +66,7 @@ export function ClientFormDialog({
               value={form.lastName}
               onChange={(e) => set("lastName")(e.target.value)}
               placeholder="e.g. Johnson"
+              aria-required="true"
             />
           </Field>
         </div>

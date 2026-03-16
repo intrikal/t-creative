@@ -15,9 +15,20 @@
 import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }) {
+export function Toggle({
+  on,
+  onChange,
+  "aria-label": ariaLabel,
+}: {
+  on: boolean;
+  onChange: (v: boolean) => void;
+  "aria-label"?: string;
+}) {
   return (
     <button
+      role="switch"
+      aria-checked={on}
+      aria-label={ariaLabel}
       onClick={() => onChange(!on)}
       className={cn(
         "relative w-10 h-[22px] rounded-full overflow-hidden transition-colors shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40",

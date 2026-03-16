@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useId, useRef, type ReactNode } from "react";
 import { X } from "lucide-react";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
@@ -75,6 +75,7 @@ export function Dialog({ open, onClose, title, description, children, size = "md
           </div>
           <button
             onClick={onClose}
+            aria-label="Close dialog"
             className="p-1.5 rounded-lg hover:bg-foreground/8 text-muted transition-colors shrink-0 -mt-0.5"
           >
             <X className="w-4 h-4" />
@@ -99,20 +100,30 @@ export function Field({
   required,
   children,
   hint,
+  id: externalId,
 }: {
   label: string;
   required?: boolean;
   children: ReactNode;
   hint?: string;
+  id?: string;
 }) {
+  const generatedId = useId();
+  const id = externalId ?? generatedId;
+  const hintId = hint ? `${id}-hint` : undefined;
+
   return (
     <div className="space-y-1.5">
-      <label className="text-sm font-medium text-foreground">
+      <label htmlFor={id} className="text-sm font-medium text-foreground">
         {label}
         {required && <span className="text-destructive ml-0.5">*</span>}
       </label>
       {children}
-      {hint && <p className="text-xs text-muted">{hint}</p>}
+      {hint && (
+        <p id={hintId} className="text-xs text-muted">
+          {hint}
+        </p>
+      )}
     </div>
   );
 }

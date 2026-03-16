@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { X, Download, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { PayStubData } from "../actions";
@@ -81,16 +81,64 @@ export function PayStubModal({
 
   const years = Array.from({ length: 3 }, (_, i) => now.getFullYear() - i);
 
+  const modalRef = useRef<HTMLDivElement>(null);
+
+  // Close on Escape
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [onClose]);
+
+  // Focus trap
+  useEffect(() => {
+    const el = modalRef.current;
+    if (!el) return;
+    const focusable = el.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])',
+    );
+    if (focusable.length) focusable[0].focus();
+
+    const handler = (e: KeyboardEvent) => {
+      if (e.key !== "Tab" || !focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey) {
+        if (document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        }
+      } else {
+        if (document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [stub, isPending]);
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <div className="relative bg-background border border-border rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+      <div
+        ref={modalRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="paystub-title"
+        className="relative bg-background border border-border rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col"
+      >
         {/* Header */}
         <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-border shrink-0">
           <div className="flex items-center gap-2.5">
             <FileText className="w-4 h-4 text-accent" />
             <div>
-              <h2 className="text-sm font-semibold text-foreground">Pay Stub</h2>
+              <h2 id="paystub-title" className="text-sm font-semibold text-foreground">
+                Pay Stub
+              </h2>
               <p className="text-xs text-muted">{assistantName}</p>
             </div>
           </div>

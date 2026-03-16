@@ -145,8 +145,12 @@ function NewSubmissionDialog({
                     onChange={(e) => setField(field.label, e.target.value)}
                   />
                 ) : field.type === "checkbox" ? (
-                  <label className="flex items-center gap-2 py-1 cursor-pointer">
+                  <label
+                    htmlFor={`checkbox-${field.id}`}
+                    className="flex items-center gap-2 py-1 cursor-pointer"
+                  >
                     <input
+                      id={`checkbox-${field.id}`}
                       type="checkbox"
                       checked={(formData[field.label] as boolean) ?? false}
                       onChange={(e) => setField(field.label, e.target.checked)}

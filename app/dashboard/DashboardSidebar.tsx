@@ -34,6 +34,7 @@ import {
   UsersRound,
   PackageCheck,
   ShieldCheck,
+  Scale,
 } from "lucide-react";
 import { TCLogo } from "@/components/TCLogo";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -91,6 +92,7 @@ const ADMIN_NAV_GROUPS: NavGroup[] = [
       { href: "/dashboard/events", label: "Events", icon: CalendarDays },
       { href: "/dashboard/training", label: "Training", icon: GraduationCap },
       { href: "/dashboard/media", label: "Media", icon: Image },
+      { href: "/dashboard/legal", label: "Legal", icon: Scale },
     ],
   },
 ];

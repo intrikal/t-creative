@@ -149,6 +149,9 @@ export {
 /* Aftercare & policies */
 export { policyTypeEnum, policies } from "./policies";
 
+/* Legal documents (Privacy Policy & Terms of Service) */
+export { legalDocumentTypeEnum, legalDocuments, type LegalSection } from "./legal-documents";
+
 /* Settings */
 export { settings } from "./settings";
 

@@ -17,7 +17,16 @@ import { createHmac } from "crypto";
 import * as Sentry from "@sentry/nextjs";
 import { eq, and, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { payments, bookings, orders, profiles, webhookEvents, syncLog } from "@/db/schema";
+import {
+  payments,
+  bookings,
+  orders,
+  profiles,
+  webhookEvents,
+  syncLog,
+  loyaltyTransactions,
+} from "@/db/schema";
+import { LoyaltyPointsAwarded } from "@/emails/LoyaltyPointsAwarded";
 import { PaymentReceipt } from "@/emails/PaymentReceipt";
 import { logAction } from "@/lib/audit";
 import { sendEmail } from "@/lib/resend";
@@ -146,6 +155,13 @@ async function handlePaymentCompleted(data: any): Promise<string> {
           depositPaidAt: new Date(),
         })
         .where(eq(bookings.id, booking.id));
+    }
+
+    // Award first_booking loyalty points (non-fatal, idempotent).
+    try {
+      await awardFirstBookingPoints(booking.clientId, booking.id);
+    } catch (err) {
+      Sentry.captureException(err);
     }
 
     // Send payment receipt email (non-fatal)
@@ -409,6 +425,89 @@ async function handleRefundEvent(data: any): Promise<string> {
 }
 
 /* eslint-enable @typescript-eslint/no-explicit-any */
+
+/* ------------------------------------------------------------------ */
+/*  Loyalty helpers                                                    */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Awards first_booking loyalty points to a client on their first paid booking.
+ * Idempotent — skips silently if points have already been awarded.
+ * Reads the configured bonus from the admin's onboardingData so the studio can
+ * control the value without a code deploy.
+ */
+async function awardFirstBookingPoints(clientId: string, bookingId: number): Promise<void> {
+  // Only ever award once per client lifetime.
+  const [alreadyAwarded] = await db
+    .select({ id: loyaltyTransactions.id })
+    .from(loyaltyTransactions)
+    .where(
+      and(
+        eq(loyaltyTransactions.profileId, clientId),
+        eq(loyaltyTransactions.type, "first_booking"),
+      ),
+    )
+    .limit(1);
+
+  if (alreadyAwarded) return;
+
+  // Read the studio's configured bonus value from the admin profile.
+  const [adminProfile] = await db
+    .select({ onboardingData: profiles.onboardingData })
+    .from(profiles)
+    .where(eq(profiles.role, "admin"))
+    .limit(1);
+
+  const rewardsConfig = (adminProfile?.onboardingData as Record<string, unknown> | null)
+    ?.rewards as Record<string, unknown> | undefined;
+
+  if (!rewardsConfig?.enabled) return;
+
+  const bonuses = rewardsConfig.bonuses as Record<string, unknown> | undefined;
+  const pts = typeof bonuses?.firstBooking === "number" ? bonuses.firstBooking : null;
+  if (!pts) return;
+
+  await db.insert(loyaltyTransactions).values({
+    profileId: clientId,
+    points: pts,
+    type: "first_booking",
+    description: "First booking",
+  });
+
+  // Notify the client (non-fatal — email failure must not fail the webhook).
+  try {
+    const [client] = await db
+      .select({
+        firstName: profiles.firstName,
+        email: profiles.email,
+        notifyEmail: profiles.notifyEmail,
+      })
+      .from(profiles)
+      .where(eq(profiles.id, clientId));
+
+    if (client?.email && client.notifyEmail) {
+      const [balanceRow] = await db
+        .select({ total: sql<number>`SUM(${loyaltyTransactions.points})` })
+        .from(loyaltyTransactions)
+        .where(eq(loyaltyTransactions.profileId, clientId));
+
+      await sendEmail({
+        to: client.email,
+        subject: "You earned loyalty points! — T Creative",
+        react: LoyaltyPointsAwarded({
+          clientName: client.firstName,
+          pointsEarned: pts,
+          reason: "First booking",
+          totalBalance: Number(balanceRow?.total ?? pts),
+        }),
+        entityType: "loyalty_points_awarded",
+        localId: String(bookingId),
+      });
+    }
+  } catch {
+    // Non-fatal — points were already written; only the notification failed.
+  }
+}
 
 /* ------------------------------------------------------------------ */
 /*  Route handler                                                      */

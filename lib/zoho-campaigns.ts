@@ -10,6 +10,7 @@
  *
  * @module lib/zoho-campaigns
  */
+import * as Sentry from "@sentry/nextjs";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { profiles, syncLog } from "@/db/schema";
@@ -147,6 +148,7 @@ export async function syncCampaignsSubscriber(data: CampaignsSubscriberData): Pr
       message: `Synced subscriber ${data.email}`,
     });
   } catch (err) {
+    Sentry.captureException(err);
     console.error("[zoho-campaigns] Failed to sync subscriber:", err);
     await logSync({
       status: "failed",
@@ -190,6 +192,7 @@ export async function unsubscribeFromCampaigns(profileId: string): Promise<void>
       message: `Unsubscribed ${profile.email}`,
     });
   } catch (err) {
+    Sentry.captureException(err);
     console.error("[zoho-campaigns] Failed to unsubscribe:", err);
     await logSync({
       status: "failed",

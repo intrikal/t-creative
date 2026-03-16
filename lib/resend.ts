@@ -9,6 +9,7 @@
  *
  * @module lib/resend
  */
+import * as Sentry from "@sentry/nextjs";
 import { eq } from "drizzle-orm";
 import { Resend } from "resend";
 import { db } from "@/db";
@@ -97,6 +98,7 @@ export async function sendEmail(params: {
     return true;
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : "Unknown email error";
+    Sentry.captureException(err);
     console.error("[resend] Failed to send email:", errorMessage);
 
     await db.insert(syncLog).values({

@@ -14,6 +14,7 @@
  * @module api/webhooks/square
  */
 import { createHmac } from "crypto";
+import * as Sentry from "@sentry/nextjs";
 import { eq, and, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { payments, bookings, orders, profiles, webhookEvents, syncLog } from "@/db/schema";
@@ -494,6 +495,7 @@ export async function POST(request: Request): Promise<Response> {
     syncStatus = "failed";
     result = errorMessage;
 
+    Sentry.captureException(err);
     await db.update(webhookEvents).set({ errorMessage }).where(eq(webhookEvents.id, webhookRow.id));
   }
 

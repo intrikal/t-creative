@@ -26,6 +26,7 @@
  */
 
 import { NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import { logAction } from "@/lib/audit";
 import { createBackupManifest, isStorageConfigured, uploadBackupToStorage } from "@/lib/backup";
 
@@ -41,6 +42,7 @@ export async function POST(request: Request) {
   try {
     manifest = await createBackupManifest();
   } catch (err) {
+    Sentry.captureException(err);
     console.error("[cron/backup] Manifest creation failed:", err);
     return NextResponse.json({ error: "Backup failed" }, { status: 500 });
   }
@@ -73,6 +75,7 @@ export async function POST(request: Request) {
   try {
     result = await uploadBackupToStorage(manifest);
   } catch (err) {
+    Sentry.captureException(err);
     console.error("[cron/backup] Upload failed:", err);
     return NextResponse.json({ error: "Upload failed" }, { status: 500 });
   }

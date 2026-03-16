@@ -10,6 +10,7 @@
  * @module api/cron/zoho-books
  */
 import { NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import { bookings, orders, enrollments, profiles, services, trainingPrograms } from "@/db/schema";
@@ -63,7 +64,8 @@ export async function GET(request: Request) {
         depositInCents: b.depositPaidInCents ?? undefined,
       });
       synced++;
-    } catch {
+    } catch (err) {
+      Sentry.captureException(err);
       failed++;
     }
   }
@@ -95,7 +97,8 @@ export async function GET(request: Request) {
         lineItems: [{ name: o.title, rate: o.finalInCents ?? 0, quantity: o.quantity }],
       });
       synced++;
-    } catch {
+    } catch (err) {
+      Sentry.captureException(err);
       failed++;
     }
   }
@@ -127,7 +130,8 @@ export async function GET(request: Request) {
         lineItems: [{ name: `Training: ${e.programName}`, rate: e.priceInCents ?? 0, quantity: 1 }],
       });
       synced++;
-    } catch {
+    } catch (err) {
+      Sentry.captureException(err);
       failed++;
     }
   }

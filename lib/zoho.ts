@@ -8,6 +8,7 @@
  *
  * @module lib/zoho
  */
+import * as Sentry from "@sentry/nextjs";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { profiles, bookings, syncLog } from "@/db/schema";
@@ -134,6 +135,7 @@ export async function upsertZohoContact(data: {
       message: `Upserted contact ${data.email}`,
     });
   } catch (err) {
+    Sentry.captureException(err);
     console.error("[zoho] Failed to upsert contact:", err);
     await logSync({
       status: "failed",
@@ -202,6 +204,7 @@ export async function createZohoDeal(data: {
       message: `Created deal: ${data.dealName}`,
     });
   } catch (err) {
+    Sentry.captureException(err);
     console.error("[zoho] Failed to create deal:", err);
     await logSync({
       status: "failed",
@@ -243,6 +246,7 @@ export async function updateZohoDeal(bookingId: number, stage: string): Promise<
       message: `Updated deal stage to ${stage}`,
     });
   } catch (err) {
+    Sentry.captureException(err);
     console.error("[zoho] Failed to update deal:", err);
     await logSync({
       status: "failed",
@@ -295,6 +299,7 @@ export async function logZohoNote(
       message: `Added note: ${title}`,
     });
   } catch (err) {
+    Sentry.captureException(err);
     console.error("[zoho] Failed to add note:", err);
     await logSync({
       status: "failed",

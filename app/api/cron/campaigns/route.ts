@@ -7,6 +7,7 @@
  * Run weekly via pg_cron or on-demand. Secured with CRON_SECRET header.
  */
 import { NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import { profiles } from "@/db/schema";
@@ -72,7 +73,8 @@ export async function GET(request: Request) {
         birthday,
       });
       synced++;
-    } catch {
+    } catch (err) {
+      Sentry.captureException(err);
       failed++;
     }
   }

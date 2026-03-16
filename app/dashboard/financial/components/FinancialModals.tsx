@@ -181,16 +181,32 @@ export function FinancialModals({ modal, onClose }: { modal: ModalType; onClose:
           onSubmit={(e) => e.preventDefault()}
           className="space-y-4"
         >
-          {error && <p className="text-xs text-destructive">{error}</p>}
+          {error && (
+            <p className="text-xs text-destructive" role="alert" aria-live="polite">
+              {error}
+            </p>
+          )}
           <Field label="Client ID" required>
-            <Input name="clientId" placeholder="Client UUID" />
+            <Input name="clientId" placeholder="Client UUID" aria-required="true" />
           </Field>
           <Field label="Services / Description" required>
-            <Textarea name="description" rows={2} placeholder="e.g. Volume Lashes — Full Set" />
+            <Textarea
+              name="description"
+              rows={2}
+              placeholder="e.g. Volume Lashes — Full Set"
+              aria-required="true"
+            />
           </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Amount ($)" required>
-              <Input name="amount" type="number" placeholder="0.00" min={0} step={0.01} />
+              <Input
+                name="amount"
+                type="number"
+                placeholder="0.00"
+                min={0}
+                step={0.01}
+                aria-required="true"
+              />
             </Field>
             <Field label="Due Date">
               <Input name="dueAt" type="date" />
@@ -233,13 +249,17 @@ export function FinancialModals({ modal, onClose }: { modal: ModalType; onClose:
           onSubmit={(e) => e.preventDefault()}
           className="space-y-4"
         >
-          {error && <p className="text-xs text-destructive">{error}</p>}
+          {error && (
+            <p className="text-xs text-destructive" role="alert" aria-live="polite">
+              {error}
+            </p>
+          )}
           <div className="grid grid-cols-2 gap-3">
             <Field label="Date" required>
-              <Input name="expenseDate" type="date" />
+              <Input name="expenseDate" type="date" aria-required="true" />
             </Field>
             <Field label="Category" required>
-              <Select name="category">
+              <Select name="category" aria-required="true">
                 <option value="">Select…</option>
                 {["Supplies", "Rent", "Marketing", "Equipment", "Software", "Travel", "Other"].map(
                   (c) => (
@@ -252,14 +272,25 @@ export function FinancialModals({ modal, onClose }: { modal: ModalType; onClose:
             </Field>
           </div>
           <Field label="Description" required>
-            <Input name="description" placeholder="e.g. Monthly lash supply restock" />
+            <Input
+              name="description"
+              placeholder="e.g. Monthly lash supply restock"
+              aria-required="true"
+            />
           </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Vendor">
               <Input name="vendor" placeholder="e.g. Beauty Supply Co" />
             </Field>
             <Field label="Amount ($)" required>
-              <Input name="amount" type="number" placeholder="0.00" min={0} step={0.01} />
+              <Input
+                name="amount"
+                type="number"
+                placeholder="0.00"
+                min={0}
+                step={0.01}
+                aria-required="true"
+              />
             </Field>
           </div>
           <Field label="Receipt">
@@ -287,13 +318,24 @@ export function FinancialModals({ modal, onClose }: { modal: ModalType; onClose:
           onSubmit={(e) => e.preventDefault()}
           className="space-y-4"
         >
-          {error && <p className="text-xs text-destructive">{error}</p>}
+          {error && (
+            <p className="text-xs text-destructive" role="alert" aria-live="polite">
+              {error}
+            </p>
+          )}
           <div className="grid grid-cols-2 gap-3">
             <Field label="Recipient">
               <Input name="recipient" placeholder="Recipient name" />
             </Field>
             <Field label="Amount ($)" required>
-              <Input name="amount" type="number" placeholder="0.00" min={1} step={1} />
+              <Input
+                name="amount"
+                type="number"
+                placeholder="0.00"
+                min={1}
+                step={1}
+                aria-required="true"
+              />
             </Field>
           </div>
           <div className="grid grid-cols-2 gap-3">
@@ -323,17 +365,22 @@ export function FinancialModals({ modal, onClose }: { modal: ModalType; onClose:
           onSubmit={(e) => e.preventDefault()}
           className="space-y-4"
         >
-          {error && <p className="text-xs text-destructive">{error}</p>}
+          {error && (
+            <p className="text-xs text-destructive" role="alert" aria-live="polite">
+              {error}
+            </p>
+          )}
           <div className="grid grid-cols-2 gap-3">
             <Field label="Promo Code" required>
               <Input
                 name="code"
                 placeholder="e.g. SUMMER25"
                 style={{ textTransform: "uppercase" }}
+                aria-required="true"
               />
             </Field>
             <Field label="Discount Type" required>
-              <Select name="discountType">
+              <Select name="discountType" aria-required="true">
                 <option value="percent">Percentage (%)</option>
                 <option value="fixed">Fixed amount ($)</option>
                 <option value="bogo">Buy one get one</option>
@@ -342,7 +389,13 @@ export function FinancialModals({ modal, onClose }: { modal: ModalType; onClose:
           </div>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Discount Value" required>
-              <Input name="discountValue" type="number" placeholder="e.g. 20" min={1} />
+              <Input
+                name="discountValue"
+                type="number"
+                placeholder="e.g. 20"
+                min={1}
+                aria-required="true"
+              />
             </Field>
             <Field label="Max Uses">
               <Input name="maxUses" type="number" placeholder="Leave blank for unlimited" min={1} />

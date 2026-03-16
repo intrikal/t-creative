@@ -55,6 +55,7 @@ export function AddAssistantDialog({
               onChange={(e) => setFirstName(e.target.value)}
               placeholder="e.g. Jasmine"
               autoFocus
+              aria-required="true"
             />
           </Field>
           <Field label="Last name" required>
@@ -62,6 +63,7 @@ export function AddAssistantDialog({
               value={lastName}
               onChange={(e) => setLastName(e.target.value)}
               placeholder="e.g. Carter"
+              aria-required="true"
             />
           </Field>
         </div>
@@ -70,6 +72,7 @@ export function AddAssistantDialog({
             value={role}
             onChange={(e) => setRole(e.target.value)}
             placeholder="e.g. Lead Lash Technician"
+            aria-required="true"
           />
         </Field>
         <div className="grid grid-cols-2 gap-3">
@@ -118,12 +121,15 @@ export function AddAssistantDialog({
         <div className="space-y-3 bg-surface/60 rounded-xl p-3 border border-border/60">
           <p className="text-xs font-semibold text-foreground">Commission & Tip Settings</p>
 
-          <Field label="Commission type">
-            <div className="flex gap-2 mt-1">
+          <fieldset>
+            <legend className="text-sm font-medium text-foreground">Commission type</legend>
+            <div className="flex gap-2 mt-1" role="radiogroup">
               {(["percentage", "flat_fee"] as CommissionType[]).map((t) => (
                 <button
                   key={t}
                   type="button"
+                  role="radio"
+                  aria-checked={commissionType === t}
                   onClick={() => setCommissionType(t)}
                   className={cn(
                     "flex-1 text-xs py-1.5 rounded-lg border transition-colors font-medium",
@@ -136,7 +142,7 @@ export function AddAssistantDialog({
                 </button>
               ))}
             </div>
-          </Field>
+          </fieldset>
 
           {commissionType === "percentage" ? (
             <Field

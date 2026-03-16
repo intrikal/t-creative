@@ -158,12 +158,14 @@ function IssueRewardDialog({
           )}
         </div>
 
-        <div>
-          <p className="text-xs font-medium text-muted mb-2">Reward type</p>
-          <div className="grid grid-cols-2 gap-2">
+        <fieldset>
+          <legend className="text-xs font-medium text-muted mb-2">Reward type</legend>
+          <div className="grid grid-cols-2 gap-2" role="radiogroup">
             {REWARD_OPTIONS.map((opt) => (
               <button
                 key={opt.id}
+                role="radio"
+                aria-checked={type === opt.id}
                 onClick={() => setType(opt.id)}
                 className={cn(
                   "flex items-start gap-2.5 p-2.5 rounded-lg border text-left transition-all",
@@ -192,7 +194,7 @@ function IssueRewardDialog({
               </button>
             ))}
           </div>
-        </div>
+        </fieldset>
 
         {(type === "discount" || type === "points") && (
           <Field label={type === "discount" ? "Amount (e.g. $10 or 15%)" : "Points to add"}>

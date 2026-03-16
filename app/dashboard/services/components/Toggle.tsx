@@ -22,9 +22,20 @@ import { cn } from "@/lib/utils";
  * @param on       - Current state. `true` = on (accent colour), `false` = off (muted).
  * @param onChange - Called with the new value on click.
  */
-export function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }) {
+export function Toggle({
+  on,
+  onChange,
+  "aria-label": ariaLabel,
+}: {
+  on: boolean;
+  onChange: (v: boolean) => void;
+  "aria-label"?: string;
+}) {
   return (
     <button
+      role="switch"
+      aria-checked={on}
+      aria-label={ariaLabel}
       onClick={(e) => {
         e.stopPropagation();
         onChange(!on);

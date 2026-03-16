@@ -94,6 +94,7 @@ export function ServiceFormDialog({
               placeholder="e.g. Classic Full Set"
               value={form.name}
               onChange={(e) => set("name", e.target.value)}
+              aria-required="true"
             />
           </Field>
           <Field label="Category" required>
@@ -113,7 +114,11 @@ export function ServiceFormDialog({
                   <ChevronsUpDown className="w-3.5 h-3.5 text-muted shrink-0" />
                 </button>
               </PopoverTrigger>
-              <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+              <PopoverContent
+                id="category-listbox"
+                className="w-[--radix-popover-trigger-width] p-0"
+                align="start"
+              >
                 <Command>
                   <CommandInput placeholder="Search categories..." />
                   <CommandList>
@@ -173,6 +178,7 @@ export function ServiceFormDialog({
               min={0}
               value={form.price}
               onChange={(e) => set("price", Number(e.target.value))}
+              aria-required="true"
             />
           </Field>
           <Field label="Deposit ($)" hint="0 = no deposit required">

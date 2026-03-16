@@ -97,6 +97,7 @@ export async function GET(
   }
 
   const isOwner = profile.role === "admin";
+  const isClient = profile.role === "client";
   const now = new Date();
 
   const clientProfile = alias(profiles, "client_profile");
@@ -124,7 +125,11 @@ export async function GET(
       and(
         or(eq(bookings.status, "confirmed"), eq(bookings.status, "pending")),
         gte(bookings.startsAt, now),
-        isOwner ? undefined : eq(bookings.staffId, profileId),
+        isOwner
+          ? undefined
+          : isClient
+            ? eq(bookings.clientId, profileId)
+            : eq(bookings.staffId, profileId),
       ),
     );
 
@@ -137,7 +142,7 @@ export async function GET(
 
     const descParts = [
       `Service: ${r.serviceName}`,
-      `Client: ${clientName}`,
+      isClient ? `With: ${staffName}` : `Client: ${clientName}`,
       isOwner ? `Staff: ${staffName}` : null,
       total ? `Total: ${total}` : null,
       r.clientNotes ? `Notes: ${r.clientNotes}` : null,
@@ -149,13 +154,19 @@ export async function GET(
       end,
       summary: isOwner
         ? `${r.serviceName} — ${clientName} (${staffName})`
-        : `${r.serviceName} — ${clientName}`,
+        : isClient
+          ? `${r.serviceName} with ${staffName}`
+          : `${r.serviceName} — ${clientName}`,
       description: descParts.join("\n"),
       location: r.location ?? "T Creative Studio",
     };
   });
 
-  const calName = isOwner ? "T Creative — All Bookings" : "T Creative — My Bookings";
+  const calName = isOwner
+    ? "T Creative — All Bookings"
+    : isClient
+      ? "T Creative — My Appointments"
+      : "T Creative — My Bookings";
   const ics = buildIcs(events, calName);
 
   return new Response(ics, {

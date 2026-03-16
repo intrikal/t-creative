@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
+import Image from "next/image";
 import {
   Scissors,
   Printer,
@@ -418,8 +419,13 @@ function CommissionRequestDialog({ onClose }: { onClose: () => void }) {
                   {a.preview ? (
                     // Image thumbnail
                     <div className="w-16 h-16 rounded-lg overflow-hidden border border-border bg-surface">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={a.preview} alt="" className="w-full h-full object-cover" />
+                      <Image
+                        src={a.preview}
+                        alt=""
+                        width={200}
+                        height={200}
+                        className="w-full h-full object-cover"
+                      />
                     </div>
                   ) : (
                     // Design file icon

@@ -108,19 +108,6 @@ export async function saveOnboardingData(
       rewards,
     } = adminOnboardingSchema.parse(raw);
 
-    console.log("[onboarding/admin] user.id:", user.id);
-    console.log("[onboarding/admin] identity:", { firstName, lastName, email, phone });
-    console.log("[onboarding/admin] studio:", { studioName, bio, locationType, locationArea });
-    console.log("[onboarding/admin] services:", JSON.stringify(services, null, 2));
-    console.log("[onboarding/admin] rewards.enabled:", rewards?.enabled);
-    console.log(
-      "[onboarding/admin] rewards.tiers:",
-      rewards?.tier1Name,
-      rewards?.tier2Name,
-      rewards?.tier3Name,
-      rewards?.tier4Name,
-    );
-
     // Strip empty handles so we don't store blank strings in the DB.
     const filteredSocials = Object.fromEntries(
       Object.entries(socials ?? {}).filter(([, v]) => v.trim() !== ""),
@@ -336,7 +323,6 @@ export async function saveOnboardingData(
       if (serviceInserts.length > 0) {
         await tx.insert(servicesTable).values(serviceInserts);
       }
-      console.log("[onboarding/admin] ✓ profile upserted, services saved");
     });
 
     trackEvent(user.id, "onboarding_completed", {

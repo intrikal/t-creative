@@ -11,7 +11,7 @@
  */
 
 import { Geist, Cormorant_Garamond } from "next/font/google";
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { ConditionalNavbar } from "@/components/ConditionalNavbar";
 import { NavbarWrapper } from "@/components/NavbarWrapper";
 import { PostHogProvider } from "@/components/providers/PostHogProvider";
@@ -40,6 +40,12 @@ const cormorant = Cormorant_Garamond({
 });
 
 const BASE_URL = "https://tcreativestudio.com";
+
+export const viewport: Viewport = {
+  themeColor: "#2c2420",
+  width: "device-width",
+  initialScale: 1,
+};
 
 export const metadata: Metadata = {
   metadataBase: new URL(BASE_URL),

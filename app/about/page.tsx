@@ -4,6 +4,31 @@
 import type { Metadata } from "next";
 import { AboutPage } from "./AboutPage";
 
+const BASE_URL = "https://tcreativestudio.com";
+
+const personJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "Person",
+  name: "Trini Lam",
+  jobTitle: "Founder & Creative Director",
+  worksFor: { "@type": "Organization", name: "T Creative Studio", url: BASE_URL },
+  url: `${BASE_URL}/about`,
+  knowsAbout: [
+    "Lash Extensions",
+    "Permanent Jewelry",
+    "Custom Crochet",
+    "Business Consulting",
+    "HR Consulting",
+  ],
+  address: {
+    "@type": "PostalAddress",
+    addressLocality: "San Jose",
+    addressRegion: "CA",
+    addressCountry: "US",
+  },
+  sameAs: ["https://www.instagram.com/tcreativestudio", "https://www.tiktok.com/@tcreativestudio"],
+};
+
 export const metadata: Metadata = {
   title: "About Trini Lam | T Creative Studio",
   description:
@@ -25,5 +50,13 @@ export const metadata: Metadata = {
 };
 
 export default function Page() {
-  return <AboutPage />;
+  return (
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(personJsonLd) }}
+      />
+      <AboutPage />
+    </>
+  );
 }

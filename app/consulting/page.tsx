@@ -4,6 +4,33 @@
 import type { Metadata } from "next";
 import { ConsultingPage } from "./ConsultingPage";
 
+const BASE_URL = "https://tcreativestudio.com";
+
+const consultingJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "ProfessionalService",
+  name: "T Creative Studio — HR & Business Consulting",
+  url: `${BASE_URL}/consulting`,
+  description:
+    "Strategic HR and business consulting for entrepreneurs and growing companies. Remote consulting available.",
+  serviceType: "Business Consulting",
+  provider: {
+    "@type": "Person",
+    name: "Trini Lam",
+    worksFor: { "@type": "Organization", name: "T Creative Studio", url: BASE_URL },
+  },
+  areaServed: { "@type": "Country", name: "United States" },
+  availableChannel: {
+    "@type": "ServiceChannel",
+    serviceUrl: `${BASE_URL}/consulting`,
+    availableLanguage: "en",
+    serviceLocation: {
+      "@type": "VirtualLocation",
+      url: `${BASE_URL}/consulting`,
+    },
+  },
+};
+
 export const metadata: Metadata = {
   title: "HR & Business Consulting | Remote Consulting | T Creative Studio",
   description:
@@ -25,5 +52,13 @@ export const metadata: Metadata = {
 };
 
 export default function Page() {
-  return <ConsultingPage />;
+  return (
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(consultingJsonLd) }}
+      />
+      <ConsultingPage />
+    </>
+  );
 }

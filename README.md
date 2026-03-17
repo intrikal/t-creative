@@ -1,37 +1,167 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# T Creative Studio
+
+Full-stack operations platform for a multi-service creative studio in San Jose, CA offering lash extensions, permanent jewelry, custom crochet, 3D printing, consulting, and aesthetics. Replaces manual scheduling, payment tracking, and client management with a unified platform covering bookings, payments, CRM, staff management, e-commerce, and automated operations. Built with Next.js 16, React 19, TypeScript, PostgreSQL (Supabase), Drizzle ORM, and Square.
+
+## Features
+
+**Admin Dashboard**
+
+- Revenue tracking with daily/weekly/monthly views
+- Booking management with calendar and waitlist
+- Client CRM with loyalty and referral tracking
+- Staff management with commission and payroll tracking
+- Financial dashboard with P&L and tax estimates
+- Analytics with retention and at-risk client detection
+- Service and pricing configuration
+- Event management with corporate inquiry flow
+- Training program administration
+- Marketplace with inventory and gift cards
+- Media gallery
+- Membership tiers and subscription packages
+
+**Assistant Dashboard**
+
+- Daily schedule with shift management
+- Booking management for assigned clients
+- Earnings and commission tracking
+- Training enrollment and progress
+- Client aftercare protocols
+- Reviews and ratings
+- Messages
+
+**Client Portal**
+
+- Self-service booking with constraint-based scheduling
+- Upcoming and past appointment history
+- Loyalty points and rewards
+- Invoices and payment history
+- Messages with staff
+- Shop and gift cards
+- Event RSVP
+- Training enrollment
+- Aftercare instructions
+- Settings and notification preferences
+
+**Public Pages**
+
+- Landing page with interactive 3D studio diorama (React Three Fiber)
+- Service catalog with pricing
+- Portfolio gallery
+- Training program listings
+- E-commerce shop
+- Booking storefront
+- Corporate event inquiry
+- About, contact, privacy policy, terms of service
+
+## Tech Stack
+
+| Category         | Technology                                             |
+| ---------------- | ------------------------------------------------------ |
+| Framework        | Next.js 16.1.6 (App Router)                            |
+| Language         | TypeScript 5                                           |
+| Database         | PostgreSQL 15 (Supabase)                               |
+| ORM              | Drizzle ORM 0.45.1                                     |
+| Auth             | Supabase Auth (@supabase/ssr)                          |
+| Payments         | Square 44.0.0                                          |
+| Email            | Resend 6.9.2 (React Email templates)                   |
+| SMS              | Twilio 5.13.0                                          |
+| CRM/Accounting   | Zoho CRM v7 (REST API via fetch)                       |
+| Analytics        | PostHog (posthog-js 1.354.3)                           |
+| Error Tracking   | Sentry (@sentry/nextjs 10.43.0)                        |
+| Bot Protection   | Cloudflare Turnstile (@marsidev/react-turnstile 1.4.2) |
+| Styling          | Tailwind CSS 4                                         |
+| 3D Graphics      | Three.js 0.183.0, React Three Fiber 9.5.0, Drei 10.7.7 |
+| State Management | Zustand 5.0.11                                         |
+| Forms            | TanStack React Form 1.28.3, Zod 4.3.6                  |
+| Testing          | Vitest 4.0.18, Playwright 1.58.2, axe-core             |
+| CI/CD            | GitHub Actions (6 parallel jobs)                       |
+| Hosting          | Vercel                                                 |
+| Backup           | S3-compatible object storage (gzipped JSON manifests)  |
+
+## Architecture
+
+Server Components handle data fetching and metadata at the page level, while Client Components manage interactivity. Mutations use `useOptimistic` for instant UI feedback before server confirmation. The `"use client"` boundary is pushed as deep as possible to maximize server-rendered content.
+
+Server Actions with `revalidatePath` handle all data mutations. Suspense boundaries provide streaming for slower queries. Financial and analytics dashboards use parallel server component composition to load multiple data sources concurrently.
+
+Routing is role-based: each `page.tsx` in the dashboard checks the user's role (admin, assistant, or client) and renders a completely different component with different data queries. There is no shared dashboard view between roles.
+
+Square webhooks handle real-time payment reconciliation. The webhook route verifies HMAC-SHA256 signatures, stores raw events in `webhook_events` for audit and replay, then processes payment and refund events into the local database.
+
+Seven Vercel Cron jobs automate recurring operations: hourly booking reminders, daily review requests, daily birthday greetings, weekly re-engagement campaigns, daily Zoho Books sync, daily lash fill reminders, and hourly waitlist expiry cleanup.
+
+Row-level security is enforced on every table via Supabase RLS policies. The Next.js Proxy (middleware) handles rate limiting on public POST endpoints and auth session refresh before requests reach route handlers.
 
 ## Getting Started
 
-First, run the development server:
-
 ```bash
+git clone https://github.com/intrikal/t-creative.git
+cd t-creative
+npm install
+cp .env.example .env.local
+# Fill in values — see docs/INTEGRATION_SETUP.md
+npm run db:migrate
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+See [docs/INTEGRATION_SETUP.md](docs/INTEGRATION_SETUP.md) for step-by-step instructions on configuring all third-party services.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Documentation
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- [Integration Setup](docs/INTEGRATION_SETUP.md) -- Square, Supabase, Resend, Twilio, Zoho, PostHog, Sentry, Turnstile, S3
+- [Deployment Checklist](docs/DEPLOYMENT_CHECKLIST.md)
+- [Engineering Standards](docs/ENGINEERING_STANDARDS.md)
+- [Recovery Runbook](docs/RECOVERY_RUNBOOK.md)
+- [Migration Checklist](docs/MIGRATION_CHECKLIST.md)
+- [Turnstile Setup](docs/TURNSTILE_SETUP.md)
+- [Sentry Setup](docs/sentry-setup.md)
+- [Three.js Architecture](docs/THREE_JS_ARCHITECTURE.md)
+- [Contributing](CONTRIBUTING.md)
 
-## Learn More
+## Scripts
 
-To learn more about Next.js, take a look at the following resources:
+| Command                | Description                                    |
+| ---------------------- | ---------------------------------------------- |
+| `npm run dev`          | Start Next.js dev server on localhost:3000     |
+| `npm run build`        | Production build                               |
+| `npm run start`        | Start production server                        |
+| `npm run lint`         | Run ESLint across the project                  |
+| `npm run format`       | Format all files with Prettier                 |
+| `npm run format:check` | Check formatting without writing               |
+| `npm test`             | Run Vitest unit tests                          |
+| `npm run test:watch`   | Run Vitest in watch mode                       |
+| `npm run test:e2e`     | Run Playwright end-to-end tests                |
+| `npm run test:e2e:ui`  | Run Playwright with interactive UI             |
+| `npm run db:generate`  | Generate Drizzle migration from schema changes |
+| `npm run db:migrate`   | Apply pending database migrations              |
+| `npm run db:push`      | Push schema changes directly (dev only)        |
+| `npm run db:studio`    | Open Drizzle Studio database browser           |
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Project Structure
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```
+app/                       Next.js routes and pages
+  dashboard/                 Role-based dashboards (30 sections)
+  api/                       API routes, webhooks, cron jobs (19 routes)
+  auth/                      OAuth callback and error handling
+  book/                      Public booking storefront
+  shop/                      E-commerce storefront
+  events/corporate/          Corporate event inquiry
+components/                  Reusable UI components
+  landing/                   Landing page sections (33 components)
+  three/                     React Three Fiber 3D components (12)
+  onboarding/                Multi-step onboarding flows (55 components)
+  booking/                   Booking request components
+  ui/                        Shared UI primitives
+db/schema/                   Drizzle ORM schema (57 tables)
+drizzle/                     Database migrations (26)
+emails/                      React Email templates (30)
+lib/                         Integrations and utilities
+stores/                      Zustand stores
+e2e/                         Playwright E2E tests (9 specs)
+docs/                        Documentation
+```
 
-## Deploy on Vercel
+## License
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
-# t-creative
+Private -- not open source.

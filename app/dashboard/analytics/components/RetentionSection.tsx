@@ -8,6 +8,7 @@
  */
 "use client";
 
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import type { RetentionWeek, AtRiskClient } from "../actions";
@@ -25,9 +26,6 @@ export function RetentionSection({
   retentionTrend: RetentionWeek[];
   atRiskClients: AtRiskClient[];
 }) {
-  const RET_BAR_H = 140;
-  const maxRetentionBar = Math.max(...retentionTrend.map((w) => w.newClients + w.returning), 1);
-
   return (
     <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
       {/* New vs returning stacked bar */}
@@ -51,69 +49,52 @@ export function RetentionSection({
           </div>
         </CardHeader>
         <CardContent className="px-5 pb-5 pt-4">
-          <div className="relative h-48">
-            {[10, 20]
-              .filter((l) => l <= maxRetentionBar * 1.1)
-              .map((line) => (
-                <div
-                  key={line}
-                  className="absolute left-0 right-0 flex items-center gap-2"
-                  style={{ bottom: `${18 + (line / maxRetentionBar) * RET_BAR_H}px` }}
-                >
-                  <span className="text-[9px] text-muted/50 tabular-nums w-4 text-right shrink-0">
-                    {line}
-                  </span>
-                  <div className="flex-1 border-t border-dashed border-border/40" />
-                </div>
-              ))}
-            <div className="absolute inset-0 flex items-end gap-1.5 pl-6">
-              {retentionTrend.map((w) => {
-                const total = w.newClients + w.returning;
-                const barPx = Math.round((total / maxRetentionBar) * RET_BAR_H);
-                return (
-                  <div
-                    key={w.week}
-                    className="group relative flex-1 flex flex-col items-center gap-1.5"
-                  >
-                    <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 z-30 opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-150">
-                      <div className="bg-foreground text-background rounded-xl px-3 py-2 shadow-xl text-[11px] whitespace-nowrap">
-                        <p className="font-semibold mb-1 pb-1 border-b border-background/20">
-                          {w.week} · {total} clients
-                        </p>
-                        <div className="space-y-0.5">
-                          <div className="flex items-center justify-between gap-3">
-                            <span className="flex items-center gap-1.5">
-                              <span className="w-2 h-2 rounded-sm bg-[#4e6b51] inline-block" />
-                              Returning
-                            </span>
-                            <span className="font-medium">{w.returning}</span>
-                          </div>
-                          <div className="flex items-center justify-between gap-3">
-                            <span className="flex items-center gap-1.5">
-                              <span className="w-2 h-2 rounded-sm bg-[#c4907a] inline-block" />
-                              New
-                            </span>
-                            <span className="font-medium">{w.newClients}</span>
-                          </div>
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart data={retentionTrend} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-tertiary)" opacity={0.3} />
+              <XAxis
+                dataKey="week"
+                tick={{ fontSize: 11, fontFamily: "inherit", fill: "var(--color-text-secondary)" }}
+                axisLine={false}
+                tickLine={false}
+              />
+              <YAxis
+                tickFormatter={(v) => String(Math.round(v))}
+                tick={{ fontSize: 11, fontFamily: "inherit", fill: "var(--color-text-secondary)" }}
+                axisLine={false}
+                tickLine={false}
+                width={30}
+              />
+              <Tooltip
+                content={({ active, payload, label }) => {
+                  if (!active || !payload?.length) return null;
+                  const newVal = (payload.find((p) => p.dataKey === "newClients")?.value as number) ?? 0;
+                  const retVal = (payload.find((p) => p.dataKey === "returning")?.value as number) ?? 0;
+                  return (
+                    <div className="bg-background border rounded-lg shadow-md px-3 py-2 text-xs">
+                      <p className="font-semibold mb-1.5 pb-1 border-b border-border">{label} · {newVal + retVal} clients</p>
+                      <div className="space-y-0.5">
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="flex items-center gap-1.5 text-muted">
+                            <span className="w-2 h-2 rounded-sm bg-[#4e6b51] inline-block" />Returning
+                          </span>
+                          <span className="font-medium">{retVal}</span>
+                        </div>
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="flex items-center gap-1.5 text-muted">
+                            <span className="w-2 h-2 rounded-sm bg-[#c4907a] inline-block" />New
+                          </span>
+                          <span className="font-medium">{newVal}</span>
                         </div>
                       </div>
-                      <div className="w-2 h-2 bg-foreground rotate-45 mx-auto -mt-1" />
                     </div>
-                    <div
-                      className="w-full flex flex-col rounded-t-sm overflow-hidden cursor-default hover:brightness-110 transition-all"
-                      style={{ height: `${barPx}px` }}
-                    >
-                      <div className="bg-[#4e6b51] min-h-0" style={{ flex: w.returning }} />
-                      <div className="bg-[#c4907a] min-h-0" style={{ flex: w.newClients }} />
-                    </div>
-                    <span className="text-[9px] text-muted whitespace-nowrap">
-                      {w.week.replace("Jan ", "J").replace("Feb ", "F")}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+                  );
+                }}
+              />
+              <Bar dataKey="newClients" stackId="a" fill="#d4a574" name="New" radius={[0, 0, 0, 0]} isAnimationActive={false} />
+              <Bar dataKey="returning" stackId="a" fill="#4e6b51" name="Returning" radius={[4, 4, 0, 0]} isAnimationActive={false} />
+            </BarChart>
+          </ResponsiveContainer>
         </CardContent>
       </Card>
 

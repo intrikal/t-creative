@@ -9,6 +9,7 @@
  */
 "use client";
 
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { WeeklyRevenue } from "../actions";
 
@@ -74,9 +75,6 @@ export function RevenueSection({
   revenueMtd: number;
   revenueGoal: number;
 }) {
-  const REV_BAR_H = 160;
-  const maxRevenueBar = Math.max(...revenueTrend.map((w) => w.revenue), 1);
-
   return (
     <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
       <Card className="xl:col-span-2 gap-0">
@@ -84,48 +82,44 @@ export function RevenueSection({
           <CardTitle className="text-sm font-semibold">Revenue by Week</CardTitle>
         </CardHeader>
         <CardContent className="px-5 pb-5 pt-4">
-          <div className="relative h-52">
-            {[1000, 2000, 3000]
-              .filter((l) => l <= maxRevenueBar * 1.2)
-              .map((line) => (
-                <div
-                  key={line}
-                  className="absolute left-0 right-0 flex items-center gap-2"
-                  style={{ bottom: `${18 + (line / maxRevenueBar) * REV_BAR_H}px` }}
-                >
-                  <span className="text-[9px] text-muted/50 tabular-nums w-7 text-right shrink-0">
-                    ${line / 1000}k
-                  </span>
-                  <div className="flex-1 border-t border-dashed border-border/40" />
-                </div>
-              ))}
-            <div className="absolute inset-0 flex items-end gap-1.5 pl-9">
-              {revenueTrend.map((w) => {
-                const barPx = Math.round((w.revenue / maxRevenueBar) * REV_BAR_H);
-                return (
-                  <div
-                    key={w.week}
-                    className="group relative flex-1 flex flex-col items-center gap-1.5"
-                  >
-                    <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 z-30 opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-150">
-                      <div className="bg-foreground text-background rounded-xl px-3 py-2 shadow-xl text-[11px] whitespace-nowrap">
-                        <p className="font-semibold">{w.week}</p>
-                        <p className="text-background/70 mt-0.5">${w.revenue.toLocaleString()}</p>
-                      </div>
-                      <div className="w-2 h-2 bg-foreground rotate-45 mx-auto -mt-1" />
+          <ResponsiveContainer width="100%" height={220}>
+            <AreaChart data={revenueTrend} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-tertiary)" opacity={0.3} />
+              <XAxis
+                dataKey="week"
+                tick={{ fontSize: 11, fontFamily: "inherit", fill: "var(--color-text-secondary)" }}
+                axisLine={false}
+                tickLine={false}
+              />
+              <YAxis
+                tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`}
+                tick={{ fontSize: 11, fontFamily: "inherit", fill: "var(--color-text-secondary)" }}
+                axisLine={false}
+                tickLine={false}
+                width={40}
+              />
+              <Tooltip
+                content={({ active, payload, label }) => {
+                  if (!active || !payload?.length) return null;
+                  return (
+                    <div className="bg-background border rounded-lg shadow-md px-3 py-2 text-xs">
+                      <p className="font-semibold mb-1">{label}</p>
+                      <p className="text-muted">${(payload[0].value as number).toLocaleString()}</p>
                     </div>
-                    <div
-                      className="w-full rounded-t-sm bg-[#4e6b51] hover:brightness-110 transition-all cursor-default"
-                      style={{ height: `${barPx}px` }}
-                    />
-                    <span className="text-[9px] text-muted whitespace-nowrap">
-                      {w.week.replace("Jan ", "J").replace("Feb ", "F")}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+                  );
+                }}
+              />
+              <Area
+                type="monotone"
+                dataKey="revenue"
+                fill="#4e6b51"
+                fillOpacity={0.15}
+                stroke="#4e6b51"
+                strokeWidth={2}
+                isAnimationActive={false}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
         </CardContent>
       </Card>
 

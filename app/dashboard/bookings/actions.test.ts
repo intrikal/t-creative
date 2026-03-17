@@ -583,6 +583,53 @@ describe("actions", () => {
       });
       expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/bookings");
     });
+
+    it("throws when staff has an overlapping booking", async () => {
+      vi.resetModules();
+      // The overlap query (select) returns a conflict row
+      setupMocks({
+        select: vi.fn(() => makeChain([{ id: 50 }])),
+        insert: vi.fn(() => ({
+          values: vi.fn(() => ({ returning: vi.fn().mockResolvedValue([{ id: 1 }]) })),
+        })),
+        update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn() })) })),
+        delete: vi.fn(() => ({ where: vi.fn() })),
+      });
+      const { createBooking } = await import("./actions");
+      await expect(
+        createBooking({
+          clientId: "c1",
+          serviceId: 1,
+          staffId: "staff-1",
+          startsAt: new Date("2026-05-01T14:00:00Z"),
+          durationMinutes: 60,
+          totalInCents: 5000,
+        }),
+      ).rejects.toThrow("already has a booking during that time slot");
+    });
+
+    it("skips overlap check when staffId is null", async () => {
+      vi.resetModules();
+      const mockInsertValues = vi.fn(() => ({
+        returning: vi.fn().mockResolvedValue([{ id: 99 }]),
+      }));
+      setupMocks({
+        select: vi.fn(() => makeChain([])),
+        insert: vi.fn(() => ({ values: mockInsertValues })),
+        update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn() })) })),
+        delete: vi.fn(() => ({ where: vi.fn() })),
+      });
+      const { createBooking } = await import("./actions");
+      await createBooking({
+        clientId: "c1",
+        serviceId: 1,
+        staffId: null,
+        startsAt: new Date("2026-05-01T14:00:00Z"),
+        durationMinutes: 60,
+        totalInCents: 5000,
+      });
+      expect(mockInsertValues).toHaveBeenCalled();
+    });
   });
 
   /* ---- updateBooking ---- */
@@ -655,6 +702,56 @@ describe("actions", () => {
         status: "pending",
       });
       expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/bookings");
+    });
+
+    it("throws when staff has an overlapping booking on update", async () => {
+      vi.resetModules();
+      // The overlap query (select) returns a conflict row
+      setupMocks({
+        select: vi.fn(() => makeChain([{ id: 50 }])),
+        insert: vi.fn(() => ({
+          values: vi.fn(() => ({ returning: vi.fn().mockResolvedValue([{ id: 1 }]) })),
+        })),
+        update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn() })) })),
+        delete: vi.fn(() => ({ where: vi.fn() })),
+      });
+      const { updateBooking } = await import("./actions");
+      await expect(
+        updateBooking(1, {
+          clientId: "c1",
+          serviceId: 1,
+          staffId: "staff-1",
+          startsAt: new Date("2026-05-01T14:00:00Z"),
+          durationMinutes: 60,
+          totalInCents: 5000,
+          status: "confirmed",
+        }),
+      ).rejects.toThrow("already has a booking during that time slot");
+    });
+
+    it("skips overlap check when updating to cancelled status", async () => {
+      vi.resetModules();
+      const mockUpdateSet = vi.fn(() => ({ where: vi.fn() }));
+      // select returns a conflict row, but it should not matter for cancel
+      setupMocks({
+        select: vi.fn(() => makeChain([{ id: 50, startsAt: new Date() }])),
+        insert: vi.fn(() => ({
+          values: vi.fn(() => ({ returning: vi.fn().mockResolvedValue([{ id: 1 }]) })),
+        })),
+        update: vi.fn(() => ({ set: mockUpdateSet })),
+        delete: vi.fn(() => ({ where: vi.fn() })),
+      });
+      const { updateBooking } = await import("./actions");
+      await updateBooking(1, {
+        clientId: "c1",
+        serviceId: 1,
+        staffId: "staff-1",
+        startsAt: new Date("2026-05-01T14:00:00Z"),
+        durationMinutes: 60,
+        totalInCents: 5000,
+        status: "cancelled",
+      });
+      expect(mockUpdateSet).toHaveBeenCalled();
     });
   });
 

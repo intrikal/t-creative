@@ -995,38 +995,44 @@ export async function applyPromoCode(bookingId: number, promoCode: string) {
   try {
     await getUser();
 
-    const [promo] = await db
-      .select()
-      .from(promotions)
-      .where(eq(promotions.code, promoCode.toUpperCase()));
-    if (!promo) throw new Error("Promo code not found");
+    await db.transaction(async (tx) => {
+      const [promo] = await tx
+        .select()
+        .from(promotions)
+        .where(eq(promotions.code, promoCode.toUpperCase()));
+      if (!promo) throw new Error("Promo code not found");
 
-    const [booking] = await db.select().from(bookings).where(eq(bookings.id, bookingId));
-    if (!booking) throw new Error("Booking not found");
+      if (promo.maxUses && promo.redemptionCount >= promo.maxUses) {
+        throw new Error("Promo code has reached max uses");
+      }
 
-    let discountCents = 0;
-    if (promo.discountType === "percent") {
-      discountCents = Math.round(booking.totalInCents * (promo.discountValue / 100));
-    } else if (promo.discountType === "fixed") {
-      discountCents = Math.min(promo.discountValue, booking.totalInCents);
-    } else if (promo.discountType === "bogo") {
-      discountCents = Math.round(booking.totalInCents / 2);
-    }
+      const [booking] = await tx.select().from(bookings).where(eq(bookings.id, bookingId));
+      if (!booking) throw new Error("Booking not found");
 
-    await db
-      .update(bookings)
-      .set({
-        promotionId: promo.id,
-        discountInCents: discountCents,
-      })
-      .where(eq(bookings.id, bookingId));
+      let discountCents = 0;
+      if (promo.discountType === "percent") {
+        discountCents = Math.round(booking.totalInCents * (promo.discountValue / 100));
+      } else if (promo.discountType === "fixed") {
+        discountCents = Math.min(promo.discountValue, booking.totalInCents);
+      } else if (promo.discountType === "bogo") {
+        discountCents = Math.round(booking.totalInCents / 2);
+      }
 
-    await db
-      .update(promotions)
-      .set({
-        redemptionCount: promo.redemptionCount + 1,
-      })
-      .where(eq(promotions.id, promo.id));
+      await tx
+        .update(bookings)
+        .set({
+          promotionId: promo.id,
+          discountInCents: discountCents,
+        })
+        .where(eq(bookings.id, bookingId));
+
+      await tx
+        .update(promotions)
+        .set({
+          redemptionCount: sql`${promotions.redemptionCount} + 1`,
+        })
+        .where(eq(promotions.id, promo.id));
+    });
 
     revalidatePath("/dashboard/financial");
   } catch (err) {

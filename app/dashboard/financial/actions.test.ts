@@ -39,7 +39,16 @@ function setupMocks(db: Record<string, unknown> | null = null) {
     })),
     update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn() })) })),
     delete: vi.fn(() => ({ where: vi.fn() })),
+    transaction: vi.fn(async (cb: (tx: Record<string, unknown>) => Promise<void>) => {
+      const resolved = db ?? defaultDb;
+      await cb(resolved);
+    }),
   };
+  if (db && !db.transaction) {
+    db.transaction = vi.fn(async (cb: (tx: Record<string, unknown>) => Promise<void>) => {
+      await cb(db);
+    });
+  }
 
   vi.doMock("@/db", () => ({ db: db ?? defaultDb }));
   vi.doMock("@/db/schema", () => ({
@@ -1058,6 +1067,29 @@ describe("financial/actions", () => {
       });
       const { applyPromoCode } = await import("./actions");
       await expect(applyPromoCode(1, "NOTFOUND")).rejects.toThrow("Promo code not found");
+    });
+
+    it("throws when promo has reached max uses at apply time", async () => {
+      vi.resetModules();
+      setupMocks({
+        select: vi.fn(() =>
+          makeChain([
+            {
+              id: 1,
+              code: "MAXED",
+              discountType: "percent",
+              discountValue: 10,
+              maxUses: 5,
+              redemptionCount: 5,
+            },
+          ]),
+        ),
+        insert: vi.fn(),
+        update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn() })) })),
+        delete: vi.fn(() => ({ where: vi.fn() })),
+      });
+      const { applyPromoCode } = await import("./actions");
+      await expect(applyPromoCode(1, "MAXED")).rejects.toThrow("Promo code has reached max uses");
     });
 
     it("throws when booking not found", async () => {

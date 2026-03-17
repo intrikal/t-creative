@@ -11,7 +11,6 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { Dialog, Field, Input, Select, Textarea, DialogFooter } from "@/components/ui/dialog";
 import { recordPayment } from "../payment-actions";
 import type { BookingForPayment } from "../payment-actions";
@@ -33,7 +32,6 @@ export function RecordPaymentDialog({
   onClose: () => void;
   bookings: BookingForPayment[];
 }) {
-  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [selectedBookingId, setSelectedBookingId] = useState<string>("");
@@ -80,7 +78,6 @@ export function RecordPaymentDialog({
           squarePaymentId,
           notes,
         });
-        router.refresh();
         handleClose();
       } catch {
         setError("Failed to record payment.");

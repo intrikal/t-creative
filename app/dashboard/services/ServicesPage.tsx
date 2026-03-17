@@ -22,16 +22,15 @@
  * ## Data flow
  * Initial data is fetched server-side by `app/dashboard/services/page.tsx` and
  * passed as props. After mount, the page maintains its own optimistic state and
- * calls server actions directly on mutations. `router.refresh()` is used only
- * after the seed catalog import, which replaces the entire services list.
+ * calls server actions directly on mutations. `useOptimistic` + `useTransition`
+ * handle optimistic updates with automatic rollback on failure.
  *
  * ## Filter logic
  * Filtering is client-side only (no DB round-trip) since the full service list
  * is small enough to hold in memory (typically < 50 items for a single studio).
  */
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useOptimistic, useTransition } from "react";
 import { Search, Plus, Tag, Package, FileText, ToggleLeft, Sparkles } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -86,13 +85,29 @@ export function ServicesPage({
   initialBundles: BundleRow[];
   initialForms: FormRow[];
 }) {
-  const router = useRouter();
-
   /* ── Tab state ── */
   const [activeTab, setActiveTab] = useState<ServicesTab>("menu");
 
   /* ── Service list state (Menu tab) ── */
-  const [services, setServices] = useState<Service[]>(() => initialServices.map(dbToService));
+  const [isPending, startTransition] = useTransition();
+  const [services, addOptimistic] = useOptimistic<
+    Service[],
+    | { type: "update"; id: number; service: Service }
+    | { type: "add"; service: Service }
+    | { type: "delete"; id: number }
+    | { type: "toggle_active"; id: number }
+  >(initialServices.map(dbToService), (state, action) => {
+    switch (action.type) {
+      case "update":
+        return state.map((s) => (s.id === action.id ? action.service : s));
+      case "add":
+        return [...state, action.service];
+      case "delete":
+        return state.filter((s) => s.id !== action.id);
+      case "toggle_active":
+        return state.map((s) => (s.id === action.id ? { ...s, active: !s.active } : s));
+    }
+  });
 
   /* ── Filter state ── */
   const [search, setSearch] = useState("");
@@ -110,13 +125,13 @@ export function ServicesPage({
   /* ── Seed handler ── */
   async function handleSeedCatalog() {
     setSeeding(true);
-    try {
-      await seedServiceCatalog();
-      // Refresh forces the server component to re-fetch and pass updated initialServices.
-      router.refresh();
-    } finally {
-      setSeeding(false);
-    }
+    startTransition(async () => {
+      try {
+        await seedServiceCatalog();
+      } finally {
+        setSeeding(false);
+      }
+    });
   }
 
   /* ── Derived: filtered service list ── */
@@ -136,25 +151,35 @@ export function ServicesPage({
   async function handleSave(data: ServiceFormData) {
     const input = serviceToInput(data);
     if (editTarget) {
-      const row = await updateService(editTarget.id, input);
-      setServices((prev) => prev.map((s) => (s.id === editTarget.id ? dbToService(row) : s)));
+      const targetId = editTarget.id;
+      setEditTarget(null);
+      startTransition(async () => {
+        const row = await updateService(targetId, input);
+        addOptimistic({ type: "update", id: targetId, service: dbToService(row) });
+      });
     } else {
-      const row = await createService(input);
-      setServices((prev) => [...prev, dbToService(row)]);
+      setEditTarget(null);
+      startTransition(async () => {
+        const row = await createService(input);
+        addOptimistic({ type: "add", service: dbToService(row) });
+      });
     }
-    setEditTarget(null);
   }
 
   async function handleDelete(id: number) {
-    await deleteService(id);
-    setServices((prev) => prev.filter((s) => s.id !== id));
+    startTransition(async () => {
+      addOptimistic({ type: "delete", id });
+      await deleteService(id);
+    });
   }
 
   async function handleToggleActive(id: number) {
     const svc = services.find((s) => s.id === id);
     if (!svc) return;
-    await toggleServiceActive(id, !svc.active);
-    setServices((prev) => prev.map((s) => (s.id === id ? { ...s, active: !s.active } : s)));
+    startTransition(async () => {
+      addOptimistic({ type: "toggle_active", id });
+      await toggleServiceActive(id, !svc.active);
+    });
   }
 
   /* ── Derived stat values ── */

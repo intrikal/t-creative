@@ -10,7 +10,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { Dialog, Field, Input, Textarea, DialogFooter } from "@/components/ui/dialog";
 import type { PaymentRow } from "../actions";
 import { processRefund } from "../payment-actions";
@@ -24,7 +23,6 @@ export function RefundDialog({
   onClose: () => void;
   payment: PaymentRow | null;
 }) {
-  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [isPartial, setIsPartial] = useState(false);
@@ -65,7 +63,6 @@ export function RefundDialog({
       });
 
       if (result.success) {
-        router.refresh();
         handleClose();
       } else {
         setError(result.error ?? "Refund failed.");

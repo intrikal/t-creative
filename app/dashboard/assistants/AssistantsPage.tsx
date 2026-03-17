@@ -1,7 +1,6 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useOptimistic, useTransition } from "react";
 import { UserCheck, Clock, Star, Calendar, DollarSign, Plus } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -174,11 +173,42 @@ export function AssistantsPage({
   payrollRows: PayrollRow[];
   payrollSummary: PayrollSummary;
 }) {
-  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
 
   const mapped = initialAssistants.map(mapAssistantRow);
 
-  const [assistants, setAssistants] = useState<Assistant[]>(mapped);
+  const [assistants, setOptimisticAssistants] = useOptimistic<
+    Assistant[],
+    | { type: "status"; id: string; status: AssistantStatus }
+    | {
+        type: "commission";
+        id: string;
+        settings: {
+          commissionType: CommissionType;
+          commissionRate?: number;
+          commissionFlatFee?: number;
+          tipSplitPercent?: number;
+        };
+      }
+  >(mapped, (state, action) => {
+    if (action.type === "status") {
+      return state.map((a) => (a.id === action.id ? { ...a, status: action.status } : a));
+    }
+    if (action.type === "commission") {
+      return state.map((a) =>
+        a.id === action.id
+          ? {
+              ...a,
+              commissionType: action.settings.commissionType,
+              commissionRate: action.settings.commissionRate ?? a.commissionRate,
+              commissionFlatFee: action.settings.commissionFlatFee ?? a.commissionFlatFee,
+              tipSplitPercent: action.settings.tipSplitPercent ?? a.tipSplitPercent,
+            }
+          : a,
+      );
+    }
+    return state;
+  });
   const [dialogOpen, setDialogOpen] = useState(false);
   const [pageTab, setPageTab] = useState<PageTab>("Roster");
 
@@ -229,24 +259,27 @@ export function AssistantsPage({
   ];
 
   const handleAddAssistant = async (data: AssistantFormData) => {
-    await createAssistant({
-      firstName: data.firstName,
-      lastName: data.lastName,
-      email: data.email,
-      phone: data.phone || undefined,
-      title: data.role,
-      specialties: data.specialties || undefined,
-      commissionType: data.commissionType,
-      commissionRate: data.commissionRate,
-      commissionFlatFee: data.commissionFlatFee,
-      tipSplitPercent: data.tipSplitPercent,
+    startTransition(async () => {
+      await createAssistant({
+        firstName: data.firstName,
+        lastName: data.lastName,
+        email: data.email,
+        phone: data.phone || undefined,
+        title: data.role,
+        specialties: data.specialties || undefined,
+        commissionType: data.commissionType,
+        commissionRate: data.commissionRate,
+        commissionFlatFee: data.commissionFlatFee,
+        tipSplitPercent: data.tipSplitPercent,
+      });
     });
-    router.refresh();
   };
 
   const handleToggleStatus = async (id: string, status: AssistantStatus) => {
-    await toggleAssistantStatus(id, status);
-    setAssistants((prev) => prev.map((a) => (a.id === id ? { ...a, status } : a)));
+    startTransition(async () => {
+      setOptimisticAssistants({ type: "status", id, status });
+      await toggleAssistantStatus(id, status);
+    });
   };
 
   const handleUpdateCommissionSettings = async (
@@ -258,25 +291,15 @@ export function AssistantsPage({
       tipSplitPercent?: number;
     },
   ) => {
-    await updateCommissionSettings(id, {
-      commissionType: settings.commissionType,
-      commissionRate: settings.commissionRate,
-      commissionFlatFee: settings.commissionFlatFee,
-      tipSplitPercent: settings.tipSplitPercent,
+    startTransition(async () => {
+      setOptimisticAssistants({ type: "commission", id, settings });
+      await updateCommissionSettings(id, {
+        commissionType: settings.commissionType,
+        commissionRate: settings.commissionRate,
+        commissionFlatFee: settings.commissionFlatFee,
+        tipSplitPercent: settings.tipSplitPercent,
+      });
     });
-    setAssistants((prev) =>
-      prev.map((a) =>
-        a.id === id
-          ? {
-              ...a,
-              commissionType: settings.commissionType,
-              commissionRate: settings.commissionRate ?? a.commissionRate,
-              commissionFlatFee: settings.commissionFlatFee ?? a.commissionFlatFee,
-              tipSplitPercent: settings.tipSplitPercent ?? a.tipSplitPercent,
-            }
-          : a,
-      ),
-    );
   };
 
   return (

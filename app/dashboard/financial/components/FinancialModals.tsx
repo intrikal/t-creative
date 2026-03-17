@@ -10,14 +10,12 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { Dialog, Field, Input, Select, Textarea, DialogFooter } from "@/components/ui/dialog";
 import { createInvoice, createExpense, createGiftCard, createPromotion } from "../actions";
 
 type ModalType = "invoice" | "expense" | "giftcard" | "promo" | null;
 
 export function FinancialModals({ modal, onClose }: { modal: ModalType; onClose: () => void }) {
-  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
@@ -55,7 +53,6 @@ export function FinancialModals({ modal, onClose }: { modal: ModalType; onClose:
             ? (data.get("recurrenceInterval") as string) || "monthly"
             : undefined,
         });
-        router.refresh();
         handleClose();
       } catch {
         setError("Failed to create invoice. Check client ID is valid.");
@@ -95,7 +92,6 @@ export function FinancialModals({ modal, onClose }: { modal: ModalType; onClose:
           amountInCents: Math.round(amount * 100),
           hasReceipt,
         });
-        router.refresh();
         handleClose();
       } catch {
         setError("Failed to log expense.");
@@ -122,7 +118,6 @@ export function FinancialModals({ modal, onClose }: { modal: ModalType; onClose:
           expiresAt: (data.get("expiresAt") as string) || undefined,
           notes: (data.get("notes") as string)?.trim() || undefined,
         });
-        router.refresh();
         handleClose();
       } catch {
         setError("Failed to issue gift card.");
@@ -160,7 +155,6 @@ export function FinancialModals({ modal, onClose }: { modal: ModalType; onClose:
           startsAt: (data.get("startsAt") as string) || undefined,
           endsAt: (data.get("endsAt") as string) || undefined,
         });
-        router.refresh();
         handleClose();
       } catch {
         setError("Failed to create promotion. Code may already exist.");

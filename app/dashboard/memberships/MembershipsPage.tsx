@@ -1,7 +1,6 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useTransition } from "react";
 import {
   BadgeCheck,
   CalendarDays,
@@ -73,7 +72,7 @@ function CreateMembershipDialog({
   clients: { id: string; name: string }[];
   plans: MembershipPlan[];
 }) {
-  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
   const [clientId, setClientId] = useState("");
   const [planId, setPlanId] = useState("");
   const [notes, setNotes] = useState("");
@@ -87,12 +86,13 @@ function CreateMembershipDialog({
     if (!valid) return;
     setSaving(true);
     try {
-      await createMembership({ clientId, planId: Number(planId), notes: notes || undefined });
-      setClientId("");
-      setPlanId("");
-      setNotes("");
-      onClose();
-      router.refresh();
+      startTransition(async () => {
+        await createMembership({ clientId, planId: Number(planId), notes: notes || undefined });
+        setClientId("");
+        setPlanId("");
+        setNotes("");
+        onClose();
+      });
     } finally {
       setSaving(false);
     }
@@ -197,7 +197,7 @@ function PlanDialog({
   onClose: () => void;
   editing: MembershipPlan | null;
 }) {
-  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
   const [form, setForm] = useState<PlanForm>(
     editing
       ? {
@@ -246,21 +246,22 @@ function PlanDialog({
     if (!valid) return;
     setSaving(true);
     try {
-      const payload = {
-        name: form.name.trim(),
-        description: form.description.trim() || undefined,
-        priceInCents,
-        fillsPerCycle: Number(form.fillsPerCycle),
-        productDiscountPercent: Number(form.productDiscountPercent) || 0,
-        perks,
-      };
-      if (editing) {
-        await updateMembershipPlan(editing.id, payload);
-      } else {
-        await createMembershipPlan({ ...payload, slug: form.slug.trim() });
-      }
-      onClose();
-      router.refresh();
+      startTransition(async () => {
+        const payload = {
+          name: form.name.trim(),
+          description: form.description.trim() || undefined,
+          priceInCents,
+          fillsPerCycle: Number(form.fillsPerCycle),
+          productDiscountPercent: Number(form.productDiscountPercent) || 0,
+          perks,
+        };
+        if (editing) {
+          await updateMembershipPlan(editing.id, payload);
+        } else {
+          await createMembershipPlan({ ...payload, slug: form.slug.trim() });
+        }
+        onClose();
+      });
     } finally {
       setSaving(false);
     }
@@ -365,7 +366,7 @@ function MembersTab({
   plans: MembershipPlan[];
   clients: { id: string; name: string }[];
 }) {
-  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("All");
   const [createOpen, setCreateOpen] = useState(false);
   const [menuTarget, setMenuTarget] = useState<string | null>(null);
@@ -381,14 +382,16 @@ function MembersTab({
 
   async function handleStatusChange(id: string, status: MembershipStatus) {
     setMenuTarget(null);
-    await updateMembershipStatus(id, status);
-    router.refresh();
+    startTransition(async () => {
+      await updateMembershipStatus(id, status);
+    });
   }
 
   async function handleRenew(id: string) {
     setMenuTarget(null);
-    await renewMembership(id);
-    router.refresh();
+    startTransition(async () => {
+      await renewMembership(id);
+    });
   }
 
   return (
@@ -578,13 +581,14 @@ function MembersTab({
 /* ------------------------------------------------------------------ */
 
 function PlansTab({ plans }: { plans: MembershipPlan[] }) {
-  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
   const [createOpen, setCreateOpen] = useState(false);
   const [editingPlan, setEditingPlan] = useState<MembershipPlan | null>(null);
 
   async function handleToggleActive(plan: MembershipPlan) {
-    await updateMembershipPlan(plan.id, { isActive: !plan.isActive });
-    router.refresh();
+    startTransition(async () => {
+      await updateMembershipPlan(plan.id, { isActive: !plan.isActive });
+    });
   }
 
   return (

@@ -15,8 +15,8 @@
  * server component and is mapped to richer client types via `mapInquiry()` and
  * `mapProductInquiry()` (computed initials, relative timestamps, category mapping).
  *
- * CRUD handlers call server actions from `./actions.ts` and trigger
- * `router.refresh()` to re-fetch from the server component.
+ * CRUD handlers call server actions from `./actions.ts` wrapped in
+ * `startTransition` for automatic revalidation via React 19.
  *
  * @module inquiries/InquiriesPage
  * @see {@link ./actions.ts} — server actions
@@ -25,8 +25,7 @@
  */
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useTransition } from "react";
 import {
   Search,
   MessageSquare,
@@ -257,7 +256,7 @@ export function InquiriesPage({
   initialInquiries: InquiryRow[];
   initialProductInquiries: ProductInquiryRow[];
 }) {
-  const router = useRouter();
+  const [, startTransition] = useTransition();
   const [tab, setTab] = useState<"general" | "products">("general");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
@@ -297,25 +296,30 @@ export function InquiriesPage({
     return matchSearch && matchStatus;
   });
 
-  async function handleMarkRead(id: number) {
-    await updateInquiryStatus(id, "read");
-    router.refresh();
+  function handleMarkRead(id: number) {
+    startTransition(async () => {
+      await updateInquiryStatus(id, "read");
+    });
   }
-  async function handleArchive(id: number) {
-    await updateInquiryStatus(id, "archived");
-    router.refresh();
+  function handleArchive(id: number) {
+    startTransition(async () => {
+      await updateInquiryStatus(id, "archived");
+    });
   }
-  async function handleReply(id: number, text: string) {
-    await replyToInquiry(id, text);
-    router.refresh();
+  function handleReply(id: number, text: string) {
+    startTransition(async () => {
+      await replyToInquiry(id, text);
+    });
   }
-  async function handleSendQuote(id: number, amountInCents: number) {
-    await sendProductQuote(id, amountInCents);
-    router.refresh();
+  function handleSendQuote(id: number, amountInCents: number) {
+    startTransition(async () => {
+      await sendProductQuote(id, amountInCents);
+    });
   }
-  async function handleUpdateProductStatus(id: number, status: ProductInquiry["status"]) {
-    await updateProductInquiryStatus(id, status);
-    router.refresh();
+  function handleUpdateProductStatus(id: number, status: ProductInquiry["status"]) {
+    startTransition(async () => {
+      await updateProductInquiryStatus(id, status);
+    });
   }
 
   return (

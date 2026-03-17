@@ -143,6 +143,14 @@ export type TopService = {
   revenue: number;
 };
 
+export type ServiceRevenueItem = {
+  service: string;
+  category: string;
+  revenue: number;
+  bookings: number;
+  pct: number;
+};
+
 export type RebookRate = {
   service: string;
   rate: number;
@@ -571,6 +579,50 @@ export async function getTopServices(): Promise<TopService[]> {
       bookings: Number(r.bookingCount),
       revenue: Math.round(Number(r.revenue) / 100),
     }));
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Revenue by Individual Service                                      */
+/* ------------------------------------------------------------------ */
+
+export async function getRevenueByService(): Promise<ServiceRevenueItem[]> {
+  try {
+    await getUser();
+
+    const rows = await db
+      .select({
+        serviceName: services.name,
+        category: services.category,
+        revenue: sql<number>`coalesce(sum(${payments.amountInCents}), 0)`,
+        bookingCount: sql<number>`count(distinct ${bookings.id})`,
+      })
+      .from(payments)
+      .innerJoin(bookings, eq(payments.bookingId, bookings.id))
+      .innerJoin(services, eq(bookings.serviceId, services.id))
+      .where(
+        and(eq(payments.status, "paid"), gte(payments.paidAt, sql`now() - interval '30 days'`)),
+      )
+      .groupBy(services.name, services.category)
+      .orderBy(sql`sum(${payments.amountInCents}) desc`);
+
+    const totalRevenue = rows.reduce((s, r) => s + Number(r.revenue), 0);
+
+    return rows
+      .filter((r) => r.serviceName)
+      .map((r) => {
+        const rev = Math.round(Number(r.revenue) / 100);
+        return {
+          service: r.serviceName!,
+          category: CATEGORY_LABELS[r.category!] ?? r.category!,
+          revenue: rev,
+          bookings: Number(r.bookingCount),
+          pct: totalRevenue > 0 ? Math.round((Number(r.revenue) / totalRevenue) * 100) : 0,
+        };
+      });
   } catch (err) {
     Sentry.captureException(err);
     throw err;

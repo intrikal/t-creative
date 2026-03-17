@@ -3,6 +3,7 @@ import { AppointmentGapSectionWrapper } from "./sections/AppointmentGapSectionWr
 import { BookingsSectionWrapper } from "./sections/BookingsSectionWrapper";
 import { CheckoutRebookSectionWrapper } from "./sections/CheckoutRebookSectionWrapper";
 import { ClientsSection } from "./sections/ClientsSection";
+import { GiftCardBreakageSectionWrapper } from "./sections/GiftCardBreakageSectionWrapper";
 import { KpiSection } from "./sections/KpiSection";
 import { MembershipValueSectionWrapper } from "./sections/MembershipValueSectionWrapper";
 import { OperationalSection } from "./sections/OperationalSection";
@@ -32,6 +33,7 @@ export default function Page() {
       <ClientsSection />
       <PromotionRoiSectionWrapper />
       <MembershipValueSectionWrapper />
+      <GiftCardBreakageSectionWrapper />
       <PeakTimesSectionWrapper />
     </AnalyticsShell>
   );

@@ -21,7 +21,7 @@ import { test, expect } from "@playwright/test";
 
 /** Format axe violations into a readable string for test failure messages. */
 function formatViolations(
-  violations: AxeBuilder["analyze"] extends () => Promise<infer R> ? R["violations"] : never,
+  violations: Awaited<ReturnType<AxeBuilder["analyze"]>>["violations"],
 ) {
   return violations
     .map(

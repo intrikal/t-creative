@@ -75,7 +75,7 @@ export function BookingsSection({
                       <p className="font-semibold mb-1.5 pb-1 border-b border-border">{label} · {total} bookings</p>
                       <div className="space-y-0.5">
                         {payload.map((p) => (
-                          <div key={p.dataKey} className="flex items-center justify-between gap-3">
+                          <div key={String(p.dataKey)} className="flex items-center justify-between gap-3">
                             <span className="flex items-center gap-1.5 text-muted capitalize">{p.name}</span>
                             <span className="font-medium">{p.value as number}</span>
                           </div>

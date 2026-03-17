@@ -226,7 +226,7 @@ describe("assistants/actions", () => {
 
     it("inserts profile with role=assistant", async () => {
       vi.resetModules();
-      const mockInsertValues = vi.fn(() => ({
+      const mockInsertValues = vi.fn((_: Record<string, unknown>) => ({
         returning: vi.fn().mockResolvedValue([{ id: "new-id" }]),
       }));
       setupMocks({
@@ -256,7 +256,7 @@ describe("assistants/actions", () => {
 
     it("uses default commissionType=percentage when not provided", async () => {
       vi.resetModules();
-      const mockInsertValues = vi.fn(() => ({
+      const mockInsertValues = vi.fn((_: Record<string, unknown>) => ({
         returning: vi.fn().mockResolvedValue([{ id: "new-id" }]),
       }));
       setupMocks({

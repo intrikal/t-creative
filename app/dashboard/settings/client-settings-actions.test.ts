@@ -266,7 +266,7 @@ describe("client-settings-actions", () => {
 
     it("parses allergy flags from comma-separated string", async () => {
       vi.resetModules();
-      const mockUpdateSet = vi.fn(() => ({ where: vi.fn() }));
+      const mockUpdateSet = vi.fn((_: { onboardingData: Record<string, Record<string, boolean>> }) => ({ where: vi.fn() }));
       setupMocks({
         select: vi.fn(() => makeChain([{ onboardingData: {} }])),
         insert: vi.fn(() => ({

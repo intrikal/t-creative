@@ -121,7 +121,7 @@ const DEFAULT_BUSINESS: BusinessProfile = {
   email: "hello@tcreativestudio.com",
   phone: "(408) 555-0001",
   location: "San Jose, CA",
-  timezone: "Pacific Time (ET)",
+  timezone: "America/Los_Angeles",
   currency: "USD ($)",
   bookingLink: "tcreative.studio/book",
   bio: "T Creative Studio is a San Francisco Bay Area based beauty studio specializing in lash extensions, permanent jewelry, crochet braids, and business consulting for beauty entrepreneurs.",

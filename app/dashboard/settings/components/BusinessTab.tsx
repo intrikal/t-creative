@@ -20,6 +20,29 @@ import type { BusinessProfile, FinancialConfig } from "../settings-actions";
 import { saveBusinessProfile, saveFinancialConfig } from "../settings-actions";
 import { FieldRow, StatefulSaveButton, INPUT_CLASS } from "./shared";
 
+const TIMEZONES = [
+  { value: "Pacific/Honolulu", label: "Hawaii (HST)" },
+  { value: "America/Anchorage", label: "Alaska (AKST)" },
+  { value: "America/Los_Angeles", label: "Pacific (PST)" },
+  { value: "America/Denver", label: "Mountain (MST)" },
+  { value: "America/Chicago", label: "Central (CST)" },
+  { value: "America/New_York", label: "Eastern (EST)" },
+  { value: "America/Phoenix", label: "Arizona (MST, no DST)" },
+  { value: "America/Puerto_Rico", label: "Atlantic (AST)" },
+  { value: "Pacific/Guam", label: "Guam (ChST)" },
+  { value: "America/Toronto", label: "Toronto (EST)" },
+  { value: "America/Vancouver", label: "Vancouver (PST)" },
+  { value: "Europe/London", label: "London (GMT)" },
+  { value: "Europe/Paris", label: "Paris (CET)" },
+  { value: "Europe/Berlin", label: "Berlin (CET)" },
+  { value: "Asia/Tokyo", label: "Tokyo (JST)" },
+  { value: "Asia/Shanghai", label: "Shanghai (CST)" },
+  { value: "Asia/Kolkata", label: "India (IST)" },
+  { value: "Asia/Dubai", label: "Dubai (GST)" },
+  { value: "Australia/Sydney", label: "Sydney (AEST)" },
+  { value: "Pacific/Auckland", label: "Auckland (NZST)" },
+];
+
 export function BusinessTab({
   initial,
   initialFinancial,
@@ -66,7 +89,6 @@ export function BusinessTab({
     { label: "Email", key: "email" },
     { label: "Phone", key: "phone" },
     { label: "Location", key: "location" },
-    { label: "Timezone", key: "timezone" },
     { label: "Currency", key: "currency" },
     { label: "Booking Link", key: "bookingLink" },
   ];
@@ -91,6 +113,19 @@ export function BusinessTab({
               />
             </FieldRow>
           ))}
+          <FieldRow label="Timezone">
+            <select
+              value={data.timezone}
+              onChange={(e) => update("timezone", e.target.value)}
+              className={INPUT_CLASS}
+            >
+              {TIMEZONES.map(({ value, label }) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </FieldRow>
           <FieldRow label="Bio / About">
             <textarea
               rows={3}

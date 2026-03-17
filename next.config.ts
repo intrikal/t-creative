@@ -8,6 +8,11 @@ const nextConfig: NextConfig = {
         protocol: "https",
         hostname: "lh3.googleusercontent.com",
       },
+      {
+        protocol: "https",
+        hostname: "ftautvgyauxyzxxznife.supabase.co",
+        pathname: "/storage/v1/object/public/**",
+      },
     ],
   },
   // PostHog reverse proxy — routes tracking requests through our own domain

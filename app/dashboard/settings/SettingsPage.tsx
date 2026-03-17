@@ -49,6 +49,7 @@ import type {
   NotificationPrefs,
   RemindersConfig,
   FinancialConfig,
+  RevenueGoal,
   SquareConnectionStatus,
 } from "./settings-actions";
 
@@ -83,6 +84,7 @@ export function SettingsPage({
   initialLoyalty,
   initialNotifications,
   initialFinancial,
+  initialRevenueGoals,
   initialBookingRules,
   initialReminders,
   squareStatus,
@@ -96,6 +98,7 @@ export function SettingsPage({
   initialLoyalty: LoyaltyConfig;
   initialNotifications: NotificationPrefs;
   initialFinancial: FinancialConfig;
+  initialRevenueGoals: RevenueGoal[];
   initialBookingRules: BookingRulesConfig;
   initialReminders: RemindersConfig;
   squareStatus: SquareConnectionStatus;
@@ -104,7 +107,13 @@ export function SettingsPage({
   const [tab, setTab] = useState<Tab>("business");
 
   const PANEL: Record<Tab, React.ReactNode> = {
-    business: <BusinessTab initial={initialBusiness} initialFinancial={initialFinancial} />,
+    business: (
+      <BusinessTab
+        initial={initialBusiness}
+        initialFinancial={initialFinancial}
+        initialRevenueGoals={initialRevenueGoals}
+      />
+    ),
     hours: (
       <HoursTab
         initialHours={initialHours}

@@ -14,11 +14,20 @@
 "use client";
 
 import { useState } from "react";
+import { Trash2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import type { BusinessProfile, FinancialConfig } from "../settings-actions";
-import { saveBusinessProfile, saveFinancialConfig } from "../settings-actions";
+import type { BusinessProfile, FinancialConfig, RevenueGoal } from "../settings-actions";
+import { saveBusinessProfile, saveFinancialConfig, saveRevenueGoals } from "../settings-actions";
 import { FieldRow, StatefulSaveButton, INPUT_CLASS } from "./shared";
+
+function formatMonth(ym: string) {
+  const [year, month] = ym.split("-");
+  return new Date(Number(year), Number(month) - 1).toLocaleString("en-US", {
+    month: "long",
+    year: "numeric",
+  });
+}
 
 const TIMEZONES = [
   { value: "Pacific/Honolulu", label: "Hawaii (HST)" },
@@ -46,9 +55,11 @@ const TIMEZONES = [
 export function BusinessTab({
   initial,
   initialFinancial,
+  initialRevenueGoals,
 }: {
   initial: BusinessProfile;
   initialFinancial: FinancialConfig;
+  initialRevenueGoals: RevenueGoal[];
 }) {
   const [data, setData] = useState(initial);
   const [saving, setSaving] = useState(false);
@@ -56,6 +67,13 @@ export function BusinessTab({
   const [financial, setFinancial] = useState(initialFinancial);
   const [savingFinancial, setSavingFinancial] = useState(false);
   const [savedFinancial, setSavedFinancial] = useState(false);
+  const [goals, setGoals] = useState<RevenueGoal[]>(
+    [...initialRevenueGoals].sort((a, b) => a.month.localeCompare(b.month)),
+  );
+  const [savingGoals, setSavingGoals] = useState(false);
+  const [savedGoals, setSavedGoals] = useState(false);
+  const [newMonth, setNewMonth] = useState("");
+  const [newAmount, setNewAmount] = useState("");
 
   function update<K extends keyof BusinessProfile>(key: K, value: BusinessProfile[K]) {
     setData((prev) => ({ ...prev, [key]: value }));
@@ -80,6 +98,35 @@ export function BusinessTab({
       setTimeout(() => setSavedFinancial(false), 2000);
     } finally {
       setSavingFinancial(false);
+    }
+  }
+
+  function addGoal() {
+    if (!newMonth || !newAmount) return;
+    const amount = Number(newAmount);
+    if (isNaN(amount) || amount < 0) return;
+    setGoals((prev) => {
+      const filtered = prev.filter((g) => g.month !== newMonth);
+      return [...filtered, { id: crypto.randomUUID(), month: newMonth, amount }].sort((a, b) =>
+        a.month.localeCompare(b.month),
+      );
+    });
+    setNewMonth("");
+    setNewAmount("");
+  }
+
+  function removeGoal(id: string) {
+    setGoals((prev) => prev.filter((g) => g.id !== id));
+  }
+
+  async function handleSaveGoals() {
+    setSavingGoals(true);
+    try {
+      await saveRevenueGoals(goals);
+      setSavedGoals(true);
+      setTimeout(() => setSavedGoals(false), 2000);
+    } finally {
+      setSavingGoals(false);
     }
   }
 
@@ -140,27 +187,81 @@ export function BusinessTab({
         </CardContent>
       </Card>
 
-      {/* Financial Config */}
+      {/* Revenue Goals */}
       <div className="pt-4">
-        <h2 className="text-base font-semibold text-foreground">Financial</h2>
+        <h2 className="text-base font-semibold text-foreground">Revenue Goals</h2>
         <p className="text-xs text-muted mt-0.5">
-          Revenue goals and tax settings used across analytics and financial dashboards
+          Monthly targets that drive the goal ring on the analytics dashboard
         </p>
       </div>
       <Card className="gap-0">
-        <CardContent className="px-5 pb-5 pt-5 space-y-4">
-          <FieldRow label="Monthly Revenue Goal ($)">
+        <CardContent className="px-5 pb-5 pt-5 space-y-3">
+          {goals.length > 0 && (
+            <div className="divide-y divide-border/50">
+              {goals.map((goal) => (
+                <div key={goal.id} className="flex items-center justify-between py-2.5 gap-4">
+                  <span className="text-sm text-foreground">{formatMonth(goal.month)}</span>
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm tabular-nums text-foreground">
+                      ${goal.amount.toLocaleString()}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => removeGoal(goal.id)}
+                      className="text-muted hover:text-destructive transition-colors"
+                      aria-label={`Remove ${formatMonth(goal.month)} goal`}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Add row */}
+          <div className="flex items-center gap-2 pt-1">
+            <input
+              type="month"
+              value={newMonth}
+              onChange={(e) => setNewMonth(e.target.value)}
+              className={cn(INPUT_CLASS, "w-auto")}
+            />
             <input
               type="number"
               min={0}
               step={500}
-              value={financial.revenueGoalMonthly}
-              onChange={(e) =>
-                setFinancial((prev) => ({ ...prev, revenueGoalMonthly: Number(e.target.value) }))
-              }
-              className={INPUT_CLASS}
+              placeholder="Amount"
+              value={newAmount}
+              onChange={(e) => setNewAmount(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && addGoal()}
+              className={cn(INPUT_CLASS, "w-32")}
             />
-          </FieldRow>
+            <button
+              type="button"
+              onClick={addGoal}
+              disabled={!newMonth || !newAmount}
+              className="px-3 py-1.5 text-sm font-medium rounded-lg bg-foreground/8 hover:bg-foreground/12 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              Add
+            </button>
+          </div>
+
+          <div className="flex justify-end pt-2 border-t border-border/50">
+            <StatefulSaveButton saving={savingGoals} saved={savedGoals} onSave={handleSaveGoals} />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Tax Settings */}
+      <div className="pt-4">
+        <h2 className="text-base font-semibold text-foreground">Tax</h2>
+        <p className="text-xs text-muted mt-0.5">
+          Used for estimated tax calculations across financial dashboards
+        </p>
+      </div>
+      <Card className="gap-0">
+        <CardContent className="px-5 pb-5 pt-5 space-y-4">
           <FieldRow label="Estimated Tax Rate (%)">
             <input
               type="number"

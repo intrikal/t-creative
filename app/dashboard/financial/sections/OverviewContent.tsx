@@ -145,6 +145,19 @@ export function OverviewContent({
         </Card>
       </div>
 
+      {/* Sales tax collected — not revenue, collected on behalf of the state */}
+      {stats.taxCollected > 0 && (
+        <div className="flex items-center gap-2 px-1">
+          <p className="text-xs text-muted">
+            Sales tax collected this month:{" "}
+            <span className="font-medium">${stats.taxCollected.toLocaleString()}</span>
+          </p>
+          <span className="text-[10px] text-muted/60">
+            (reported by Square — not studio revenue)
+          </span>
+        </div>
+      )}
+
       {/* Charts row */}
       <div className="grid grid-cols-1 xl:grid-cols-5 gap-4">
         {/* Bar chart */}

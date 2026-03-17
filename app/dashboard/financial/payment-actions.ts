@@ -47,6 +47,8 @@ export type RecordPaymentInput = {
   clientId: string;
   amountInCents: number;
   tipInCents?: number;
+  /** Sales tax collected in cents. Calculated by Square, not this app. */
+  taxAmountInCents?: number;
   method:
     | "cash"
     | "square_card"
@@ -183,6 +185,7 @@ export async function recordPayment(input: RecordPaymentInput): Promise<void> {
     clientId: input.clientId,
     amountInCents: input.amountInCents,
     tipInCents: input.tipInCents ?? 0,
+    taxAmountInCents: input.taxAmountInCents ?? 0,
     method: input.method,
     status: "paid",
     paidAt: new Date(),

@@ -32,6 +32,7 @@ export function FinancialModals({ modal, onClose }: { modal: ModalType; onClose:
     const clientId = (data.get("clientId") as string)?.trim();
     const description = (data.get("description") as string)?.trim();
     const amount = parseFloat(data.get("amount") as string);
+    const tax = parseFloat(data.get("tax") as string) || 0;
     const dueAt = data.get("dueAt") as string;
 
     if (!clientId || !description || !amount) {
@@ -46,6 +47,7 @@ export function FinancialModals({ modal, onClose }: { modal: ModalType; onClose:
           clientId,
           description,
           amountInCents: Math.round(amount * 100),
+          taxAmountInCents: tax > 0 ? Math.round(tax * 100) : undefined,
           dueAt: dueAt || undefined,
           notes: (data.get("notes") as string)?.trim() || undefined,
           isRecurring,
@@ -191,8 +193,8 @@ export function FinancialModals({ modal, onClose }: { modal: ModalType; onClose:
               aria-required="true"
             />
           </Field>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Amount ($)" required>
+          <div className="grid grid-cols-3 gap-3">
+            <Field label="Subtotal ($)" required>
               <Input
                 name="amount"
                 type="number"
@@ -201,6 +203,9 @@ export function FinancialModals({ modal, onClose }: { modal: ModalType; onClose:
                 step={0.01}
                 aria-required="true"
               />
+            </Field>
+            <Field label="Tax ($)">
+              <Input name="tax" type="number" placeholder="0.00" min={0} step={0.01} />
             </Field>
             <Field label="Due Date">
               <Input name="dueAt" type="date" />

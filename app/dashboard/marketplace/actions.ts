@@ -11,7 +11,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import * as Sentry from "@sentry/nextjs";
 import { eq, desc, sql, asc } from "drizzle-orm";
+import { z } from "zod";
 import { db } from "@/db";
 import { products, orders, supplies, profiles } from "@/db/schema";
 import { CommissionQuote } from "@/emails/CommissionQuote";
@@ -118,126 +120,144 @@ function slugify(title: string): string {
 /* ------------------------------------------------------------------ */
 
 export async function getProducts(): Promise<ProductRow[]> {
-  await getUser();
+  try {
+    await getUser();
 
-  // Batch 1: products
-  const rows = await db
-    .select({
-      id: products.id,
-      title: products.title,
-      category: products.category,
-      description: products.description,
-      pricingType: products.pricingType,
-      priceInCents: products.priceInCents,
-      priceMinInCents: products.priceMinInCents,
-      priceMaxInCents: products.priceMaxInCents,
-      stockCount: products.stockCount,
-      availability: products.availability,
-      isPublished: products.isPublished,
-      tags: products.tags,
-      serviceId: products.serviceId,
-    })
-    .from(products)
-    .orderBy(desc(products.createdAt));
+    // Batch 1: products
+    const rows = await db
+      .select({
+        id: products.id,
+        title: products.title,
+        category: products.category,
+        description: products.description,
+        pricingType: products.pricingType,
+        priceInCents: products.priceInCents,
+        priceMinInCents: products.priceMinInCents,
+        priceMaxInCents: products.priceMaxInCents,
+        stockCount: products.stockCount,
+        availability: products.availability,
+        isPublished: products.isPublished,
+        tags: products.tags,
+        serviceId: products.serviceId,
+      })
+      .from(products)
+      .orderBy(desc(products.createdAt));
 
-  // Batch 2: sales count per product (completed orders only)
-  const salesRows = await db
-    .select({
-      productId: orders.productId,
-      count: sql<number>`count(*)`,
-    })
-    .from(orders)
-    .where(eq(orders.status, "completed"))
-    .groupBy(orders.productId);
+    // Batch 2: sales count per product (completed orders only)
+    const salesRows = await db
+      .select({
+        productId: orders.productId,
+        count: sql<number>`count(*)`,
+      })
+      .from(orders)
+      .where(eq(orders.status, "completed"))
+      .groupBy(orders.productId);
 
-  const salesMap = new Map(
-    salesRows.filter((r) => r.productId !== null).map((r) => [r.productId!, Number(r.count)]),
-  );
+    const salesMap = new Map(
+      salesRows.filter((r) => r.productId !== null).map((r) => [r.productId!, Number(r.count)]),
+    );
 
-  return rows.map((r) => {
-    const pt = PRICING_MAP[r.pricingType] ?? "fixed";
-    let price = 0;
-    let priceMax: number | undefined;
+    return rows.map((r) => {
+      const pt = PRICING_MAP[r.pricingType] ?? "fixed";
+      let price = 0;
+      let priceMax: number | undefined;
 
-    if (pt === "range") {
-      price = (r.priceMinInCents ?? 0) / 100;
-      priceMax = (r.priceMaxInCents ?? 0) / 100;
-    } else {
-      price = (r.priceInCents ?? r.priceMinInCents ?? 0) / 100;
-    }
+      if (pt === "range") {
+        price = (r.priceMinInCents ?? 0) / 100;
+        priceMax = (r.priceMaxInCents ?? 0) / 100;
+      } else {
+        price = (r.priceInCents ?? r.priceMinInCents ?? 0) / 100;
+      }
 
-    const needsStock = r.availability === "in_stock" || r.availability === "pre_order";
+      const needsStock = r.availability === "in_stock" || r.availability === "pre_order";
 
-    return {
-      id: r.id,
-      name: r.title,
-      category: (r.category ?? "merch") as ProductCategory,
-      description: r.description ?? "",
-      pricingType: pt,
-      price,
-      priceMax,
-      stock: needsStock ? r.stockCount : undefined,
-      status: deriveStatus(r.isPublished, r.availability),
-      tags: r.tags
-        ? r.tags
-            .split(",")
-            .map((t) => t.trim())
-            .filter(Boolean)
-        : [],
-      sales: salesMap.get(r.id) ?? 0,
-      serviceId: r.serviceId ?? null,
-    };
-  });
+      return {
+        id: r.id,
+        name: r.title,
+        category: (r.category ?? "merch") as ProductCategory,
+        description: r.description ?? "",
+        pricingType: pt,
+        price,
+        priceMax,
+        stock: needsStock ? r.stockCount : undefined,
+        status: deriveStatus(r.isPublished, r.availability),
+        tags: r.tags
+          ? r.tags
+              .split(",")
+              .map((t) => t.trim())
+              .filter(Boolean)
+          : [],
+        sales: salesMap.get(r.id) ?? 0,
+        serviceId: r.serviceId ?? null,
+      };
+    });
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 export async function getSupplies(): Promise<SupplyRow[]> {
-  await getUser();
+  try {
+    await getUser();
 
-  const rows = await db.select().from(supplies).orderBy(asc(supplies.category), asc(supplies.name));
+    const rows = await db
+      .select()
+      .from(supplies)
+      .orderBy(asc(supplies.category), asc(supplies.name));
 
-  return rows.map((r) => ({
-    id: r.id,
-    name: r.name,
-    category: r.category ?? "Other",
-    unit: r.unit,
-    stock: r.stockCount,
-    reorder: r.reorderPoint,
-    lastRestocked: r.lastRestockedAt
-      ? new Date(r.lastRestockedAt).toLocaleDateString("en-US", {
-          month: "short",
-          day: "numeric",
-        })
-      : null,
-  }));
+    return rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      category: r.category ?? "Other",
+      unit: r.unit,
+      stock: r.stockCount,
+      reorder: r.reorderPoint,
+      lastRestocked: r.lastRestockedAt
+        ? new Date(r.lastRestockedAt).toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+          })
+        : null,
+    }));
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 export async function getMarketplaceStats(): Promise<MarketplaceStats> {
-  await getUser();
+  try {
+    await getUser();
 
-  const [[productStats], [salesStats]] = await Promise.all([
-    db
-      .select({
-        total: sql<number>`count(*)`,
-        active: sql<number>`count(*) filter (where ${products.isPublished} = true and ${products.availability} != 'out_of_stock')`,
-        lowStock: sql<number>`count(*) filter (where ${products.stockCount} > 0 and ${products.stockCount} <= ${LOW_STOCK_THRESHOLD} and ${products.availability} = 'in_stock')`,
-        outOfStock: sql<number>`count(*) filter (where ${products.availability} = 'out_of_stock')`,
-      })
-      .from(products),
-    db
-      .select({
-        totalSales: sql<number>`coalesce(count(*), 0)`,
-      })
-      .from(orders)
-      .where(eq(orders.status, "completed")),
-  ]);
+    const [[productStats], [salesStats]] = await Promise.all([
+      db
+        .select({
+          total: sql<number>`count(*)`,
+          active: sql<number>`count(*) filter (where ${products.isPublished} = true and ${products.availability} != 'out_of_stock')`,
+          lowStock: sql<number>`count(*) filter (where ${products.stockCount} > 0 and ${products.stockCount} <= ${LOW_STOCK_THRESHOLD} and ${products.availability} = 'in_stock')`,
+          outOfStock: sql<number>`count(*) filter (where ${products.availability} = 'out_of_stock')`,
+        })
+        .from(products),
+      db
+        .select({
+          totalSales: sql<number>`coalesce(count(*), 0)`,
+        })
+        .from(orders)
+        .where(eq(orders.status, "completed")),
+    ]);
 
-  return {
-    activeCount: Number(productStats.active),
-    totalProducts: Number(productStats.total),
-    totalSales: Number(salesStats.totalSales),
-    lowStockCount: Number(productStats.lowStock),
-    outOfStockCount: Number(productStats.outOfStock),
-  };
+    return {
+      activeCount: Number(productStats.active),
+      totalProducts: Number(productStats.total),
+      totalSales: Number(salesStats.totalSales),
+      lowStockCount: Number(productStats.lowStock),
+      outOfStockCount: Number(productStats.outOfStock),
+    };
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -257,55 +277,35 @@ export type ProductFormData = {
   serviceId?: number | null;
 };
 
+const ProductFormSchema = z.object({
+  name: z.string().min(1),
+  category: z.enum(["lash-supplies", "jewelry", "crochet", "aftercare", "merch"]),
+  description: z.string(),
+  pricingType: z.enum(["fixed", "starting_at", "range", "custom_quote"]),
+  price: z.number().nonnegative(),
+  priceMax: z.number().nonnegative().optional(),
+  stock: z.number().int().nonnegative().optional(),
+  status: z.enum(["active", "inactive", "out_of_stock"]),
+  tags: z.string(),
+  serviceId: z.number().int().positive().nullish(),
+});
+
 export async function createProduct(form: ProductFormData) {
-  await getUser();
+  try {
+    ProductFormSchema.parse(form);
+    await getUser();
 
-  const dbPricing = PRICING_REVERSE[form.pricingType] as
-    | "fixed_price"
-    | "starting_at"
-    | "price_range"
-    | "contact_for_quote";
+    const dbPricing = PRICING_REVERSE[form.pricingType] as
+      | "fixed_price"
+      | "starting_at"
+      | "price_range"
+      | "contact_for_quote";
 
-  await db.insert(products).values({
-    title: form.name,
-    slug: slugify(form.name),
-    description: form.description || null,
-    productType: form.stock !== undefined ? "ready_made" : "custom_order",
-    category: form.category,
-    pricingType: dbPricing,
-    priceInCents: form.pricingType === "range" ? null : Math.round(form.price * 100),
-    priceMinInCents: form.pricingType === "range" ? Math.round(form.price * 100) : null,
-    priceMaxInCents:
-      form.pricingType === "range" && form.priceMax ? Math.round(form.priceMax * 100) : null,
-    stockCount: form.stock ?? 0,
-    availability:
-      form.status === "out_of_stock"
-        ? "out_of_stock"
-        : form.stock !== undefined
-          ? "in_stock"
-          : "made_to_order",
-    isPublished: form.status !== "inactive",
-    tags: form.tags || null,
-    serviceId: form.serviceId ?? null,
-  });
-
-  revalidatePath(PATH);
-}
-
-export async function updateProduct(id: number, form: ProductFormData) {
-  await getUser();
-
-  const dbPricing = PRICING_REVERSE[form.pricingType] as
-    | "fixed_price"
-    | "starting_at"
-    | "price_range"
-    | "contact_for_quote";
-
-  await db
-    .update(products)
-    .set({
+    await db.insert(products).values({
       title: form.name,
+      slug: slugify(form.name),
       description: form.description || null,
+      productType: form.stock !== undefined ? "ready_made" : "custom_order",
       category: form.category,
       pricingType: dbPricing,
       priceInCents: form.pricingType === "range" ? null : Math.round(form.price * 100),
@@ -322,58 +322,123 @@ export async function updateProduct(id: number, form: ProductFormData) {
       isPublished: form.status !== "inactive",
       tags: form.tags || null,
       serviceId: form.serviceId ?? null,
-      updatedAt: new Date(),
-    })
-    .where(eq(products.id, id));
+    });
 
-  revalidatePath(PATH);
-}
-
-export async function deleteProduct(id: number) {
-  await getUser();
-  await db.delete(products).where(eq(products.id, id));
-  revalidatePath(PATH);
-}
-
-export async function toggleProductStatus(id: number) {
-  await getUser();
-
-  const [row] = await db
-    .select({ isPublished: products.isPublished })
-    .from(products)
-    .where(eq(products.id, id));
-
-  if (row) {
-    await db
-      .update(products)
-      .set({ isPublished: !row.isPublished, updatedAt: new Date() })
-      .where(eq(products.id, id));
+    revalidatePath(PATH);
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
   }
-
-  revalidatePath(PATH);
 }
 
-export async function adjustProductStock(id: number, delta: number) {
-  await getUser();
+export async function updateProduct(id: number, form: ProductFormData) {
+  try {
+    z.number().int().positive().parse(id);
+    ProductFormSchema.parse(form);
+    await getUser();
 
-  const [row] = await db
-    .select({ stockCount: products.stockCount })
-    .from(products)
-    .where(eq(products.id, id));
+    const dbPricing = PRICING_REVERSE[form.pricingType] as
+      | "fixed_price"
+      | "starting_at"
+      | "price_range"
+      | "contact_for_quote";
 
-  if (row) {
-    const newStock = Math.max(0, row.stockCount + delta);
     await db
       .update(products)
       .set({
-        stockCount: newStock,
-        availability: newStock === 0 ? "out_of_stock" : "in_stock",
+        title: form.name,
+        description: form.description || null,
+        category: form.category,
+        pricingType: dbPricing,
+        priceInCents: form.pricingType === "range" ? null : Math.round(form.price * 100),
+        priceMinInCents: form.pricingType === "range" ? Math.round(form.price * 100) : null,
+        priceMaxInCents:
+          form.pricingType === "range" && form.priceMax ? Math.round(form.priceMax * 100) : null,
+        stockCount: form.stock ?? 0,
+        availability:
+          form.status === "out_of_stock"
+            ? "out_of_stock"
+            : form.stock !== undefined
+              ? "in_stock"
+              : "made_to_order",
+        isPublished: form.status !== "inactive",
+        tags: form.tags || null,
+        serviceId: form.serviceId ?? null,
         updatedAt: new Date(),
       })
       .where(eq(products.id, id));
-  }
 
-  revalidatePath(PATH);
+    revalidatePath(PATH);
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
+}
+
+export async function deleteProduct(id: number) {
+  try {
+    z.number().int().positive().parse(id);
+    await getUser();
+    await db.delete(products).where(eq(products.id, id));
+    revalidatePath(PATH);
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
+}
+
+export async function toggleProductStatus(id: number) {
+  try {
+    z.number().int().positive().parse(id);
+    await getUser();
+
+    const [row] = await db
+      .select({ isPublished: products.isPublished })
+      .from(products)
+      .where(eq(products.id, id));
+
+    if (row) {
+      await db
+        .update(products)
+        .set({ isPublished: !row.isPublished, updatedAt: new Date() })
+        .where(eq(products.id, id));
+    }
+
+    revalidatePath(PATH);
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
+}
+
+export async function adjustProductStock(id: number, delta: number) {
+  try {
+    z.number().int().positive().parse(id);
+    z.number().int().parse(delta);
+    await getUser();
+
+    const [row] = await db
+      .select({ stockCount: products.stockCount })
+      .from(products)
+      .where(eq(products.id, id));
+
+    if (row) {
+      const newStock = Math.max(0, row.stockCount + delta);
+      await db
+        .update(products)
+        .set({
+          stockCount: newStock,
+          availability: newStock === 0 ? "out_of_stock" : "in_stock",
+          updatedAt: new Date(),
+        })
+        .where(eq(products.id, id));
+    }
+
+    revalidatePath(PATH);
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -388,66 +453,100 @@ export type SupplyFormData = {
   reorder: number;
 };
 
+const SupplyFormSchema = z.object({
+  name: z.string().min(1),
+  category: z.string(),
+  unit: z.string().min(1),
+  stock: z.number().int().nonnegative(),
+  reorder: z.number().int().nonnegative(),
+});
+
 export async function createSupply(form: SupplyFormData) {
-  await getUser();
+  try {
+    SupplyFormSchema.parse(form);
+    await getUser();
 
-  await db.insert(supplies).values({
-    name: form.name,
-    category: form.category || null,
-    unit: form.unit,
-    stockCount: form.stock,
-    reorderPoint: form.reorder,
-    lastRestockedAt: form.stock > 0 ? new Date() : null,
-  });
-
-  revalidatePath(PATH);
-}
-
-export async function updateSupply(id: number, form: SupplyFormData) {
-  await getUser();
-
-  await db
-    .update(supplies)
-    .set({
+    await db.insert(supplies).values({
       name: form.name,
       category: form.category || null,
       unit: form.unit,
       stockCount: form.stock,
       reorderPoint: form.reorder,
-      updatedAt: new Date(),
-    })
-    .where(eq(supplies.id, id));
+      lastRestockedAt: form.stock > 0 ? new Date() : null,
+    });
 
-  revalidatePath(PATH);
+    revalidatePath(PATH);
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
-export async function deleteSupply(id: number) {
-  await getUser();
-  await db.delete(supplies).where(eq(supplies.id, id));
-  revalidatePath(PATH);
-}
+export async function updateSupply(id: number, form: SupplyFormData) {
+  try {
+    z.number().int().positive().parse(id);
+    SupplyFormSchema.parse(form);
+    await getUser();
 
-export async function adjustSupplyStock(id: number, delta: number) {
-  await getUser();
-
-  const [row] = await db
-    .select({ stockCount: supplies.stockCount })
-    .from(supplies)
-    .where(eq(supplies.id, id));
-
-  if (row) {
-    const newStock = Math.max(0, row.stockCount + delta);
     await db
       .update(supplies)
       .set({
-        stockCount: newStock,
-        ...(delta > 0 ? { lastRestockedAt: new Date() } : {}),
+        name: form.name,
+        category: form.category || null,
+        unit: form.unit,
+        stockCount: form.stock,
+        reorderPoint: form.reorder,
         updatedAt: new Date(),
       })
       .where(eq(supplies.id, id));
-  }
 
-  revalidatePath(PATH);
+    revalidatePath(PATH);
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
+}
+
+export async function deleteSupply(id: number) {
+  try {
+    z.number().int().positive().parse(id);
+    await getUser();
+    await db.delete(supplies).where(eq(supplies.id, id));
+    revalidatePath(PATH);
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
+}
+
+export async function adjustSupplyStock(id: number, delta: number) {
+  try {
+    z.number().int().positive().parse(id);
+    z.number().int().parse(delta);
+    await getUser();
+
+    const [row] = await db
+      .select({ stockCount: supplies.stockCount })
+      .from(supplies)
+      .where(eq(supplies.id, id));
+
+    if (row) {
+      const newStock = Math.max(0, row.stockCount + delta);
+      await db
+        .update(supplies)
+        .set({
+          stockCount: newStock,
+          ...(delta > 0 ? { lastRestockedAt: new Date() } : {}),
+          updatedAt: new Date(),
+        })
+        .where(eq(supplies.id, id));
+    }
+
+    revalidatePath(PATH);
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -473,6 +572,13 @@ export async function quoteCommission(
   amountInCents: number,
   options: { estimatedCompletionAt?: Date; notes?: string } = {},
 ): Promise<void> {
+  z.number().int().positive().parse(id);
+  z.number().int().nonnegative().parse(amountInCents);
+  z.object({
+    estimatedCompletionAt: z.date().optional(),
+    notes: z.string().optional(),
+  }).parse(options);
+
   const user = await getUser();
 
   await db
@@ -537,20 +643,35 @@ export async function quoteCommission(
 }
 
 export async function updateOrderStatus(id: number, status: OrderStatus): Promise<void> {
-  await getUser();
+  try {
+    z.number().int().positive().parse(id);
+    z.enum([
+      "inquiry",
+      "quoted",
+      "accepted",
+      "in_progress",
+      "ready_for_pickup",
+      "completed",
+      "cancelled",
+    ]).parse(status);
+    await getUser();
 
-  const updates: Record<string, unknown> = { status, updatedAt: new Date() };
-  if (status === "completed") updates.completedAt = new Date();
-  if (status === "cancelled") updates.cancelledAt = new Date();
+    const updates: Record<string, unknown> = { status, updatedAt: new Date() };
+    if (status === "completed") updates.completedAt = new Date();
+    if (status === "cancelled") updates.cancelledAt = new Date();
 
-  await db.update(orders).set(updates).where(eq(orders.id, id));
+    await db.update(orders).set(updates).where(eq(orders.id, id));
 
-  // Send email for ready_for_pickup and completed
-  if (status === "ready_for_pickup" || status === "completed") {
-    await trySendOrderStatusEmail(id, status);
+    // Send email for ready_for_pickup and completed
+    if (status === "ready_for_pickup" || status === "completed") {
+      await trySendOrderStatusEmail(id, status);
+    }
+
+    revalidatePath(PATH);
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
   }
-
-  revalidatePath(PATH);
 }
 
 async function trySendOrderStatusEmail(

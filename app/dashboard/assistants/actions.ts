@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import * as Sentry from "@sentry/nextjs";
 import { eq, ne, sql, and, gte, lte, lt } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
+import { z } from "zod";
 import { db } from "@/db";
 import {
   profiles,
@@ -184,11 +185,36 @@ export async function getAssistantAvailability(): Promise<AvailabilityRow[]> {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Zod schemas                                                        */
+/* ------------------------------------------------------------------ */
+
+const assistantInputSchema = z.object({
+  firstName: z.string().min(1),
+  lastName: z.string().min(1),
+  email: z.string().email(),
+  phone: z.string().optional(),
+  title: z.string().optional(),
+  specialties: z.string().optional(),
+  commissionType: z.enum(["percentage", "flat_fee"]).optional(),
+  commissionRate: z.number().min(0).max(100).optional(),
+  commissionFlatFee: z.number().int().nonnegative().optional(),
+  tipSplitPercent: z.number().min(0).max(100).optional(),
+});
+
+const commissionSettingsSchema = z.object({
+  commissionType: z.enum(["percentage", "flat_fee"]),
+  commissionRate: z.number().min(0).max(100).optional(),
+  commissionFlatFee: z.number().int().nonnegative().optional(),
+  tipSplitPercent: z.number().min(0).max(100).optional(),
+});
+
+/* ------------------------------------------------------------------ */
 /*  Mutations                                                          */
 /* ------------------------------------------------------------------ */
 
 export async function createAssistant(input: AssistantInput): Promise<void> {
   try {
+    assistantInputSchema.parse(input);
     await getUser();
 
     const id = crypto.randomUUID();
@@ -223,6 +249,8 @@ export async function createAssistant(input: AssistantInput): Promise<void> {
 
 export async function updateAssistant(id: string, input: AssistantInput): Promise<void> {
   try {
+    z.string().min(1).parse(id);
+    assistantInputSchema.parse(input);
     await getUser();
 
     await db
@@ -282,6 +310,8 @@ export async function toggleAssistantStatus(
   status: "active" | "on_leave" | "inactive",
 ): Promise<void> {
   try {
+    z.string().min(1).parse(id);
+    z.enum(["active", "on_leave", "inactive"]).parse(status);
     await getUser();
 
     if (status === "inactive") {
@@ -321,6 +351,8 @@ export async function updateCommissionSettings(
   },
 ): Promise<void> {
   try {
+    z.string().min(1).parse(id);
+    commissionSettingsSchema.parse(settings);
     await getUser();
 
     const existing = await db
@@ -353,6 +385,8 @@ export async function updateCommissionSettings(
 
 export async function updateCommissionRate(id: string, rate: number): Promise<void> {
   try {
+    z.string().min(1).parse(id);
+    z.number().nonnegative().parse(rate);
     await getUser();
 
     const existing = await db
@@ -382,6 +416,7 @@ export async function updateCommissionRate(id: string, rate: number): Promise<vo
 
 export async function deleteAssistant(id: string): Promise<void> {
   try {
+    z.string().min(1).parse(id);
     await getUser();
     await db.delete(profiles).where(eq(profiles.id, id));
     revalidatePath("/dashboard/assistants");

@@ -19,6 +19,7 @@
 import { revalidatePath } from "next/cache";
 import { eq, and, sql, inArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
+import { z } from "zod";
 import { db } from "@/db";
 import { payments, bookings, services, profiles, syncLog } from "@/db/schema";
 import { PaymentLinkEmail } from "@/emails/PaymentLinkEmail";
@@ -70,6 +71,40 @@ export type RefundResult = {
   success: boolean;
   error?: string;
 };
+
+/* ------------------------------------------------------------------ */
+/*  Zod schemas                                                        */
+/* ------------------------------------------------------------------ */
+
+const RecordPaymentSchema = z.object({
+  bookingId: z.number().int().positive(),
+  clientId: z.string().min(1),
+  amountInCents: z.number().int().positive(),
+  tipInCents: z.number().int().nonnegative().optional(),
+  taxAmountInCents: z.number().int().nonnegative().optional(),
+  method: z.enum([
+    "cash",
+    "square_card",
+    "square_cash",
+    "square_wallet",
+    "square_gift_card",
+    "square_other",
+  ]),
+  squarePaymentId: z.string().optional(),
+  notes: z.string().optional(),
+});
+
+const RefundSchema = z.object({
+  paymentId: z.number().int().positive(),
+  amountInCents: z.number().int().positive(),
+  reason: z.string().optional(),
+});
+
+const PaymentLinkSchema = z.object({
+  bookingId: z.number().int().positive(),
+  amountInCents: z.number().int().positive(),
+  type: z.enum(["deposit", "balance"]),
+});
 
 export type BookingForPayment = {
   id: number;
@@ -155,6 +190,8 @@ export async function getBookingsForPayment(): Promise<BookingForPayment[]> {
  * if a `squarePaymentId` is provided and Square is configured.
  */
 export async function recordPayment(input: RecordPaymentInput): Promise<void> {
+  RecordPaymentSchema.parse(input);
+
   const user = await getUser();
 
   // Validate the booking exists
@@ -222,6 +259,8 @@ export async function recordPayment(input: RecordPaymentInput): Promise<void> {
  * updates the DB directly.
  */
 export async function processRefund(input: RefundInput): Promise<RefundResult> {
+  RefundSchema.parse(input);
+
   const user = await getUser();
 
   const [payment] = await db.select().from(payments).where(eq(payments.id, input.paymentId));
@@ -377,6 +416,8 @@ export async function createPaymentLink(input: {
   amountInCents: number;
   type: "deposit" | "balance";
 }): Promise<PaymentLinkResult> {
+  PaymentLinkSchema.parse(input);
+
   await getUser();
 
   if (!isSquareConfigured()) {

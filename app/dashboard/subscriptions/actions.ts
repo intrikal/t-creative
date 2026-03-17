@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import * as Sentry from "@sentry/nextjs";
 import { desc, eq } from "drizzle-orm";
+import { z } from "zod";
 import { db } from "@/db";
 import { bookingSubscriptions, profiles, services } from "@/db/schema";
 import { createClient } from "@/utils/supabase/server";
@@ -149,8 +150,22 @@ export async function getActiveSubscriptionsForClient(
 /*  Mutations                                                          */
 /* ------------------------------------------------------------------ */
 
+const createSubscriptionSchema = z.object({
+  clientId: z.string().min(1),
+  serviceId: z.number().int().positive(),
+  name: z.string().min(1),
+  totalSessions: z.number().int().positive(),
+  intervalDays: z.number().int().positive(),
+  pricePerSessionInCents: z.number().int().nonnegative(),
+  totalPaidInCents: z.number().int().nonnegative(),
+  notes: z.string().optional(),
+});
+
+const subscriptionStatusSchema = z.enum(["active", "paused", "completed", "cancelled"]);
+
 export async function createSubscription(input: CreateSubscriptionInput): Promise<{ id: number }> {
   try {
+    createSubscriptionSchema.parse(input);
     await getUser();
 
     const [sub] = await db
@@ -181,6 +196,8 @@ export async function updateSubscriptionStatus(
   status: SubscriptionStatus,
 ): Promise<void> {
   try {
+    z.number().int().positive().parse(id);
+    subscriptionStatusSchema.parse(status);
     await getUser();
 
     await db.update(bookingSubscriptions).set({ status }).where(eq(bookingSubscriptions.id, id));
@@ -194,6 +211,8 @@ export async function updateSubscriptionStatus(
 
 export async function updateSubscriptionNotes(id: number, notes: string): Promise<void> {
   try {
+    z.number().int().positive().parse(id);
+    z.string().parse(notes);
     await getUser();
 
     await db

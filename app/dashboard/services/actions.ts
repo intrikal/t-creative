@@ -27,6 +27,7 @@
 import { revalidatePath } from "next/cache";
 import * as Sentry from "@sentry/nextjs";
 import { eq, inArray, sql } from "drizzle-orm";
+import { z } from "zod";
 import { db } from "@/db";
 import { bookings, services } from "@/db/schema";
 import { logAction } from "@/lib/audit";
@@ -381,6 +382,16 @@ export type ServiceInput = {
 
 const getUser = requireAdmin;
 
+const serviceInputSchema = z.object({
+  name: z.string().min(1),
+  category: z.enum(["lash", "jewelry", "crochet", "consulting", "3d_printing", "aesthetics"]),
+  description: z.string(),
+  durationMinutes: z.number().int().nonnegative(),
+  priceInCents: z.number().int().nonnegative(),
+  depositInCents: z.number().int().nonnegative(),
+  isActive: z.boolean(),
+});
+
 export async function getServices(): Promise<ServiceRow[]> {
   try {
     await getUser();
@@ -393,6 +404,7 @@ export async function getServices(): Promise<ServiceRow[]> {
 
 export async function createService(input: ServiceInput): Promise<ServiceRow> {
   try {
+    serviceInputSchema.parse(input);
     const user = await getUser();
     const [row] = await db
       .insert(services)
@@ -428,6 +440,8 @@ export async function createService(input: ServiceInput): Promise<ServiceRow> {
 
 export async function updateService(id: number, input: ServiceInput): Promise<ServiceRow> {
   try {
+    z.number().int().positive().parse(id);
+    serviceInputSchema.parse(input);
     const user = await getUser();
     const [row] = await db
       .update(services)
@@ -464,6 +478,7 @@ export async function updateService(id: number, input: ServiceInput): Promise<Se
 
 export async function deleteService(id: number): Promise<void> {
   try {
+    z.number().int().positive().parse(id);
     const user = await getUser();
     await db.delete(services).where(eq(services.id, id));
     trackEvent(user.id, "service_deleted", { serviceId: id });
@@ -486,6 +501,8 @@ export async function deleteService(id: number): Promise<void> {
 
 export async function toggleServiceActive(id: number, isActive: boolean): Promise<void> {
   try {
+    z.number().int().positive().parse(id);
+    z.boolean().parse(isActive);
     await getUser();
     await db.update(services).set({ isActive }).where(eq(services.id, id));
     revalidatePath("/dashboard/services");

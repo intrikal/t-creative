@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import * as Sentry from "@sentry/nextjs";
 import { and, eq, or, sum, desc, count } from "drizzle-orm";
+import { z } from "zod";
 import { db } from "@/db";
 import {
   membershipPlans,
@@ -65,8 +66,15 @@ export type LoyaltyPageData = {
 /*  Redeem points                                                      */
 /* ------------------------------------------------------------------ */
 
+const RedeemPointsSchema = z.object({
+  label: z.string().min(1),
+  points: z.number().int().positive(),
+});
+
 export async function redeemPoints(reward: { label: string; points: number }): Promise<void> {
   try {
+    RedeemPointsSchema.parse(reward);
+
     const user = await getUser();
 
     if (reward.points <= 0) throw new Error("Invalid reward");

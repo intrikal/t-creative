@@ -1,7 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import * as Sentry from "@sentry/nextjs";
 import { eq, asc } from "drizzle-orm";
+import { z } from "zod";
 import { db } from "@/db";
 import { policies } from "@/db/schema";
 import { createClient } from "@/utils/supabase/server";
@@ -78,139 +80,199 @@ function parseAftercareContent(raw: string): { dos: string[]; donts: string[] } 
 /* ------------------------------------------------------------------ */
 
 export async function getAftercareSections(): Promise<AftercareSection[]> {
-  await getUser();
+  try {
+    await getUser();
 
-  const rows = await db
-    .select()
-    .from(policies)
-    .where(eq(policies.type, "aftercare"))
-    .orderBy(asc(policies.sortOrder), asc(policies.id));
+    const rows = await db
+      .select()
+      .from(policies)
+      .where(eq(policies.type, "aftercare"))
+      .orderBy(asc(policies.sortOrder), asc(policies.id));
 
-  return rows.map((r) => {
-    const { dos, donts } = parseAftercareContent(r.content);
-    return {
-      id: r.id,
-      title: r.title,
-      category: r.category,
-      dos,
-      donts,
-    };
-  });
+    return rows.map((r) => {
+      const { dos, donts } = parseAftercareContent(r.content);
+      return {
+        id: r.id,
+        title: r.title,
+        category: r.category,
+        dos,
+        donts,
+      };
+    });
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 export async function getPolicies(): Promise<PolicyEntry[]> {
-  await getUser();
+  try {
+    await getUser();
 
-  const rows = await db
-    .select()
-    .from(policies)
-    .where(eq(policies.type, "studio_policy"))
-    .orderBy(asc(policies.sortOrder), asc(policies.id));
+    const rows = await db
+      .select()
+      .from(policies)
+      .where(eq(policies.type, "studio_policy"))
+      .orderBy(asc(policies.sortOrder), asc(policies.id));
 
-  return rows.map((r) => ({
-    id: r.id,
-    title: r.title,
-    content: r.content,
-  }));
+    return rows.map((r) => ({
+      id: r.id,
+      title: r.title,
+      content: r.content,
+    }));
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 /* ------------------------------------------------------------------ */
 /*  Mutations — Aftercare sections                                     */
 /* ------------------------------------------------------------------ */
 
+const aftercareSectionInputSchema = z.object({
+  title: z.string().min(1),
+  category: z.string().optional(),
+  dos: z.array(z.string()),
+  donts: z.array(z.string()),
+});
+
 export async function createAftercareSection(input: AftercareSectionInput): Promise<void> {
-  await getUser();
+  try {
+    aftercareSectionInputSchema.parse(input);
+    await getUser();
 
-  const maxSort = await db
-    .select({ sortOrder: policies.sortOrder })
-    .from(policies)
-    .where(eq(policies.type, "aftercare"))
-    .orderBy(asc(policies.sortOrder));
+    const maxSort = await db
+      .select({ sortOrder: policies.sortOrder })
+      .from(policies)
+      .where(eq(policies.type, "aftercare"))
+      .orderBy(asc(policies.sortOrder));
 
-  const nextSort = maxSort.length > 0 ? maxSort[maxSort.length - 1].sortOrder + 1 : 0;
+    const nextSort = maxSort.length > 0 ? maxSort[maxSort.length - 1].sortOrder + 1 : 0;
 
-  await db.insert(policies).values({
-    type: "aftercare",
-    slug: slugify(input.title) + "-aftercare",
-    title: input.title,
-    content: JSON.stringify({ dos: input.dos, donts: input.donts }),
-    category: (input.category as "lash" | "jewelry" | "crochet" | "consulting") ?? null,
-    sortOrder: nextSort,
-  });
+    await db.insert(policies).values({
+      type: "aftercare",
+      slug: slugify(input.title) + "-aftercare",
+      title: input.title,
+      content: JSON.stringify({ dos: input.dos, donts: input.donts }),
+      category: (input.category as "lash" | "jewelry" | "crochet" | "consulting") ?? null,
+      sortOrder: nextSort,
+    });
 
-  revalidatePath("/dashboard/aftercare");
+    revalidatePath("/dashboard/aftercare");
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 export async function updateAftercareSection(
   id: number,
   input: AftercareSectionInput,
 ): Promise<void> {
-  await getUser();
+  try {
+    z.number().int().positive().parse(id);
+    aftercareSectionInputSchema.parse(input);
+    await getUser();
 
-  await db
-    .update(policies)
-    .set({
-      title: input.title,
-      slug: slugify(input.title) + "-aftercare",
-      content: JSON.stringify({ dos: input.dos, donts: input.donts }),
-      category: (input.category as "lash" | "jewelry" | "crochet" | "consulting") ?? null,
-    })
-    .where(eq(policies.id, id));
+    await db
+      .update(policies)
+      .set({
+        title: input.title,
+        slug: slugify(input.title) + "-aftercare",
+        content: JSON.stringify({ dos: input.dos, donts: input.donts }),
+        category: (input.category as "lash" | "jewelry" | "crochet" | "consulting") ?? null,
+      })
+      .where(eq(policies.id, id));
 
-  revalidatePath("/dashboard/aftercare");
+    revalidatePath("/dashboard/aftercare");
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 export async function deleteAftercareSection(id: number): Promise<void> {
-  await getUser();
-  await db.delete(policies).where(eq(policies.id, id));
-  revalidatePath("/dashboard/aftercare");
+  try {
+    z.number().int().positive().parse(id);
+    await getUser();
+    await db.delete(policies).where(eq(policies.id, id));
+    revalidatePath("/dashboard/aftercare");
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 /* ------------------------------------------------------------------ */
 /*  Mutations — Studio policies                                        */
 /* ------------------------------------------------------------------ */
 
+const policyInputSchema = z.object({
+  title: z.string().min(1),
+  content: z.string().min(1),
+});
+
 export async function createPolicy(input: PolicyInput): Promise<void> {
-  await getUser();
+  try {
+    policyInputSchema.parse(input);
+    await getUser();
 
-  const maxSort = await db
-    .select({ sortOrder: policies.sortOrder })
-    .from(policies)
-    .where(eq(policies.type, "studio_policy"))
-    .orderBy(asc(policies.sortOrder));
+    const maxSort = await db
+      .select({ sortOrder: policies.sortOrder })
+      .from(policies)
+      .where(eq(policies.type, "studio_policy"))
+      .orderBy(asc(policies.sortOrder));
 
-  const nextSort = maxSort.length > 0 ? maxSort[maxSort.length - 1].sortOrder + 1 : 0;
+    const nextSort = maxSort.length > 0 ? maxSort[maxSort.length - 1].sortOrder + 1 : 0;
 
-  await db.insert(policies).values({
-    type: "studio_policy",
-    slug: slugify(input.title) + "-policy",
-    title: input.title,
-    content: input.content,
-    sortOrder: nextSort,
-  });
+    await db.insert(policies).values({
+      type: "studio_policy",
+      slug: slugify(input.title) + "-policy",
+      title: input.title,
+      content: input.content,
+      sortOrder: nextSort,
+    });
 
-  revalidatePath("/dashboard/aftercare");
+    revalidatePath("/dashboard/aftercare");
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 export async function updatePolicy(id: number, input: PolicyInput): Promise<void> {
-  await getUser();
+  try {
+    z.number().int().positive().parse(id);
+    policyInputSchema.parse(input);
+    await getUser();
 
-  await db
-    .update(policies)
-    .set({
-      title: input.title,
-      slug: slugify(input.title) + "-policy",
-      content: input.content,
-    })
-    .where(eq(policies.id, id));
+    await db
+      .update(policies)
+      .set({
+        title: input.title,
+        slug: slugify(input.title) + "-policy",
+        content: input.content,
+      })
+      .where(eq(policies.id, id));
 
-  revalidatePath("/dashboard/aftercare");
+    revalidatePath("/dashboard/aftercare");
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 export async function deletePolicy(id: number): Promise<void> {
-  await getUser();
-  await db.delete(policies).where(eq(policies.id, id));
-  revalidatePath("/dashboard/aftercare");
+  try {
+    z.number().int().positive().parse(id);
+    await getUser();
+    await db.delete(policies).where(eq(policies.id, id));
+    revalidatePath("/dashboard/aftercare");
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -294,28 +356,33 @@ const DEFAULT_POLICIES: { title: string; content: string }[] = [
 ];
 
 export async function seedAftercareDefaults(): Promise<void> {
-  await getUser();
+  try {
+    await getUser();
 
-  // Only seed if empty
-  const existing = await db.select({ id: policies.id }).from(policies).limit(1);
-  if (existing.length > 0) return;
+    // Only seed if empty
+    const existing = await db.select({ id: policies.id }).from(policies).limit(1);
+    if (existing.length > 0) return;
 
-  const aftercareValues = DEFAULT_AFTERCARE.map((a, i) => ({
-    type: "aftercare" as const,
-    slug: slugify(a.title) + "-aftercare",
-    title: a.title,
-    content: JSON.stringify({ dos: a.dos, donts: a.donts }),
-    category: a.category as "lash" | "jewelry" | "crochet" | "consulting",
-    sortOrder: i,
-  }));
+    const aftercareValues = DEFAULT_AFTERCARE.map((a, i) => ({
+      type: "aftercare" as const,
+      slug: slugify(a.title) + "-aftercare",
+      title: a.title,
+      content: JSON.stringify({ dos: a.dos, donts: a.donts }),
+      category: a.category as "lash" | "jewelry" | "crochet" | "consulting",
+      sortOrder: i,
+    }));
 
-  const policyValues = DEFAULT_POLICIES.map((p, i) => ({
-    type: "studio_policy" as const,
-    slug: slugify(p.title) + "-policy",
-    title: p.title,
-    content: p.content,
-    sortOrder: i,
-  }));
+    const policyValues = DEFAULT_POLICIES.map((p, i) => ({
+      type: "studio_policy" as const,
+      slug: slugify(p.title) + "-policy",
+      title: p.title,
+      content: p.content,
+      sortOrder: i,
+    }));
 
-  await db.insert(policies).values([...aftercareValues, ...policyValues]);
+    await db.insert(policies).values([...aftercareValues, ...policyValues]);
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }

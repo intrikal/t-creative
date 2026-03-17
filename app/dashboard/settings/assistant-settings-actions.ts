@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { eq, desc } from "drizzle-orm";
+import { z } from "zod";
 import { db } from "@/db";
 import { profiles, assistantProfiles, businessHours, timeOff, settings } from "@/db/schema";
 import { trackEvent } from "@/lib/posthog";
@@ -230,6 +231,14 @@ export async function getAssistantSettings(): Promise<AssistantSettingsData> {
 /*  Profile mutation                                                   */
 /* ------------------------------------------------------------------ */
 
+const assistantProfileSchema = z.object({
+  firstName: z.string().min(1),
+  lastName: z.string().min(1),
+  phone: z.string(),
+  bio: z.string(),
+  instagram: z.string(),
+});
+
 export async function saveAssistantProfile(data: {
   firstName: string;
   lastName: string;
@@ -237,6 +246,7 @@ export async function saveAssistantProfile(data: {
   bio: string;
   instagram: string;
 }) {
+  assistantProfileSchema.parse(data);
   const user = await getUser();
 
   // Update profiles table
@@ -284,7 +294,15 @@ export async function saveAssistantProfile(data: {
 /*  Availability mutation                                              */
 /* ------------------------------------------------------------------ */
 
+const dayAvailabilitySchema = z.object({
+  dayOfWeek: z.number().int().min(1).max(7),
+  isOpen: z.boolean(),
+  opensAt: z.string().nullable(),
+  closesAt: z.string().nullable(),
+});
+
 export async function saveAssistantAvailability(days: DayAvailability[]) {
+  z.array(dayAvailabilitySchema).parse(days);
   const user = await getUser();
 
   await db.transaction(async (tx) => {
@@ -308,7 +326,18 @@ export async function saveAssistantAvailability(days: DayAvailability[]) {
 /*  Notifications mutation                                             */
 /* ------------------------------------------------------------------ */
 
+const assistantNotificationsSchema = z.object({
+  newBooking: z.boolean(),
+  bookingReminder: z.boolean(),
+  cancellation: z.boolean(),
+  messageFromTrini: z.boolean(),
+  trainingDue: z.boolean(),
+  payoutProcessed: z.boolean(),
+  weeklyDigest: z.boolean(),
+});
+
 export async function saveAssistantNotifications(prefs: NotificationPrefs) {
+  assistantNotificationsSchema.parse(prefs);
   const user = await getUser();
   const notifKey = `assistant_notif:${user.id}`;
 
@@ -332,7 +361,14 @@ export async function saveAssistantNotifications(prefs: NotificationPrefs) {
 /*  Time off mutation                                                  */
 /* ------------------------------------------------------------------ */
 
+const timeOffRequestSchema = z.object({
+  from: z.string().min(1),
+  to: z.string().min(1),
+  reason: z.string(),
+});
+
 export async function submitTimeOffRequest(data: { from: string; to: string; reason: string }) {
+  timeOffRequestSchema.parse(data);
   const user = await getUser();
 
   await db.insert(timeOff).values({

@@ -1,6 +1,7 @@
 import { AnalyticsShell } from "./AnalyticsShell";
 import { AppointmentGapSectionWrapper } from "./sections/AppointmentGapSectionWrapper";
 import { BookingsSectionWrapper } from "./sections/BookingsSectionWrapper";
+import { CheckoutRebookSectionWrapper } from "./sections/CheckoutRebookSectionWrapper";
 import { ClientsSection } from "./sections/ClientsSection";
 import { KpiSection } from "./sections/KpiSection";
 import { OperationalSection } from "./sections/OperationalSection";
@@ -22,6 +23,7 @@ export default function Page() {
       <BookingsSectionWrapper />
       <StaffSection />
       <OperationalSection />
+      <CheckoutRebookSectionWrapper />
       <RetentionSectionWrapper />
       <VisitFrequencySectionWrapper />
       <AppointmentGapSectionWrapper />

@@ -170,12 +170,22 @@ export type VisitFrequencyBucket = {
   pct: number;
 };
 
-export type RevenuePerHourDay = {
-  day: string;
-  isoDay: number;
-  revenue: number;
-  availableHours: number;
-  revenuePerHour: number;
+export type CheckoutRebookStats = {
+  overallRate: number;
+  totalCompleted: number;
+  totalRebooked: number;
+  byStaff: {
+    name: string;
+    completed: number;
+    rebooked: number;
+    rate: number;
+  }[];
+  byCategory: {
+    category: string;
+    completed: number;
+    rebooked: number;
+    rate: number;
+  }[];
 };
 
 export type PeakTimeSlot = {
@@ -985,139 +995,118 @@ export async function getVisitFrequency(): Promise<VisitFrequencyBucket[]> {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Revenue per Available Hour                                         */
+/*  Checkout Rebook Rate                                               */
 /* ------------------------------------------------------------------ */
 
-const DAY_LABELS_ISO: Record<number, string> = {
-  1: "Monday",
-  2: "Tuesday",
-  3: "Wednesday",
-  4: "Thursday",
-  5: "Friday",
-  6: "Saturday",
-  7: "Sunday",
-};
-
-/** Parse "HH:MM" to fractional hours. */
-function timeToHours(t: string): number {
-  const [h, m] = t.split(":").map(Number);
-  return h + m / 60;
-}
-
-export async function getRevenuePerHour(): Promise<RevenuePerHourDay[]> {
+/**
+ * Of completed appointments in the last 30 days, how many clients
+ * created their next booking within 24 hours of checkout?
+ * Broken down overall, by staff, and by service category.
+ */
+export async function getCheckoutRebookRate(): Promise<CheckoutRebookStats> {
   try {
     await getUser();
 
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-    // 1. Studio-wide business hours (staffId IS NULL)
-    const hours = await db
-      .select({
-        dayOfWeek: businessHours.dayOfWeek,
-        isOpen: businessHours.isOpen,
-        opensAt: businessHours.opensAt,
-        closesAt: businessHours.closesAt,
-      })
-      .from(businessHours)
-      .where(sql`${businessHours.staffId} is null`);
-
-    // 2. Lunch break from settings
-    const [lunchRow] = await db
-      .select({ value: settings.value })
-      .from(settings)
-      .where(eq(settings.key, "lunch_break"));
-    const lunch = lunchRow?.value as { enabled?: boolean; start?: string; end?: string } | null;
-    const lunchHours =
-      lunch?.enabled && lunch.start && lunch.end
-        ? timeToHours(lunch.end) - timeToHours(lunch.start)
-        : 0;
-
-    // 3. Time-off days (studio-wide) in the last 30 days
-    const timeOffRows = await db
-      .select({ startDate: timeOff.startDate, endDate: timeOff.endDate })
-      .from(timeOff)
-      .where(
-        and(
-          sql`${timeOff.staffId} is null`,
-          sql`${timeOff.endDate} >= ${thirtyDaysAgo.toISOString().slice(0, 10)}`,
-        ),
-      );
-
-    // Build set of closed dates
-    const closedDates = new Set<string>();
-    for (const row of timeOffRows) {
-      const start = new Date(row.startDate);
-      const end = new Date(row.endDate);
-      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-        closedDates.add(d.toISOString().slice(0, 10));
-      }
-    }
-
-    // 4. Build available hours per ISO day-of-week
-    // Map ISO day (1=Mon..7=Sun) to hours-per-open-day
-    const hoursPerDay = new Map<number, number>();
-    for (const h of hours) {
-      if (h.isOpen && h.opensAt && h.closesAt) {
-        const open = timeToHours(h.opensAt);
-        const close = timeToHours(h.closesAt);
-        hoursPerDay.set(h.dayOfWeek, Math.max(close - open - lunchHours, 0));
-      } else {
-        hoursPerDay.set(h.dayOfWeek, 0);
-      }
-    }
-
-    // Count actual open days per day-of-week in the last 30 days
-    // (excluding time-off)
-    const openDayCount = new Map<number, number>();
-    const now = new Date();
-    for (let d = new Date(thirtyDaysAgo); d <= now; d.setDate(d.getDate() + 1)) {
-      const dateStr = d.toISOString().slice(0, 10);
-      // JS getDay: 0=Sun..6=Sat → ISO: 1=Mon..7=Sun
-      const jsDay = d.getDay();
-      const isoDay = jsDay === 0 ? 7 : jsDay;
-
-      if ((hoursPerDay.get(isoDay) ?? 0) === 0) continue;
-      if (closedDates.has(dateStr)) continue;
-
-      openDayCount.set(isoDay, (openDayCount.get(isoDay) ?? 0) + 1);
-    }
-
-    // 5. Revenue by ISO day-of-week (last 30 days, paid)
-    const revenueRows = await db
-      .select({
-        isoDay: sql<number>`extract(isodow from ${payments.paidAt})`,
-        total: sql<number>`coalesce(sum(${payments.amountInCents}), 0)`,
-      })
-      .from(payments)
-      .where(
-        and(eq(payments.status, "paid"), gte(payments.paidAt, sql`now() - interval '30 days'`)),
+    const result = await db.execute(sql`
+      WITH completed AS (
+        SELECT
+          b.id,
+          b.client_id,
+          b.staff_id,
+          b.completed_at,
+          s.category
+        FROM bookings b
+        JOIN services s ON s.id = b.service_id
+        WHERE b.status = 'completed'
+          AND b.completed_at IS NOT NULL
+          AND b.completed_at > now() - interval '30 days'
+      ),
+      rebooked AS (
+        SELECT DISTINCT c.id
+        FROM completed c
+        WHERE EXISTS (
+          SELECT 1 FROM bookings nb
+          WHERE nb.client_id = c.client_id
+            AND nb.id != c.id
+            AND nb.starts_at > c.completed_at
+            AND nb.created_at <= c.completed_at + interval '24 hours'
+            AND nb.status != 'cancelled'
+        )
       )
-      .groupBy(sql`extract(isodow from ${payments.paidAt})`);
+      SELECT
+        c.id,
+        c.staff_id,
+        c.category,
+        CASE WHEN r.id IS NOT NULL THEN 1 ELSE 0 END AS did_rebook
+      FROM completed c
+      LEFT JOIN rebooked r ON r.id = c.id
+    `);
 
-    const revenueByDay = new Map(
-      revenueRows.map((r) => [Number(r.isoDay), Math.round(Number(r.total) / 100)]),
+    const rows = result as unknown as {
+      id: number;
+      staff_id: string | null;
+      category: string;
+      did_rebook: number;
+    }[];
+
+    const totalCompleted = rows.length;
+    const totalRebooked = rows.filter((r) => Number(r.did_rebook) === 1).length;
+    const overallRate = totalCompleted > 0 ? Math.round((totalRebooked / totalCompleted) * 100) : 0;
+
+    // By staff
+    const staffMap = new Map<string, { completed: number; rebooked: number }>();
+    for (const r of rows) {
+      if (!r.staff_id) continue;
+      const entry = staffMap.get(r.staff_id) ?? { completed: 0, rebooked: 0 };
+      entry.completed++;
+      if (Number(r.did_rebook) === 1) entry.rebooked++;
+      staffMap.set(r.staff_id, entry);
+    }
+
+    // Fetch staff names
+    const staffIds = Array.from(staffMap.keys());
+    const staffNames =
+      staffIds.length > 0
+        ? await db
+            .select({ id: profiles.id, firstName: profiles.firstName, lastName: profiles.lastName })
+            .from(profiles)
+            .where(sql`${profiles.id} in ${staffIds}`)
+        : [];
+    const nameMap = new Map(
+      staffNames.map((s) => [
+        s.id,
+        [s.firstName, s.lastName].filter(Boolean).join(" ") || "Unknown",
+      ]),
     );
 
-    // 6. Assemble results
-    const results: RevenuePerHourDay[] = [];
-    for (let isoDay = 1; isoDay <= 7; isoDay++) {
-      const hpd = hoursPerDay.get(isoDay) ?? 0;
-      const days = openDayCount.get(isoDay) ?? 0;
-      const availableHours = Math.round(hpd * days * 10) / 10;
-      const revenue = revenueByDay.get(isoDay) ?? 0;
-      const revenuePerHour = availableHours > 0 ? Math.round(revenue / availableHours) : 0;
+    const byStaff = Array.from(staffMap.entries())
+      .map(([id, s]) => ({
+        name: nameMap.get(id) ?? "Unknown",
+        completed: s.completed,
+        rebooked: s.rebooked,
+        rate: s.completed > 0 ? Math.round((s.rebooked / s.completed) * 100) : 0,
+      }))
+      .sort((a, b) => b.completed - a.completed);
 
-      results.push({
-        day: DAY_LABELS_ISO[isoDay],
-        isoDay,
-        revenue,
-        availableHours,
-        revenuePerHour,
-      });
+    // By category
+    const catMap = new Map<string, { completed: number; rebooked: number }>();
+    for (const r of rows) {
+      const entry = catMap.get(r.category) ?? { completed: 0, rebooked: 0 };
+      entry.completed++;
+      if (Number(r.did_rebook) === 1) entry.rebooked++;
+      catMap.set(r.category, entry);
     }
 
-    return results;
+    const byCategory = Array.from(catMap.entries())
+      .map(([cat, s]) => ({
+        category: CATEGORY_LABELS[cat] ?? cat,
+        completed: s.completed,
+        rebooked: s.rebooked,
+        rate: s.completed > 0 ? Math.round((s.rebooked / s.completed) * 100) : 0,
+      }))
+      .sort((a, b) => b.completed - a.completed);
+
+    return { overallRate, totalCompleted, totalRebooked, byStaff, byCategory };
   } catch (err) {
     Sentry.captureException(err);
     throw err;

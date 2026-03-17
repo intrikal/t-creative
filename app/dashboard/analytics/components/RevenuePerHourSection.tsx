@@ -9,23 +9,16 @@
  */
 "use client";
 
+import { BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import type { RevenuePerHourDay } from "../actions";
-
-function barColor(rph: number, max: number) {
-  const ratio = max > 0 ? rph / max : 0;
-  if (ratio >= 0.7) return "bg-[#4e6b51]";
-  if (ratio >= 0.4) return "bg-[#7ba3a3]";
-  return "bg-[#d4a574]";
-}
 
 export function RevenuePerHourSection({ data }: { data: RevenuePerHourDay[] }) {
   const totalRevenue = data.reduce((s, d) => s + d.revenue, 0);
   const totalHours = data.reduce((s, d) => s + d.availableHours, 0);
   const overallRph = totalHours > 0 ? Math.round(totalRevenue / totalHours) : 0;
   const maxRph = Math.max(...data.map((d) => d.revenuePerHour), 1);
-  const BAR_H = 140;
 
   if (totalHours === 0) {
     return (
@@ -56,70 +49,51 @@ export function RevenuePerHourSection({ data }: { data: RevenuePerHourDay[] }) {
           </div>
         </CardHeader>
         <CardContent className="px-5 pb-5 pt-4">
-          <div className="relative h-52">
-            {[50, 100, 150, 200]
-              .filter((l) => l <= maxRph * 1.2)
-              .map((line) => (
-                <div
-                  key={line}
-                  className="absolute left-0 right-0 flex items-center gap-2"
-                  style={{ bottom: `${18 + (line / maxRph) * BAR_H}px` }}
-                >
-                  <span className="text-[9px] text-muted/50 tabular-nums w-7 text-right shrink-0">
-                    ${line}
-                  </span>
-                  <div className="flex-1 border-t border-dashed border-border/40" />
-                </div>
-              ))}
-            <div className="absolute inset-0 flex items-end gap-1.5 pl-9">
-              {data.map((d) => {
-                const barPx = maxRph > 0 ? Math.round((d.revenuePerHour / maxRph) * BAR_H) : 0;
-                const closed = d.availableHours === 0;
-                return (
-                  <div
-                    key={d.day}
-                    className="group relative flex-1 flex flex-col items-center gap-1.5"
-                  >
-                    <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 z-30 opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-150">
-                      <div className="bg-foreground text-background rounded-xl px-3 py-2 shadow-xl text-[11px] whitespace-nowrap">
-                        <p className="font-semibold">{d.day}</p>
-                        {closed ? (
-                          <p className="text-background/70 mt-0.5">Closed</p>
-                        ) : (
-                          <div className="space-y-0.5 mt-0.5">
-                            <p className="text-background/70">${d.revenuePerHour}/hr</p>
-                            <p className="text-background/50">
-                              ${d.revenue.toLocaleString()} over {d.availableHours}h
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                      <div className="w-2 h-2 bg-foreground rotate-45 mx-auto -mt-1" />
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart data={data} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-tertiary)" opacity={0.3} />
+              <XAxis
+                dataKey="day"
+                tickFormatter={(v) => String(v).slice(0, 3)}
+                tick={{ fontSize: 11, fontFamily: "inherit", fill: "var(--color-text-secondary)" }}
+                axisLine={false}
+                tickLine={false}
+              />
+              <YAxis
+                tickFormatter={(v) => `$${v}`}
+                tick={{ fontSize: 11, fontFamily: "inherit", fill: "var(--color-text-secondary)" }}
+                axisLine={false}
+                tickLine={false}
+                width={40}
+              />
+              <Tooltip
+                content={({ active, payload, label }) => {
+                  if (!active || !payload?.length) return null;
+                  const d = payload[0].payload as RevenuePerHourDay;
+                  return (
+                    <div className="bg-background border rounded-lg shadow-md px-3 py-2 text-xs">
+                      <p className="font-semibold mb-1">{label}</p>
+                      {d.availableHours === 0 ? (
+                        <p className="text-muted">Closed</p>
+                      ) : (
+                        <div className="space-y-0.5 text-muted">
+                          <p>${d.revenuePerHour}/hr</p>
+                          <p>${d.revenue.toLocaleString()} over {d.availableHours}h</p>
+                        </div>
+                      )}
                     </div>
-                    {closed ? (
-                      <div className="w-full flex items-end justify-center h-6">
-                        <span className="text-[9px] text-muted/40">—</span>
-                      </div>
-                    ) : (
-                      <div
-                        className={cn(
-                          "w-full rounded-t-sm hover:brightness-110 transition-all cursor-default",
-                          barColor(d.revenuePerHour, maxRph),
-                        )}
-                        style={{
-                          height: `${barPx}px`,
-                          minHeight: d.revenuePerHour > 0 ? "4px" : "0",
-                        }}
-                      />
-                    )}
-                    <span className="text-[9px] text-muted whitespace-nowrap">
-                      {d.day.slice(0, 3)}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+                  );
+                }}
+              />
+              <Bar dataKey="revenuePerHour" radius={[4, 4, 0, 0]} isAnimationActive={false}>
+                {data.map((d) => {
+                  const ratio = maxRph > 0 ? d.revenuePerHour / maxRph : 0;
+                  const fill = ratio >= 0.7 ? "#4e6b51" : ratio >= 0.4 ? "#7ba3a3" : "#d4a574";
+                  return <Cell key={d.day} fill={fill} />;
+                })}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
         </CardContent>
       </Card>
 

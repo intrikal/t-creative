@@ -2,6 +2,16 @@
 
 import { useState } from "react";
 import { TrendingUp, DollarSign, CreditCard, TrendingDown } from "lucide-react";
+import {
+  ComposedChart,
+  Bar,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import type {
@@ -251,6 +261,79 @@ export function OverviewContent({
           </CardContent>
         </Card>
       </div>
+
+      {/* P&L over time */}
+      {profitLoss.length > 0 && (
+        <Card className="gap-0">
+          <CardHeader className="pt-5 pb-0 px-5">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <CardTitle className="text-sm font-semibold">Profit &amp; Loss</CardTitle>
+              <div className="flex gap-3 flex-wrap">
+                {[
+                  { label: "Revenue", color: "bg-[#4e6b51]" },
+                  { label: "Expenses", color: "bg-[#c4907a]" },
+                  { label: "Net income", color: "bg-[#2d2d2d]" },
+                ].map((l) => (
+                  <span key={l.label} className="flex items-center gap-1.5 text-[11px] text-muted">
+                    <span className={cn("w-2 h-2 rounded-sm", l.color)} />
+                    {l.label}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="px-5 pb-5 pt-4">
+            <ResponsiveContainer width="100%" height={220}>
+              <ComposedChart data={profitLoss} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-tertiary)" opacity={0.3} />
+                <XAxis
+                  dataKey="month"
+                  tickFormatter={(v: string) => v.slice(0, 3)}
+                  tick={{ fontSize: 11, fontFamily: "inherit", fill: "var(--color-text-secondary)" }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <YAxis
+                  tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`}
+                  tick={{ fontSize: 11, fontFamily: "inherit", fill: "var(--color-text-secondary)" }}
+                  axisLine={false}
+                  tickLine={false}
+                  width={44}
+                />
+                <Tooltip
+                  content={({ active, payload, label }) => {
+                    if (!active || !payload?.length) return null;
+                    const get = (key: string) =>
+                      (payload.find((p) => p.dataKey === key)?.value as number) ?? 0;
+                    return (
+                      <div className="bg-background border rounded-lg shadow-md px-3 py-2 text-xs">
+                        <p className="font-semibold mb-1.5 pb-1 border-b border-border">{label}</p>
+                        <div className="space-y-0.5">
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-muted">Revenue</span>
+                            <span className="font-medium">${get("revenue").toLocaleString()}</span>
+                          </div>
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-muted">Expenses</span>
+                            <span className="font-medium">${get("expenses").toLocaleString()}</span>
+                          </div>
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-muted">Net income</span>
+                            <span className="font-medium">${get("net").toLocaleString()}</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }}
+                />
+                <Bar dataKey="revenue" fill="#4e6b51" fillOpacity={0.7} name="Revenue" isAnimationActive={false} />
+                <Bar dataKey="expenses" fill="#c4907a" fillOpacity={0.7} name="Expenses" isAnimationActive={false} />
+                <Line type="monotone" dataKey="net" stroke="#2d2d2d" strokeWidth={2} dot={false} name="Net income" isAnimationActive={false} />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Product vs Service Revenue */}
       <ProductSalesSection productSales={productSales} totalRevenue={stats.totalRevenue} />

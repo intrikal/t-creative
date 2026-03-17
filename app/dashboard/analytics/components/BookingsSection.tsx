@@ -8,6 +8,7 @@
  */
 "use client";
 
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import type { WeeklyBookings, ServiceMixItem } from "../actions";
@@ -26,15 +27,9 @@ export function BookingsSection({
   bookingsTrend: WeeklyBookings[];
   serviceMix: ServiceMixItem[];
 }) {
-  const BAR_AREA_H = 180;
-  const maxBookingBar = Math.max(
-    ...bookingsTrend.map((w) => w.lash + w.jewelry + w.crochet + w.consulting),
-    1,
-  );
-
   return (
     <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-      {/* Stacked bar chart */}
+      {/* Stacked area chart */}
       <Card className="xl:col-span-2 gap-0">
         <CardHeader className="pt-5 pb-0 px-5">
           <div className="flex items-center justify-between flex-wrap gap-2">
@@ -55,69 +50,47 @@ export function BookingsSection({
           </div>
         </CardHeader>
         <CardContent className="px-5 pb-5 pt-4">
-          <div className="relative h-56">
-            {[20, 15, 10, 5]
-              .filter((l) => l <= maxBookingBar * 1.1)
-              .map((line) => (
-                <div
-                  key={line}
-                  className="absolute left-0 right-0 flex items-center gap-2"
-                  style={{ bottom: `${18 + (line / maxBookingBar) * BAR_AREA_H}px` }}
-                >
-                  <span className="text-[9px] text-muted/50 tabular-nums w-4 text-right shrink-0">
-                    {line}
-                  </span>
-                  <div className="flex-1 border-t border-dashed border-border/40" />
-                </div>
-              ))}
-            <div className="absolute inset-0 flex items-end gap-1.5 pl-6">
-              {bookingsTrend.map((w) => {
-                const total = w.lash + w.jewelry + w.crochet + w.consulting;
-                const barPx = Math.round((total / maxBookingBar) * BAR_AREA_H);
-                return (
-                  <div
-                    key={w.week}
-                    className="group relative flex-1 flex flex-col items-center gap-1.5"
-                  >
-                    <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 z-30 opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-150">
-                      <div className="bg-foreground text-background rounded-xl px-3 py-2.5 shadow-xl text-[11px] whitespace-nowrap min-w-[120px]">
-                        <p className="font-semibold mb-1.5 pb-1.5 border-b border-background/20">
-                          {w.week} · {total} bookings
-                        </p>
-                        <div className="space-y-1">
-                          {[
-                            { label: "Lash", value: w.lash, color: "bg-[#c4907a]" },
-                            { label: "Jewelry", value: w.jewelry, color: "bg-[#d4a574]" },
-                            { label: "Crochet", value: w.crochet, color: "bg-[#7ba3a3]" },
-                            { label: "Consulting", value: w.consulting, color: "bg-[#5b8a8a]" },
-                          ].map((c) => (
-                            <div key={c.label} className="flex items-center justify-between gap-3">
-                              <span className="flex items-center gap-1.5">
-                                <span className={cn("w-2 h-2 rounded-sm inline-block", c.color)} />
-                                {c.label}
-                              </span>
-                              <span className="font-medium">{c.value}</span>
-                            </div>
-                          ))}
-                        </div>
+          <ResponsiveContainer width="100%" height={220}>
+            <AreaChart data={bookingsTrend} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-tertiary)" opacity={0.3} />
+              <XAxis
+                dataKey="week"
+                tick={{ fontSize: 11, fontFamily: "inherit", fill: "var(--color-text-secondary)" }}
+                axisLine={false}
+                tickLine={false}
+              />
+              <YAxis
+                tickFormatter={(v) => String(Math.round(v))}
+                tick={{ fontSize: 11, fontFamily: "inherit", fill: "var(--color-text-secondary)" }}
+                axisLine={false}
+                tickLine={false}
+                width={30}
+              />
+              <Tooltip
+                content={({ active, payload, label }) => {
+                  if (!active || !payload?.length) return null;
+                  const total = payload.reduce((s, p) => s + (p.value as number), 0);
+                  return (
+                    <div className="bg-background border rounded-lg shadow-md px-3 py-2 text-xs">
+                      <p className="font-semibold mb-1.5 pb-1 border-b border-border">{label} · {total} bookings</p>
+                      <div className="space-y-0.5">
+                        {payload.map((p) => (
+                          <div key={p.dataKey} className="flex items-center justify-between gap-3">
+                            <span className="flex items-center gap-1.5 text-muted capitalize">{p.name}</span>
+                            <span className="font-medium">{p.value as number}</span>
+                          </div>
+                        ))}
                       </div>
-                      <div className="w-2 h-2 bg-foreground rotate-45 mx-auto -mt-1" />
                     </div>
-                    <div
-                      className="w-full flex flex-col rounded-t-sm overflow-hidden cursor-default hover:brightness-110 transition-all"
-                      style={{ height: `${barPx}px` }}
-                    >
-                      <div className="bg-[#c4907a] min-h-0" style={{ flex: w.lash }} />
-                      <div className="bg-[#d4a574] min-h-0" style={{ flex: w.jewelry }} />
-                      <div className="bg-[#7ba3a3] min-h-0" style={{ flex: w.crochet }} />
-                      <div className="bg-[#5b8a8a] min-h-0" style={{ flex: w.consulting }} />
-                    </div>
-                    <span className="text-[9px] text-muted whitespace-nowrap">{w.week}</span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+                  );
+                }}
+              />
+              <Area type="monotone" dataKey="lash" stackId="1" fill="#c4907a" stroke="#c4907a" fillOpacity={0.4} strokeWidth={1.5} name="Lash" isAnimationActive={false} />
+              <Area type="monotone" dataKey="jewelry" stackId="1" fill="#d4a574" stroke="#d4a574" fillOpacity={0.4} strokeWidth={1.5} name="Jewelry" isAnimationActive={false} />
+              <Area type="monotone" dataKey="crochet" stackId="1" fill="#7ba3a3" stroke="#7ba3a3" fillOpacity={0.4} strokeWidth={1.5} name="Crochet" isAnimationActive={false} />
+              <Area type="monotone" dataKey="consulting" stackId="1" fill="#5b8a8a" stroke="#5b8a8a" fillOpacity={0.4} strokeWidth={1.5} name="Consulting" isAnimationActive={false} />
+            </AreaChart>
+          </ResponsiveContainer>
         </CardContent>
       </Card>
 

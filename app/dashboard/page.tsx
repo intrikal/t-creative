@@ -6,11 +6,13 @@ import {
   countDistinct,
   desc,
   eq,
+  gt,
   gte,
   inArray,
   isNull,
   lt,
   lte,
+  or,
   sql,
   sum,
 } from "drizzle-orm";
@@ -26,9 +28,11 @@ import {
   loyaltyTransactions,
   messages,
   payments,
+  products,
   profiles,
   services,
   shifts,
+  supplies,
   trainingPrograms,
   waitlist,
 } from "@/db/schema";
@@ -283,6 +287,8 @@ export default async function Page() {
       overdueInvoicesRaw,
       recentInquiriesRaw,
       weeklyRevDailyRaw,
+      lowStockProductsRow,
+      lowStockSuppliesRow,
     ] = await Promise.all([
       db
         .select({
@@ -357,6 +363,30 @@ export default async function Page() {
         )
         .groupBy(sql`date_trunc('day', coalesce(${payments.paidAt}, ${payments.createdAt}))`)
         .orderBy(sql`date_trunc('day', coalesce(${payments.paidAt}, ${payments.createdAt})) asc`),
+      db
+        .select({ count: count(products.id) })
+        .from(products)
+        .where(
+          or(
+            eq(products.availability, "out_of_stock"),
+            and(
+              eq(products.availability, "in_stock"),
+              gt(products.stockCount, 0),
+              lte(products.stockCount, 5),
+            ),
+          ),
+        )
+        .then((r) => r[0]),
+      db
+        .select({ count: count(supplies.id) })
+        .from(supplies)
+        .where(
+          and(
+            gt(supplies.reorderPoint, 0),
+            sql`${supplies.stockCount} <= ${supplies.reorderPoint}`,
+          ),
+        )
+        .then((r) => r[0]),
     ]);
 
     // ── Group 3: recent clients + team ──────────────────────────────
@@ -492,6 +522,21 @@ export default async function Page() {
         cta: "View Invoices",
       });
     }
+    const lowStockCount =
+      Number(lowStockProductsRow?.count ?? 0) + Number(lowStockSuppliesRow?.count ?? 0);
+    if (lowStockCount > 0) {
+      adminAlerts.push({
+        id: "low-stock",
+        type: "warning",
+        message:
+          lowStockCount === 1
+            ? "1 item is running low or out of stock"
+            : `${lowStockCount} items are running low or out of stock`,
+        href: "/dashboard/marketplace",
+        cta: "View Inventory",
+      });
+    }
+
     const notContacted = Number(waitlistNotContactedRow?.count ?? 0);
     const waitlistTotal = Number(waitlistTotalRow?.count ?? 0);
     if (waitlistTotal > 0) {
@@ -542,6 +587,7 @@ export default async function Page() {
     return (
       <DashboardPage
         firstName={currentUser.profile?.firstName ?? "Trini"}
+        lowStockCount={lowStockCount}
         stats={{
           revenueTodayCents: revToday,
           revenueTodayVsYesterdayPct: revVsPct,

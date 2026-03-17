@@ -28,8 +28,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import * as Sentry from "@sentry/nextjs";
 import { eq, desc, ne, and, sql, inArray, isNull } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
+import { z } from "zod";
 import type { MediaCategory } from "@/app/dashboard/media/actions";
 import { db } from "@/db";
 import {
@@ -158,56 +160,61 @@ export async function getBookings(opts?: {
   offset?: number;
   limit?: number;
 }): Promise<PaginatedBookings> {
-  await getUser();
+  try {
+    await getUser();
 
-  const limit = opts?.limit ?? DEFAULT_BOOKINGS_LIMIT;
-  const offset = opts?.offset ?? 0;
+    const limit = opts?.limit ?? DEFAULT_BOOKINGS_LIMIT;
+    const offset = opts?.offset ?? 0;
 
-  const clientProfile = alias(profiles, "client");
-  const staffProfile = alias(profiles, "staff");
+    const clientProfile = alias(profiles, "client");
+    const staffProfile = alias(profiles, "staff");
 
-  const rows = await db
-    .select({
-      id: bookings.id,
-      status: bookings.status,
-      startsAt: bookings.startsAt,
-      durationMinutes: bookings.durationMinutes,
-      totalInCents: bookings.totalInCents,
-      location: bookings.location,
-      clientNotes: bookings.clientNotes,
-      clientId: bookings.clientId,
-      clientFirstName: clientProfile.firstName,
-      clientLastName: clientProfile.lastName,
-      clientPhone: clientProfile.phone,
-      serviceId: bookings.serviceId,
-      serviceName: services.name,
-      serviceCategory: services.category,
-      staffId: bookings.staffId,
-      staffFirstName: staffProfile.firstName,
-      recurrenceRule: bookings.recurrenceRule,
-      parentBookingId: bookings.parentBookingId,
-    })
-    .from(bookings)
-    .where(isNull(bookings.deletedAt))
-    .leftJoin(clientProfile, eq(bookings.clientId, clientProfile.id))
-    .leftJoin(services, eq(bookings.serviceId, services.id))
-    .leftJoin(staffProfile, eq(bookings.staffId, staffProfile.id))
-    .orderBy(desc(bookings.startsAt))
-    .limit(limit + 1)
-    .offset(offset);
+    const rows = await db
+      .select({
+        id: bookings.id,
+        status: bookings.status,
+        startsAt: bookings.startsAt,
+        durationMinutes: bookings.durationMinutes,
+        totalInCents: bookings.totalInCents,
+        location: bookings.location,
+        clientNotes: bookings.clientNotes,
+        clientId: bookings.clientId,
+        clientFirstName: clientProfile.firstName,
+        clientLastName: clientProfile.lastName,
+        clientPhone: clientProfile.phone,
+        serviceId: bookings.serviceId,
+        serviceName: services.name,
+        serviceCategory: services.category,
+        staffId: bookings.staffId,
+        staffFirstName: staffProfile.firstName,
+        recurrenceRule: bookings.recurrenceRule,
+        parentBookingId: bookings.parentBookingId,
+      })
+      .from(bookings)
+      .where(isNull(bookings.deletedAt))
+      .leftJoin(clientProfile, eq(bookings.clientId, clientProfile.id))
+      .leftJoin(services, eq(bookings.serviceId, services.id))
+      .leftJoin(staffProfile, eq(bookings.staffId, staffProfile.id))
+      .orderBy(desc(bookings.startsAt))
+      .limit(limit + 1)
+      .offset(offset);
 
-  const hasMore = rows.length > limit;
-  const page = hasMore ? rows.slice(0, limit) : rows;
+    const hasMore = rows.length > limit;
+    const page = hasMore ? rows.slice(0, limit) : rows;
 
-  return {
-    rows: page.map((r) => ({
-      ...r,
-      clientFirstName: r.clientFirstName ?? "",
-      serviceName: r.serviceName ?? "",
-      serviceCategory: r.serviceCategory ?? "lash",
-    })),
-    hasMore,
-  };
+    return {
+      rows: page.map((r) => ({
+        ...r,
+        clientFirstName: r.clientFirstName ?? "",
+        serviceName: r.serviceName ?? "",
+        serviceCategory: r.serviceCategory ?? "lash",
+      })),
+      hasMore,
+    };
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 export async function updateBookingStatus(
@@ -215,101 +222,247 @@ export async function updateBookingStatus(
   status: BookingStatus,
   cancellationReason?: string,
 ): Promise<void> {
-  const user = await getUser();
+  try {
+    z.number().int().positive().parse(id);
+    z.enum(["completed", "in_progress", "confirmed", "pending", "cancelled", "no_show"]).parse(
+      status,
+    );
+    const user = await getUser();
 
-  const updates: Record<string, unknown> = { status };
+    const updates: Record<string, unknown> = { status };
 
-  if (status === "confirmed") updates.confirmedAt = new Date();
-  if (status === "completed") updates.completedAt = new Date();
-  if (status === "cancelled") {
-    updates.cancelledAt = new Date();
-    if (cancellationReason) updates.cancellationReason = cancellationReason;
+    if (status === "confirmed") updates.confirmedAt = new Date();
+    if (status === "completed") updates.completedAt = new Date();
+    if (status === "cancelled") {
+      updates.cancelledAt = new Date();
+      if (cancellationReason) updates.cancellationReason = cancellationReason;
+    }
+
+    await db.update(bookings).set(updates).where(eq(bookings.id, id));
+
+    // Create Square order when confirming (if not already created)
+    if (status === "confirmed") {
+      const [booking] = await db
+        .select({
+          squareOrderId: bookings.squareOrderId,
+          serviceId: bookings.serviceId,
+          totalInCents: bookings.totalInCents,
+        })
+        .from(bookings)
+        .where(and(eq(bookings.id, id), isNull(bookings.deletedAt)));
+
+      if (booking && !booking.squareOrderId) {
+        await tryCreateSquareOrder(id, booking.serviceId, booking.totalInCents);
+      }
+
+      // Send booking confirmation email
+      await trySendBookingConfirmation(id);
+
+      // Auto-send deposit payment link if the service requires one
+      await tryAutoSendDepositLink(id);
+    }
+
+    if (status === "cancelled") {
+      await trySendBookingStatusEmail(id, "cancelled", cancellationReason);
+      await tryNotifyWaitlist(id);
+    }
+
+    if (status === "completed") {
+      await trySendBookingStatusEmail(id, "completed");
+      await generateNextRecurringBooking(id);
+    }
+
+    if (status === "no_show") {
+      await trySendBookingStatusEmail(id, "no_show");
+    }
+
+    trackEvent(id.toString(), "booking_status_changed", {
+      bookingId: id,
+      newStatus: status,
+      ...(cancellationReason ? { cancellationReason } : {}),
+    });
+
+    await logAction({
+      actorId: user.id,
+      action: "status_change",
+      entityType: "booking",
+      entityId: String(id),
+      description: `Booking status changed to ${status}`,
+      metadata: { newStatus: status, ...(cancellationReason ? { cancellationReason } : {}) },
+    });
+
+    // Zoho CRM: update deal stage
+    if (status === "completed") {
+      updateZohoDeal(id, "Closed Won");
+    } else if (status === "cancelled") {
+      updateZohoDeal(id, "Closed Lost");
+    } else if (status === "confirmed") {
+      updateZohoDeal(id, "Confirmed");
+      // Zoho Books: create invoice for newly confirmed booking
+      tryCreateZohoBooksInvoice(id);
+    }
+
+    revalidatePath("/dashboard/bookings");
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
   }
+}
 
-  await db.update(bookings).set(updates).where(eq(bookings.id, id));
+const bookingInputSchema = z.object({
+  clientId: z.string().min(1),
+  serviceId: z.number().int().positive(),
+  staffId: z.string().min(1).nullable(),
+  startsAt: z.date(),
+  durationMinutes: z.number().int().positive(),
+  totalInCents: z.number().int().nonnegative(),
+  location: z.string().optional(),
+  clientNotes: z.string().optional(),
+  recurrenceRule: z.string().optional(),
+  subscriptionId: z.number().int().positive().optional(),
+});
 
-  // Create Square order when confirming (if not already created)
-  if (status === "confirmed") {
-    const [booking] = await db
-      .select({
-        squareOrderId: bookings.squareOrderId,
-        serviceId: bookings.serviceId,
-        totalInCents: bookings.totalInCents,
+export async function createBooking(input: BookingInput): Promise<void> {
+  try {
+    bookingInputSchema.parse(input);
+    const user = await getUser();
+
+    if (input.staffId) {
+      const conflict = await hasOverlappingBooking(
+        input.staffId,
+        input.startsAt,
+        input.durationMinutes,
+      );
+      if (conflict) {
+        throw new Error("This staff member already has a booking during that time slot");
+      }
+    }
+
+    const [newBooking] = await db
+      .insert(bookings)
+      .values({
+        clientId: input.clientId,
+        serviceId: input.serviceId,
+        staffId: input.staffId ?? undefined,
+        startsAt: input.startsAt,
+        durationMinutes: input.durationMinutes,
+        totalInCents: input.totalInCents,
+        location: input.location ?? undefined,
+        clientNotes: input.clientNotes ?? undefined,
+        recurrenceRule: input.recurrenceRule ?? undefined,
+        subscriptionId: input.subscriptionId ?? undefined,
+        status: "confirmed",
+        confirmedAt: new Date(),
       })
+      .returning({ id: bookings.id });
+
+    // Create Square order for POS payment matching
+    await tryCreateSquareOrder(newBooking.id, input.serviceId, input.totalInCents);
+
+    // Send booking confirmation email
+    await trySendBookingConfirmation(newBooking.id);
+
+    // Auto-send deposit payment link if the service requires one
+    await tryAutoSendDepositLink(newBooking.id);
+
+    trackEvent(input.clientId, "booking_created", {
+      bookingId: newBooking.id,
+      serviceId: input.serviceId,
+      totalInCents: input.totalInCents,
+      location: input.location ?? null,
+    });
+
+    await logAction({
+      actorId: user.id,
+      action: "create",
+      entityType: "booking",
+      entityId: String(newBooking.id),
+      description: "Booking created",
+      metadata: {
+        clientId: input.clientId,
+        serviceId: input.serviceId,
+        totalInCents: input.totalInCents,
+      },
+    });
+
+    // Zoho CRM: create deal for admin-created booking
+    const [clientForZoho] = await db
+      .select({ email: profiles.email, firstName: profiles.firstName })
+      .from(profiles)
+      .where(eq(profiles.id, input.clientId))
+      .limit(1);
+
+    const [serviceForZoho] = await db
+      .select({ name: services.name })
+      .from(services)
+      .where(eq(services.id, input.serviceId))
+      .limit(1);
+
+    if (clientForZoho) {
+      createZohoDeal({
+        contactEmail: clientForZoho.email,
+        dealName: `${serviceForZoho?.name ?? "Appointment"} — ${clientForZoho.firstName}`,
+        stage: "Confirmed",
+        amountInCents: input.totalInCents,
+        bookingId: newBooking.id,
+      });
+
+      // Zoho Books: create invoice for admin-created booking
+      createZohoBooksInvoice({
+        entityType: "booking",
+        entityId: newBooking.id,
+        profileId: input.clientId,
+        email: clientForZoho.email,
+        firstName: clientForZoho.firstName,
+        lineItems: [
+          {
+            name: serviceForZoho?.name ?? "Appointment",
+            rate: input.totalInCents,
+            quantity: 1,
+          },
+        ],
+      });
+    }
+
+    revalidatePath("/dashboard/bookings");
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
+}
+
+const updateBookingInputSchema = bookingInputSchema.extend({
+  status: z.enum(["completed", "in_progress", "confirmed", "pending", "cancelled", "no_show"]),
+});
+
+export async function updateBooking(
+  id: number,
+  input: BookingInput & { status: BookingStatus },
+): Promise<void> {
+  try {
+    z.number().int().positive().parse(id);
+    updateBookingInputSchema.parse(input);
+    const user = await getUser();
+
+    if (input.staffId && input.status !== "cancelled" && input.status !== "no_show") {
+      const conflict = await hasOverlappingBooking(
+        input.staffId,
+        input.startsAt,
+        input.durationMinutes,
+        id,
+      );
+      if (conflict) {
+        throw new Error("This staff member already has a booking during that time slot");
+      }
+    }
+
+    // Fetch old booking time to detect reschedule
+    const [oldBooking] = await db
+      .select({ startsAt: bookings.startsAt })
       .from(bookings)
       .where(and(eq(bookings.id, id), isNull(bookings.deletedAt)));
 
-    if (booking && !booking.squareOrderId) {
-      await tryCreateSquareOrder(id, booking.serviceId, booking.totalInCents);
-    }
-
-    // Send booking confirmation email
-    await trySendBookingConfirmation(id);
-
-    // Auto-send deposit payment link if the service requires one
-    await tryAutoSendDepositLink(id);
-  }
-
-  if (status === "cancelled") {
-    await trySendBookingStatusEmail(id, "cancelled", cancellationReason);
-    await tryNotifyWaitlist(id);
-  }
-
-  if (status === "completed") {
-    await trySendBookingStatusEmail(id, "completed");
-    await generateNextRecurringBooking(id);
-  }
-
-  if (status === "no_show") {
-    await trySendBookingStatusEmail(id, "no_show");
-  }
-
-  trackEvent(id.toString(), "booking_status_changed", {
-    bookingId: id,
-    newStatus: status,
-    ...(cancellationReason ? { cancellationReason } : {}),
-  });
-
-  await logAction({
-    actorId: user.id,
-    action: "status_change",
-    entityType: "booking",
-    entityId: String(id),
-    description: `Booking status changed to ${status}`,
-    metadata: { newStatus: status, ...(cancellationReason ? { cancellationReason } : {}) },
-  });
-
-  // Zoho CRM: update deal stage
-  if (status === "completed") {
-    updateZohoDeal(id, "Closed Won");
-  } else if (status === "cancelled") {
-    updateZohoDeal(id, "Closed Lost");
-  } else if (status === "confirmed") {
-    updateZohoDeal(id, "Confirmed");
-    // Zoho Books: create invoice for newly confirmed booking
-    tryCreateZohoBooksInvoice(id);
-  }
-
-  revalidatePath("/dashboard/bookings");
-}
-
-export async function createBooking(input: BookingInput): Promise<void> {
-  const user = await getUser();
-
-  if (input.staffId) {
-    const conflict = await hasOverlappingBooking(
-      input.staffId,
-      input.startsAt,
-      input.durationMinutes,
-    );
-    if (conflict) {
-      throw new Error("This staff member already has a booking during that time slot");
-    }
-  }
-
-  const [newBooking] = await db
-    .insert(bookings)
-    .values({
+    const updates: Record<string, unknown> = {
       clientId: input.clientId,
       serviceId: input.serviceId,
       staffId: input.staffId ?? undefined,
@@ -318,194 +471,98 @@ export async function createBooking(input: BookingInput): Promise<void> {
       totalInCents: input.totalInCents,
       location: input.location ?? undefined,
       clientNotes: input.clientNotes ?? undefined,
-      recurrenceRule: input.recurrenceRule ?? undefined,
-      subscriptionId: input.subscriptionId ?? undefined,
-      status: "confirmed",
-      confirmedAt: new Date(),
-    })
-    .returning({ id: bookings.id });
-
-  // Create Square order for POS payment matching
-  await tryCreateSquareOrder(newBooking.id, input.serviceId, input.totalInCents);
-
-  // Send booking confirmation email
-  await trySendBookingConfirmation(newBooking.id);
-
-  // Auto-send deposit payment link if the service requires one
-  await tryAutoSendDepositLink(newBooking.id);
-
-  trackEvent(input.clientId, "booking_created", {
-    bookingId: newBooking.id,
-    serviceId: input.serviceId,
-    totalInCents: input.totalInCents,
-    location: input.location ?? null,
-  });
-
-  await logAction({
-    actorId: user.id,
-    action: "create",
-    entityType: "booking",
-    entityId: String(newBooking.id),
-    description: "Booking created",
-    metadata: {
-      clientId: input.clientId,
-      serviceId: input.serviceId,
-      totalInCents: input.totalInCents,
-    },
-  });
-
-  // Zoho CRM: create deal for admin-created booking
-  const [clientForZoho] = await db
-    .select({ email: profiles.email, firstName: profiles.firstName })
-    .from(profiles)
-    .where(eq(profiles.id, input.clientId))
-    .limit(1);
-
-  const [serviceForZoho] = await db
-    .select({ name: services.name })
-    .from(services)
-    .where(eq(services.id, input.serviceId))
-    .limit(1);
-
-  if (clientForZoho) {
-    createZohoDeal({
-      contactEmail: clientForZoho.email,
-      dealName: `${serviceForZoho?.name ?? "Appointment"} — ${clientForZoho.firstName}`,
-      stage: "Confirmed",
-      amountInCents: input.totalInCents,
-      bookingId: newBooking.id,
-    });
-
-    // Zoho Books: create invoice for admin-created booking
-    createZohoBooksInvoice({
-      entityType: "booking",
-      entityId: newBooking.id,
-      profileId: input.clientId,
-      email: clientForZoho.email,
-      firstName: clientForZoho.firstName,
-      lineItems: [
-        {
-          name: serviceForZoho?.name ?? "Appointment",
-          rate: input.totalInCents,
-          quantity: 1,
-        },
-      ],
-    });
-  }
-
-  revalidatePath("/dashboard/bookings");
-}
-
-export async function updateBooking(
-  id: number,
-  input: BookingInput & { status: BookingStatus },
-): Promise<void> {
-  const user = await getUser();
-
-  if (input.staffId && input.status !== "cancelled" && input.status !== "no_show") {
-    const conflict = await hasOverlappingBooking(
-      input.staffId,
-      input.startsAt,
-      input.durationMinutes,
-      id,
-    );
-    if (conflict) {
-      throw new Error("This staff member already has a booking during that time slot");
-    }
-  }
-
-  // Fetch old booking time to detect reschedule
-  const [oldBooking] = await db
-    .select({ startsAt: bookings.startsAt })
-    .from(bookings)
-    .where(and(eq(bookings.id, id), isNull(bookings.deletedAt)));
-
-  const updates: Record<string, unknown> = {
-    clientId: input.clientId,
-    serviceId: input.serviceId,
-    staffId: input.staffId ?? undefined,
-    startsAt: input.startsAt,
-    durationMinutes: input.durationMinutes,
-    totalInCents: input.totalInCents,
-    location: input.location ?? undefined,
-    clientNotes: input.clientNotes ?? undefined,
-    recurrenceRule: input.recurrenceRule ?? null,
-    status: input.status,
-  };
-
-  if (input.status === "confirmed") updates.confirmedAt = new Date();
-  if (input.status === "completed") updates.completedAt = new Date();
-  if (input.status === "cancelled") updates.cancelledAt = new Date();
-
-  await db.update(bookings).set(updates).where(eq(bookings.id, id));
-
-  // Send reschedule email if time changed
-  if (oldBooking && oldBooking.startsAt.getTime() !== input.startsAt.getTime()) {
-    await trySendBookingReschedule(id, oldBooking.startsAt);
-  }
-
-  await logAction({
-    actorId: user.id,
-    action: "update",
-    entityType: "booking",
-    entityId: String(id),
-    description: "Booking updated",
-    metadata: {
-      clientId: input.clientId,
-      serviceId: input.serviceId,
+      recurrenceRule: input.recurrenceRule ?? null,
       status: input.status,
-      ...(oldBooking && oldBooking.startsAt.getTime() !== input.startsAt.getTime()
-        ? {
-            rescheduled: {
-              old: oldBooking.startsAt.toISOString(),
-              new: input.startsAt.toISOString(),
-            },
-          }
-        : {}),
-    },
-  });
+    };
 
-  revalidatePath("/dashboard/bookings");
+    if (input.status === "confirmed") updates.confirmedAt = new Date();
+    if (input.status === "completed") updates.completedAt = new Date();
+    if (input.status === "cancelled") updates.cancelledAt = new Date();
+
+    await db.update(bookings).set(updates).where(eq(bookings.id, id));
+
+    // Send reschedule email if time changed
+    if (oldBooking && oldBooking.startsAt.getTime() !== input.startsAt.getTime()) {
+      await trySendBookingReschedule(id, oldBooking.startsAt);
+    }
+
+    await logAction({
+      actorId: user.id,
+      action: "update",
+      entityType: "booking",
+      entityId: String(id),
+      description: "Booking updated",
+      metadata: {
+        clientId: input.clientId,
+        serviceId: input.serviceId,
+        status: input.status,
+        ...(oldBooking && oldBooking.startsAt.getTime() !== input.startsAt.getTime()
+          ? {
+              rescheduled: {
+                old: oldBooking.startsAt.toISOString(),
+                new: input.startsAt.toISOString(),
+              },
+            }
+          : {}),
+      },
+    });
+
+    revalidatePath("/dashboard/bookings");
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 export async function deleteBooking(id: number): Promise<void> {
-  const user = await getUser();
-  await db.update(bookings).set({ deletedAt: new Date() }).where(eq(bookings.id, id));
+  try {
+    z.number().int().positive().parse(id);
+    const user = await getUser();
+    await db.update(bookings).set({ deletedAt: new Date() }).where(eq(bookings.id, id));
 
-  await logAction({
-    actorId: user.id,
-    action: "delete",
-    entityType: "booking",
-    entityId: String(id),
-    description: "Booking soft-deleted",
-  });
+    await logAction({
+      actorId: user.id,
+      action: "delete",
+      entityType: "booking",
+      entityId: String(id),
+      description: "Booking soft-deleted",
+    });
 
-  revalidatePath("/dashboard/bookings");
+    revalidatePath("/dashboard/bookings");
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 export async function getClientsForSelect(): Promise<
   { id: string; name: string; phone: string | null; preferredRebookIntervalDays: number | null }[]
 > {
-  await getUser();
-  const rows = await db
-    .select({
-      id: profiles.id,
-      firstName: profiles.firstName,
-      lastName: profiles.lastName,
-      phone: profiles.phone,
-      preferredRebookIntervalDays: clientPreferences.preferredRebookIntervalDays,
-    })
-    .from(profiles)
-    .leftJoin(clientPreferences, eq(clientPreferences.profileId, profiles.id))
-    .where(and(eq(profiles.role, "client"), eq(profiles.isActive, true)))
-    .orderBy(profiles.firstName);
+  try {
+    await getUser();
+    const rows = await db
+      .select({
+        id: profiles.id,
+        firstName: profiles.firstName,
+        lastName: profiles.lastName,
+        phone: profiles.phone,
+        preferredRebookIntervalDays: clientPreferences.preferredRebookIntervalDays,
+      })
+      .from(profiles)
+      .leftJoin(clientPreferences, eq(clientPreferences.profileId, profiles.id))
+      .where(and(eq(profiles.role, "client"), eq(profiles.isActive, true)))
+      .orderBy(profiles.firstName);
 
-  return rows.map((r) => ({
-    id: r.id,
-    name: [r.firstName, r.lastName].filter(Boolean).join(" "),
-    phone: r.phone,
-    preferredRebookIntervalDays: r.preferredRebookIntervalDays ?? null,
-  }));
+    return rows.map((r) => ({
+      id: r.id,
+      name: [r.firstName, r.lastName].filter(Boolean).join(" "),
+      phone: r.phone,
+      preferredRebookIntervalDays: r.preferredRebookIntervalDays ?? null,
+    }));
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 export async function getServicesForSelect(): Promise<
@@ -518,46 +575,56 @@ export async function getServicesForSelect(): Promise<
     depositInCents: number;
   }[]
 > {
-  await getUser();
-  const rows = await db
-    .select({
-      id: services.id,
-      name: services.name,
-      category: services.category,
-      durationMinutes: services.durationMinutes,
-      priceInCents: services.priceInCents,
-      depositInCents: services.depositInCents,
-    })
-    .from(services)
-    .where(eq(services.isActive, true))
-    .orderBy(services.category, services.name);
+  try {
+    await getUser();
+    const rows = await db
+      .select({
+        id: services.id,
+        name: services.name,
+        category: services.category,
+        durationMinutes: services.durationMinutes,
+        priceInCents: services.priceInCents,
+        depositInCents: services.depositInCents,
+      })
+      .from(services)
+      .where(eq(services.isActive, true))
+      .orderBy(services.category, services.name);
 
-  return rows.map((r) => ({
-    id: r.id,
-    name: r.name,
-    category: r.category,
-    durationMinutes: r.durationMinutes ?? 60,
-    priceInCents: r.priceInCents ?? 0,
-    depositInCents: r.depositInCents ?? 0,
-  }));
+    return rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      category: r.category,
+      durationMinutes: r.durationMinutes ?? 60,
+      priceInCents: r.priceInCents ?? 0,
+      depositInCents: r.depositInCents ?? 0,
+    }));
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 export async function getStaffForSelect(): Promise<{ id: string; name: string }[]> {
-  await getUser();
-  const rows = await db
-    .select({
-      id: profiles.id,
-      firstName: profiles.firstName,
-      lastName: profiles.lastName,
-    })
-    .from(profiles)
-    .where(ne(profiles.role, "client"))
-    .orderBy(profiles.firstName);
+  try {
+    await getUser();
+    const rows = await db
+      .select({
+        id: profiles.id,
+        firstName: profiles.firstName,
+        lastName: profiles.lastName,
+      })
+      .from(profiles)
+      .where(ne(profiles.role, "client"))
+      .orderBy(profiles.firstName);
 
-  return rows.map((r) => ({
-    id: r.id,
-    name: [r.firstName, r.lastName].filter(Boolean).join(" "),
-  }));
+    return rows.map((r) => ({
+      id: r.id,
+      name: [r.firstName, r.lastName].filter(Boolean).join(" "),
+    }));
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -1277,66 +1344,71 @@ export async function getAssistantBookings(): Promise<{
   bookings: AssistantBookingRow[];
   stats: AssistantBookingStats;
 }> {
-  const user = await getUser();
+  try {
+    const user = await getUser();
 
-  const clientProfile = alias(profiles, "client");
+    const clientProfile = alias(profiles, "client");
 
-  const rows = await db
-    .select({
-      id: bookings.id,
-      status: bookings.status,
-      startsAt: bookings.startsAt,
-      durationMinutes: bookings.durationMinutes,
-      totalInCents: bookings.totalInCents,
-      location: bookings.location,
-      clientNotes: bookings.clientNotes,
-      staffNotes: bookings.staffNotes,
-      clientFirstName: clientProfile.firstName,
-      clientLastName: clientProfile.lastName,
-      clientPhone: clientProfile.phone,
-      serviceName: services.name,
-      serviceCategory: services.category,
-    })
-    .from(bookings)
-    .innerJoin(clientProfile, eq(bookings.clientId, clientProfile.id))
-    .innerJoin(services, eq(bookings.serviceId, services.id))
-    .where(and(eq(bookings.staffId, user.id), isNull(bookings.deletedAt)))
-    .orderBy(desc(bookings.startsAt));
+    const rows = await db
+      .select({
+        id: bookings.id,
+        status: bookings.status,
+        startsAt: bookings.startsAt,
+        durationMinutes: bookings.durationMinutes,
+        totalInCents: bookings.totalInCents,
+        location: bookings.location,
+        clientNotes: bookings.clientNotes,
+        staffNotes: bookings.staffNotes,
+        clientFirstName: clientProfile.firstName,
+        clientLastName: clientProfile.lastName,
+        clientPhone: clientProfile.phone,
+        serviceName: services.name,
+        serviceCategory: services.category,
+      })
+      .from(bookings)
+      .innerJoin(clientProfile, eq(bookings.clientId, clientProfile.id))
+      .innerJoin(services, eq(bookings.serviceId, services.id))
+      .where(and(eq(bookings.staffId, user.id), isNull(bookings.deletedAt)))
+      .orderBy(desc(bookings.startsAt));
 
-  const mapped: AssistantBookingRow[] = rows.map((r) => {
-    const start = new Date(r.startsAt);
-    const firstName = r.clientFirstName ?? "";
-    const lastName = r.clientLastName ?? "";
+    const mapped: AssistantBookingRow[] = rows.map((r) => {
+      const start = new Date(r.startsAt);
+      const firstName = r.clientFirstName ?? "";
+      const lastName = r.clientLastName ?? "";
+      return {
+        id: r.id,
+        date: formatDateKey(start),
+        dayLabel: formatDayLabel(start),
+        time: formatTime(start),
+        service: r.serviceName,
+        category: r.serviceCategory ?? "lash",
+        client: `${firstName} ${lastName.charAt(0)}.`.trim(),
+        clientInitials: getInitials(firstName, lastName),
+        clientPhone: r.clientPhone,
+        status: r.status,
+        durationMin: r.durationMinutes,
+        price: r.totalInCents / 100,
+        notes: r.staffNotes ?? r.clientNotes ?? null,
+      };
+    });
+
+    const upcomingCount = mapped.filter((b) =>
+      ["confirmed", "pending", "in_progress"].includes(b.status),
+    ).length;
+    const completedBookings = mapped.filter((b) => b.status === "completed");
+
     return {
-      id: r.id,
-      date: formatDateKey(start),
-      dayLabel: formatDayLabel(start),
-      time: formatTime(start),
-      service: r.serviceName,
-      category: r.serviceCategory ?? "lash",
-      client: `${firstName} ${lastName.charAt(0)}.`.trim(),
-      clientInitials: getInitials(firstName, lastName),
-      clientPhone: r.clientPhone,
-      status: r.status,
-      durationMin: r.durationMinutes,
-      price: r.totalInCents / 100,
-      notes: r.staffNotes ?? r.clientNotes ?? null,
+      bookings: mapped,
+      stats: {
+        upcomingCount,
+        completedCount: completedBookings.length,
+        completedRevenue: completedBookings.reduce((s, b) => s + b.price, 0),
+      },
     };
-  });
-
-  const upcomingCount = mapped.filter((b) =>
-    ["confirmed", "pending", "in_progress"].includes(b.status),
-  ).length;
-  const completedBookings = mapped.filter((b) => b.status === "completed");
-
-  return {
-    bookings: mapped,
-    stats: {
-      upcomingCount,
-      completedCount: completedBookings.length,
-      completedRevenue: completedBookings.reduce((s, b) => s + b.price, 0),
-    },
-  };
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -1384,65 +1456,110 @@ export type ServiceRecordInput = {
 };
 
 export async function getServiceRecord(bookingId: number): Promise<ServiceRecordRow | null> {
-  await getUser();
-  const supabase = await createClient();
+  try {
+    await getUser();
+    const supabase = await createClient();
 
-  const staffProfile = alias(profiles, "recordStaff");
+    const staffProfile = alias(profiles, "recordStaff");
 
-  const rows = await db
-    .select({
-      id: serviceRecords.id,
-      bookingId: serviceRecords.bookingId,
-      clientId: serviceRecords.clientId,
-      staffId: serviceRecords.staffId,
-      staffName: staffProfile.firstName,
-      lashMapping: serviceRecords.lashMapping,
-      curlType: serviceRecords.curlType,
-      diameter: serviceRecords.diameter,
-      lengths: serviceRecords.lengths,
-      adhesive: serviceRecords.adhesive,
-      retentionNotes: serviceRecords.retentionNotes,
-      productsUsed: serviceRecords.productsUsed,
-      notes: serviceRecords.notes,
-      reactions: serviceRecords.reactions,
-      nextVisitNotes: serviceRecords.nextVisitNotes,
-      beforePhotoPath: serviceRecords.beforePhotoPath,
-      afterPhotoPath: serviceRecords.afterPhotoPath,
-      createdAt: serviceRecords.createdAt,
-    })
-    .from(serviceRecords)
-    .leftJoin(staffProfile, eq(serviceRecords.staffId, staffProfile.id))
-    .where(eq(serviceRecords.bookingId, bookingId))
-    .limit(1);
+    const rows = await db
+      .select({
+        id: serviceRecords.id,
+        bookingId: serviceRecords.bookingId,
+        clientId: serviceRecords.clientId,
+        staffId: serviceRecords.staffId,
+        staffName: staffProfile.firstName,
+        lashMapping: serviceRecords.lashMapping,
+        curlType: serviceRecords.curlType,
+        diameter: serviceRecords.diameter,
+        lengths: serviceRecords.lengths,
+        adhesive: serviceRecords.adhesive,
+        retentionNotes: serviceRecords.retentionNotes,
+        productsUsed: serviceRecords.productsUsed,
+        notes: serviceRecords.notes,
+        reactions: serviceRecords.reactions,
+        nextVisitNotes: serviceRecords.nextVisitNotes,
+        beforePhotoPath: serviceRecords.beforePhotoPath,
+        afterPhotoPath: serviceRecords.afterPhotoPath,
+        createdAt: serviceRecords.createdAt,
+      })
+      .from(serviceRecords)
+      .leftJoin(staffProfile, eq(serviceRecords.staffId, staffProfile.id))
+      .where(eq(serviceRecords.bookingId, bookingId))
+      .limit(1);
 
-  if (rows.length === 0) return null;
+    if (rows.length === 0) return null;
 
-  const r = rows[0];
-  const getUrl = (path: string | null) =>
-    path ? supabase.storage.from("media").getPublicUrl(path).data.publicUrl : null;
+    const r = rows[0];
+    const getUrl = (path: string | null) =>
+      path ? supabase.storage.from("media").getPublicUrl(path).data.publicUrl : null;
 
-  return {
-    ...r,
-    beforePhotoUrl: getUrl(r.beforePhotoPath),
-    afterPhotoUrl: getUrl(r.afterPhotoPath),
-    createdAt: r.createdAt.toISOString(),
-  };
+    return {
+      ...r,
+      beforePhotoUrl: getUrl(r.beforePhotoPath),
+      afterPhotoUrl: getUrl(r.afterPhotoPath),
+      createdAt: r.createdAt.toISOString(),
+    };
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
+const serviceRecordInputSchema = z.object({
+  bookingId: z.number().int().positive(),
+  clientId: z.string().min(1),
+  lashMapping: z.string().optional(),
+  curlType: z.string().optional(),
+  diameter: z.string().optional(),
+  lengths: z.string().optional(),
+  adhesive: z.string().optional(),
+  retentionNotes: z.string().optional(),
+  productsUsed: z.string().optional(),
+  notes: z.string().optional(),
+  reactions: z.string().optional(),
+  nextVisitNotes: z.string().optional(),
+  beforePhotoPath: z.string().optional(),
+  afterPhotoPath: z.string().optional(),
+});
+
 export async function upsertServiceRecord(input: ServiceRecordInput): Promise<void> {
-  const user = await getUser();
+  try {
+    serviceRecordInputSchema.parse(input);
+    const user = await getUser();
 
-  // Check if a record already exists for this booking
-  const existing = await db
-    .select({ id: serviceRecords.id })
-    .from(serviceRecords)
-    .where(eq(serviceRecords.bookingId, input.bookingId))
-    .limit(1);
+    // Check if a record already exists for this booking
+    const existing = await db
+      .select({ id: serviceRecords.id })
+      .from(serviceRecords)
+      .where(eq(serviceRecords.bookingId, input.bookingId))
+      .limit(1);
 
-  if (existing.length > 0) {
-    await db
-      .update(serviceRecords)
-      .set({
+    if (existing.length > 0) {
+      await db
+        .update(serviceRecords)
+        .set({
+          lashMapping: input.lashMapping ?? null,
+          curlType: input.curlType ?? null,
+          diameter: input.diameter ?? null,
+          lengths: input.lengths ?? null,
+          adhesive: input.adhesive ?? null,
+          retentionNotes: input.retentionNotes ?? null,
+          productsUsed: input.productsUsed ?? null,
+          notes: input.notes ?? null,
+          reactions: input.reactions ?? null,
+          nextVisitNotes: input.nextVisitNotes ?? null,
+          ...(input.beforePhotoPath !== undefined
+            ? { beforePhotoPath: input.beforePhotoPath }
+            : {}),
+          ...(input.afterPhotoPath !== undefined ? { afterPhotoPath: input.afterPhotoPath } : {}),
+        })
+        .where(eq(serviceRecords.id, existing[0].id));
+    } else {
+      await db.insert(serviceRecords).values({
+        bookingId: input.bookingId,
+        clientId: input.clientId,
+        staffId: user.id,
         lashMapping: input.lashMapping ?? null,
         curlType: input.curlType ?? null,
         diameter: input.diameter ?? null,
@@ -1453,36 +1570,21 @@ export async function upsertServiceRecord(input: ServiceRecordInput): Promise<vo
         notes: input.notes ?? null,
         reactions: input.reactions ?? null,
         nextVisitNotes: input.nextVisitNotes ?? null,
-        ...(input.beforePhotoPath !== undefined ? { beforePhotoPath: input.beforePhotoPath } : {}),
-        ...(input.afterPhotoPath !== undefined ? { afterPhotoPath: input.afterPhotoPath } : {}),
-      })
-      .where(eq(serviceRecords.id, existing[0].id));
-  } else {
-    await db.insert(serviceRecords).values({
+        beforePhotoPath: input.beforePhotoPath ?? null,
+        afterPhotoPath: input.afterPhotoPath ?? null,
+      });
+    }
+
+    trackEvent(user.id, "service_record_saved", {
       bookingId: input.bookingId,
       clientId: input.clientId,
-      staffId: user.id,
-      lashMapping: input.lashMapping ?? null,
-      curlType: input.curlType ?? null,
-      diameter: input.diameter ?? null,
-      lengths: input.lengths ?? null,
-      adhesive: input.adhesive ?? null,
-      retentionNotes: input.retentionNotes ?? null,
-      productsUsed: input.productsUsed ?? null,
-      notes: input.notes ?? null,
-      reactions: input.reactions ?? null,
-      nextVisitNotes: input.nextVisitNotes ?? null,
-      beforePhotoPath: input.beforePhotoPath ?? null,
-      afterPhotoPath: input.afterPhotoPath ?? null,
     });
+
+    revalidatePath("/dashboard/bookings");
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
   }
-
-  trackEvent(user.id, "service_record_saved", {
-    bookingId: input.bookingId,
-    clientId: input.clientId,
-  });
-
-  revalidatePath("/dashboard/bookings");
 }
 
 /* ------------------------------------------------------------------ */
@@ -1516,122 +1618,155 @@ export type WaitlistInput = {
 };
 
 export async function getWaitlist(): Promise<WaitlistRow[]> {
-  await getUser();
+  try {
+    await getUser();
 
-  const rows = await db
-    .select({
-      id: waitlist.id,
-      clientId: waitlist.clientId,
-      clientFirstName: profiles.firstName,
-      clientLastName: profiles.lastName,
-      clientPhone: profiles.phone,
-      serviceId: waitlist.serviceId,
-      serviceName: services.name,
-      serviceCategory: services.category,
-      status: waitlist.status,
-      preferredDateStart: waitlist.preferredDateStart,
-      preferredDateEnd: waitlist.preferredDateEnd,
-      timePreference: waitlist.timePreference,
-      notes: waitlist.notes,
-      notifiedAt: waitlist.notifiedAt,
-      createdAt: waitlist.createdAt,
-    })
-    .from(waitlist)
-    .innerJoin(profiles, eq(waitlist.clientId, profiles.id))
-    .innerJoin(services, eq(waitlist.serviceId, services.id))
-    .orderBy(desc(waitlist.createdAt));
+    const rows = await db
+      .select({
+        id: waitlist.id,
+        clientId: waitlist.clientId,
+        clientFirstName: profiles.firstName,
+        clientLastName: profiles.lastName,
+        clientPhone: profiles.phone,
+        serviceId: waitlist.serviceId,
+        serviceName: services.name,
+        serviceCategory: services.category,
+        status: waitlist.status,
+        preferredDateStart: waitlist.preferredDateStart,
+        preferredDateEnd: waitlist.preferredDateEnd,
+        timePreference: waitlist.timePreference,
+        notes: waitlist.notes,
+        notifiedAt: waitlist.notifiedAt,
+        createdAt: waitlist.createdAt,
+      })
+      .from(waitlist)
+      .innerJoin(profiles, eq(waitlist.clientId, profiles.id))
+      .innerJoin(services, eq(waitlist.serviceId, services.id))
+      .orderBy(desc(waitlist.createdAt));
 
-  return rows.map((r) => ({
-    id: r.id,
-    clientId: r.clientId,
-    clientName: [r.clientFirstName, r.clientLastName].filter(Boolean).join(" "),
-    clientPhone: r.clientPhone,
-    serviceId: r.serviceId,
-    serviceName: r.serviceName,
-    serviceCategory: r.serviceCategory,
-    status: r.status,
-    preferredDateStart: r.preferredDateStart,
-    preferredDateEnd: r.preferredDateEnd,
-    timePreference: r.timePreference,
-    notes: r.notes,
-    notifiedAt: r.notifiedAt?.toISOString() ?? null,
-    createdAt: r.createdAt.toISOString(),
-  }));
+    return rows.map((r) => ({
+      id: r.id,
+      clientId: r.clientId,
+      clientName: [r.clientFirstName, r.clientLastName].filter(Boolean).join(" "),
+      clientPhone: r.clientPhone,
+      serviceId: r.serviceId,
+      serviceName: r.serviceName,
+      serviceCategory: r.serviceCategory,
+      status: r.status,
+      preferredDateStart: r.preferredDateStart,
+      preferredDateEnd: r.preferredDateEnd,
+      timePreference: r.timePreference,
+      notes: r.notes,
+      notifiedAt: r.notifiedAt?.toISOString() ?? null,
+      createdAt: r.createdAt.toISOString(),
+    }));
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
+const waitlistInputSchema = z.object({
+  clientId: z.string().min(1),
+  serviceId: z.number().int().positive(),
+  preferredDateStart: z.string().optional(),
+  preferredDateEnd: z.string().optional(),
+  timePreference: z.string().optional(),
+  notes: z.string().optional(),
+});
+
 export async function addToWaitlist(input: WaitlistInput): Promise<void> {
-  const user = await getUser();
+  try {
+    waitlistInputSchema.parse(input);
+    const user = await getUser();
 
-  await db.insert(waitlist).values({
-    clientId: input.clientId,
-    serviceId: input.serviceId,
-    preferredDateStart: input.preferredDateStart ?? null,
-    preferredDateEnd: input.preferredDateEnd ?? null,
-    timePreference: input.timePreference ?? null,
-    notes: input.notes ?? null,
-  });
+    await db.insert(waitlist).values({
+      clientId: input.clientId,
+      serviceId: input.serviceId,
+      preferredDateStart: input.preferredDateStart ?? null,
+      preferredDateEnd: input.preferredDateEnd ?? null,
+      timePreference: input.timePreference ?? null,
+      notes: input.notes ?? null,
+    });
 
-  trackEvent(user.id, "waitlist_added", {
-    clientId: input.clientId,
-    serviceId: input.serviceId,
-  });
+    trackEvent(user.id, "waitlist_added", {
+      clientId: input.clientId,
+      serviceId: input.serviceId,
+    });
 
-  revalidatePath("/dashboard/bookings");
+    revalidatePath("/dashboard/bookings");
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 export async function updateWaitlistStatus(
   id: number,
   status: "waiting" | "notified" | "booked" | "expired" | "cancelled",
 ): Promise<void> {
-  await getUser();
+  try {
+    z.number().int().positive().parse(id);
+    z.enum(["waiting", "notified", "booked", "expired", "cancelled"]).parse(status);
+    await getUser();
 
-  const updates: Record<string, unknown> = { status };
-  if (status === "notified") {
-    updates.notifiedAt = new Date();
-  }
-
-  await db.update(waitlist).set(updates).where(eq(waitlist.id, id));
-
-  // Send notification email when marking as notified
-  if (status === "notified") {
-    try {
-      const waitlistClient = alias(profiles, "waitlistClient");
-      const [row] = await db
-        .select({
-          clientEmail: waitlistClient.email,
-          clientFirstName: waitlistClient.firstName,
-          notifyEmail: waitlistClient.notifyEmail,
-          serviceName: services.name,
-        })
-        .from(waitlist)
-        .innerJoin(waitlistClient, eq(waitlist.clientId, waitlistClient.id))
-        .innerJoin(services, eq(waitlist.serviceId, services.id))
-        .where(eq(waitlist.id, id));
-
-      if (row?.clientEmail && row.notifyEmail) {
-        await sendEmail({
-          to: row.clientEmail,
-          subject: `A spot opened up — ${row.serviceName} — T Creative`,
-          react: WaitlistNotification({
-            clientName: row.clientFirstName,
-            serviceName: row.serviceName,
-          }),
-          entityType: "waitlist_notification",
-          localId: String(id),
-        });
-      }
-    } catch {
-      // Non-fatal
+    const updates: Record<string, unknown> = { status };
+    if (status === "notified") {
+      updates.notifiedAt = new Date();
     }
-  }
 
-  revalidatePath("/dashboard/bookings");
+    await db.update(waitlist).set(updates).where(eq(waitlist.id, id));
+
+    // Send notification email when marking as notified
+    if (status === "notified") {
+      try {
+        const waitlistClient = alias(profiles, "waitlistClient");
+        const [row] = await db
+          .select({
+            clientEmail: waitlistClient.email,
+            clientFirstName: waitlistClient.firstName,
+            notifyEmail: waitlistClient.notifyEmail,
+            serviceName: services.name,
+          })
+          .from(waitlist)
+          .innerJoin(waitlistClient, eq(waitlist.clientId, waitlistClient.id))
+          .innerJoin(services, eq(waitlist.serviceId, services.id))
+          .where(eq(waitlist.id, id));
+
+        if (row?.clientEmail && row.notifyEmail) {
+          await sendEmail({
+            to: row.clientEmail,
+            subject: `A spot opened up — ${row.serviceName} — T Creative`,
+            react: WaitlistNotification({
+              clientName: row.clientFirstName,
+              serviceName: row.serviceName,
+            }),
+            entityType: "waitlist_notification",
+            localId: String(id),
+          });
+        }
+      } catch {
+        // Non-fatal
+      }
+    }
+
+    revalidatePath("/dashboard/bookings");
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 export async function removeFromWaitlistById(id: number): Promise<void> {
-  await getUser();
-  await db.delete(waitlist).where(eq(waitlist.id, id));
-  revalidatePath("/dashboard/bookings");
+  try {
+    z.number().int().positive().parse(id);
+    await getUser();
+    await db.delete(waitlist).where(eq(waitlist.id, id));
+    revalidatePath("/dashboard/bookings");
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -1644,53 +1779,59 @@ export async function removeFromWaitlistById(id: number): Promise<void> {
  * every confirmed/pending booking in the series that hasn't started yet.
  */
 export async function cancelBookingSeries(bookingId: number): Promise<void> {
-  const user = await getUser();
+  try {
+    z.number().int().positive().parse(bookingId);
+    const user = await getUser();
 
-  const [booking] = await db
-    .select({ parentBookingId: bookings.parentBookingId })
-    .from(bookings)
-    .where(and(eq(bookings.id, bookingId), isNull(bookings.deletedAt)));
+    const [booking] = await db
+      .select({ parentBookingId: bookings.parentBookingId })
+      .from(bookings)
+      .where(and(eq(bookings.id, bookingId), isNull(bookings.deletedAt)));
 
-  if (!booking) throw new Error("Booking not found");
+    if (!booking) throw new Error("Booking not found");
 
-  const seriesRoot = booking.parentBookingId ?? bookingId;
-  const now = new Date();
+    const seriesRoot = booking.parentBookingId ?? bookingId;
+    const now = new Date();
 
-  // Find all future non-completed bookings in the series (root + children)
-  const seriesBookings = await db
-    .select({ id: bookings.id, status: bookings.status })
-    .from(bookings)
-    .where(
-      and(
-        sql`(${bookings.id} = ${seriesRoot} OR ${bookings.parentBookingId} = ${seriesRoot})`,
-        sql`${bookings.startsAt} >= ${now.toISOString()}`,
-        sql`${bookings.status} NOT IN ('cancelled', 'completed', 'no_show')`,
-        isNull(bookings.deletedAt),
-      ),
-    );
+    // Find all future non-completed bookings in the series (root + children)
+    const seriesBookings = await db
+      .select({ id: bookings.id, status: bookings.status })
+      .from(bookings)
+      .where(
+        and(
+          sql`(${bookings.id} = ${seriesRoot} OR ${bookings.parentBookingId} = ${seriesRoot})`,
+          sql`${bookings.startsAt} >= ${now.toISOString()}`,
+          sql`${bookings.status} NOT IN ('cancelled', 'completed', 'no_show')`,
+          isNull(bookings.deletedAt),
+        ),
+      );
 
-  if (seriesBookings.length === 0) return;
+    if (seriesBookings.length === 0) return;
 
-  await db
-    .update(bookings)
-    .set({ status: "cancelled", cancelledAt: new Date() })
-    .where(
-      sql`${bookings.id} IN (${sql.join(
-        seriesBookings.map((b) => sql`${b.id}`),
-        sql`, `,
-      )})`,
-    );
+    await db
+      .update(bookings)
+      .set({ status: "cancelled", cancelledAt: new Date() })
+      .where(
+        sql`${bookings.id} IN (${sql.join(
+          seriesBookings.map((b) => sql`${b.id}`),
+          sql`, `,
+        )})`,
+      );
 
-  await logAction({
-    actorId: user.id,
-    action: "status_change",
-    entityType: "booking",
-    entityId: String(bookingId),
-    description: `Recurring series cancelled — ${seriesBookings.length} future booking(s) cancelled`,
-    metadata: { seriesRoot, cancelledCount: seriesBookings.length },
-  });
+    await logAction({
+      actorId: user.id,
+      action: "status_change",
+      entityType: "booking",
+      entityId: String(bookingId),
+      description: `Recurring series cancelled — ${seriesBookings.length} future booking(s) cancelled`,
+      metadata: { seriesRoot, cancelledCount: seriesBookings.length },
+    });
 
-  revalidatePath("/dashboard/bookings");
+    revalidatePath("/dashboard/bookings");
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -1705,29 +1846,34 @@ export async function cancelBookingSeries(bookingId: number): Promise<void> {
 export async function uploadServicePhoto(
   formData: FormData,
 ): Promise<{ path: string; publicUrl: string }> {
-  await getUser();
-  const supabase = await createClient();
+  try {
+    await getUser();
+    const supabase = await createClient();
 
-  const file = formData.get("file") as File | null;
-  const bookingId = formData.get("bookingId") as string | null;
-  const slot = (formData.get("slot") as string) ?? "photo";
+    const file = formData.get("file") as File | null;
+    const bookingId = formData.get("bookingId") as string | null;
+    const slot = (formData.get("slot") as string) ?? "photo";
 
-  if (!file) throw new Error("No file provided");
+    if (!file) throw new Error("No file provided");
 
-  const ext = file.name.split(".").pop()?.toLowerCase() ?? "jpg";
-  const timestamp = Date.now();
-  const path = `service-records/${bookingId ?? "unknown"}/${slot}-${timestamp}.${ext}`;
+    const ext = file.name.split(".").pop()?.toLowerCase() ?? "jpg";
+    const timestamp = Date.now();
+    const path = `service-records/${bookingId ?? "unknown"}/${slot}-${timestamp}.${ext}`;
 
-  const { error } = await supabase.storage.from("media").upload(path, file, {
-    contentType: file.type,
-    upsert: false,
-  });
-  if (error) throw new Error(`Upload failed: ${error.message}`);
+    const { error } = await supabase.storage.from("media").upload(path, file, {
+      contentType: file.type,
+      upsert: false,
+    });
+    if (error) throw new Error(`Upload failed: ${error.message}`);
 
-  const {
-    data: { publicUrl },
-  } = supabase.storage.from("media").getPublicUrl(path);
-  return { path, publicUrl };
+    const {
+      data: { publicUrl },
+    } = supabase.storage.from("media").getPublicUrl(path);
+    return { path, publicUrl };
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -1739,62 +1885,74 @@ export async function uploadServicePhoto(
  * and queues a consent notification for the client.
  * The item is unpublished until the client approves.
  */
+const promoteToPortfolioSchema = z.object({
+  bookingId: z.number().int().positive(),
+  category: z.enum(["lash", "jewelry", "crochet", "consulting"]),
+  caption: z.string().optional(),
+});
+
 export async function promoteToPortfolio(input: {
   bookingId: number;
   category: MediaCategory;
   caption?: string;
 }): Promise<void> {
-  await getUser();
-  const supabase = await createClient();
+  try {
+    promoteToPortfolioSchema.parse(input);
+    await getUser();
+    const supabase = await createClient();
 
-  const [record] = await db
-    .select({
-      clientId: serviceRecords.clientId,
-      beforePhotoPath: serviceRecords.beforePhotoPath,
-      afterPhotoPath: serviceRecords.afterPhotoPath,
-    })
-    .from(serviceRecords)
-    .where(eq(serviceRecords.bookingId, input.bookingId))
-    .limit(1);
+    const [record] = await db
+      .select({
+        clientId: serviceRecords.clientId,
+        beforePhotoPath: serviceRecords.beforePhotoPath,
+        afterPhotoPath: serviceRecords.afterPhotoPath,
+      })
+      .from(serviceRecords)
+      .where(eq(serviceRecords.bookingId, input.bookingId))
+      .limit(1);
 
-  if (!record) throw new Error("Service record not found");
-  if (!record.beforePhotoPath || !record.afterPhotoPath) {
-    throw new Error("Both before and after photos are required");
+    if (!record) throw new Error("Service record not found");
+    if (!record.beforePhotoPath || !record.afterPhotoPath) {
+      throw new Error("Both before and after photos are required");
+    }
+
+    const {
+      data: { publicUrl },
+    } = supabase.storage.from("media").getPublicUrl(record.afterPhotoPath);
+
+    const [inserted] = await db
+      .insert(mediaItems)
+      .values({
+        type: "before_after",
+        category: input.category,
+        clientId: record.clientId,
+        caption: input.caption?.trim() || null,
+        storagePath: record.afterPhotoPath,
+        beforeStoragePath: record.beforePhotoPath,
+        publicUrl,
+        clientConsentGiven: false,
+        isPublished: false,
+      })
+      .returning({ id: mediaItems.id });
+
+    // Notify the client so they see the pending approval in their gallery
+    await db.insert(notifications).values({
+      profileId: record.clientId,
+      type: "general",
+      channel: "internal",
+      status: "sent",
+      title: "Your photos are ready for the portfolio",
+      body: "T Creative would like to feature your before & after photos in the portfolio. Open your gallery to approve.",
+      relatedEntityType: "media_item",
+      relatedEntityId: inserted.id,
+      sentAt: new Date(),
+    });
+
+    revalidatePath("/dashboard/bookings");
+    revalidatePath("/dashboard/gallery");
+    revalidatePath("/dashboard/media");
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
   }
-
-  const {
-    data: { publicUrl },
-  } = supabase.storage.from("media").getPublicUrl(record.afterPhotoPath);
-
-  const [inserted] = await db
-    .insert(mediaItems)
-    .values({
-      type: "before_after",
-      category: input.category,
-      clientId: record.clientId,
-      caption: input.caption?.trim() || null,
-      storagePath: record.afterPhotoPath,
-      beforeStoragePath: record.beforePhotoPath,
-      publicUrl,
-      clientConsentGiven: false,
-      isPublished: false,
-    })
-    .returning({ id: mediaItems.id });
-
-  // Notify the client so they see the pending approval in their gallery
-  await db.insert(notifications).values({
-    profileId: record.clientId,
-    type: "general",
-    channel: "internal",
-    status: "sent",
-    title: "Your photos are ready for the portfolio",
-    body: "T Creative would like to feature your before & after photos in the portfolio. Open your gallery to approve.",
-    relatedEntityType: "media_item",
-    relatedEntityId: inserted.id,
-    sentAt: new Date(),
-  });
-
-  revalidatePath("/dashboard/bookings");
-  revalidatePath("/dashboard/gallery");
-  revalidatePath("/dashboard/media");
 }

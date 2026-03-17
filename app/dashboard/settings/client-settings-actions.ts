@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient as createSupabaseAdmin } from "@supabase/supabase-js";
 import { eq } from "drizzle-orm";
+import { z } from "zod";
 import { db } from "@/db";
 import {
   profiles,
@@ -157,12 +158,20 @@ export async function getClientSettings(): Promise<ClientSettingsData> {
 /*  Profile mutation                                                   */
 /* ------------------------------------------------------------------ */
 
+const clientProfileSchema = z.object({
+  firstName: z.string().min(1),
+  lastName: z.string().min(1),
+  phone: z.string(),
+  allergies: z.string(),
+});
+
 export async function saveClientProfile(data: {
   firstName: string;
   lastName: string;
   phone: string;
   allergies: string;
 }) {
+  clientProfileSchema.parse(data);
   const user = await getUser();
 
   const [existing] = await db
@@ -209,7 +218,14 @@ export async function saveClientProfile(data: {
 /*  Notifications mutation                                             */
 /* ------------------------------------------------------------------ */
 
+const clientNotificationsSchema = z.object({
+  notifySms: z.boolean(),
+  notifyEmail: z.boolean(),
+  notifyMarketing: z.boolean(),
+});
+
 export async function saveClientNotifications(prefs: ClientNotifications) {
+  clientNotificationsSchema.parse(prefs);
   const user = await getUser();
 
   await db
@@ -276,7 +292,26 @@ export async function saveClientNotifications(prefs: ClientNotifications) {
 /*  Preferences mutation                                               */
 /* ------------------------------------------------------------------ */
 
+const clientPreferencesSchema = z.object({
+  preferredLashStyle: z.string().nullable(),
+  preferredCurlType: z.string().nullable(),
+  preferredLengths: z.string().nullable(),
+  preferredDiameter: z.string().nullable(),
+  naturalLashNotes: z.string().nullable(),
+  retentionProfile: z.string().nullable(),
+  allergies: z.string().nullable(),
+  skinType: z.string().nullable(),
+  adhesiveSensitivity: z.boolean(),
+  healthNotes: z.string().nullable(),
+  birthday: z.string().nullable(),
+  preferredContactMethod: z.string().nullable(),
+  preferredServiceTypes: z.string().nullable(),
+  generalNotes: z.string().nullable(),
+  preferredRebookIntervalDays: z.number().int().positive().nullable(),
+});
+
 export async function saveClientPreferences(prefs: Omit<ClientPreferences, never>): Promise<void> {
+  clientPreferencesSchema.parse(prefs);
   const user = await getUser();
 
   const values = {

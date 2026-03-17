@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import * as Sentry from "@sentry/nextjs";
 import { eq, and, desc, asc, or } from "drizzle-orm";
+import { z } from "zod";
 import { db } from "@/db";
 import { mediaItems } from "@/db/schema";
 import { createClient } from "@/utils/supabase/server";
@@ -119,6 +120,8 @@ export async function getClientGallery(): Promise<ClientGalleryData> {
  */
 export async function grantPhotoConsent(mediaItemId: number): Promise<void> {
   try {
+    z.number().int().positive().parse(mediaItemId);
+
     const user = await getUser();
 
     await db

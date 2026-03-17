@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import * as Sentry from "@sentry/nextjs";
 import { eq, desc } from "drizzle-orm";
+import { z } from "zod";
 import { db } from "@/db";
 import { legalDocuments } from "@/db/schema";
 import type { LegalSection } from "@/db/schema";
@@ -44,6 +45,19 @@ export type LegalDocInput = {
   effectiveDate: string;
   changeNotes?: string;
 };
+
+const LegalDocInputSchema = z.object({
+  version: z.string().min(1),
+  intro: z.string().min(1),
+  sections: z.array(
+    z.object({
+      title: z.string().min(1),
+      paragraphs: z.array(z.string().min(1)),
+    }),
+  ),
+  effectiveDate: z.string().min(1),
+  changeNotes: z.string().optional(),
+});
 
 /* ------------------------------------------------------------------ */
 /*  Queries                                                             */
@@ -99,6 +113,9 @@ export async function saveLegalDoc(
   input: LegalDocInput,
 ): Promise<void> {
   try {
+    z.enum(["privacy_policy", "terms_of_service"]).parse(type);
+    LegalDocInputSchema.parse(input);
+
     await getUser();
 
     const existing = await db

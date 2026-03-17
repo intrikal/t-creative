@@ -13,6 +13,7 @@
 import { revalidatePath } from "next/cache";
 import * as Sentry from "@sentry/nextjs";
 import { eq, desc, sql } from "drizzle-orm";
+import { z } from "zod";
 import { db } from "@/db";
 import { mediaItems, profiles } from "@/db/schema";
 import { createClient } from "@/utils/supabase/server";
@@ -204,6 +205,8 @@ export async function uploadMedia(formData: FormData) {
 
 export async function togglePublish(id: number, publish: boolean) {
   try {
+    z.number().int().positive().parse(id);
+    z.boolean().parse(publish);
     await getUser();
     await db
       .update(mediaItems)
@@ -223,6 +226,8 @@ export async function togglePublish(id: number, publish: boolean) {
 
 export async function toggleFeatured(id: number, feature: boolean) {
   try {
+    z.number().int().positive().parse(id);
+    z.boolean().parse(feature);
     await getUser();
     await db
       .update(mediaItems)
@@ -240,11 +245,19 @@ export async function toggleFeatured(id: number, feature: boolean) {
   }
 }
 
+const updateMediaItemSchema = z.object({
+  caption: z.string().optional(),
+  title: z.string().optional(),
+  category: z.enum(["lash", "jewelry", "crochet", "consulting"]).nullable().optional(),
+});
+
 export async function updateMediaItem(
   id: number,
   data: { caption?: string; title?: string; category?: MediaCategory | null },
 ) {
   try {
+    z.number().int().positive().parse(id);
+    updateMediaItemSchema.parse(data);
     await getUser();
     await db
       .update(mediaItems)
@@ -264,6 +277,7 @@ export async function updateMediaItem(
 
 export async function deleteMediaItem(id: number) {
   try {
+    z.number().int().positive().parse(id);
     await getUser();
     const supabase = await createClient();
 

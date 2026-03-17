@@ -15,6 +15,7 @@
 import { revalidatePath } from "next/cache";
 import * as Sentry from "@sentry/nextjs";
 import { eq, desc, sql, and } from "drizzle-orm";
+import { z } from "zod";
 import { db } from "@/db";
 import { reviews, profiles, bookings } from "@/db/schema";
 import { createClient } from "@/utils/supabase/server";
@@ -185,6 +186,7 @@ export async function getReviewStats(): Promise<ReviewStats> {
 
 export async function approveReview(reviewId: number) {
   try {
+    z.number().int().positive().parse(reviewId);
     await getUser();
     await db
       .update(reviews)
@@ -199,6 +201,7 @@ export async function approveReview(reviewId: number) {
 
 export async function rejectReview(reviewId: number) {
   try {
+    z.number().int().positive().parse(reviewId);
     await getUser();
     await db
       .update(reviews)
@@ -213,6 +216,7 @@ export async function rejectReview(reviewId: number) {
 
 export async function featureReview(reviewId: number) {
   try {
+    z.number().int().positive().parse(reviewId);
     await getUser();
     await db
       .update(reviews)
@@ -227,6 +231,7 @@ export async function featureReview(reviewId: number) {
 
 export async function unfeatureReview(reviewId: number) {
   try {
+    z.number().int().positive().parse(reviewId);
     await getUser();
     await db
       .update(reviews)
@@ -241,6 +246,8 @@ export async function unfeatureReview(reviewId: number) {
 
 export async function saveReply(reviewId: number, reply: string) {
   try {
+    z.number().int().positive().parse(reviewId);
+    z.string().parse(reply);
     await getUser();
     await db
       .update(reviews)
@@ -405,6 +412,8 @@ export async function getAssistantReviews(): Promise<AssistantReviewsData> {
  */
 export async function assistantSaveReply(reviewId: number, reply: string) {
   try {
+    z.number().int().positive().parse(reviewId);
+    z.string().parse(reply);
     const user = await getUser();
 
     // Verify this review is on one of the assistant's bookings

@@ -24,6 +24,7 @@
 
 import { revalidatePath } from "next/cache";
 import { eq, isNull } from "drizzle-orm";
+import { z } from "zod";
 import { db } from "@/db";
 import { businessHours, timeOff, settings } from "@/db/schema";
 import { requireAdmin } from "@/lib/auth";
@@ -122,7 +123,28 @@ export async function getBusinessHours(): Promise<BusinessHourRow[]> {
  * Runs inside a transaction: deletes existing studio-wide rows then inserts fresh ones.
  * Caller is responsible for sending all 7 days — partial updates are not supported.
  */
+const hourInputSchema = z.object({
+  dayOfWeek: z.number().int().min(1).max(7),
+  isOpen: z.boolean(),
+  opensAt: z.string().nullable(),
+  closesAt: z.string().nullable(),
+});
+
+const timeOffInputSchema = z.object({
+  type: z.enum(["day_off", "vacation"]),
+  startDate: z.string().min(1),
+  endDate: z.string().min(1),
+  label: z.string().optional(),
+});
+
+const lunchBreakSchema = z.object({
+  enabled: z.boolean(),
+  start: z.string().min(1),
+  end: z.string().min(1),
+});
+
 export async function saveBusinessHours(days: HourInput[]): Promise<void> {
+  z.array(hourInputSchema).parse(days);
   await getUser();
 
   await db.transaction(async (tx) => {
@@ -152,6 +174,7 @@ export async function getTimeOff(): Promise<TimeOffRow[]> {
  * Returns the inserted row (including the auto-generated id).
  */
 export async function addTimeOff(input: TimeOffInput): Promise<TimeOffRow> {
+  timeOffInputSchema.parse(input);
   await getUser();
 
   const [row] = await db
@@ -174,6 +197,7 @@ export async function addTimeOff(input: TimeOffInput): Promise<TimeOffRow> {
  * No-op if the row does not exist (idempotent).
  */
 export async function deleteTimeOff(id: number): Promise<void> {
+  z.number().int().positive().parse(id);
   await getUser();
 
   await db.delete(timeOff).where(eq(timeOff.id, id));
@@ -205,6 +229,7 @@ export async function getLunchBreak(): Promise<LunchBreak | null> {
  * Creates the settings row on first call, updates it on subsequent calls.
  */
 export async function saveLunchBreak(data: LunchBreak): Promise<void> {
+  lunchBreakSchema.parse(data);
   await getUser();
 
   await db

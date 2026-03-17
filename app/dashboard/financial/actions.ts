@@ -16,6 +16,7 @@ import { revalidatePath } from "next/cache";
 import * as Sentry from "@sentry/nextjs";
 import { eq, desc, sql, and, gte, lt } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
+import { z } from "zod";
 import { db } from "@/db";
 import {
   payments,
@@ -40,6 +41,61 @@ import { getEmailRecipient, sendEmail } from "@/lib/resend";
 /* ------------------------------------------------------------------ */
 
 const getUser = requireAdmin;
+
+/* ------------------------------------------------------------------ */
+/*  Zod schemas                                                        */
+/* ------------------------------------------------------------------ */
+
+const CreateInvoiceSchema = z.object({
+  clientId: z.string().min(1),
+  description: z.string().min(1),
+  amountInCents: z.number().int().positive(),
+  taxAmountInCents: z.number().int().nonnegative().optional(),
+  dueAt: z.string().optional(),
+  notes: z.string().optional(),
+  isRecurring: z.boolean().optional(),
+  recurrenceInterval: z.string().optional(),
+});
+
+const CreateExpenseSchema = z.object({
+  expenseDate: z.string().min(1),
+  category: z.enum(["supplies", "rent", "marketing", "equipment", "software", "travel", "other"]),
+  description: z.string().min(1),
+  vendor: z.string().optional(),
+  amountInCents: z.number().int().positive(),
+  hasReceipt: z.boolean().optional(),
+});
+
+const CreateGiftCardSchema = z.object({
+  purchasedByClientId: z.string().optional(),
+  recipientName: z.string().optional(),
+  amountInCents: z.number().int().positive(),
+  expiresAt: z.string().optional(),
+  notes: z.string().optional(),
+});
+
+const CreatePromotionSchema = z.object({
+  code: z.string().min(1),
+  discountType: z.enum(["percent", "fixed", "bogo"]),
+  discountValue: z.number().positive(),
+  description: z.string().optional(),
+  appliesTo: z.enum(["lash", "jewelry", "crochet", "consulting"]).optional(),
+  maxUses: z.number().int().positive().optional(),
+  startsAt: z.string().optional(),
+  endsAt: z.string().optional(),
+});
+
+const RedeemGiftCardSchema = z.object({
+  bookingId: z.number().int().positive(),
+  giftCardId: z.number().int().positive(),
+  amountInCents: z.number().int().positive(),
+});
+
+const RecordRedemptionSchema = z.object({
+  giftCardId: z.number().int().positive(),
+  bookingId: z.number().int().positive(),
+  amountInCents: z.number().int().positive(),
+});
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -428,6 +484,8 @@ export async function createInvoice(input: {
   recurrenceInterval?: string;
 }) {
   try {
+    CreateInvoiceSchema.parse(input);
+
     const user = await getUser();
 
     // Auto-generate next invoice number
@@ -530,6 +588,8 @@ export async function createExpense(input: {
   hasReceipt?: boolean;
 }) {
   try {
+    CreateExpenseSchema.parse(input);
+
     const user = await getUser();
 
     await db.insert(expenses).values({
@@ -631,6 +691,8 @@ export async function createGiftCard(input: {
   notes?: string;
 }) {
   try {
+    CreateGiftCardSchema.parse(input);
+
     const user = await getUser();
 
     // Auto-generate next gift card code
@@ -792,6 +854,8 @@ export async function createPromotion(input: {
   endsAt?: string;
 }) {
   try {
+    CreatePromotionSchema.parse(input);
+
     await getUser();
 
     await db.insert(promotions).values({
@@ -822,6 +886,8 @@ export async function redeemGiftCard(input: {
   amountInCents: number;
 }) {
   try {
+    RedeemGiftCardSchema.parse(input);
+
     await getUser();
 
     const [card] = await db.select().from(giftCards).where(eq(giftCards.id, input.giftCardId));
@@ -924,6 +990,8 @@ export async function recordRedemption(input: {
   amountInCents: number;
 }): Promise<void> {
   try {
+    RecordRedemptionSchema.parse(input);
+
     const user = await getUser();
 
     const [card] = await db.select().from(giftCards).where(eq(giftCards.id, input.giftCardId));
@@ -1007,6 +1075,9 @@ export async function validatePromoCode(
 
 export async function applyPromoCode(bookingId: number, promoCode: string) {
   try {
+    z.number().int().positive().parse(bookingId);
+    z.string().min(1).parse(promoCode);
+
     await getUser();
 
     await db.transaction(async (tx) => {

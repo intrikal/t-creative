@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import * as Sentry from "@sentry/nextjs";
 import { eq, desc, sql } from "drizzle-orm";
+import { z } from "zod";
 import { db } from "@/db";
 import { events, eventGuests, eventVenues } from "@/db/schema";
 import { EventInviteEmail } from "@/emails/EventInviteEmail";
@@ -129,6 +130,70 @@ export type EventInput = {
 };
 
 /* ------------------------------------------------------------------ */
+/*  Zod schemas                                                        */
+/* ------------------------------------------------------------------ */
+
+const venueTypeEnum = z.enum([
+  "studio",
+  "client_home",
+  "external_venue",
+  "pop_up_venue",
+  "corporate_venue",
+]);
+
+const eventTypeEnum = z.enum([
+  "bridal",
+  "pop_up",
+  "private_party",
+  "travel",
+  "workshop",
+  "birthday",
+  "corporate",
+]);
+
+const eventStatusEnum = z.enum(["draft", "upcoming", "confirmed", "completed", "cancelled"]);
+
+const venueInputSchema = z.object({
+  name: z.string().min(1),
+  address: z.string().nullable().optional(),
+  venueType: venueTypeEnum,
+  parkingInfo: z.string().nullable().optional(),
+  setupNotes: z.string().nullable().optional(),
+  defaultTravelFeeInCents: z.number().int().nonnegative().nullable().optional(),
+});
+
+const eventInputSchema = z.object({
+  title: z.string().min(1),
+  eventType: eventTypeEnum,
+  status: eventStatusEnum,
+  startsAt: z.string().min(1),
+  endsAt: z.string().nullable().optional(),
+  venueId: z.number().int().positive().nullable().optional(),
+  location: z.string().nullable().optional(),
+  address: z.string().nullable().optional(),
+  equipmentNotes: z.string().nullable().optional(),
+  maxAttendees: z.number().int().positive().nullable().optional(),
+  expectedRevenueInCents: z.number().int().nonnegative().nullable().optional(),
+  depositInCents: z.number().int().nonnegative().nullable().optional(),
+  travelFeeInCents: z.number().int().nonnegative().nullable().optional(),
+  contactName: z.string().nullable().optional(),
+  contactEmail: z.string().email().nullable().optional(),
+  contactPhone: z.string().nullable().optional(),
+  services: z.string().nullable().optional(),
+  internalNotes: z.string().nullable().optional(),
+  description: z.string().nullable().optional(),
+  companyName: z.string().nullable().optional(),
+  billingEmail: z.string().email().nullable().optional(),
+  poNumber: z.string().nullable().optional(),
+});
+
+const guestInputSchema = z.object({
+  name: z.string().min(1),
+  service: z.string().optional(),
+  paid: z.boolean().optional(),
+});
+
+/* ------------------------------------------------------------------ */
 /*  Venue queries                                                      */
 /* ------------------------------------------------------------------ */
 
@@ -163,6 +228,7 @@ export async function getVenues(): Promise<VenueRow[]> {
 
 export async function createVenue(data: VenueInput): Promise<number> {
   try {
+    venueInputSchema.parse(data);
     await getUser();
 
     const [row] = await db
@@ -187,6 +253,8 @@ export async function createVenue(data: VenueInput): Promise<number> {
 
 export async function updateVenue(id: number, data: Partial<VenueInput> & { isActive?: boolean }) {
   try {
+    z.number().int().positive().parse(id);
+    venueInputSchema.partial().extend({ isActive: z.boolean().optional() }).parse(data);
     await getUser();
 
     const set: Record<string, unknown> = {};
@@ -382,6 +450,7 @@ async function resolveVenueLocation(
 
 export async function createEvent(data: EventInput): Promise<number> {
   try {
+    eventInputSchema.parse(data);
     const user = await getUser();
 
     const { location, address } = await resolveVenueLocation(
@@ -430,6 +499,8 @@ export async function createEvent(data: EventInput): Promise<number> {
 
 export async function updateEvent(id: number, data: Partial<EventInput>) {
   try {
+    z.number().int().positive().parse(id);
+    eventInputSchema.partial().parse(data);
     const user = await getUser();
 
     const set: Record<string, unknown> = {};
@@ -480,6 +551,7 @@ export async function updateEvent(id: number, data: Partial<EventInput>) {
 
 export async function deleteEvent(id: number) {
   try {
+    z.number().int().positive().parse(id);
     const user = await getUser();
     await db.delete(events).where(eq(events.id, id));
     trackEvent(user.id, "event_deleted", { eventId: id });
@@ -499,6 +571,8 @@ export async function addGuest(
   guest: { name: string; service?: string; paid?: boolean },
 ) {
   try {
+    z.number().int().positive().parse(eventId);
+    guestInputSchema.parse(guest);
     await getUser();
 
     const [row] = await db
@@ -521,6 +595,7 @@ export async function addGuest(
 
 export async function removeGuest(guestId: number) {
   try {
+    z.number().int().positive().parse(guestId);
     await getUser();
     await db.delete(eventGuests).where(eq(eventGuests.id, guestId));
     revalidatePath(PATH);
@@ -532,6 +607,7 @@ export async function removeGuest(guestId: number) {
 
 export async function toggleGuestPaid(guestId: number) {
   try {
+    z.number().int().positive().parse(guestId);
     await getUser();
     await db
       .update(eventGuests)
@@ -555,6 +631,7 @@ export async function toggleGuestPaid(guestId: number) {
  */
 export async function sendEventRsvpInvite(eventId: number): Promise<{ url: string }> {
   try {
+    z.number().int().positive().parse(eventId);
     await getUser();
 
     const [event] = await db

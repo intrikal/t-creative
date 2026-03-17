@@ -9,8 +9,10 @@
  */
 
 import { revalidatePath } from "next/cache";
+import * as Sentry from "@sentry/nextjs";
 import { eq, desc, and, ne, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
+import { z } from "zod";
 import { db } from "@/db";
 import {
   threads,
@@ -127,78 +129,83 @@ async function getUser() {
  * message preview + client profile + unread count. Ordered by lastMessageAt desc.
  */
 export async function getThreads(): Promise<ThreadRow[]> {
-  const user = await getUser();
+  try {
+    const user = await getUser();
 
-  // Fetch threads with optional client profile (nullable for group threads)
-  const threadRows = await db
-    .select({
-      id: threads.id,
-      subject: threads.subject,
-      threadType: threads.threadType,
-      status: threads.status,
-      isStarred: threads.isStarred,
-      isArchived: threads.isArchived,
-      isClosed: threads.isClosed,
-      isGroup: threads.isGroup,
-      bookingId: threads.bookingId,
-      lastMessageAt: threads.lastMessageAt,
-      createdAt: threads.createdAt,
-      clientId: threads.clientId,
-      clientFirstName: profiles.firstName,
-      clientLastName: profiles.lastName,
-      clientEmail: profiles.email,
-      clientPhone: profiles.phone,
-      clientAvatarUrl: profiles.avatarUrl,
-      referencePhotoUrls: threads.referencePhotoUrls,
-    })
-    .from(threads)
-    .leftJoin(profiles, eq(threads.clientId, profiles.id))
-    .orderBy(desc(threads.lastMessageAt));
+    // Fetch threads with optional client profile (nullable for group threads)
+    const threadRows = await db
+      .select({
+        id: threads.id,
+        subject: threads.subject,
+        threadType: threads.threadType,
+        status: threads.status,
+        isStarred: threads.isStarred,
+        isArchived: threads.isArchived,
+        isClosed: threads.isClosed,
+        isGroup: threads.isGroup,
+        bookingId: threads.bookingId,
+        lastMessageAt: threads.lastMessageAt,
+        createdAt: threads.createdAt,
+        clientId: threads.clientId,
+        clientFirstName: profiles.firstName,
+        clientLastName: profiles.lastName,
+        clientEmail: profiles.email,
+        clientPhone: profiles.phone,
+        clientAvatarUrl: profiles.avatarUrl,
+        referencePhotoUrls: threads.referencePhotoUrls,
+      })
+      .from(threads)
+      .leftJoin(profiles, eq(threads.clientId, profiles.id))
+      .orderBy(desc(threads.lastMessageAt));
 
-  if (threadRows.length === 0) return [];
+    if (threadRows.length === 0) return [];
 
-  const threadIds = threadRows.map((t) => t.id);
+    const threadIds = threadRows.map((t) => t.id);
 
-  // Latest message per thread (use DISTINCT ON for correct results)
-  const latestMessages = await db.execute<{
-    thread_id: number;
-    body: string;
-    sender_id: string;
-  }>(sql`
-    SELECT DISTINCT ON (thread_id) thread_id, body, sender_id
-    FROM messages
-    WHERE thread_id = ANY(ARRAY[${sql.join(
-      threadIds.map((id) => sql`${id}`),
-      sql`, `,
-    )}]::int[])
-    ORDER BY thread_id, created_at DESC
-  `);
+    // Latest message per thread (use DISTINCT ON for correct results)
+    const latestMessages = await db.execute<{
+      thread_id: number;
+      body: string;
+      sender_id: string;
+    }>(sql`
+      SELECT DISTINCT ON (thread_id) thread_id, body, sender_id
+      FROM messages
+      WHERE thread_id = ANY(ARRAY[${sql.join(
+        threadIds.map((id) => sql`${id}`),
+        sql`, `,
+      )}]::int[])
+      ORDER BY thread_id, created_at DESC
+    `);
 
-  const latestByThread = new Map(
-    [...latestMessages].map((r) => [r.thread_id, { body: r.body, senderId: r.sender_id }]),
-  );
+    const latestByThread = new Map(
+      [...latestMessages].map((r) => [r.thread_id, { body: r.body, senderId: r.sender_id }]),
+    );
 
-  // Unread count per thread (messages not sent by current user)
-  const unreadCounts = await db.execute<{ thread_id: number; cnt: string }>(sql`
-    SELECT thread_id, COUNT(*) as cnt
-    FROM messages
-    WHERE thread_id = ANY(ARRAY[${sql.join(
-      threadIds.map((id) => sql`${id}`),
-      sql`, `,
-    )}]::int[])
-      AND is_read = false
-      AND sender_id != ${user.id}
-    GROUP BY thread_id
-  `);
+    // Unread count per thread (messages not sent by current user)
+    const unreadCounts = await db.execute<{ thread_id: number; cnt: string }>(sql`
+      SELECT thread_id, COUNT(*) as cnt
+      FROM messages
+      WHERE thread_id = ANY(ARRAY[${sql.join(
+        threadIds.map((id) => sql`${id}`),
+        sql`, `,
+      )}]::int[])
+        AND is_read = false
+        AND sender_id != ${user.id}
+      GROUP BY thread_id
+    `);
 
-  const unreadByThread = new Map([...unreadCounts].map((r) => [r.thread_id, Number(r.cnt)]));
+    const unreadByThread = new Map([...unreadCounts].map((r) => [r.thread_id, Number(r.cnt)]));
 
-  return threadRows.map((t) => ({
-    ...t,
-    lastMessageBody: latestByThread.get(t.id)?.body ?? null,
-    lastMessageSenderId: latestByThread.get(t.id)?.senderId ?? null,
-    unreadCount: unreadByThread.get(t.id) ?? 0,
-  }));
+    return threadRows.map((t) => ({
+      ...t,
+      lastMessageBody: latestByThread.get(t.id)?.body ?? null,
+      lastMessageSenderId: latestByThread.get(t.id)?.senderId ?? null,
+      unreadCount: unreadByThread.get(t.id) ?? 0,
+    }));
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 /**
@@ -207,92 +214,97 @@ export async function getThreads(): Promise<ThreadRow[]> {
  * Ordered by lastMessageAt desc.
  */
 export async function getClientThreads(): Promise<ThreadRow[]> {
-  const user = await getUser();
+  try {
+    const user = await getUser();
 
-  // Get thread IDs where user is a participant
-  const participantRows = await db
-    .select({ threadId: threadParticipants.threadId })
-    .from(threadParticipants)
-    .where(eq(threadParticipants.profileId, user.id));
+    // Get thread IDs where user is a participant
+    const participantRows = await db
+      .select({ threadId: threadParticipants.threadId })
+      .from(threadParticipants)
+      .where(eq(threadParticipants.profileId, user.id));
 
-  const participantThreadIds = participantRows.map((r) => r.threadId);
+    const participantThreadIds = participantRows.map((r) => r.threadId);
 
-  // Fetch threads where user is clientId OR participant
-  const threadRows = await db
-    .select({
-      id: threads.id,
-      subject: threads.subject,
-      threadType: threads.threadType,
-      status: threads.status,
-      isStarred: threads.isStarred,
-      isArchived: threads.isArchived,
-      isClosed: threads.isClosed,
-      isGroup: threads.isGroup,
-      bookingId: threads.bookingId,
-      lastMessageAt: threads.lastMessageAt,
-      createdAt: threads.createdAt,
-      clientId: threads.clientId,
-      clientFirstName: profiles.firstName,
-      clientLastName: profiles.lastName,
-      clientEmail: profiles.email,
-      clientPhone: profiles.phone,
-      clientAvatarUrl: profiles.avatarUrl,
-      referencePhotoUrls: threads.referencePhotoUrls,
-    })
-    .from(threads)
-    .leftJoin(profiles, eq(threads.clientId, profiles.id))
-    .where(
-      participantThreadIds.length > 0
-        ? sql`(${threads.clientId} = ${user.id} OR ${threads.id} = ANY(ARRAY[${sql.join(
-            participantThreadIds.map((id) => sql`${id}`),
-            sql`, `,
-          )}]::int[]))`
-        : eq(threads.clientId, user.id),
-    )
-    .orderBy(desc(threads.lastMessageAt));
+    // Fetch threads where user is clientId OR participant
+    const threadRows = await db
+      .select({
+        id: threads.id,
+        subject: threads.subject,
+        threadType: threads.threadType,
+        status: threads.status,
+        isStarred: threads.isStarred,
+        isArchived: threads.isArchived,
+        isClosed: threads.isClosed,
+        isGroup: threads.isGroup,
+        bookingId: threads.bookingId,
+        lastMessageAt: threads.lastMessageAt,
+        createdAt: threads.createdAt,
+        clientId: threads.clientId,
+        clientFirstName: profiles.firstName,
+        clientLastName: profiles.lastName,
+        clientEmail: profiles.email,
+        clientPhone: profiles.phone,
+        clientAvatarUrl: profiles.avatarUrl,
+        referencePhotoUrls: threads.referencePhotoUrls,
+      })
+      .from(threads)
+      .leftJoin(profiles, eq(threads.clientId, profiles.id))
+      .where(
+        participantThreadIds.length > 0
+          ? sql`(${threads.clientId} = ${user.id} OR ${threads.id} = ANY(ARRAY[${sql.join(
+              participantThreadIds.map((id) => sql`${id}`),
+              sql`, `,
+            )}]::int[]))`
+          : eq(threads.clientId, user.id),
+      )
+      .orderBy(desc(threads.lastMessageAt));
 
-  if (threadRows.length === 0) return [];
+    if (threadRows.length === 0) return [];
 
-  const threadIds = threadRows.map((t) => t.id);
+    const threadIds = threadRows.map((t) => t.id);
 
-  const latestMessages = await db.execute<{
-    thread_id: number;
-    body: string;
-    sender_id: string;
-  }>(sql`
-    SELECT DISTINCT ON (thread_id) thread_id, body, sender_id
-    FROM messages
-    WHERE thread_id = ANY(ARRAY[${sql.join(
-      threadIds.map((id) => sql`${id}`),
-      sql`, `,
-    )}]::int[])
-    ORDER BY thread_id, created_at DESC
-  `);
+    const latestMessages = await db.execute<{
+      thread_id: number;
+      body: string;
+      sender_id: string;
+    }>(sql`
+      SELECT DISTINCT ON (thread_id) thread_id, body, sender_id
+      FROM messages
+      WHERE thread_id = ANY(ARRAY[${sql.join(
+        threadIds.map((id) => sql`${id}`),
+        sql`, `,
+      )}]::int[])
+      ORDER BY thread_id, created_at DESC
+    `);
 
-  const latestByThread = new Map(
-    [...latestMessages].map((r) => [r.thread_id, { body: r.body, senderId: r.sender_id }]),
-  );
+    const latestByThread = new Map(
+      [...latestMessages].map((r) => [r.thread_id, { body: r.body, senderId: r.sender_id }]),
+    );
 
-  const unreadCounts = await db.execute<{ thread_id: number; cnt: string }>(sql`
-    SELECT thread_id, COUNT(*) as cnt
-    FROM messages
-    WHERE thread_id = ANY(ARRAY[${sql.join(
-      threadIds.map((id) => sql`${id}`),
-      sql`, `,
-    )}]::int[])
-      AND is_read = false
-      AND sender_id != ${user.id}
-    GROUP BY thread_id
-  `);
+    const unreadCounts = await db.execute<{ thread_id: number; cnt: string }>(sql`
+      SELECT thread_id, COUNT(*) as cnt
+      FROM messages
+      WHERE thread_id = ANY(ARRAY[${sql.join(
+        threadIds.map((id) => sql`${id}`),
+        sql`, `,
+      )}]::int[])
+        AND is_read = false
+        AND sender_id != ${user.id}
+      GROUP BY thread_id
+    `);
 
-  const unreadByThread = new Map([...unreadCounts].map((r) => [r.thread_id, Number(r.cnt)]));
+    const unreadByThread = new Map([...unreadCounts].map((r) => [r.thread_id, Number(r.cnt)]));
 
-  return threadRows.map((t) => ({
-    ...t,
-    lastMessageBody: latestByThread.get(t.id)?.body ?? null,
-    lastMessageSenderId: latestByThread.get(t.id)?.senderId ?? null,
-    unreadCount: unreadByThread.get(t.id) ?? 0,
-  }));
+    return threadRows.map((t) => ({
+      ...t,
+      lastMessageBody: latestByThread.get(t.id)?.body ?? null,
+      lastMessageSenderId: latestByThread.get(t.id)?.senderId ?? null,
+      unreadCount: unreadByThread.get(t.id) ?? 0,
+    }));
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -304,29 +316,34 @@ export async function getClientThreads(): Promise<ThreadRow[]> {
  * Ordered by createdAt ascending (oldest first, like a chat).
  */
 export async function getThreadMessages(threadId: number): Promise<MessageRow[]> {
-  await getUser();
+  try {
+    await getUser();
 
-  const senderProfile = alias(profiles, "sender");
+    const senderProfile = alias(profiles, "sender");
 
-  const rows = await db
-    .select({
-      id: messages.id,
-      threadId: messages.threadId,
-      body: messages.body,
-      isRead: messages.isRead,
-      createdAt: messages.createdAt,
-      senderId: messages.senderId,
-      senderFirstName: senderProfile.firstName,
-      senderLastName: senderProfile.lastName,
-      senderRole: senderProfile.role,
-      senderAvatarUrl: senderProfile.avatarUrl,
-    })
-    .from(messages)
-    .innerJoin(senderProfile, eq(messages.senderId, senderProfile.id))
-    .where(eq(messages.threadId, threadId))
-    .orderBy(messages.createdAt);
+    const rows = await db
+      .select({
+        id: messages.id,
+        threadId: messages.threadId,
+        body: messages.body,
+        isRead: messages.isRead,
+        createdAt: messages.createdAt,
+        senderId: messages.senderId,
+        senderFirstName: senderProfile.firstName,
+        senderLastName: senderProfile.lastName,
+        senderRole: senderProfile.role,
+        senderAvatarUrl: senderProfile.avatarUrl,
+      })
+      .from(messages)
+      .innerJoin(senderProfile, eq(messages.senderId, senderProfile.id))
+      .where(eq(messages.threadId, threadId))
+      .orderBy(messages.createdAt);
 
-  return rows;
+    return rows;
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 /**
@@ -334,99 +351,106 @@ export async function getThreadMessages(threadId: number): Promise<MessageRow[]>
  * thread's lastMessageAt timestamp.
  */
 export async function sendMessage(threadId: number, body: string): Promise<MessageRow> {
-  const user = await getUser();
-
-  const senderProfile = alias(profiles, "sender");
-
-  const [msg] = await db
-    .insert(messages)
-    .values({
-      threadId,
-      senderId: user.id,
-      body,
-      channel: "internal",
-    })
-    .returning();
-
-  // Update thread timestamp
-  await db.update(threads).set({ lastMessageAt: new Date() }).where(eq(threads.id, threadId));
-
-  // If admin is replying to a "new" thread, auto-move to "contacted"
-  const [thread] = await db
-    .select({ status: threads.status, clientId: threads.clientId })
-    .from(threads)
-    .where(eq(threads.id, threadId));
-
-  if (thread && thread.clientId && thread.clientId !== user.id && thread.status === "new") {
-    await db.update(threads).set({ status: "contacted" }).where(eq(threads.id, threadId));
-  }
-
-  // Fetch full message with sender info
-  const [full] = await db
-    .select({
-      id: messages.id,
-      threadId: messages.threadId,
-      body: messages.body,
-      isRead: messages.isRead,
-      createdAt: messages.createdAt,
-      senderId: messages.senderId,
-      senderFirstName: senderProfile.firstName,
-      senderLastName: senderProfile.lastName,
-      senderRole: senderProfile.role,
-      senderAvatarUrl: senderProfile.avatarUrl,
-    })
-    .from(messages)
-    .innerJoin(senderProfile, eq(messages.senderId, senderProfile.id))
-    .where(eq(messages.id, msg.id));
-
-  // Send email notification to other thread participants (non-fatal)
   try {
-    const senderName = [full.senderFirstName, full.senderLastName].filter(Boolean).join(" ");
-    const participants = await db
-      .select({
-        id: profiles.id,
-        email: profiles.email,
-        firstName: profiles.firstName,
-        notifyEmail: profiles.notifyEmail,
-      })
-      .from(threadParticipants)
-      .innerJoin(profiles, eq(threadParticipants.profileId, profiles.id))
-      .where(eq(threadParticipants.threadId, threadId));
+    z.number().int().positive().parse(threadId);
+    z.string().min(1).parse(body);
+    const user = await getUser();
 
-    // Get thread subject
-    const [threadRow] = await db
-      .select({ subject: threads.subject })
+    const senderProfile = alias(profiles, "sender");
+
+    const [msg] = await db
+      .insert(messages)
+      .values({
+        threadId,
+        senderId: user.id,
+        body,
+        channel: "internal",
+      })
+      .returning();
+
+    // Update thread timestamp
+    await db.update(threads).set({ lastMessageAt: new Date() }).where(eq(threads.id, threadId));
+
+    // If admin is replying to a "new" thread, auto-move to "contacted"
+    const [thread] = await db
+      .select({ status: threads.status, clientId: threads.clientId })
       .from(threads)
       .where(eq(threads.id, threadId));
 
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
-    const preview = body.length > 200 ? body.slice(0, 200) + "..." : body;
-
-    for (const p of participants) {
-      if (p.id === user.id) continue; // Don't email yourself
-      if (!p.email || !p.notifyEmail) continue;
-
-      await sendEmail({
-        to: p.email,
-        subject: `New message — ${threadRow?.subject ?? "Conversation"} — T Creative`,
-        react: MessageNotification({
-          recipientName: p.firstName,
-          senderName,
-          threadSubject: threadRow?.subject ?? "Conversation",
-          messagePreview: preview,
-          threadUrl: `${siteUrl}/dashboard/messages?thread=${threadId}`,
-        }),
-        entityType: "message_notification",
-        localId: String(msg.id),
-      });
+    if (thread && thread.clientId && thread.clientId !== user.id && thread.status === "new") {
+      await db.update(threads).set({ status: "contacted" }).where(eq(threads.id, threadId));
     }
-  } catch {
-    // Non-fatal
-  }
 
-  revalidatePath("/dashboard/messages");
-  trackEvent(user.id, "message_sent", { threadId });
-  return full;
+    // Fetch full message with sender info
+    const [full] = await db
+      .select({
+        id: messages.id,
+        threadId: messages.threadId,
+        body: messages.body,
+        isRead: messages.isRead,
+        createdAt: messages.createdAt,
+        senderId: messages.senderId,
+        senderFirstName: senderProfile.firstName,
+        senderLastName: senderProfile.lastName,
+        senderRole: senderProfile.role,
+        senderAvatarUrl: senderProfile.avatarUrl,
+      })
+      .from(messages)
+      .innerJoin(senderProfile, eq(messages.senderId, senderProfile.id))
+      .where(eq(messages.id, msg.id));
+
+    // Send email notification to other thread participants (non-fatal)
+    try {
+      const senderName = [full.senderFirstName, full.senderLastName].filter(Boolean).join(" ");
+      const participants = await db
+        .select({
+          id: profiles.id,
+          email: profiles.email,
+          firstName: profiles.firstName,
+          notifyEmail: profiles.notifyEmail,
+        })
+        .from(threadParticipants)
+        .innerJoin(profiles, eq(threadParticipants.profileId, profiles.id))
+        .where(eq(threadParticipants.threadId, threadId));
+
+      // Get thread subject
+      const [threadRow] = await db
+        .select({ subject: threads.subject })
+        .from(threads)
+        .where(eq(threads.id, threadId));
+
+      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+      const preview = body.length > 200 ? body.slice(0, 200) + "..." : body;
+
+      for (const p of participants) {
+        if (p.id === user.id) continue; // Don't email yourself
+        if (!p.email || !p.notifyEmail) continue;
+
+        await sendEmail({
+          to: p.email,
+          subject: `New message — ${threadRow?.subject ?? "Conversation"} — T Creative`,
+          react: MessageNotification({
+            recipientName: p.firstName,
+            senderName,
+            threadSubject: threadRow?.subject ?? "Conversation",
+            messagePreview: preview,
+            threadUrl: `${siteUrl}/dashboard/messages?thread=${threadId}`,
+          }),
+          entityType: "message_notification",
+          localId: String(msg.id),
+        });
+      }
+    } catch {
+      // Non-fatal
+    }
+
+    revalidatePath("/dashboard/messages");
+    trackEvent(user.id, "message_sent", { threadId });
+    return full;
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 /**
@@ -434,18 +458,24 @@ export async function sendMessage(threadId: number, body: string): Promise<Messa
  * Only marks messages NOT sent by the current user (you can't "read" your own messages).
  */
 export async function markThreadRead(threadId: number): Promise<void> {
-  const user = await getUser();
+  try {
+    z.number().int().positive().parse(threadId);
+    const user = await getUser();
 
-  await db
-    .update(messages)
-    .set({ isRead: true, readAt: new Date() })
-    .where(
-      and(
-        eq(messages.threadId, threadId),
-        ne(messages.senderId, user.id),
-        eq(messages.isRead, false),
-      ),
-    );
+    await db
+      .update(messages)
+      .set({ isRead: true, readAt: new Date() })
+      .where(
+        and(
+          eq(messages.threadId, threadId),
+          ne(messages.senderId, user.id),
+          eq(messages.isRead, false),
+        ),
+      );
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -453,33 +483,61 @@ export async function markThreadRead(threadId: number): Promise<void> {
 /* ------------------------------------------------------------------ */
 
 export async function updateThreadStatus(threadId: number, status: ThreadStatus): Promise<void> {
-  await getUser();
-  await db.update(threads).set({ status }).where(eq(threads.id, threadId));
-  revalidatePath("/dashboard/messages");
+  try {
+    z.number().int().positive().parse(threadId);
+    z.enum(["new", "pending", "contacted", "approved", "rejected", "resolved"]).parse(status);
+    await getUser();
+    await db.update(threads).set({ status }).where(eq(threads.id, threadId));
+    revalidatePath("/dashboard/messages");
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 export async function toggleThreadStar(threadId: number): Promise<void> {
-  await getUser();
-  const [thread] = await db
-    .select({ isStarred: threads.isStarred })
-    .from(threads)
-    .where(eq(threads.id, threadId));
-  if (thread) {
-    await db.update(threads).set({ isStarred: !thread.isStarred }).where(eq(threads.id, threadId));
+  try {
+    z.number().int().positive().parse(threadId);
+    await getUser();
+    const [thread] = await db
+      .select({ isStarred: threads.isStarred })
+      .from(threads)
+      .where(eq(threads.id, threadId));
+    if (thread) {
+      await db
+        .update(threads)
+        .set({ isStarred: !thread.isStarred })
+        .where(eq(threads.id, threadId));
+    }
+    revalidatePath("/dashboard/messages");
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
   }
-  revalidatePath("/dashboard/messages");
 }
 
 export async function archiveThread(threadId: number): Promise<void> {
-  await getUser();
-  await db.update(threads).set({ isArchived: true }).where(eq(threads.id, threadId));
-  revalidatePath("/dashboard/messages");
+  try {
+    z.number().int().positive().parse(threadId);
+    await getUser();
+    await db.update(threads).set({ isArchived: true }).where(eq(threads.id, threadId));
+    revalidatePath("/dashboard/messages");
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 export async function unarchiveThread(threadId: number): Promise<void> {
-  await getUser();
-  await db.update(threads).set({ isArchived: false }).where(eq(threads.id, threadId));
-  revalidatePath("/dashboard/messages");
+  try {
+    z.number().int().positive().parse(threadId);
+    await getUser();
+    await db.update(threads).set({ isArchived: false }).where(eq(threads.id, threadId));
+    revalidatePath("/dashboard/messages");
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -487,12 +545,17 @@ export async function unarchiveThread(threadId: number): Promise<void> {
 /* ------------------------------------------------------------------ */
 
 export async function getQuickReplies(): Promise<QuickReplyRow[]> {
-  await getUser();
-  return db
-    .select({ id: quickReplies.id, label: quickReplies.label, body: quickReplies.body })
-    .from(quickReplies)
-    .where(eq(quickReplies.isActive, true))
-    .orderBy(quickReplies.sortOrder);
+  try {
+    await getUser();
+    return db
+      .select({ id: quickReplies.id, label: quickReplies.label, body: quickReplies.body })
+      .from(quickReplies)
+      .where(eq(quickReplies.isActive, true))
+      .orderBy(quickReplies.sortOrder);
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -504,106 +567,128 @@ export async function getQuickReplies(): Promise<QuickReplyRow[]> {
  * Excludes the current user from the list.
  */
 export async function getVisibleContacts(): Promise<ContactRow[]> {
-  const user = await getUser();
+  try {
+    const user = await getUser();
 
-  const rows = await db
-    .select({
-      id: profiles.id,
-      firstName: profiles.firstName,
-      lastName: profiles.lastName,
-      email: profiles.email,
-      role: profiles.role,
-      avatarUrl: profiles.avatarUrl,
-    })
-    .from(profiles)
-    .where(ne(profiles.id, user.id))
-    .orderBy(profiles.firstName);
+    const rows = await db
+      .select({
+        id: profiles.id,
+        firstName: profiles.firstName,
+        lastName: profiles.lastName,
+        email: profiles.email,
+        role: profiles.role,
+        avatarUrl: profiles.avatarUrl,
+      })
+      .from(profiles)
+      .where(ne(profiles.id, user.id))
+      .orderBy(profiles.firstName);
 
-  return rows;
+    return rows;
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 /**
  * createThread — Create a new conversation thread with one or more participants.
  * Sets clientId for single-client threads; null for group threads.
  */
+const createThreadSchema = z.object({
+  subject: z.string().min(1),
+  participantIds: z.array(z.string().min(1)).min(1),
+  body: z.string().min(1),
+});
+
 export async function createThread(input: {
   subject: string;
   participantIds: string[];
   body: string;
 }): Promise<{ threadId: number }> {
-  const user = await getUser();
+  try {
+    createThreadSchema.parse(input);
+    const user = await getUser();
 
-  const isGroup = input.participantIds.length > 1;
+    const isGroup = input.participantIds.length > 1;
 
-  // For single-participant threads, check if the participant is a client
-  let clientId: string | null = null;
-  if (!isGroup && input.participantIds.length === 1) {
-    const [participant] = await db
-      .select({ role: profiles.role })
-      .from(profiles)
-      .where(eq(profiles.id, input.participantIds[0]));
-    if (participant?.role === "client") {
-      clientId = input.participantIds[0];
+    // For single-participant threads, check if the participant is a client
+    let clientId: string | null = null;
+    if (!isGroup && input.participantIds.length === 1) {
+      const [participant] = await db
+        .select({ role: profiles.role })
+        .from(profiles)
+        .where(eq(profiles.id, input.participantIds[0]));
+      if (participant?.role === "client") {
+        clientId = input.participantIds[0];
+      }
     }
-  }
 
-  const [thread] = await db
-    .insert(threads)
-    .values({
-      subject: input.subject,
-      clientId,
-      isGroup,
-      threadType: "general",
-      status: "new",
-    })
-    .returning({ id: threads.id });
+    const [thread] = await db
+      .insert(threads)
+      .values({
+        subject: input.subject,
+        clientId,
+        isGroup,
+        threadType: "general",
+        status: "new",
+      })
+      .returning({ id: threads.id });
 
-  // Add all participants + the sender
-  const allParticipantIds = new Set([...input.participantIds, user.id]);
-  await db.insert(threadParticipants).values(
-    [...allParticipantIds].map((profileId) => ({
+    // Add all participants + the sender
+    const allParticipantIds = new Set([...input.participantIds, user.id]);
+    await db.insert(threadParticipants).values(
+      [...allParticipantIds].map((profileId) => ({
+        threadId: thread.id,
+        profileId,
+      })),
+    );
+
+    // Insert initial message
+    await db.insert(messages).values({
       threadId: thread.id,
-      profileId,
-    })),
-  );
+      senderId: user.id,
+      body: input.body,
+      channel: "internal" as const,
+    });
 
-  // Insert initial message
-  await db.insert(messages).values({
-    threadId: thread.id,
-    senderId: user.id,
-    body: input.body,
-    channel: "internal" as const,
-  });
-
-  trackEvent(user.id, "thread_created", {
-    subject: input.subject,
-    isGroup,
-    participantCount: input.participantIds.length,
-  });
-  revalidatePath("/dashboard/messages");
-  return { threadId: thread.id };
+    trackEvent(user.id, "thread_created", {
+      subject: input.subject,
+      isGroup,
+      participantCount: input.participantIds.length,
+    });
+    revalidatePath("/dashboard/messages");
+    return { threadId: thread.id };
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 /**
  * getThreadParticipants — Returns participant profiles for a thread.
  */
 export async function getThreadParticipants(threadId: number): Promise<ParticipantRow[]> {
-  await getUser();
+  try {
+    await getUser();
 
-  const rows = await db
-    .select({
-      id: profiles.id,
-      firstName: profiles.firstName,
-      lastName: profiles.lastName,
-      email: profiles.email,
-      role: profiles.role,
-      avatarUrl: profiles.avatarUrl,
-    })
-    .from(threadParticipants)
-    .innerJoin(profiles, eq(threadParticipants.profileId, profiles.id))
-    .where(eq(threadParticipants.threadId, threadId));
+    const rows = await db
+      .select({
+        id: profiles.id,
+        firstName: profiles.firstName,
+        lastName: profiles.lastName,
+        email: profiles.email,
+        role: profiles.role,
+        avatarUrl: profiles.avatarUrl,
+      })
+      .from(threadParticipants)
+      .innerJoin(profiles, eq(threadParticipants.profileId, profiles.id))
+      .where(eq(threadParticipants.threadId, threadId));
 
-  return rows;
+    return rows;
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -617,6 +702,14 @@ export async function getThreadParticipants(threadId: number): Promise<Participa
  *
  * Requires the client to be authenticated (logged in).
  */
+const createBookingRequestSchema = z.object({
+  serviceId: z.number().int().positive(),
+  message: z.string(),
+  preferredDates: z.string().optional(),
+  referencePhotoUrls: z.array(z.string()).optional(),
+  preferredCadence: z.string().optional(),
+});
+
 export async function createBookingRequest(input: {
   serviceId: number;
   message: string;
@@ -624,6 +717,7 @@ export async function createBookingRequest(input: {
   referencePhotoUrls?: string[];
   preferredCadence?: string;
 }): Promise<{ threadId: number; bookingId: number }> {
+  createBookingRequestSchema.parse(input);
   const user = await getUser();
 
   // Get the service name for the thread subject

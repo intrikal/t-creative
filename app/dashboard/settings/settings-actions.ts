@@ -31,6 +31,7 @@
 
 import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
+import { z } from "zod";
 import { db } from "@/db";
 import { settings } from "@/db/schema";
 import { requireAdmin } from "@/lib/auth";
@@ -260,7 +261,20 @@ export async function getBusinessProfile(): Promise<BusinessProfile> {
   return getSetting(KEY_BUSINESS, DEFAULT_BUSINESS);
 }
 
+const businessProfileSchema = z.object({
+  businessName: z.string().min(1),
+  owner: z.string().min(1),
+  email: z.string().min(1),
+  phone: z.string().min(1),
+  location: z.string().min(1),
+  timezone: z.string().min(1),
+  currency: z.string().min(1),
+  bookingLink: z.string(),
+  bio: z.string(),
+});
+
 export async function saveBusinessProfile(data: BusinessProfile): Promise<void> {
+  businessProfileSchema.parse(data);
   const user = await getUser();
   await upsertSetting(KEY_BUSINESS, "Business Profile", data);
   trackEvent(user.id, "business_profile_updated");
@@ -276,7 +290,16 @@ export async function getPolicies(): Promise<PolicySettings> {
   return getSetting(KEY_POLICIES, DEFAULT_POLICIES);
 }
 
+const policySettingsSchema = z.object({
+  cancelWindowHours: z.number().int().nonnegative(),
+  lateCancelFeePercent: z.number().int().nonnegative(),
+  noShowFeePercent: z.number().int().nonnegative(),
+  depositRequired: z.boolean(),
+  depositPercent: z.number().int().nonnegative(),
+});
+
 export async function savePolicies(data: PolicySettings): Promise<void> {
+  policySettingsSchema.parse(data);
   const user = await getUser();
   await upsertSetting(KEY_POLICIES, "Policy Settings", data);
   trackEvent(user.id, "policies_updated");
@@ -292,7 +315,20 @@ export async function getLoyaltyConfig(): Promise<LoyaltyConfig> {
   return getSetting(KEY_LOYALTY, DEFAULT_LOYALTY);
 }
 
+const loyaltyConfigSchema = z.object({
+  pointsProfileComplete: z.number().int().nonnegative(),
+  pointsBirthdayAdded: z.number().int().nonnegative(),
+  pointsReferral: z.number().int().nonnegative(),
+  pointsFirstBooking: z.number().int().nonnegative(),
+  pointsRebook: z.number().int().nonnegative(),
+  pointsReview: z.number().int().nonnegative(),
+  tierSilver: z.number().int().nonnegative(),
+  tierGold: z.number().int().nonnegative(),
+  tierPlatinum: z.number().int().nonnegative(),
+});
+
 export async function saveLoyaltyConfig(data: LoyaltyConfig): Promise<void> {
+  loyaltyConfigSchema.parse(data);
   const user = await getUser();
   await upsertSetting(KEY_LOYALTY, "Loyalty Config", data);
   trackEvent(user.id, "loyalty_config_updated");
@@ -308,7 +344,18 @@ export async function getNotificationPrefs(): Promise<NotificationPrefs> {
   return getSetting(KEY_NOTIFICATIONS, DEFAULT_NOTIFICATIONS);
 }
 
+const notificationPrefsSchema = z.object({
+  items: z.array(
+    z.object({
+      label: z.string().min(1),
+      email: z.boolean(),
+      sms: z.boolean(),
+    }),
+  ),
+});
+
 export async function saveNotificationPrefs(data: NotificationPrefs): Promise<void> {
+  notificationPrefsSchema.parse(data);
   await getUser();
   await upsertSetting(KEY_NOTIFICATIONS, "Notification Preferences", data);
   revalidatePath("/dashboard/settings");
@@ -323,7 +370,19 @@ export async function getBookingRules(): Promise<BookingRulesConfig> {
   return getSetting(KEY_BOOKING_RULES, DEFAULT_BOOKING_RULES);
 }
 
+const bookingRulesSchema = z.object({
+  minNoticeHours: z.number().int().nonnegative(),
+  maxAdvanceDays: z.number().int().positive(),
+  bufferMinutes: z.number().int().nonnegative(),
+  maxDailyBookings: z.number().int().positive(),
+  cancelWindowHours: z.number().int().nonnegative(),
+  depositPct: z.number().int().nonnegative(),
+  depositRequired: z.boolean(),
+  allowOnlineBooking: z.boolean(),
+});
+
 export async function saveBookingRules(data: BookingRulesConfig): Promise<void> {
+  bookingRulesSchema.parse(data);
   const user = await getUser();
   await upsertSetting(KEY_BOOKING_RULES, "Booking Rules", data);
   trackEvent(user.id, "booking_rules_updated");
@@ -339,7 +398,21 @@ export async function getReminders(): Promise<RemindersConfig> {
   return getSetting(KEY_REMINDERS, DEFAULT_REMINDERS);
 }
 
+const remindersSchema = z.object({
+  items: z.array(
+    z.object({
+      id: z.number().int().positive(),
+      label: z.string().min(1),
+      timing: z.string().min(1),
+      email: z.boolean(),
+      sms: z.boolean(),
+      active: z.boolean(),
+    }),
+  ),
+});
+
 export async function saveReminders(data: RemindersConfig): Promise<void> {
+  remindersSchema.parse(data);
   await getUser();
   await upsertSetting(KEY_REMINDERS, "Reminder Config", data);
   revalidatePath("/dashboard/settings");
@@ -366,7 +439,13 @@ export async function getFinancialConfig(): Promise<FinancialConfig> {
   return getSetting(KEY_FINANCIAL, DEFAULT_FINANCIAL);
 }
 
+const financialConfigSchema = z.object({
+  revenueGoalMonthly: z.number().nonnegative(),
+  estimatedTaxRate: z.number().nonnegative(),
+});
+
 export async function saveFinancialConfig(data: FinancialConfig): Promise<void> {
+  financialConfigSchema.parse(data);
   await getUser();
   await upsertSetting(KEY_FINANCIAL, "Financial Config", data);
   revalidatePath("/dashboard/settings");

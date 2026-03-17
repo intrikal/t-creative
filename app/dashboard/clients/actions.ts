@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import * as Sentry from "@sentry/nextjs";
 import { and, eq, sql, desc } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
+import { z } from "zod";
 import { db } from "@/db";
 import { profiles, bookings, services, loyaltyTransactions, clientPreferences } from "@/db/schema";
 import { logAction } from "@/lib/audit";
@@ -214,11 +215,61 @@ export async function getClientLoyalty(): Promise<LoyaltyRow[]> {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Zod schemas                                                        */
+/* ------------------------------------------------------------------ */
+
+const clientInputSchema = z.object({
+  firstName: z.string().min(1),
+  lastName: z.string().min(1),
+  email: z.string().email(),
+  phone: z.string().optional(),
+  source: z
+    .enum([
+      "instagram",
+      "tiktok",
+      "pinterest",
+      "word_of_mouth",
+      "google_search",
+      "referral",
+      "website_direct",
+      "event",
+    ])
+    .optional(),
+  isVip: z.boolean(),
+  lifecycleStage: z
+    .enum(["prospect", "active", "at_risk", "lapsed", "churned"])
+    .nullable()
+    .optional(),
+  internalNotes: z.string().optional(),
+  tags: z.string().optional(),
+});
+
+const clientPreferencesInputSchema = z.object({
+  profileId: z.string().min(1),
+  preferredLashStyle: z.string().optional(),
+  preferredCurlType: z.string().optional(),
+  preferredLengths: z.string().optional(),
+  preferredDiameter: z.string().optional(),
+  naturalLashNotes: z.string().optional(),
+  retentionProfile: z.string().optional(),
+  allergies: z.string().optional(),
+  skinType: z.string().optional(),
+  adhesiveSensitivity: z.boolean().optional(),
+  healthNotes: z.string().optional(),
+  birthday: z.string().optional(),
+  preferredContactMethod: z.string().optional(),
+  preferredServiceTypes: z.string().optional(),
+  generalNotes: z.string().optional(),
+  preferredRebookIntervalDays: z.number().int().nonnegative().optional(),
+});
+
+/* ------------------------------------------------------------------ */
 /*  Mutations                                                          */
 /* ------------------------------------------------------------------ */
 
 export async function createClient(input: ClientInput): Promise<void> {
   try {
+    clientInputSchema.parse(input);
     const user = await getUser();
 
     // Create a Supabase auth user first, then the profile
@@ -259,6 +310,8 @@ export async function createClient(input: ClientInput): Promise<void> {
 
 export async function updateClient(id: string, input: ClientInput): Promise<void> {
   try {
+    z.string().min(1).parse(id);
+    clientInputSchema.parse(input);
     const user = await getUser();
 
     await db
@@ -296,6 +349,7 @@ export async function updateClient(id: string, input: ClientInput): Promise<void
 
 export async function deleteClient(id: string): Promise<void> {
   try {
+    z.string().min(1).parse(id);
     const user = await getUser();
     await db.update(profiles).set({ isActive: false }).where(eq(profiles.id, id));
     trackEvent(user.id, "client_deleted", { clientId: id });
@@ -321,6 +375,9 @@ export async function issueLoyaltyReward(
   description: string,
 ): Promise<void> {
   try {
+    z.string().min(1).parse(profileId);
+    z.number().int().positive().parse(points);
+    z.string().min(1).parse(description);
     const user = await getUser();
 
     await db.insert(loyaltyTransactions).values({
@@ -418,6 +475,7 @@ export async function getClientPreferences(
 
 export async function upsertClientPreferences(input: ClientPreferencesInput): Promise<void> {
   try {
+    clientPreferencesInputSchema.parse(input);
     await getUser();
 
     const values = {

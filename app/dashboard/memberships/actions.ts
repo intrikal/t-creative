@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import * as Sentry from "@sentry/nextjs";
 import { addDays } from "date-fns";
 import { and, desc, eq, or } from "drizzle-orm";
+import { z } from "zod";
 import { db } from "@/db";
 import {
   membershipPlans,
@@ -246,9 +247,42 @@ export async function getClientMembership(clientId: string): Promise<ClientMembe
 /*  Subscription mutations                                             */
 /* ------------------------------------------------------------------ */
 
+const createMembershipSchema = z.object({
+  clientId: z.string().min(1),
+  planId: z.number().int().positive(),
+  notes: z.string().optional(),
+});
+
+const membershipStatusSchema = z.enum(["active", "paused", "cancelled", "expired"]);
+
+const createPlanSchema = z.object({
+  name: z.string().min(1),
+  slug: z.string().min(1),
+  description: z.string().optional(),
+  priceInCents: z.number().int().nonnegative(),
+  fillsPerCycle: z.number().int().nonnegative(),
+  productDiscountPercent: z.number().int().nonnegative(),
+  cycleIntervalDays: z.number().int().positive().optional(),
+  displayOrder: z.number().int().nonnegative().optional(),
+  perks: z.array(z.string()).optional(),
+});
+
+const updatePlanSchema = z.object({
+  name: z.string().min(1).optional(),
+  description: z.string().optional(),
+  priceInCents: z.number().int().nonnegative().optional(),
+  fillsPerCycle: z.number().int().nonnegative().optional(),
+  productDiscountPercent: z.number().int().nonnegative().optional(),
+  cycleIntervalDays: z.number().int().positive().optional(),
+  displayOrder: z.number().int().nonnegative().optional(),
+  perks: z.array(z.string()).optional(),
+  isActive: z.boolean().optional(),
+});
+
 /** Admin creates a new membership for a client, starting their cycle today. */
 export async function createMembership(input: CreateMembershipInput): Promise<{ id: string }> {
   try {
+    createMembershipSchema.parse(input);
     await getUser();
 
     const [plan] = await db
@@ -286,6 +320,8 @@ export async function createMembership(input: CreateMembershipInput): Promise<{ 
 /** Update subscription status — pause, cancel, or reactivate. */
 export async function updateMembershipStatus(id: string, status: MembershipStatus): Promise<void> {
   try {
+    z.string().min(1).parse(id);
+    membershipStatusSchema.parse(status);
     await getUser();
 
     const updates: Partial<typeof membershipSubscriptions.$inferInsert> = { status };
@@ -310,6 +346,7 @@ export async function updateMembershipStatus(id: string, status: MembershipStatu
 /** Decrement fills remaining. Called when a qualifying lash fill booking completes. */
 export async function useMembershipFill(id: string): Promise<void> {
   try {
+    z.string().min(1).parse(id);
     await getUser();
 
     const [sub] = await db
@@ -340,6 +377,7 @@ export async function useMembershipFill(id: string): Promise<void> {
  */
 export async function renewMembership(id: string): Promise<void> {
   try {
+    z.string().min(1).parse(id);
     await getUser();
 
     const [row] = await db
@@ -378,6 +416,8 @@ export async function renewMembership(id: string): Promise<void> {
 
 export async function updateMembershipNotes(id: string, notes: string): Promise<void> {
   try {
+    z.string().min(1).parse(id);
+    z.string().parse(notes);
     await getUser();
 
     await db
@@ -398,6 +438,7 @@ export async function updateMembershipNotes(id: string, notes: string): Promise<
 
 export async function createMembershipPlan(input: CreatePlanInput): Promise<{ id: number }> {
   try {
+    createPlanSchema.parse(input);
     await getUser();
 
     const [plan] = await db
@@ -425,6 +466,8 @@ export async function createMembershipPlan(input: CreatePlanInput): Promise<{ id
 
 export async function updateMembershipPlan(id: number, input: UpdatePlanInput): Promise<void> {
   try {
+    z.number().int().positive().parse(id);
+    updatePlanSchema.parse(input);
     await getUser();
 
     await db

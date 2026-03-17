@@ -454,6 +454,37 @@ export async function saveFinancialConfig(data: FinancialConfig): Promise<void> 
 }
 
 /* ------------------------------------------------------------------ */
+/*  Revenue Goals                                                      */
+/* ------------------------------------------------------------------ */
+
+export interface RevenueGoal {
+  id: string;
+  month: string; // "YYYY-MM"
+  amount: number;
+}
+
+const KEY_REVENUE_GOALS = "revenue_goals";
+
+export async function getRevenueGoals(): Promise<RevenueGoal[]> {
+  await getUser();
+  return getSetting<RevenueGoal[]>(KEY_REVENUE_GOALS, []);
+}
+
+const revenueGoalItemSchema = z.object({
+  id: z.string(),
+  month: z.string().regex(/^\d{4}-\d{2}$/),
+  amount: z.number().nonnegative(),
+});
+
+export async function saveRevenueGoals(data: RevenueGoal[]): Promise<void> {
+  z.array(revenueGoalItemSchema).parse(data);
+  await getUser();
+  await upsertSetting(KEY_REVENUE_GOALS, "Revenue Goals", data);
+  revalidatePath("/dashboard/settings");
+  revalidatePath("/dashboard/analytics");
+}
+
+/* ------------------------------------------------------------------ */
 /*  Square Integration Status                                          */
 /* ------------------------------------------------------------------ */
 

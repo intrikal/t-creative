@@ -11,6 +11,7 @@ import {
   getBookingRules,
   getBusinessProfile,
   getFinancialConfig,
+  getRevenueGoals,
   getLoyaltyConfig,
   getNotificationPrefs,
   getPolicies,
@@ -48,6 +49,7 @@ export default async function Page() {
     initialLoyalty,
     initialNotifications,
     initialFinancial,
+    initialRevenueGoals,
     initialBookingRules,
     initialReminders,
     squareStatus,
@@ -60,6 +62,7 @@ export default async function Page() {
     getLoyaltyConfig(),
     getNotificationPrefs(),
     getFinancialConfig(),
+    getRevenueGoals(),
     getBookingRules(),
     getReminders(),
     getSquareConnectionStatus(),
@@ -75,6 +78,7 @@ export default async function Page() {
       initialLoyalty={initialLoyalty}
       initialNotifications={initialNotifications}
       initialFinancial={initialFinancial}
+      initialRevenueGoals={initialRevenueGoals}
       initialBookingRules={initialBookingRules}
       initialReminders={initialReminders}
       squareStatus={squareStatus}

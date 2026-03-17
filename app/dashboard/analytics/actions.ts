@@ -24,7 +24,7 @@
 "use server";
 
 import * as Sentry from "@sentry/nextjs";
-import { eq, desc, sql, and, gte, lt, isNotNull } from "drizzle-orm";
+import { eq, desc, sql, and, gte, lt, isNotNull, inArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
 import {
@@ -881,10 +881,26 @@ export async function getRevenueGoal(): Promise<number> {
   try {
     await getUser();
 
-    const [row] = await db.select().from(settings).where(eq(settings.key, "financial_config"));
-    if (!row) return 12000;
-    const config = row.value as { revenueGoalMonthly?: number };
-    return config.revenueGoalMonthly ?? 12000;
+    const currentMonth = new Date().toISOString().slice(0, 7); // "YYYY-MM"
+    const rows = await db
+      .select()
+      .from(settings)
+      .where(inArray(settings.key, ["revenue_goals", "financial_config"]));
+
+    const goalsRow = rows.find((r) => r.key === "revenue_goals");
+    if (goalsRow) {
+      const goals = goalsRow.value as Array<{ month: string; amount: number }>;
+      const match = goals.find((g) => g.month === currentMonth);
+      if (match) return match.amount;
+    }
+
+    const financialRow = rows.find((r) => r.key === "financial_config");
+    if (financialRow) {
+      const config = financialRow.value as { revenueGoalMonthly?: number };
+      return config.revenueGoalMonthly ?? 12000;
+    }
+
+    return 12000;
   } catch (err) {
     Sentry.captureException(err);
     throw err;

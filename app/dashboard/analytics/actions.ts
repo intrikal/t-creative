@@ -27,7 +27,7 @@ import * as Sentry from "@sentry/nextjs";
 import { eq, desc, sql, and, gte, lt, isNotNull } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
-import { bookings, payments, services, profiles, settings } from "@/db/schema";
+import { bookings, payments, services, profiles, settings, promotions } from "@/db/schema";
 import { createClient } from "@/utils/supabase/server";
 
 /* ------------------------------------------------------------------ */
@@ -178,6 +178,17 @@ export type CheckoutRebookStats = {
     rebooked: number;
     rate: number;
   }[];
+};
+
+export type PromotionRoiItem = {
+  code: string;
+  description: string | null;
+  discountType: string;
+  bookings: number;
+  grossRevenue: number;
+  totalDiscount: number;
+  netRevenue: number;
+  roi: number;
 };
 
 export type PeakTimeSlot = {
@@ -1099,6 +1110,63 @@ export async function getCheckoutRebookRate(): Promise<CheckoutRebookStats> {
       .sort((a, b) => b.completed - a.completed);
 
     return { overallRate, totalCompleted, totalRebooked, byStaff, byCategory };
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Promotion ROI                                                      */
+/* ------------------------------------------------------------------ */
+
+/**
+ * For each promotion that has been used, calculates:
+ * - Gross revenue: total booking price (before discount) of promo-linked bookings
+ * - Total discount: sum of discountInCents on those bookings
+ * - Net revenue: actual paid revenue from payments on those bookings
+ * - ROI: (netRevenue - totalDiscount) / totalDiscount as a percentage
+ */
+export async function getPromotionRoi(): Promise<PromotionRoiItem[]> {
+  try {
+    await getUser();
+
+    const rows = await db
+      .select({
+        promoId: promotions.id,
+        code: promotions.code,
+        description: promotions.description,
+        discountType: promotions.discountType,
+        bookingCount: sql<number>`count(distinct ${bookings.id})`,
+        grossRevenue: sql<number>`coalesce(sum(${bookings.totalInCents} + ${bookings.discountInCents}), 0)`,
+        totalDiscount: sql<number>`coalesce(sum(${bookings.discountInCents}), 0)`,
+        netPaid: sql<number>`coalesce(sum(${payments.amountInCents}), 0)`,
+      })
+      .from(promotions)
+      .innerJoin(bookings, eq(bookings.promotionId, promotions.id))
+      .leftJoin(payments, and(eq(payments.bookingId, bookings.id), eq(payments.status, "paid")))
+      .where(sql`${promotions.redemptionCount} > 0`)
+      .groupBy(promotions.id, promotions.code, promotions.description, promotions.discountType)
+      .orderBy(sql`sum(${bookings.discountInCents}) desc`);
+
+    return rows.map((r) => {
+      const grossRevenue = Math.round(Number(r.grossRevenue) / 100);
+      const totalDiscount = Math.round(Number(r.totalDiscount) / 100);
+      const netRevenue = Math.round(Number(r.netPaid) / 100);
+      const roi =
+        totalDiscount > 0 ? Math.round(((netRevenue - totalDiscount) / totalDiscount) * 100) : 0;
+
+      return {
+        code: r.code,
+        description: r.description,
+        discountType: r.discountType,
+        bookings: Number(r.bookingCount),
+        grossRevenue,
+        totalDiscount,
+        netRevenue,
+        roi,
+      };
+    });
   } catch (err) {
     Sentry.captureException(err);
     throw err;

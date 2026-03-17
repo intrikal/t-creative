@@ -6,6 +6,7 @@ import { ClientsSection } from "./sections/ClientsSection";
 import { KpiSection } from "./sections/KpiSection";
 import { OperationalSection } from "./sections/OperationalSection";
 import { PeakTimesSectionWrapper } from "./sections/PeakTimesSectionWrapper";
+import { PromotionRoiSectionWrapper } from "./sections/PromotionRoiSectionWrapper";
 import { RetentionSectionWrapper } from "./sections/RetentionSectionWrapper";
 import { RevenueByServiceSectionWrapper } from "./sections/RevenueByServiceSectionWrapper";
 import { RevenueSectionWrapper } from "./sections/RevenueSectionWrapper";
@@ -26,6 +27,7 @@ export default function Page() {
       <VisitFrequencySectionWrapper />
       <AppointmentGapSectionWrapper />
       <ClientsSection />
+      <PromotionRoiSectionWrapper />
       <PeakTimesSectionWrapper />
     </AnalyticsShell>
   );

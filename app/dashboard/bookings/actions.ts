@@ -28,7 +28,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { eq, desc, ne, and, sql } from "drizzle-orm";
+import { eq, desc, ne, and, sql, inArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type { MediaCategory } from "@/app/dashboard/media/actions";
 import { db } from "@/db";
@@ -111,6 +111,38 @@ async function getUser() {
   } = await supabase.auth.getUser();
   if (!user) throw new Error("Not authenticated");
   return user;
+}
+
+/**
+ * Checks whether a staff member already has a confirmed/in_progress booking
+ * that overlaps with the given time range. Returns true if a conflict exists.
+ */
+async function hasOverlappingBooking(
+  staffId: string,
+  startsAt: Date,
+  durationMinutes: number,
+  excludeBookingId?: number,
+): Promise<boolean> {
+  const endsAt = new Date(startsAt.getTime() + durationMinutes * 60_000);
+
+  const conditions = [
+    eq(bookings.staffId, staffId),
+    inArray(bookings.status, ["confirmed", "in_progress"]),
+    sql`${bookings.startsAt} < ${endsAt}`,
+    sql`${bookings.startsAt} + (${bookings.durationMinutes} || ' minutes')::interval > ${startsAt}`,
+  ];
+
+  if (excludeBookingId !== undefined) {
+    conditions.push(ne(bookings.id, excludeBookingId));
+  }
+
+  const conflicts = await db
+    .select({ id: bookings.id })
+    .from(bookings)
+    .where(and(...conditions))
+    .limit(1);
+
+  return conflicts.length > 0;
 }
 
 export async function getBookings(): Promise<BookingRow[]> {
@@ -240,6 +272,17 @@ export async function updateBookingStatus(
 export async function createBooking(input: BookingInput): Promise<void> {
   const user = await getUser();
 
+  if (input.staffId) {
+    const conflict = await hasOverlappingBooking(
+      input.staffId,
+      input.startsAt,
+      input.durationMinutes,
+    );
+    if (conflict) {
+      throw new Error("This staff member already has a booking during that time slot");
+    }
+  }
+
   const [newBooking] = await db
     .insert(bookings)
     .values({
@@ -334,6 +377,18 @@ export async function updateBooking(
   input: BookingInput & { status: BookingStatus },
 ): Promise<void> {
   const user = await getUser();
+
+  if (input.staffId && input.status !== "cancelled" && input.status !== "no_show") {
+    const conflict = await hasOverlappingBooking(
+      input.staffId,
+      input.startsAt,
+      input.durationMinutes,
+      id,
+    );
+    if (conflict) {
+      throw new Error("This staff member already has a booking during that time slot");
+    }
+  }
 
   // Fetch old booking time to detect reschedule
   const [oldBooking] = await db

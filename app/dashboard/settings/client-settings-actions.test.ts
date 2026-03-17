@@ -26,10 +26,12 @@ function makeChain(rows: unknown[] = []) {
 
 const mockGetUser = vi.fn();
 const mockTrackEvent = vi.fn();
+const mockLogAction = vi.fn().mockResolvedValue(undefined);
 const mockSyncCampaignsSubscriber = vi.fn();
 const mockUnsubscribeFromCampaigns = vi.fn();
 const mockRevalidatePath = vi.fn();
 const mockSignOut = vi.fn().mockResolvedValue(undefined);
+const mockAdminDeleteUser = vi.fn().mockResolvedValue({ data: {}, error: null });
 
 function setupMocks(db: Record<string, unknown> | null = null) {
   const defaultDb = {
@@ -45,40 +47,21 @@ function setupMocks(db: Record<string, unknown> | null = null) {
   };
 
   vi.doMock("@/db", () => ({ db: db ?? defaultDb }));
+  const tableMock = (name: string) =>
+    new Proxy({} as Record<string, string>, {
+      get: (_t, prop: string) => prop,
+    });
   vi.doMock("@/db/schema", () => ({
-    profiles: {
-      id: "id",
-      firstName: "firstName",
-      lastName: "lastName",
-      email: "email",
-      phone: "phone",
-      onboardingData: "onboardingData",
-      notifySms: "notifySms",
-      notifyEmail: "notifyEmail",
-      notifyMarketing: "notifyMarketing",
-      isVip: "isVip",
-      source: "source",
-      tags: "tags",
-      isActive: "isActive",
-    },
-    clientPreferences: {
-      profileId: "profileId",
-      preferredLashStyle: "preferredLashStyle",
-      preferredCurlType: "preferredCurlType",
-      preferredLengths: "preferredLengths",
-      preferredDiameter: "preferredDiameter",
-      naturalLashNotes: "naturalLashNotes",
-      retentionProfile: "retentionProfile",
-      allergies: "allergies",
-      skinType: "skinType",
-      adhesiveSensitivity: "adhesiveSensitivity",
-      healthNotes: "healthNotes",
-      birthday: "birthday",
-      preferredContactMethod: "preferredContactMethod",
-      preferredServiceTypes: "preferredServiceTypes",
-      generalNotes: "generalNotes",
-      preferredRebookIntervalDays: "preferredRebookIntervalDays",
-    },
+    profiles: tableMock("profiles"),
+    clientPreferences: tableMock("clientPreferences"),
+    formSubmissions: tableMock("formSubmissions"),
+    loyaltyTransactions: tableMock("loyaltyTransactions"),
+    notifications: tableMock("notifications"),
+    reviews: tableMock("reviews"),
+    serviceRecords: tableMock("serviceRecords"),
+    threads: tableMock("threads"),
+    waitlist: tableMock("waitlist"),
+    wishlistItems: tableMock("wishlistItems"),
   }));
   vi.doMock("drizzle-orm", () => ({
     eq: vi.fn((...args: unknown[]) => ({ type: "eq", args })),
@@ -92,6 +75,12 @@ function setupMocks(db: Record<string, unknown> | null = null) {
         getUser: mockGetUser,
         signOut: mockSignOut,
       },
+    })),
+  }));
+  vi.doMock("@/lib/audit", () => ({ logAction: mockLogAction }));
+  vi.doMock("@supabase/supabase-js", () => ({
+    createClient: vi.fn(() => ({
+      auth: { admin: { deleteUser: mockAdminDeleteUser } },
     })),
   }));
   vi.doMock("@/lib/posthog", () => ({ trackEvent: mockTrackEvent }));
@@ -515,7 +504,7 @@ describe("client-settings-actions", () => {
     });
   });
 
-  /* ---- deleteClientAccount ---- */
+  /* ---- deleteClientAccount (CCPA-compliant) ---- */
 
   describe("deleteClientAccount", () => {
     it("throws when user is not authenticated", async () => {
@@ -526,8 +515,9 @@ describe("client-settings-actions", () => {
       await expect(deleteClientAccount()).rejects.toThrow("Not authenticated");
     });
 
-    it("deactivates profile (soft delete)", async () => {
+    it("deletes cascade-eligible records and anonymizes profile", async () => {
       vi.resetModules();
+      const mockDeleteWhere = vi.fn();
       const mockUpdateSet = vi.fn(() => ({ where: vi.fn() }));
       setupMocks({
         select: vi.fn(() => makeChain([])),
@@ -535,16 +525,66 @@ describe("client-settings-actions", () => {
           values: vi.fn(() => ({ onConflictDoUpdate: vi.fn().mockResolvedValue(undefined) })),
         })),
         update: vi.fn(() => ({ set: mockUpdateSet })),
-        delete: vi.fn(() => ({ where: vi.fn() })),
+        delete: vi.fn(() => ({ where: mockDeleteWhere })),
       });
+      // Set env for service role
+      process.env.SUPABASE_SERVICE_ROLE_KEY = "test-key";
+      process.env.NEXT_PUBLIC_SUPABASE_URL = "https://test.supabase.co";
+
       const { deleteClientAccount } = await import("./client-settings-actions");
       await deleteClientAccount();
-      expect(mockUpdateSet).toHaveBeenCalledWith({ isActive: false });
+
+      // Should have called delete 9 times (one per cascade-eligible table)
+      expect(mockDeleteWhere).toHaveBeenCalledTimes(9);
+
+      // Should anonymize profile with "Deleted User" and isActive: false
+      expect(mockUpdateSet).toHaveBeenCalledWith(
+        expect.objectContaining({
+          firstName: "Deleted",
+          lastName: "User",
+          phone: null,
+          isActive: false,
+          onboardingData: null,
+          notifySms: false,
+          notifyEmail: false,
+          notifyMarketing: false,
+        }),
+      );
     });
 
-    it("calls supabase signOut after deactivating profile", async () => {
+    it("logs deletion to audit trail", async () => {
       vi.resetModules();
       setupMocks();
+      process.env.SUPABASE_SERVICE_ROLE_KEY = "test-key";
+      process.env.NEXT_PUBLIC_SUPABASE_URL = "https://test.supabase.co";
+
+      const { deleteClientAccount } = await import("./client-settings-actions");
+      await deleteClientAccount();
+      expect(mockLogAction).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: "delete",
+          entityType: "client_account",
+          entityId: "user-1",
+        }),
+      );
+    });
+
+    it("deletes Supabase auth user when service role key is available", async () => {
+      vi.resetModules();
+      setupMocks();
+      process.env.SUPABASE_SERVICE_ROLE_KEY = "test-key";
+      process.env.NEXT_PUBLIC_SUPABASE_URL = "https://test.supabase.co";
+
+      const { deleteClientAccount } = await import("./client-settings-actions");
+      await deleteClientAccount();
+      expect(mockAdminDeleteUser).toHaveBeenCalledWith("user-1");
+    });
+
+    it("falls back to signOut when service role key is missing", async () => {
+      vi.resetModules();
+      setupMocks();
+      delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+
       const { deleteClientAccount } = await import("./client-settings-actions");
       await deleteClientAccount();
       expect(mockSignOut).toHaveBeenCalled();
@@ -553,6 +593,9 @@ describe("client-settings-actions", () => {
     it("fires trackEvent with account_deleted", async () => {
       vi.resetModules();
       setupMocks();
+      process.env.SUPABASE_SERVICE_ROLE_KEY = "test-key";
+      process.env.NEXT_PUBLIC_SUPABASE_URL = "https://test.supabase.co";
+
       const { deleteClientAccount } = await import("./client-settings-actions");
       await deleteClientAccount();
       expect(mockTrackEvent).toHaveBeenCalledWith("user-1", "account_deleted");

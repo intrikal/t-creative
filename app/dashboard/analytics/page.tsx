@@ -9,6 +9,7 @@ import { RetentionSectionWrapper } from "./sections/RetentionSectionWrapper";
 import { RevenueByServiceSectionWrapper } from "./sections/RevenueByServiceSectionWrapper";
 import { RevenueSectionWrapper } from "./sections/RevenueSectionWrapper";
 import { StaffSection } from "./sections/StaffSection";
+import { VisitFrequencySectionWrapper } from "./sections/VisitFrequencySectionWrapper";
 
 export default function Page() {
   return (
@@ -20,6 +21,7 @@ export default function Page() {
       <StaffSection />
       <OperationalSection />
       <RetentionSectionWrapper />
+      <VisitFrequencySectionWrapper />
       <AppointmentGapSectionWrapper />
       <ClientsSection />
       <PeakTimesSectionWrapper />

@@ -185,6 +185,16 @@ export {
   type LoyaltyTxType,
 } from "./loyalty";
 
+/* Loyalty rewards catalog & redemptions */
+export {
+  loyaltyRewardCategoryEnum,
+  loyaltyRedemptionStatusEnum,
+  loyaltyRewards,
+  loyaltyRedemptions,
+  loyaltyRewardsRelations,
+  loyaltyRedemptionsRelations,
+} from "./loyalty-rewards";
+
 /* Integrations (Square + Zoho sync) */
 export {
   integrationProviderEnum,

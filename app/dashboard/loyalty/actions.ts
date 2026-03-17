@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import * as Sentry from "@sentry/nextjs";
-import { and, eq, or, sum, desc, count } from "drizzle-orm";
+import { and, asc, eq, or, sum, desc, count } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import {
@@ -10,6 +10,8 @@ import {
   membershipSubscriptions,
   profiles,
   loyaltyTransactions,
+  loyaltyRewards,
+  loyaltyRedemptions,
 } from "@/db/schema";
 import { createClient } from "@/utils/supabase/server";
 
@@ -49,6 +51,24 @@ export type ClientMembershipData = {
   perks: string[];
 };
 
+export type ClientReward = {
+  id: number;
+  label: string;
+  pointsCost: number;
+  discountInCents: number | null;
+  category: string;
+  description: string | null;
+};
+
+export type PendingRedemption = {
+  id: string;
+  rewardLabel: string;
+  rewardCategory: string;
+  pointsCost: number;
+  discountInCents: number | null;
+  createdAt: string;
+};
+
 export type LoyaltyPageData = {
   firstName: string;
   totalPoints: number;
@@ -56,6 +76,8 @@ export type LoyaltyPageData = {
   referralCount: number;
   transactions: LoyaltyTransaction[];
   membership: ClientMembershipData | null;
+  rewards: ClientReward[];
+  pendingRedemptions: PendingRedemption[];
 };
 
 /* ------------------------------------------------------------------ */
@@ -67,17 +89,23 @@ export type LoyaltyPageData = {
 /* ------------------------------------------------------------------ */
 
 const RedeemPointsSchema = z.object({
-  label: z.string().min(1),
-  points: z.number().int().positive(),
+  rewardId: z.number().int().positive(),
 });
 
-export async function redeemPoints(reward: { label: string; points: number }): Promise<void> {
+export async function redeemPoints(input: { rewardId: number }): Promise<void> {
   try {
-    RedeemPointsSchema.parse(reward);
+    RedeemPointsSchema.parse(input);
 
     const user = await getUser();
 
-    if (reward.points <= 0) throw new Error("Invalid reward");
+    // Fetch the reward to validate it exists and is active
+    const [reward] = await db
+      .select()
+      .from(loyaltyRewards)
+      .where(and(eq(loyaltyRewards.id, input.rewardId), eq(loyaltyRewards.active, true)))
+      .limit(1);
+
+    if (!reward) throw new Error("Reward not found or no longer available");
 
     // Re-query balance server-side to prevent races
     const [pointsRow] = await db
@@ -87,16 +115,86 @@ export async function redeemPoints(reward: { label: string; points: number }): P
 
     const currentPoints = Number(pointsRow?.total ?? 0);
 
-    if (currentPoints < reward.points) {
+    if (currentPoints < reward.pointsCost) {
       throw new Error("Not enough points to redeem this reward");
     }
 
+    // Insert the loyalty transaction (negative points)
+    const [tx] = await db
+      .insert(loyaltyTransactions)
+      .values({
+        profileId: user.id,
+        points: -reward.pointsCost,
+        type: "redeemed",
+        description: `Redeemed: ${reward.label}`,
+      })
+      .returning({ id: loyaltyTransactions.id });
+
+    // Create the redemption record (pending until applied to a booking)
+    await db.insert(loyaltyRedemptions).values({
+      profileId: user.id,
+      rewardId: reward.id,
+      transactionId: tx.id,
+      status: "pending",
+    });
+
+    revalidatePath("/dashboard/loyalty");
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
+}
+
+/**
+ * Cancel a pending redemption and refund the points.
+ */
+export async function cancelRedemption(redemptionId: string): Promise<void> {
+  try {
+    z.string().uuid().parse(redemptionId);
+    const user = await getUser();
+
+    // Fetch redemption and verify ownership
+    const [redemption] = await db
+      .select({
+        id: loyaltyRedemptions.id,
+        profileId: loyaltyRedemptions.profileId,
+        rewardId: loyaltyRedemptions.rewardId,
+        status: loyaltyRedemptions.status,
+      })
+      .from(loyaltyRedemptions)
+      .where(
+        and(
+          eq(loyaltyRedemptions.id, redemptionId),
+          eq(loyaltyRedemptions.profileId, user.id),
+          eq(loyaltyRedemptions.status, "pending"),
+        ),
+      )
+      .limit(1);
+
+    if (!redemption) throw new Error("Redemption not found or already applied");
+
+    // Get the reward to know how many points to refund
+    const [reward] = await db
+      .select({ pointsCost: loyaltyRewards.pointsCost, label: loyaltyRewards.label })
+      .from(loyaltyRewards)
+      .where(eq(loyaltyRewards.id, redemption.rewardId))
+      .limit(1);
+
+    if (!reward) throw new Error("Reward not found");
+
+    // Refund points
     await db.insert(loyaltyTransactions).values({
       profileId: user.id,
-      points: -reward.points,
-      type: "redeemed",
-      description: `Redeemed: ${reward.label}`,
+      points: reward.pointsCost,
+      type: "manual_credit",
+      description: `Cancelled: ${reward.label} (points refunded)`,
     });
+
+    // Update redemption status
+    await db
+      .update(loyaltyRedemptions)
+      .set({ status: "cancelled" })
+      .where(eq(loyaltyRedemptions.id, redemptionId));
 
     revalidatePath("/dashboard/loyalty");
   } catch (err) {
@@ -197,12 +295,56 @@ export async function getClientLoyaltyData(): Promise<LoyaltyPageData> {
         }
       : null;
 
+    // Active rewards catalog
+    const rewardRows = await db
+      .select({
+        id: loyaltyRewards.id,
+        label: loyaltyRewards.label,
+        pointsCost: loyaltyRewards.pointsCost,
+        discountInCents: loyaltyRewards.discountInCents,
+        category: loyaltyRewards.category,
+        description: loyaltyRewards.description,
+      })
+      .from(loyaltyRewards)
+      .where(eq(loyaltyRewards.active, true))
+      .orderBy(asc(loyaltyRewards.sortOrder), asc(loyaltyRewards.pointsCost));
+
+    // Pending redemptions for this client
+    const pendingRows = await db
+      .select({
+        id: loyaltyRedemptions.id,
+        rewardLabel: loyaltyRewards.label,
+        rewardCategory: loyaltyRewards.category,
+        pointsCost: loyaltyRewards.pointsCost,
+        discountInCents: loyaltyRewards.discountInCents,
+        createdAt: loyaltyRedemptions.createdAt,
+      })
+      .from(loyaltyRedemptions)
+      .innerJoin(loyaltyRewards, eq(loyaltyRedemptions.rewardId, loyaltyRewards.id))
+      .where(
+        and(eq(loyaltyRedemptions.profileId, user.id), eq(loyaltyRedemptions.status, "pending")),
+      )
+      .orderBy(desc(loyaltyRedemptions.createdAt));
+
     return {
       firstName: profileRow?.firstName ?? "",
       totalPoints,
       referralCode: profileRow?.referralCode ?? "",
       referralCount,
       membership,
+      rewards: rewardRows,
+      pendingRedemptions: pendingRows.map((r) => ({
+        id: r.id,
+        rewardLabel: r.rewardLabel,
+        rewardCategory: r.rewardCategory,
+        pointsCost: r.pointsCost,
+        discountInCents: r.discountInCents,
+        createdAt: new Date(r.createdAt).toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        }),
+      })),
       transactions: txRows.map((tx) => ({
         id: tx.id,
         points: tx.points,

@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { getClients, getClientLoyalty, getAssistantClients } from "./actions";
 import { AssistantClientsPage } from "./AssistantClientsPage";
 import { ClientsPage } from "./ClientsPage";
+import { getLoyaltyRewards } from "./loyalty-rewards-actions";
 
 export const metadata: Metadata = {
   title: "Clients — T Creative Studio",
@@ -20,13 +21,18 @@ export default async function Page() {
     return <AssistantClientsPage initialClients={clients} stats={stats} />;
   }
 
-  const [clientsResult, initialLoyalty] = await Promise.all([getClients(), getClientLoyalty()]);
+  const [clientsResult, initialLoyalty, initialRewards] = await Promise.all([
+    getClients(),
+    getClientLoyalty(),
+    getLoyaltyRewards(),
+  ]);
 
   return (
     <ClientsPage
       initialClients={clientsResult.rows}
       initialHasMore={clientsResult.hasMore}
       initialLoyalty={initialLoyalty}
+      initialRewards={initialRewards}
     />
   );
 }

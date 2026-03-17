@@ -20,6 +20,8 @@ import { Dialog, Field, Input, Textarea, DialogFooter } from "@/components/ui/di
 import { cn } from "@/lib/utils";
 import { issueLoyaltyReward } from "../actions";
 import { type LoyaltyEntry, TIER_CONFIG, getTier, avatarColor, initials } from "../ClientsPage";
+import type { LoyaltyRewardRow } from "../loyalty-rewards-actions";
+import { RewardsCatalogPanel } from "./RewardsCatalogPanel";
 
 /* ------------------------------------------------------------------ */
 /*  Tier perks config                                                   */
@@ -225,7 +227,13 @@ function IssueRewardDialog({
 /*  LoyaltyTab                                                          */
 /* ------------------------------------------------------------------ */
 
-export function LoyaltyTab({ initialLoyalty }: { initialLoyalty: LoyaltyEntry[] }) {
+export function LoyaltyTab({
+  initialLoyalty,
+  initialRewards = [],
+}: {
+  initialLoyalty: LoyaltyEntry[];
+  initialRewards?: LoyaltyRewardRow[];
+}) {
   const [loyaltyData, setLoyaltyData] = useState<LoyaltyEntry[]>(initialLoyalty);
   const [showPerks, setShowPerks] = useState(false);
   const [issueTarget, setIssueTarget] = useState<LoyaltyEntry | null>(null);
@@ -474,6 +482,9 @@ export function LoyaltyTab({ initialLoyalty }: { initialLoyalty: LoyaltyEntry[] 
           </table>
         </div>
       </div>
+
+      {/* Rewards catalog */}
+      <RewardsCatalogPanel initialRewards={initialRewards} />
 
       {/* Issue reward dialog */}
       {issueTarget && (

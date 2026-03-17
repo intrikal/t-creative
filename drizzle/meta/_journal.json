@@ -183,6 +183,13 @@
       "when": 1773710370390,
       "tag": "0025_wandering_bullseye",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1773726089376,
+      "tag": "0026_loyalty-rewards",
+      "breakpoints": true
     }
   ]
 }

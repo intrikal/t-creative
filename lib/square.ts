@@ -281,3 +281,105 @@ export async function createSquareOrderPaymentLink(params: {
     throw err;
   }
 }
+
+/* ------------------------------------------------------------------ */
+/*  Customers API — Card on file                                       */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Retrieves the first stored card ID for a Square customer. Returns null
+ * if no cards are on file or Square is not configured.
+ */
+export async function getSquareCardOnFile(squareCustomerId: string): Promise<string | null> {
+  if (!isSquareConfigured()) return null;
+
+  try {
+    const response = await squareClient.cards.list({ customerId: squareCustomerId });
+    const cards = response.data ?? [];
+    const enabledCard = cards.find((c) => c.enabled);
+    return enabledCard?.id ?? null;
+  } catch (err) {
+    Sentry.captureException(err);
+    return null;
+  }
+}
+
+/**
+ * Charges a client's card on file for a no-show or late cancellation fee.
+ *
+ * Creates an order labelled as a fee, then charges the stored card against
+ * it. Returns payment details on success, or null if the charge fails
+ * (caller should fall back to creating an invoice).
+ */
+export async function chargeCardOnFile(params: {
+  bookingId: number;
+  squareCustomerId: string;
+  cardId: string;
+  amountInCents: number;
+  feeType: "no_show" | "late_cancellation";
+  serviceName: string;
+}): Promise<{ paymentId: string; orderId: string; receiptUrl: string | null } | null> {
+  if (!isSquareConfigured()) return null;
+
+  const label =
+    params.feeType === "no_show"
+      ? `No-Show Fee — ${params.serviceName}`
+      : `Late Cancellation Fee — ${params.serviceName}`;
+
+  const idempotencyKey = crypto.randomUUID();
+
+  try {
+    // 1. Create an order for the fee
+    const orderResponse = await squareClient.orders.create({
+      order: {
+        locationId: SQUARE_LOCATION_ID,
+        referenceId: String(params.bookingId),
+        lineItems: [
+          {
+            name: label,
+            quantity: "1",
+            basePriceMoney: {
+              amount: BigInt(params.amountInCents),
+              currency: "USD",
+            },
+          },
+        ],
+        metadata: {
+          bookingId: String(params.bookingId),
+          paymentType: params.feeType,
+        },
+      },
+      idempotencyKey: `${idempotencyKey}-order`,
+    });
+
+    const orderId = orderResponse.order?.id;
+    if (!orderId) throw new Error("Square order creation failed for fee");
+
+    // 2. Charge the stored card
+    const paymentResponse = await squareClient.payments.create({
+      sourceId: params.cardId,
+      amountMoney: {
+        amount: BigInt(params.amountInCents),
+        currency: "USD",
+      },
+      customerId: params.squareCustomerId,
+      orderId,
+      locationId: SQUARE_LOCATION_ID,
+      idempotencyKey,
+      note: `Booking #${params.bookingId} (${params.feeType.replace("_", " ")})`,
+      autocomplete: true,
+    });
+
+    const payment = paymentResponse.payment;
+    if (!payment?.id) throw new Error("Square fee payment creation failed");
+
+    return {
+      paymentId: payment.id,
+      orderId,
+      receiptUrl: payment.receiptUrl ?? null,
+    };
+  } catch (err) {
+    Sentry.captureException(err);
+    return null;
+  }
+}

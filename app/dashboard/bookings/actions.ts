@@ -33,13 +33,16 @@ import { eq, desc, ne, and, sql, inArray, isNull } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { z } from "zod";
 import type { MediaCategory } from "@/app/dashboard/media/actions";
+import { getPolicies } from "@/app/dashboard/settings/settings-actions";
 import { db } from "@/db";
 import {
   bookings,
   bookingSubscriptions,
   clientPreferences,
+  invoices,
   mediaItems,
   notifications,
+  payments,
   profiles,
   services,
   serviceRecords,
@@ -51,13 +54,21 @@ import { BookingCompleted } from "@/emails/BookingCompleted";
 import { BookingConfirmation } from "@/emails/BookingConfirmation";
 import { BookingNoShow } from "@/emails/BookingNoShow";
 import { BookingReschedule } from "@/emails/BookingReschedule";
+import { NoShowFeeCharged } from "@/emails/NoShowFeeCharged";
+import { NoShowFeeInvoice } from "@/emails/NoShowFeeInvoice";
 import { PaymentLinkEmail } from "@/emails/PaymentLinkEmail";
 import { RecurringBookingConfirmation } from "@/emails/RecurringBookingConfirmation";
 import { WaitlistNotification } from "@/emails/WaitlistNotification";
 import { logAction } from "@/lib/audit";
 import { trackEvent } from "@/lib/posthog";
 import { sendEmail } from "@/lib/resend";
-import { isSquareConfigured, createSquareOrder, createSquarePaymentLink } from "@/lib/square";
+import {
+  isSquareConfigured,
+  createSquareOrder,
+  createSquarePaymentLink,
+  getSquareCardOnFile,
+  chargeCardOnFile,
+} from "@/lib/square";
 import { sendSms } from "@/lib/twilio";
 import { notifyWaitlistForCancelledBooking } from "@/lib/waitlist-notify";
 import { createZohoDeal, updateZohoDeal } from "@/lib/zoho";
@@ -263,6 +274,7 @@ export async function updateBookingStatus(
     }
 
     if (status === "cancelled") {
+      await tryEnforceLateCancelFee(id);
       await trySendBookingStatusEmail(id, "cancelled", cancellationReason);
       await tryNotifyWaitlist(id);
     }
@@ -273,6 +285,7 @@ export async function updateBookingStatus(
     }
 
     if (status === "no_show") {
+      await tryEnforceNoShowFee(id);
       await trySendBookingStatusEmail(id, "no_show");
     }
 
@@ -1230,6 +1243,231 @@ async function trySendBookingStatusEmail(
     }
   } catch {
     // Non-fatal
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  No-show / late-cancellation fee enforcement                        */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Core fee enforcement logic shared by no-show and late-cancel flows.
+ *
+ * 1. Looks up the booking, client, service, and fee settings.
+ * 2. Calculates the fee amount (percentage of booking total).
+ * 3. If the client has a card on file via Square, charges it immediately
+ *    and records a payment + sends a receipt email.
+ * 4. If no card on file, creates an invoice for the fee amount and sends
+ *    the client an invoice email.
+ *
+ * Errors are caught and logged — fee enforcement is non-fatal so it never
+ * blocks the status change.
+ */
+async function tryEnforceFee(
+  bookingId: number,
+  feeType: "no_show" | "late_cancellation",
+): Promise<void> {
+  try {
+    const policies = await getPolicies();
+    const feePercent =
+      feeType === "no_show" ? policies.noShowFeePercent : policies.lateCancelFeePercent;
+
+    if (feePercent <= 0) return;
+
+    const feeClient = alias(profiles, "feeClient");
+    const [row] = await db
+      .select({
+        clientId: bookings.clientId,
+        clientEmail: feeClient.email,
+        clientFirstName: feeClient.firstName,
+        notifyEmail: feeClient.notifyEmail,
+        squareCustomerId: feeClient.squareCustomerId,
+        serviceName: services.name,
+        totalInCents: bookings.totalInCents,
+        startsAt: bookings.startsAt,
+      })
+      .from(bookings)
+      .innerJoin(feeClient, eq(bookings.clientId, feeClient.id))
+      .innerJoin(services, eq(bookings.serviceId, services.id))
+      .where(and(eq(bookings.id, bookingId), isNull(bookings.deletedAt)));
+
+    if (!row) return;
+
+    const feeAmountInCents = Math.round((row.totalInCents * feePercent) / 100);
+    if (feeAmountInCents <= 0) return;
+
+    const dateFormatted = row.startsAt.toLocaleDateString("en-US", {
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+
+    const feeLabel = feeType === "no_show" ? "no-show" : "late cancellation";
+
+    // Try to charge card on file
+    let charged = false;
+    if (isSquareConfigured() && row.squareCustomerId) {
+      const cardId = await getSquareCardOnFile(row.squareCustomerId);
+      if (cardId) {
+        const result = await chargeCardOnFile({
+          bookingId,
+          squareCustomerId: row.squareCustomerId,
+          cardId,
+          amountInCents: feeAmountInCents,
+          feeType,
+          serviceName: row.serviceName,
+        });
+
+        if (result) {
+          charged = true;
+
+          // Record the payment locally
+          await db.insert(payments).values({
+            bookingId,
+            clientId: row.clientId,
+            status: "paid",
+            method: "square_card",
+            amountInCents: feeAmountInCents,
+            squarePaymentId: result.paymentId,
+            squareOrderId: result.orderId,
+            squareReceiptUrl: result.receiptUrl,
+            notes: `${feeType === "no_show" ? "No-show" : "Late cancellation"} fee (${feePercent}% of ${row.totalInCents}¢)`,
+            paidAt: new Date(),
+          });
+
+          // Send receipt email
+          if (row.clientEmail && row.notifyEmail) {
+            await sendEmail({
+              to: row.clientEmail,
+              subject: `${feeType === "no_show" ? "No-show" : "Late cancellation"} fee charged — ${row.serviceName} — T Creative`,
+              react: NoShowFeeCharged({
+                clientName: row.clientFirstName,
+                serviceName: row.serviceName,
+                bookingDate: dateFormatted,
+                feeAmountInCents,
+                feeType,
+                receiptUrl: result.receiptUrl ?? undefined,
+              }),
+              entityType: `${feeType}_fee_charged`,
+              localId: String(bookingId),
+            });
+          }
+
+          await logAction({
+            actorId: "system",
+            action: "create",
+            entityType: "payment",
+            entityId: String(bookingId),
+            description: `Charged ${feeLabel} fee of ${feeAmountInCents}¢ to card on file`,
+            metadata: {
+              feeType,
+              feePercent,
+              feeAmountInCents,
+              squarePaymentId: result.paymentId,
+            },
+          });
+        }
+      }
+    }
+
+    // Fallback: create an invoice if card charge failed or no card on file
+    if (!charged) {
+      const [lastInvoice] = await db
+        .select({ number: invoices.number })
+        .from(invoices)
+        .orderBy(desc(invoices.id))
+        .limit(1);
+
+      const nextNum = lastInvoice
+        ? String(parseInt(lastInvoice.number.replace("INV-", ""), 10) + 1).padStart(3, "0")
+        : "001";
+
+      const dueDate = new Date();
+      dueDate.setDate(dueDate.getDate() + 7);
+
+      await db.insert(invoices).values({
+        clientId: row.clientId,
+        number: `INV-${nextNum}`,
+        description: `${feeType === "no_show" ? "No-show" : "Late cancellation"} fee — ${row.serviceName} (${dateFormatted})`,
+        amountInCents: feeAmountInCents,
+        status: "sent",
+        issuedAt: new Date(),
+        dueAt: dueDate,
+        notes: `Auto-generated: ${feeLabel} fee (${feePercent}% of booking total) for booking #${bookingId}`,
+      });
+
+      // Send invoice email
+      if (row.clientEmail && row.notifyEmail) {
+        await sendEmail({
+          to: row.clientEmail,
+          subject: `${feeType === "no_show" ? "No-show" : "Late cancellation"} fee invoice — ${row.serviceName} — T Creative`,
+          react: NoShowFeeInvoice({
+            clientName: row.clientFirstName,
+            serviceName: row.serviceName,
+            bookingDate: dateFormatted,
+            feeAmountInCents,
+            feeType,
+          }),
+          entityType: `${feeType}_fee_invoice`,
+          localId: String(bookingId),
+        });
+      }
+
+      await logAction({
+        actorId: "system",
+        action: "create",
+        entityType: "invoice",
+        entityId: String(bookingId),
+        description: `Created ${feeLabel} fee invoice for ${feeAmountInCents}¢ (no card on file)`,
+        metadata: { feeType, feePercent, feeAmountInCents },
+      });
+    }
+
+    trackEvent(bookingId.toString(), `${feeType}_fee_enforced`, {
+      bookingId,
+      feeAmountInCents,
+      feePercent,
+      charged,
+    });
+  } catch (err) {
+    Sentry.captureException(err);
+    // Non-fatal — fee enforcement failure should not block status change
+  }
+}
+
+/** Charges the configured no-show fee when a booking is marked as no_show. */
+async function tryEnforceNoShowFee(bookingId: number): Promise<void> {
+  await tryEnforceFee(bookingId, "no_show");
+}
+
+/**
+ * Charges the configured late cancellation fee when a booking is cancelled
+ * within the cancellation window. Skips if the cancellation is outside the
+ * window (client cancelled with enough notice).
+ */
+async function tryEnforceLateCancelFee(bookingId: number): Promise<void> {
+  try {
+    const policies = await getPolicies();
+    if (policies.lateCancelFeePercent <= 0 || policies.cancelWindowHours <= 0) return;
+
+    const [booking] = await db
+      .select({ startsAt: bookings.startsAt })
+      .from(bookings)
+      .where(and(eq(bookings.id, bookingId), isNull(bookings.deletedAt)));
+
+    if (!booking) return;
+
+    const hoursUntilStart = (booking.startsAt.getTime() - Date.now()) / (1000 * 60 * 60);
+
+    // Only charge if cancelled within the cancellation window
+    if (hoursUntilStart > policies.cancelWindowHours) return;
+
+    await tryEnforceFee(bookingId, "late_cancellation");
+  } catch (err) {
+    Sentry.captureException(err);
   }
 }
 

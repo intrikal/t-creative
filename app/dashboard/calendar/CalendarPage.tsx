@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useMemo, useOptimistic, useTransition } from "react";
 import {
   ChevronLeft,
   ChevronRight,
@@ -1430,7 +1429,18 @@ function AvailabilityTab({
   const [lunchSaving, setLunchSaving] = useState(false);
   const [lunchSaved, setLunchSaved] = useState(false);
 
-  const [blocked, setBlocked] = useState(initialTimeOff);
+  const [isBlockedPending, startBlockedTransition] = useTransition();
+  const [blocked, addBlockedOptimistic] = useOptimistic<
+    TimeOffRow[],
+    { type: "add"; row: TimeOffRow } | { type: "delete"; id: number }
+  >(initialTimeOff, (state, action) => {
+    switch (action.type) {
+      case "add":
+        return [...state, action.row];
+      case "delete":
+        return state.filter((b) => b.id !== action.id);
+    }
+  });
   const [showAddForm, setShowAddForm] = useState(false);
   const [addType, setAddType] = useState<"day_off" | "vacation">("day_off");
   const [addStart, setAddStart] = useState("");
@@ -1479,19 +1489,23 @@ function AvailabilityTab({
         endDate: addType === "day_off" ? addStart : addEnd || addStart,
         label: addLabel || undefined,
       });
-      setBlocked((prev) => [...prev, row]);
       setShowAddForm(false);
       setAddStart("");
       setAddEnd("");
       setAddLabel("");
+      startBlockedTransition(() => {
+        addBlockedOptimistic({ type: "add", row });
+      });
     } finally {
       setAdding(false);
     }
   }
 
   async function handleDeleteBlocked(id: number) {
-    await deleteTimeOff(id);
-    setBlocked((prev) => prev.filter((b) => b.id !== id));
+    startBlockedTransition(async () => {
+      addBlockedOptimistic({ type: "delete", id });
+      await deleteTimeOff(id);
+    });
   }
 
   return (
@@ -2110,19 +2124,28 @@ export function CalendarPage({
   lunchBreak: LunchBreak | null;
   events: EventRow[];
 }) {
-  const router = useRouter();
   const staffMembers = useMemo(() => staffOptions.map((s) => s.name), [staffOptions]);
 
-  const initialEvents = useMemo(() => {
+  const serverEvents = useMemo(() => {
     const active = initialBookings.filter(
       (b) => b.status !== "cancelled" && b.status !== "no_show",
     );
     return active.map(mapBookingToCalEvent);
   }, [initialBookings]);
 
+  const [isPending, startTransition] = useTransition();
+  const [events, addOptimistic] = useOptimistic<CalEvent[], { type: "delete"; id: string }>(
+    serverEvents,
+    (state, action) => {
+      switch (action.type) {
+        case "delete":
+          return state.filter((e) => e.id !== action.id);
+      }
+    },
+  );
+
   const [view, setView] = useState<View>("week");
   const [cursor, setCursor] = useState<Date>(() => parseDate(TODAY));
-  const [events, setEvents] = useState<CalEvent[]>(initialEvents);
   const [calPageTab, setCalPageTab] = useState<CalPageTab>("calendar");
 
   const [selectedEvent, setSelectedEvent] = useState<CalEvent | null>(null);
@@ -2162,47 +2185,51 @@ export function CalendarPage({
     const svc = serviceOptions.find((s) => s.id === f.serviceId);
     const totalInCents = svc ? svc.priceInCents : 0;
 
-    if (editTarget && editTarget.bookingId) {
-      await updateBooking(editTarget.bookingId, {
-        clientId: f.clientId,
-        serviceId: Number(f.serviceId),
-        staffId: f.staffId || null,
-        startsAt,
-        durationMinutes: f.durationMin,
-        totalInCents,
-        location: f.location || undefined,
-        clientNotes: f.notes || undefined,
-        status: editTarget.status as
-          | "confirmed"
-          | "pending"
-          | "completed"
-          | "in_progress"
-          | "cancelled"
-          | "no_show",
-      });
-      router.refresh();
-    } else if (f.serviceId && f.clientId) {
-      await createBooking({
-        clientId: f.clientId,
-        serviceId: Number(f.serviceId),
-        staffId: f.staffId || null,
-        startsAt,
-        durationMinutes: f.durationMin,
-        totalInCents,
-        location: f.location || undefined,
-        clientNotes: f.notes || undefined,
-      });
-      router.refresh();
-    }
     setFormOpen(false);
+    if (editTarget && editTarget.bookingId) {
+      startTransition(async () => {
+        await updateBooking(editTarget.bookingId!, {
+          clientId: f.clientId,
+          serviceId: Number(f.serviceId),
+          staffId: f.staffId || null,
+          startsAt,
+          durationMinutes: f.durationMin,
+          totalInCents,
+          location: f.location || undefined,
+          clientNotes: f.notes || undefined,
+          status: editTarget.status as
+            | "confirmed"
+            | "pending"
+            | "completed"
+            | "in_progress"
+            | "cancelled"
+            | "no_show",
+        });
+      });
+    } else if (f.serviceId && f.clientId) {
+      startTransition(async () => {
+        await createBooking({
+          clientId: f.clientId,
+          serviceId: Number(f.serviceId),
+          staffId: f.staffId || null,
+          startsAt,
+          durationMinutes: f.durationMin,
+          totalInCents,
+          location: f.location || undefined,
+          clientNotes: f.notes || undefined,
+        });
+      });
+    }
   };
 
   const handleDelete = async (ev: CalEvent) => {
-    if (ev.bookingId) {
-      await deleteBooking(ev.bookingId);
-    }
-    setEvents((prev) => prev.filter((e) => e.id !== ev.id));
     setSelectedEvent(null);
+    if (ev.bookingId) {
+      startTransition(async () => {
+        addOptimistic({ type: "delete", id: ev.id });
+        await deleteBooking(ev.bookingId!);
+      });
+    }
   };
 
   const handleSlotClick = (date: string, h: number, staff?: string) => {

@@ -56,7 +56,6 @@ export function NotificationsPage({
   function handleMarkAllRead() {
     startTransition(async () => {
       await markAllInboxRead();
-      router.refresh();
     });
   }
 
@@ -64,7 +63,6 @@ export function NotificationsPage({
     if (item.readAt !== null) return;
     startTransition(async () => {
       await markOneRead(id);
-      router.refresh();
     });
   }
 

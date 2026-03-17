@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import {
   ShoppingCart,
   X,
@@ -379,7 +378,6 @@ export function ClientShopPage({
   wishlistIds: number[];
   commissions: ClientCommission[];
 }) {
-  const router = useRouter();
   const [tab, setTab] = useState<"products" | "orders" | "saved" | "commissions">("products");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [savedIds, setSavedIds] = useState<Set<number>>(() => new Set(wishlistIds));
@@ -447,7 +445,6 @@ export function ClientShopPage({
           setOrderResult({ orderNumber: result.orderNumber! });
         }
 
-        router.refresh();
         setTimeout(() => setOrderResult(null), 10000);
       }
     });

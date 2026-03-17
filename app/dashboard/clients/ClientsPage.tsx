@@ -1,7 +1,6 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useOptimistic, useTransition } from "react";
 import { Search, Star, Plus, Users, TrendingUp, DollarSign } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -253,13 +252,22 @@ export function ClientsPage({
   initialClients: ClientRow[];
   initialLoyalty: LoyaltyRow[];
 }) {
-  const router = useRouter();
-
   const mappedClients = initialClients.map(mapClientRow);
   const totalSpentMap = new Map(mappedClients.map((c) => [c.id, c.totalSpent]));
   const mappedLoyalty = initialLoyalty.map((r) => mapLoyaltyRow(r, totalSpentMap));
 
-  const [clients, setClients] = useState<Client[]>(mappedClients);
+  const [isPending, startTransition] = useTransition();
+  const [clients, addOptimistic] = useOptimistic<
+    Client[],
+    { type: "update"; id: string; data: Partial<Client> } | { type: "delete"; id: string }
+  >(mappedClients, (state, action) => {
+    switch (action.type) {
+      case "update":
+        return state.map((c) => (c.id === action.id ? { ...c, ...action.data } : c));
+      case "delete":
+        return state.filter((c) => c.id !== action.id);
+    }
+  });
   const [search, setSearch] = useState("");
   const [sourceFilter, setSourceFilter] = useState("All");
   const [stageFilter, setStageFilter] = useState<LifecycleStage | "all">("all");
@@ -327,44 +335,46 @@ export function ClientsPage({
     };
 
     if (editTarget) {
-      await updateClient(editTarget.id, input);
       const name = [input.firstName, input.lastName].filter(Boolean).join(" ");
-      setClients((prev) =>
-        prev.map((c) =>
-          c.id === editTarget.id
-            ? {
-                ...c,
-                name,
-                initials: initials(name),
-                email: input.email,
-                phone: input.phone ?? "",
-                source: input.source ?? "website_direct",
-                vip: input.isVip,
-                lifecycleStage: input.lifecycleStage,
-                notes: input.internalNotes,
-                tags: input.tags,
-                services: input.tags
-                  ? (input.tags
-                      .split(",")
-                      .map((t) => t.trim().toLowerCase())
-                      .filter(Boolean) as ServiceCategory[])
-                  : [],
-              }
-            : c,
-        ),
-      );
+      const optimisticData: Partial<Client> = {
+        name,
+        initials: initials(name),
+        email: input.email,
+        phone: input.phone ?? "",
+        source: input.source ?? "website_direct",
+        vip: input.isVip,
+        lifecycleStage: input.lifecycleStage,
+        notes: input.internalNotes,
+        tags: input.tags,
+        services: input.tags
+          ? (input.tags
+              .split(",")
+              .map((t) => t.trim().toLowerCase())
+              .filter(Boolean) as ServiceCategory[])
+          : [],
+      };
+      const targetId = editTarget.id;
+      setFormOpen(false);
+      startTransition(async () => {
+        addOptimistic({ type: "update", id: targetId, data: optimisticData });
+        await updateClient(targetId, input);
+      });
     } else {
-      await createClient(input);
-      router.refresh();
+      setFormOpen(false);
+      startTransition(async () => {
+        await createClient(input);
+      });
     }
-    setFormOpen(false);
   };
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
-    await deleteClient(deleteTarget.id);
-    setClients((prev) => prev.filter((c) => c.id !== deleteTarget.id));
+    const targetId = deleteTarget.id;
     setDeleteTarget(null);
+    startTransition(async () => {
+      addOptimistic({ type: "delete", id: targetId });
+      await deleteClient(targetId);
+    });
   };
 
   return (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useOptimistic, useTransition } from "react";
 import { Star, Reply, X, Send, MessageSquare } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -47,7 +47,7 @@ function StarRow({ rating, max = 5 }: { rating: number; max?: number }) {
 }
 
 export function AssistantReviewsPage({ data }: { data: AssistantReviewsData }) {
-  const [reviews, setReviews] = useState<AssistantReviewRow[]>(data.reviews);
+  const [reviews, setReviews] = useOptimistic<AssistantReviewRow[]>(data.reviews);
   const [replyingTo, setReplyingTo] = useState<number | null>(null);
   const [replyDraft, setReplyDraft] = useState("");
   const [period, setPeriod] = useState<Period>("all");
@@ -83,16 +83,15 @@ export function AssistantReviewsPage({ data }: { data: AssistantReviewsData }) {
   function submitReply(id: number) {
     if (!replyDraft.trim()) return;
 
-    // Optimistic update
-    setReviews((prev) =>
-      prev.map((r) => (r.id === id ? { ...r, replied: true, replyText: replyDraft.trim() } : r)),
-    );
-    setReplyingTo(null);
-
     const draft = replyDraft.trim();
+    setReplyingTo(null);
     setReplyDraft("");
 
     startTransition(async () => {
+      // Optimistic update
+      setReviews((prev) =>
+        prev.map((r) => (r.id === id ? { ...r, replied: true, replyText: draft } : r)),
+      );
       await assistantSaveReply(id, draft);
     });
   }

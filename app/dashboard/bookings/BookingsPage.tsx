@@ -1,7 +1,6 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useOptimistic, useTransition } from "react";
 import { Search, Plus } from "lucide-react";
 import { PaymentChoiceDialog } from "@/components/booking/PaymentChoiceDialog";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -192,8 +191,18 @@ export function BookingsPage({
   staffOptions: { id: string; name: string }[];
   activeSubscriptions?: { id: number; clientId: string; name: string; sessionsRemaining: number }[];
 }) {
-  const router = useRouter();
-  const [bookings, setBookings] = useState<Booking[]>(() => initialBookings.map(mapBookingRow));
+  const [isPending, startTransition] = useTransition();
+  const [bookings, addOptimistic] = useOptimistic<
+    Booking[],
+    { type: "update_status"; id: number; status: BookingStatus } | { type: "delete"; id: number }
+  >(initialBookings.map(mapBookingRow), (state, action) => {
+    switch (action.type) {
+      case "update_status":
+        return state.map((b) => (b.id === action.id ? { ...b, status: action.status } : b));
+      case "delete":
+        return state.filter((b) => b.id !== action.id);
+    }
+  });
   const [pageTab, setPageTab] = useState<PageTab>("Bookings");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("All");
@@ -237,8 +246,10 @@ export function BookingsPage({
 
   async function handleQuickStatus(booking: Booking, status: BookingStatus) {
     setMenuOpen(null);
-    await updateBookingStatus(booking.id, status);
-    setBookings((prev) => prev.map((b) => (b.id === booking.id ? { ...b, status } : b)));
+    startTransition(async () => {
+      addOptimistic({ type: "update_status", id: booking.id, status });
+      await updateBookingStatus(booking.id, status);
+    });
 
     // Show payment choice dialog when confirming a booking
     if (status === "confirmed") {
@@ -254,14 +265,14 @@ export function BookingsPage({
 
   async function handleConfirmCancel() {
     if (!cancelTarget) return;
-    await updateBookingStatus(cancelTarget.id, "cancelled", cancelReason || undefined);
-    setBookings((prev) =>
-      prev.map((b) =>
-        b.id === cancelTarget.id ? { ...b, status: "cancelled" as BookingStatus } : b,
-      ),
-    );
+    const targetId = cancelTarget.id;
+    const reason = cancelReason || undefined;
     setCancelTarget(null);
     setCancelReason("");
+    startTransition(async () => {
+      addOptimistic({ type: "update_status", id: targetId, status: "cancelled" });
+      await updateBookingStatus(targetId, "cancelled", reason);
+    });
   }
 
   function openDeleteConfirm(booking: Booking) {
@@ -271,9 +282,12 @@ export function BookingsPage({
 
   async function handleConfirmDelete() {
     if (!deleteTarget) return;
-    await deleteBooking(deleteTarget.id);
-    setBookings((prev) => prev.filter((b) => b.id !== deleteTarget.id));
+    const targetId = deleteTarget.id;
     setDeleteTarget(null);
+    startTransition(async () => {
+      addOptimistic({ type: "delete", id: targetId });
+      await deleteBooking(targetId);
+    });
   }
 
   function buildFullRRule(baseFreq: string, endDate: string, maxOcc: string): string | undefined {
@@ -293,49 +307,53 @@ export function BookingsPage({
     if (editTarget) {
       if (!data.clientId || data.serviceId === "" || !data.date || !data.time) return;
       const startsAt = new Date(`${data.date}T${data.time}`);
-      await updateBooking(editTarget.id, {
-        clientId: data.clientId,
-        serviceId: Number(data.serviceId),
-        staffId: data.staffId || null,
-        startsAt,
-        durationMinutes: data.durationMin,
-        totalInCents: Math.round(data.price * 100),
-        location: data.location || undefined,
-        clientNotes: data.notes || undefined,
-        recurrenceRule,
-        status: data.status,
+      startTransition(async () => {
+        await updateBooking(editTarget.id, {
+          clientId: data.clientId,
+          serviceId: Number(data.serviceId),
+          staffId: data.staffId || null,
+          startsAt,
+          durationMinutes: data.durationMin,
+          totalInCents: Math.round(data.price * 100),
+          location: data.location || undefined,
+          clientNotes: data.notes || undefined,
+          recurrenceRule,
+          status: data.status,
+        });
       });
-      router.refresh();
     } else {
       if (!data.clientId || data.serviceId === "" || !data.date || !data.time) return;
       const startsAt = new Date(`${data.date}T${data.time}`);
-      await createBooking({
-        clientId: data.clientId,
-        serviceId: Number(data.serviceId),
-        staffId: data.staffId || null,
-        startsAt,
-        durationMinutes: data.durationMin,
-        totalInCents: Math.round(data.price * 100),
-        location: data.location || undefined,
-        clientNotes: data.notes || undefined,
-        recurrenceRule,
-        subscriptionId: data.subscriptionId !== "" ? Number(data.subscriptionId) : undefined,
-      } satisfies BookingInput);
-      router.refresh();
+      startTransition(async () => {
+        await createBooking({
+          clientId: data.clientId,
+          serviceId: Number(data.serviceId),
+          staffId: data.staffId || null,
+          startsAt,
+          durationMinutes: data.durationMin,
+          totalInCents: Math.round(data.price * 100),
+          location: data.location || undefined,
+          clientNotes: data.notes || undefined,
+          recurrenceRule,
+          subscriptionId: data.subscriptionId !== "" ? Number(data.subscriptionId) : undefined,
+        } satisfies BookingInput);
+      });
     }
   }
 
   async function handleCancelSeries(booking: Booking) {
     setMenuOpen(null);
-    await cancelBookingSeries(booking.id);
-    router.refresh();
+    startTransition(async () => {
+      addOptimistic({ type: "update_status", id: booking.id, status: "cancelled" });
+      await cancelBookingSeries(booking.id);
+    });
   }
 
   async function removeFromWaitlist(id: number) {
-    await updateBookingStatus(id, "cancelled");
-    setBookings((prev) =>
-      prev.map((b) => (b.id === id ? { ...b, status: "cancelled" as BookingStatus } : b)),
-    );
+    startTransition(async () => {
+      addOptimistic({ type: "update_status", id, status: "cancelled" });
+      await updateBookingStatus(id, "cancelled");
+    });
   }
 
   /* ---- Render ---- */

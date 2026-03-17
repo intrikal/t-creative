@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useOptimistic, useTransition } from "react";
 import {
   MapPin,
   Users,
@@ -1094,8 +1094,8 @@ export function EventsPage({
   initialEvents: EventRow[];
   initialVenues: VenueRow[];
 }) {
-  const [events, setEvents] = useState<EventRow[]>(initialEvents);
-  const [venues, setVenues] = useState<VenueRow[]>(initialVenues);
+  const [events, setEvents] = useOptimistic<EventRow[]>(initialEvents);
+  const [venues, setVenues] = useOptimistic<VenueRow[]>(initialVenues);
   const [filter, setFilter] = useState<"all" | EventType>("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<EventRow | null>(null);
@@ -1121,39 +1121,40 @@ export function EventsPage({
     const resolvedLocation = venue ? venue.name : (input.location ?? null);
 
     if (editingEvent) {
-      setEvents((prev) =>
-        prev.map((e) =>
-          e.id === editingEvent.id
-            ? {
-                ...e,
-                title: input.title,
-                eventType: input.eventType,
-                status: input.status,
-                startsAt: input.startsAt,
-                endsAt: input.endsAt ?? null,
-                venueId: input.venueId ?? null,
-                venueName: venue?.name ?? null,
-                location: resolvedLocation,
-                maxAttendees: input.maxAttendees ?? null,
-                expectedRevenueInCents: input.expectedRevenueInCents ?? null,
-                depositInCents: input.depositInCents ?? null,
-                travelFeeInCents: input.travelFeeInCents ?? null,
-                internalNotes: input.internalNotes ?? null,
-                equipmentNotes: input.equipmentNotes ?? null,
-                companyName: input.companyName ?? null,
-                billingEmail: input.billingEmail ?? null,
-                poNumber: input.poNumber ?? null,
-              }
-            : e,
-        ),
-      );
-      startTransition(() => updateEvent(editingEvent.id, input));
+      startTransition(async () => {
+        setEvents((prev) =>
+          prev.map((e) =>
+            e.id === editingEvent.id
+              ? {
+                  ...e,
+                  title: input.title,
+                  eventType: input.eventType,
+                  status: input.status,
+                  startsAt: input.startsAt,
+                  endsAt: input.endsAt ?? null,
+                  venueId: input.venueId ?? null,
+                  venueName: venue?.name ?? null,
+                  location: resolvedLocation,
+                  maxAttendees: input.maxAttendees ?? null,
+                  expectedRevenueInCents: input.expectedRevenueInCents ?? null,
+                  depositInCents: input.depositInCents ?? null,
+                  travelFeeInCents: input.travelFeeInCents ?? null,
+                  internalNotes: input.internalNotes ?? null,
+                  equipmentNotes: input.equipmentNotes ?? null,
+                  companyName: input.companyName ?? null,
+                  billingEmail: input.billingEmail ?? null,
+                  poNumber: input.poNumber ?? null,
+                }
+              : e,
+          ),
+        );
+        await updateEvent(editingEvent.id, input);
+      });
     } else {
       startTransition(async () => {
-        const newId = await createEvent(input);
         setEvents((prev) => [
           {
-            id: newId,
+            id: -1,
             title: input.title,
             eventType: input.eventType,
             status: input.status,
@@ -1181,13 +1182,16 @@ export function EventsPage({
           },
           ...prev,
         ]);
+        await createEvent(input);
       });
     }
   }
 
   function handleDelete(id: number) {
-    setEvents((prev) => prev.filter((e) => e.id !== id));
-    startTransition(() => deleteEvent(id));
+    startTransition(async () => {
+      setEvents((prev) => prev.filter((e) => e.id !== id));
+      await deleteEvent(id);
+    });
   }
 
   function handleAddGuest(
@@ -1195,7 +1199,6 @@ export function EventsPage({
     guest: { name: string; service: string; paid: boolean },
   ) {
     startTransition(async () => {
-      const guestId = await addGuest(eventId, guest);
       setEvents((prev) =>
         prev.map((e) =>
           e.id === eventId
@@ -1204,7 +1207,7 @@ export function EventsPage({
                 guests: [
                   ...e.guests,
                   {
-                    id: guestId,
+                    id: -1,
                     name: guest.name,
                     service: guest.service || null,
                     paid: guest.paid,
@@ -1214,28 +1217,30 @@ export function EventsPage({
             : e,
         ),
       );
+      await addGuest(eventId, guest);
     });
   }
 
   function handleToggleGuestPaid(eventId: number, guestId: number) {
-    setEvents((prev) =>
-      prev.map((e) =>
-        e.id === eventId
-          ? {
-              ...e,
-              guests: e.guests.map((g) => (g.id === guestId ? { ...g, paid: !g.paid } : g)),
-            }
-          : e,
-      ),
-    );
-    startTransition(() => toggleGuestPaid(guestId));
+    startTransition(async () => {
+      setEvents((prev) =>
+        prev.map((e) =>
+          e.id === eventId
+            ? {
+                ...e,
+                guests: e.guests.map((g) => (g.id === guestId ? { ...g, paid: !g.paid } : g)),
+              }
+            : e,
+        ),
+      );
+      await toggleGuestPaid(guestId);
+    });
   }
 
   function handleCreateVenue(form: VenueForm) {
     startTransition(async () => {
-      const newId = await createVenue(venueFormToInput(form));
       const newVenue: VenueRow = {
-        id: newId,
+        id: -1,
         name: form.name,
         venueType: form.venueType,
         address: form.address || null,
@@ -1245,27 +1250,30 @@ export function EventsPage({
         isActive: true,
       };
       setVenues((prev) => [...prev, newVenue].sort((a, b) => a.name.localeCompare(b.name)));
+      await createVenue(venueFormToInput(form));
     });
   }
 
   function handleUpdateVenue(id: number, form: VenueForm, isActive: boolean) {
-    setVenues((prev) =>
-      prev.map((v) =>
-        v.id === id
-          ? {
-              ...v,
-              name: form.name,
-              venueType: form.venueType,
-              address: form.address || null,
-              parkingInfo: form.parkingInfo || null,
-              setupNotes: form.setupNotes || null,
-              defaultTravelFeeInCents: dollarsToCents(form.travelFee),
-              isActive,
-            }
-          : v,
-      ),
-    );
-    startTransition(() => updateVenue(id, { ...venueFormToInput(form), isActive }));
+    startTransition(async () => {
+      setVenues((prev) =>
+        prev.map((v) =>
+          v.id === id
+            ? {
+                ...v,
+                name: form.name,
+                venueType: form.venueType,
+                address: form.address || null,
+                parkingInfo: form.parkingInfo || null,
+                setupNotes: form.setupNotes || null,
+                defaultTravelFeeInCents: dollarsToCents(form.travelFee),
+                isActive,
+              }
+            : v,
+        ),
+      );
+      await updateVenue(id, { ...venueFormToInput(form), isActive });
+    });
   }
 
   // Collect unique event types from current events for filter pills

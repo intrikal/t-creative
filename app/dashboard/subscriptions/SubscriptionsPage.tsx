@@ -1,7 +1,6 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useTransition } from "react";
 import { Plus, RefreshCw, PauseCircle, XCircle, CheckCircle } from "lucide-react";
 import { Dialog, DialogFooter, Field, Input, Select, Textarea } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
@@ -91,7 +90,7 @@ function CreateSubscriptionDialog({
   clients: { id: string; name: string }[];
   serviceOptions: { id: number; name: string; priceInCents: number }[];
 }) {
-  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
   const [form, setForm] = useState<CreateForm>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
 
@@ -124,20 +123,21 @@ function CreateSubscriptionDialog({
   async function handleSave() {
     if (!valid) return;
     setSaving(true);
-    await createSubscription({
-      clientId: form.clientId,
-      serviceId: Number(form.serviceId),
-      name: form.name.trim(),
-      totalSessions,
-      intervalDays: Number(form.intervalDays),
-      pricePerSessionInCents: pricePerSession,
-      totalPaidInCents: totalPaid,
-      notes: form.notes.trim() || undefined,
-    } satisfies CreateSubscriptionInput);
-    setSaving(false);
-    setForm(EMPTY_FORM);
-    onClose();
-    router.refresh();
+    startTransition(async () => {
+      await createSubscription({
+        clientId: form.clientId,
+        serviceId: Number(form.serviceId),
+        name: form.name.trim(),
+        totalSessions,
+        intervalDays: Number(form.intervalDays),
+        pricePerSessionInCents: pricePerSession,
+        totalPaidInCents: totalPaid,
+        notes: form.notes.trim() || undefined,
+      } satisfies CreateSubscriptionInput);
+      setSaving(false);
+      setForm(EMPTY_FORM);
+      onClose();
+    });
   }
 
   return (
@@ -246,7 +246,7 @@ export function SubscriptionsPage({
   clients: { id: string; name: string }[];
   serviceOptions: { id: number; name: string; priceInCents: number }[];
 }) {
-  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("All");
   const [createOpen, setCreateOpen] = useState(false);
   const [actionTarget, setActionTarget] = useState<SubscriptionRow | null>(null);
@@ -263,8 +263,9 @@ export function SubscriptionsPage({
 
   async function handleStatusChange(sub: SubscriptionRow, status: SubscriptionStatus) {
     setActionTarget(null);
-    await updateSubscriptionStatus(sub.id, status);
-    router.refresh();
+    startTransition(async () => {
+      await updateSubscriptionStatus(sub.id, status);
+    });
   }
 
   return (

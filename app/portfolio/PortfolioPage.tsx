@@ -9,6 +9,7 @@ import Image from "next/image";
 import { motion } from "framer-motion";
 import { Footer } from "@/components/landing/Footer";
 import type { PublicMediaItem } from "./actions";
+import { BeforeAfterSlider } from "./BeforeAfterSlider";
 
 /* ------------------------------------------------------------------ */
 /*  Category config                                                    */
@@ -38,6 +39,8 @@ type WorkItem = {
   category: string;
   color: string;
   imageUrl: string | null;
+  type?: string;
+  beforeImageUrl?: string | null;
 };
 
 const FALLBACK_WORKS: WorkItem[] = [
@@ -87,6 +90,8 @@ function toWorkItems(media: PublicMediaItem[]): WorkItem[] {
     category: m.category ?? "lash",
     color: CATEGORY_COLORS[m.category ?? ""] ?? "#888",
     imageUrl: m.publicUrl,
+    type: m.type,
+    beforeImageUrl: m.beforePublicUrl,
   }));
 }
 
@@ -98,7 +103,17 @@ export function PortfolioPage({ media }: { media: PublicMediaItem[] }) {
   const [active, setActive] = useState<Category>("all");
 
   const works: WorkItem[] = media.length > 0 ? toWorkItems(media) : FALLBACK_WORKS;
-  const filtered = active === "all" ? works : works.filter((w) => w.category === active);
+
+  // Split before/after items from regular portfolio items
+  const allBeforeAfter = works.filter(
+    (w) => w.type === "before_after" && w.imageUrl && w.beforeImageUrl,
+  );
+  const regularWorks = works.filter((w) => w.type !== "before_after");
+
+  const filteredBeforeAfter =
+    active === "all" ? allBeforeAfter : allBeforeAfter.filter((w) => w.category === active);
+  const filtered =
+    active === "all" ? regularWorks : regularWorks.filter((w) => w.category === active);
 
   return (
     <>
@@ -152,6 +167,38 @@ export function PortfolioPage({ media }: { media: PublicMediaItem[] }) {
                 </button>
               ))}
             </div>
+
+            {/* Before & After Transformations */}
+            {filteredBeforeAfter.length > 0 && (
+              <div className="mb-16">
+                <h2 className="text-xl md:text-2xl font-light tracking-tight text-foreground text-center mb-2">
+                  Transformations
+                </h2>
+                <p className="text-sm text-muted text-center mb-8">
+                  Drag to reveal the before &amp; after.
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+                  {filteredBeforeAfter.map((item, i) => (
+                    <motion.div
+                      key={`ba-${item.caption}`}
+                      className="rounded-lg overflow-hidden shadow-sm border border-foreground/5"
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.5, delay: i * 0.1 }}
+                    >
+                      <BeforeAfterSlider
+                        beforeSrc={item.beforeImageUrl!}
+                        afterSrc={item.imageUrl!}
+                        alt={item.caption}
+                      />
+                      {item.caption && (
+                        <p className="text-sm text-muted px-4 py-3 text-center">{item.caption}</p>
+                      )}
+                    </motion.div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Grid */}
             <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">

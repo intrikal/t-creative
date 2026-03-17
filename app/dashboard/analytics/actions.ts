@@ -156,6 +156,12 @@ export type RebookRate = {
   rate: number;
 };
 
+export type VisitFrequencyBucket = {
+  label: string;
+  clients: number;
+  pct: number;
+};
+
 export type PeakTimeSlot = {
   label: string;
   load: number;
@@ -905,6 +911,57 @@ export async function getAppointmentGaps(): Promise<AppointmentGapStats> {
       }));
 
     return { overall, byCategory };
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Visit Frequency Distribution                                       */
+/* ------------------------------------------------------------------ */
+
+const VISIT_BUCKETS = [
+  { label: "1 visit", min: 1, max: 1 },
+  { label: "2–3 visits", min: 2, max: 3 },
+  { label: "4–6 visits", min: 4, max: 6 },
+  { label: "7–12 visits", min: 7, max: 12 },
+  { label: "13+ visits", min: 13, max: Infinity },
+] as const;
+
+export async function getVisitFrequency(): Promise<VisitFrequencyBucket[]> {
+  try {
+    await getUser();
+
+    const rows = await db
+      .select({
+        clientId: bookings.clientId,
+        visits: sql<number>`count(*)`,
+      })
+      .from(bookings)
+      .where(
+        and(
+          eq(bookings.status, "completed"),
+          gte(bookings.startsAt, sql`now() - interval '12 months'`),
+        ),
+      )
+      .groupBy(bookings.clientId);
+
+    const totalClients = rows.length;
+
+    const buckets = VISIT_BUCKETS.map((b) => {
+      const clients = rows.filter((r) => {
+        const v = Number(r.visits);
+        return v >= b.min && v <= b.max;
+      }).length;
+      return {
+        label: b.label,
+        clients,
+        pct: totalClients > 0 ? Math.round((clients / totalClients) * 100) : 0,
+      };
+    });
+
+    return buckets;
   } catch (err) {
     Sentry.captureException(err);
     throw err;

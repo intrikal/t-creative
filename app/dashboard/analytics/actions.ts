@@ -1241,7 +1241,7 @@ export async function getCheckoutRebookRate(range: Range = "30d"): Promise<Check
   try {
     await getUser();
 
-    const result = await db.execute(sql.raw(`
+    const result = await db.execute(sql`
       WITH completed AS (
         SELECT
           b.id,
@@ -1253,7 +1253,7 @@ export async function getCheckoutRebookRate(range: Range = "30d"): Promise<Check
         JOIN services s ON s.id = b.service_id
         WHERE b.status = 'completed'
           AND b.completed_at IS NOT NULL
-          AND b.completed_at > now() - interval '${rangeToInterval(range)}'
+          AND b.completed_at > now() - interval ${sql.raw(`'${rangeToInterval(range)}'`)}
       ),
       rebooked AS (
         SELECT DISTINCT c.id

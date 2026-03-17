@@ -112,6 +112,7 @@ export interface AdminStaff {
 
 export interface DashboardPageProps {
   firstName: string;
+  lowStockCount: number;
   stats: AdminStats;
   alerts: AdminAlert[];
   todayBookings: AdminBooking[];
@@ -389,6 +390,7 @@ function ClientRow({ client }: { client: AdminClient }) {
 
 export function DashboardPage({
   firstName,
+  lowStockCount,
   stats,
   alerts,
   todayBookings,
@@ -505,10 +507,15 @@ export function DashboardPage({
           <Link
             key={label}
             href={href}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-surface border border-border text-sm font-medium text-foreground hover:bg-foreground/5 hover:border-foreground/20 transition-colors"
+            className="relative flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-surface border border-border text-sm font-medium text-foreground hover:bg-foreground/5 hover:border-foreground/20 transition-colors"
           >
             <Icon className="w-3.5 h-3.5 text-muted" />
             {label}
+            {label === "Inventory" && lowStockCount > 0 && (
+              <span className="ml-0.5 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-[#7a5c10] text-white text-[10px] font-semibold leading-none">
+                {lowStockCount}
+              </span>
+            )}
           </Link>
         ))}
       </div>

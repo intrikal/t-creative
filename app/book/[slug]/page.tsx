@@ -54,6 +54,7 @@ const BASE_URL = "https://tcreativestudio.com";
 
 interface Props {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
 /**
@@ -130,8 +131,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
  *
  * @param params - Next.js dynamic route params.
  */
-export default async function BookSlugPage({ params }: Props) {
+export default async function BookSlugPage({ params, searchParams }: Props) {
   const { slug } = await params;
+  const sp = await searchParams;
+  const prefillServiceId = typeof sp.service === "string" ? Number(sp.service) : null;
 
   // ── 1. Fetch the admin profile ────────────────────────────────────────────
   const [profileRow] = await db
@@ -334,6 +337,7 @@ export default async function BookSlugPage({ params }: Props) {
         reviewStats={reviewStats}
         addOnsByService={addOnsByService}
         slug={slug}
+        prefillServiceId={prefillServiceId}
       />
     </>
   );

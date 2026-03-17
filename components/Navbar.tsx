@@ -111,6 +111,7 @@ export function Navbar({ user = null }: NavbarProps) {
                 onClick={() => setProfileOpen(!profileOpen)}
                 className="flex-shrink-0 rounded-full focus:outline-none focus:ring-2 focus:ring-foreground/20"
                 aria-label="Profile menu"
+                aria-expanded={profileOpen}
               >
                 {user.avatarUrl ? (
                   <Image

@@ -269,6 +269,8 @@ function ProfileMenu({
       <button
         onClick={() => setOpen((o) => !o)}
         className="w-full flex items-center gap-2.5 px-2 py-2 rounded-lg hover:bg-foreground/5 transition-colors"
+        aria-expanded={open}
+        aria-label="Profile menu"
       >
         <Avatar size="sm">
           {userAvatarUrl ? (
@@ -354,6 +356,9 @@ function MobileDrawer({
       />
       {/* Drawer */}
       <aside
+        role="dialog"
+        aria-modal="true"
+        aria-label="Navigation menu"
         className={cn(
           "fixed top-0 left-0 bottom-0 w-64 z-50 lg:hidden bg-background border-r border-border flex flex-col transition-transform duration-300 ease-out",
           open ? "translate-x-0" : "-translate-x-full",
@@ -380,6 +385,7 @@ function MobileDrawer({
             <NotificationBell />
             <button
               onClick={onClose}
+              aria-label="Close menu"
               className="p-1.5 rounded-lg hover:bg-foreground/8 text-muted transition-colors"
             >
               <X className="w-4 h-4" />
@@ -388,7 +394,10 @@ function MobileDrawer({
         </div>
 
         {/* Nav groups */}
-        <nav className="flex-1 px-2 py-2 flex flex-col gap-3 overflow-y-auto">
+        <nav
+          aria-label="Dashboard"
+          className="flex-1 px-2 py-2 flex flex-col gap-3 overflow-y-auto"
+        >
           {navGroups.map((group) => (
             <div key={group.label}>
               <p className="px-2 mb-0.5 text-[9px] font-semibold uppercase tracking-widest text-muted/50">
@@ -399,6 +408,7 @@ function MobileDrawer({
                   <Link
                     key={href}
                     href={href}
+                    aria-current={isActive(href) ? "page" : undefined}
                     className={cn(
                       "flex items-center gap-2.5 px-2 py-2 rounded-md text-[13px] font-medium transition-colors",
                       isActive(href)
@@ -477,7 +487,10 @@ export function DashboardSidebar({
         </div>
 
         {/* Nav groups */}
-        <nav className="flex-1 px-2 py-2 flex flex-col gap-3 overflow-hidden">
+        <nav
+          aria-label="Dashboard"
+          className="flex-1 px-2 py-2 flex flex-col gap-3 overflow-hidden"
+        >
           {navGroups.map((group) => (
             <div key={group.label}>
               <p className="px-2 mb-0.5 text-[9px] font-semibold uppercase tracking-widest text-muted/50">
@@ -488,6 +501,7 @@ export function DashboardSidebar({
                   <Link
                     key={href}
                     href={href}
+                    aria-current={isActive(href) ? "page" : undefined}
                     className={cn(
                       "flex items-center gap-2.5 px-2 py-1.5 rounded-md text-[13px] font-medium transition-colors",
                       isActive(href)
@@ -517,10 +531,15 @@ export function DashboardSidebar({
       </aside>
 
       {/* ── Mobile bottom nav ─────────────────────────────────────── */}
-      <nav className="fixed bottom-0 left-0 right-0 lg:hidden bg-background/95 backdrop-blur-sm border-t border-border z-40 flex">
+      <nav
+        aria-label="Quick access"
+        className="fixed bottom-0 left-0 right-0 lg:hidden bg-background/95 backdrop-blur-sm border-t border-border z-40 flex"
+      >
         {/* Hamburger button */}
         <button
           onClick={() => setDrawerOpen(true)}
+          aria-expanded={drawerOpen}
+          aria-label="Open navigation menu"
           className={cn(
             "flex-1 flex flex-col items-center gap-1 py-2.5 text-[10px] font-medium transition-colors",
             drawerOpen ? "text-accent" : "text-muted hover:text-foreground",
@@ -533,6 +552,7 @@ export function DashboardSidebar({
           <Link
             key={href}
             href={href}
+            aria-current={isActive(href) ? "page" : undefined}
             className={cn(
               "flex-1 flex flex-col items-center gap-1 py-2.5 text-[10px] font-medium transition-colors",
               isActive(href) ? "text-accent" : "text-muted hover:text-foreground",

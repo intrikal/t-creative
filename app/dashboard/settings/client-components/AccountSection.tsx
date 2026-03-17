@@ -6,13 +6,14 @@
  * Contains:
  * - Linked phone display
  * - Privacy policy link
+ * - Download my data (CCPA right-to-know)
  * - Log out (POST to /auth/signout)
- * - Delete account (soft-delete via server action)
+ * - Delete account (CCPA-compliant anonymization + auth deletion)
  */
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, ChevronRight, LogOut, Trash2 } from "lucide-react";
+import { AlertTriangle, ChevronRight, Download, LogOut, Trash2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogFooter } from "@/components/ui/dialog";
 import { deleteClientAccount } from "../client-settings-actions";
@@ -21,6 +22,29 @@ export function AccountSection() {
   const router = useRouter();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+
+  async function handleDownloadData() {
+    setDownloading(true);
+    try {
+      const res = await fetch("/api/client-export");
+      if (!res.ok) throw new Error("Export failed");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download =
+        res.headers.get("Content-Disposition")?.match(/filename="(.+)"/)?.[1] ?? "my-data.json";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      // Silently fail — user can retry
+    } finally {
+      setDownloading(false);
+    }
+  }
 
   return (
     <>
@@ -53,6 +77,21 @@ export function AccountSection() {
                 <ChevronRight className="w-4 h-4 text-muted" />
               </div>
 
+              {/* Download my data (CCPA) */}
+              <button
+                onClick={handleDownloadData}
+                disabled={downloading}
+                className="w-full flex items-center justify-between py-3 border-b border-border/40 text-left group disabled:opacity-50"
+              >
+                <div>
+                  <p className="text-sm font-medium text-foreground group-hover:text-primary transition-colors">
+                    {downloading ? "Preparing download..." : "Download My Data"}
+                  </p>
+                  <p className="text-xs text-muted mt-0.5">Get a copy of all your personal data</p>
+                </div>
+                <Download className="w-4 h-4 text-muted group-hover:text-primary transition-colors" />
+              </button>
+
               {/* Log out */}
               <form action="/auth/signout" method="POST" className="w-full">
                 <button
@@ -80,7 +119,7 @@ export function AccountSection() {
                 Delete Account
               </button>
               <p className="text-[11px] text-muted mt-1">
-                Permanently removes all your data from T Creative Studio.
+                Permanently removes your personal data from T Creative Studio.
               </p>
             </div>
           </CardContent>
@@ -99,8 +138,9 @@ export function AccountSection() {
           <div className="flex items-start gap-3 p-3.5 rounded-xl bg-destructive/8 border border-destructive/20">
             <AlertTriangle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
             <p className="text-sm text-foreground">
-              Your profile, booking history, loyalty points, and all personal data will be
-              permanently deleted. This cannot be reversed.
+              Your profile, preferences, loyalty points, reviews, and all personal data will be
+              permanently erased. Anonymized booking and payment records are retained for legal and
+              tax compliance. This cannot be reversed.
             </p>
           </div>
           <DialogFooter

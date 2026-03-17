@@ -162,6 +162,24 @@ export type VisitFrequencyBucket = {
   pct: number;
 };
 
+export type CheckoutRebookStats = {
+  overallRate: number;
+  totalCompleted: number;
+  totalRebooked: number;
+  byStaff: {
+    name: string;
+    completed: number;
+    rebooked: number;
+    rate: number;
+  }[];
+  byCategory: {
+    category: string;
+    completed: number;
+    rebooked: number;
+    rate: number;
+  }[];
+};
+
 export type PeakTimeSlot = {
   label: string;
   load: number;
@@ -962,6 +980,125 @@ export async function getVisitFrequency(): Promise<VisitFrequencyBucket[]> {
     });
 
     return buckets;
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Checkout Rebook Rate                                               */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Of completed appointments in the last 30 days, how many clients
+ * created their next booking within 24 hours of checkout?
+ * Broken down overall, by staff, and by service category.
+ */
+export async function getCheckoutRebookRate(): Promise<CheckoutRebookStats> {
+  try {
+    await getUser();
+
+    const result = await db.execute(sql`
+      WITH completed AS (
+        SELECT
+          b.id,
+          b.client_id,
+          b.staff_id,
+          b.completed_at,
+          s.category
+        FROM bookings b
+        JOIN services s ON s.id = b.service_id
+        WHERE b.status = 'completed'
+          AND b.completed_at IS NOT NULL
+          AND b.completed_at > now() - interval '30 days'
+      ),
+      rebooked AS (
+        SELECT DISTINCT c.id
+        FROM completed c
+        WHERE EXISTS (
+          SELECT 1 FROM bookings nb
+          WHERE nb.client_id = c.client_id
+            AND nb.id != c.id
+            AND nb.starts_at > c.completed_at
+            AND nb.created_at <= c.completed_at + interval '24 hours'
+            AND nb.status != 'cancelled'
+        )
+      )
+      SELECT
+        c.id,
+        c.staff_id,
+        c.category,
+        CASE WHEN r.id IS NOT NULL THEN 1 ELSE 0 END AS did_rebook
+      FROM completed c
+      LEFT JOIN rebooked r ON r.id = c.id
+    `);
+
+    const rows = result as unknown as {
+      id: number;
+      staff_id: string | null;
+      category: string;
+      did_rebook: number;
+    }[];
+
+    const totalCompleted = rows.length;
+    const totalRebooked = rows.filter((r) => Number(r.did_rebook) === 1).length;
+    const overallRate = totalCompleted > 0 ? Math.round((totalRebooked / totalCompleted) * 100) : 0;
+
+    // By staff
+    const staffMap = new Map<string, { completed: number; rebooked: number }>();
+    for (const r of rows) {
+      if (!r.staff_id) continue;
+      const entry = staffMap.get(r.staff_id) ?? { completed: 0, rebooked: 0 };
+      entry.completed++;
+      if (Number(r.did_rebook) === 1) entry.rebooked++;
+      staffMap.set(r.staff_id, entry);
+    }
+
+    // Fetch staff names
+    const staffIds = Array.from(staffMap.keys());
+    const staffNames =
+      staffIds.length > 0
+        ? await db
+            .select({ id: profiles.id, firstName: profiles.firstName, lastName: profiles.lastName })
+            .from(profiles)
+            .where(sql`${profiles.id} in ${staffIds}`)
+        : [];
+    const nameMap = new Map(
+      staffNames.map((s) => [
+        s.id,
+        [s.firstName, s.lastName].filter(Boolean).join(" ") || "Unknown",
+      ]),
+    );
+
+    const byStaff = Array.from(staffMap.entries())
+      .map(([id, s]) => ({
+        name: nameMap.get(id) ?? "Unknown",
+        completed: s.completed,
+        rebooked: s.rebooked,
+        rate: s.completed > 0 ? Math.round((s.rebooked / s.completed) * 100) : 0,
+      }))
+      .sort((a, b) => b.completed - a.completed);
+
+    // By category
+    const catMap = new Map<string, { completed: number; rebooked: number }>();
+    for (const r of rows) {
+      const entry = catMap.get(r.category) ?? { completed: 0, rebooked: 0 };
+      entry.completed++;
+      if (Number(r.did_rebook) === 1) entry.rebooked++;
+      catMap.set(r.category, entry);
+    }
+
+    const byCategory = Array.from(catMap.entries())
+      .map(([cat, s]) => ({
+        category: CATEGORY_LABELS[cat] ?? cat,
+        completed: s.completed,
+        rebooked: s.rebooked,
+        rate: s.completed > 0 ? Math.round((s.rebooked / s.completed) * 100) : 0,
+      }))
+      .sort((a, b) => b.completed - a.completed);
+
+    return { overallRate, totalCompleted, totalRebooked, byStaff, byCategory };
   } catch (err) {
     Sentry.captureException(err);
     throw err;

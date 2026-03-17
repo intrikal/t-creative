@@ -98,6 +98,7 @@ function setupMocks(db: Record<string, unknown> | null = null) {
       vi.fn((...args: unknown[]) => ({ type: "sql", args })),
       { join: vi.fn(() => ({ type: "sql_join" })) },
     ),
+    isNull: vi.fn((...args: unknown[]) => ({ type: "isNull", args })),
   }));
   vi.doMock("drizzle-orm/pg-core", () => ({
     alias: vi.fn((_table: unknown, name: string) => ({

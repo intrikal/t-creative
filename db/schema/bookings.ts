@@ -143,6 +143,9 @@ export const bookings = pgTable(
       onDelete: "set null",
     }),
 
+    /** Soft-delete timestamp. Non-null means the booking has been removed from view. */
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()

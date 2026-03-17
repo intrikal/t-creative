@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import * as Sentry from "@sentry/nextjs";
-import { eq, sql, desc } from "drizzle-orm";
+import { and, eq, sql, desc } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
 import { profiles, bookings, services, loyaltyTransactions, clientPreferences } from "@/db/schema";
@@ -143,7 +143,7 @@ export async function getClients(): Promise<ClientRow[]> {
         loyaltyPoints: loyaltyStats.points,
       })
       .from(profiles)
-      .where(eq(profiles.role, "client"))
+      .where(and(eq(profiles.role, "client"), eq(profiles.isActive, true)))
       .leftJoin(referrer, eq(profiles.referredBy, referrer.id))
       .leftJoin(bookingStats, eq(profiles.id, bookingStats.clientId))
       .leftJoin(loyaltyStats, eq(profiles.id, loyaltyStats.profileId))
@@ -177,7 +177,7 @@ export async function getClientLoyalty(): Promise<LoyaltyRow[]> {
         lastActivity: sql<Date | null>`max(${loyaltyTransactions.createdAt})`.as("last_activity"),
       })
       .from(profiles)
-      .where(eq(profiles.role, "client"))
+      .where(and(eq(profiles.role, "client"), eq(profiles.isActive, true)))
       .leftJoin(loyaltyTransactions, eq(profiles.id, loyaltyTransactions.profileId))
       .groupBy(profiles.id, profiles.firstName, profiles.lastName)
       .orderBy(sql`coalesce(sum(${loyaltyTransactions.points}), 0) desc`);
@@ -276,7 +276,7 @@ export async function updateClient(id: string, input: ClientInput): Promise<void
 export async function deleteClient(id: string): Promise<void> {
   try {
     const user = await getUser();
-    await db.delete(profiles).where(eq(profiles.id, id));
+    await db.update(profiles).set({ isActive: false }).where(eq(profiles.id, id));
     trackEvent(user.id, "client_deleted", { clientId: id });
 
     await logAction({
@@ -284,7 +284,7 @@ export async function deleteClient(id: string): Promise<void> {
       action: "delete",
       entityType: "client",
       entityId: id,
-      description: "Client deleted",
+      description: "Client soft-deleted",
     });
 
     revalidatePath("/dashboard/clients");

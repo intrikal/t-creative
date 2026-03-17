@@ -4,6 +4,7 @@ import { BookingsSectionWrapper } from "./sections/BookingsSectionWrapper";
 import { CheckoutRebookSectionWrapper } from "./sections/CheckoutRebookSectionWrapper";
 import { ClientsSection } from "./sections/ClientsSection";
 import { KpiSection } from "./sections/KpiSection";
+import { MembershipValueSectionWrapper } from "./sections/MembershipValueSectionWrapper";
 import { OperationalSection } from "./sections/OperationalSection";
 import { PeakTimesSectionWrapper } from "./sections/PeakTimesSectionWrapper";
 import { PromotionRoiSectionWrapper } from "./sections/PromotionRoiSectionWrapper";
@@ -30,6 +31,7 @@ export default function Page() {
       <AppointmentGapSectionWrapper />
       <ClientsSection />
       <PromotionRoiSectionWrapper />
+      <MembershipValueSectionWrapper />
       <PeakTimesSectionWrapper />
     </AnalyticsShell>
   );

@@ -116,6 +116,30 @@ export function LoyaltyTab({ initial }: { initial: LoyaltyConfig }) {
         </CardContent>
       </Card>
 
+      <Card className="gap-0">
+        <CardHeader className="pb-0 pt-5 px-5">
+          <CardTitle className="text-[10px] font-semibold uppercase tracking-wide text-muted">
+            Birthday Perk
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="px-5 pb-5 pt-3 space-y-4">
+          <p className="text-xs text-muted">
+            A single-use promo code is auto-generated and emailed to each client on their birthday.
+          </p>
+          <FieldRow label="Discount">
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                value={data.birthdayDiscountPercent}
+                onChange={(e) => updateNum("birthdayDiscountPercent", e.target.value)}
+                className={NUM_INPUT_CLASS}
+              />
+              <span className="text-xs text-muted">% off</span>
+            </div>
+          </FieldRow>
+        </CardContent>
+      </Card>
+
       <div className="flex justify-end">
         <StatefulSaveButton
           label="Save Loyalty Config"

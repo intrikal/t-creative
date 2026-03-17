@@ -7,6 +7,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 let selectIdx = 0;
 let selectData: unknown[][] = [];
 const mockSendEmail = vi.fn();
+const mockInsert = vi.fn();
 
 function buildDb() {
   return {
@@ -21,6 +22,9 @@ function buildDb() {
       chain.limit = vi.fn().mockReturnValue(rows);
       return chain;
     }),
+    insert: vi.fn().mockImplementation(() => ({
+      values: mockInsert.mockReturnValue(undefined),
+    })),
   };
 }
 
@@ -36,6 +40,7 @@ describe("GET /api/cron/birthdays", () => {
     selectIdx = 0;
     selectData = [];
     mockSendEmail.mockResolvedValue(true);
+    mockInsert.mockReturnValue(undefined);
     process.env.CRON_SECRET = "test-secret";
 
     vi.resetModules();
@@ -49,6 +54,14 @@ describe("GET /api/cron/birthdays", () => {
         isActive: "isActive",
         notifyEmail: "notifyEmail",
         onboardingData: "onboardingData",
+      },
+      promotions: {
+        id: "id",
+        code: "code",
+      },
+      settings: {
+        key: "key",
+        value: "value",
       },
       syncLog: {
         id: "id",
@@ -88,7 +101,10 @@ describe("GET /api/cron/birthdays", () => {
   /* ---------- No-op ---------- */
 
   it("returns zero counts when no birthday profiles match", async () => {
-    selectData[0] = []; // no profiles with today's birthday
+    // select[0]: no profiles with today's birthday
+    selectData[0] = [];
+    // select[1]: settings query (birthday discount)
+    selectData[1] = [{ value: { birthdayDiscountPercent: 5 } }];
 
     const res = await GET(makeGet("test-secret"));
     expect(res.status).toBe(200);
@@ -98,9 +114,15 @@ describe("GET /api/cron/birthdays", () => {
 
   /* ---------- Happy path ---------- */
 
-  it("sends a birthday email and counts correctly", async () => {
+  it("sends a birthday email with promo code and counts correctly", async () => {
+    // select[0]: birthday profiles
     selectData[0] = [{ id: "p1", email: "alice@example.com", firstName: "Alice" }];
-    selectData[1] = []; // no existing sync_log entry → send email
+    // select[1]: settings query
+    selectData[1] = [{ value: { birthdayDiscountPercent: 10 } }];
+    // select[2]: no existing sync_log entry → send email
+    selectData[2] = [];
+    // select[3]: promo code uniqueness check → no dup
+    selectData[3] = [];
 
     const res = await GET(makeGet("test-secret"));
     expect(res.status).toBe(200);
@@ -116,9 +138,28 @@ describe("GET /api/cron/birthdays", () => {
     );
   });
 
+  it("uses default 5% discount when no settings exist", async () => {
+    selectData[0] = [{ id: "p1", email: "alice@example.com", firstName: "Alice" }];
+    // select[1]: no settings row → fallback to 5%
+    selectData[1] = [];
+    selectData[2] = [];
+    selectData[3] = [];
+
+    const res = await GET(makeGet("test-secret"));
+    const body = await res.json();
+    expect(body).toEqual({ matched: 1, sent: 1, failed: 0 });
+    expect(mockSendEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        subject: expect.stringContaining("5%"),
+      }),
+    );
+  });
+
   it("counts failed sends correctly when sendEmail returns false", async () => {
     selectData[0] = [{ id: "p1", email: "alice@example.com", firstName: "Alice" }];
-    selectData[1] = [];
+    selectData[1] = [{ value: { birthdayDiscountPercent: 5 } }];
+    selectData[2] = [];
+    selectData[3] = [];
     mockSendEmail.mockResolvedValueOnce(false);
 
     const res = await GET(makeGet("test-secret"));
@@ -130,7 +171,9 @@ describe("GET /api/cron/birthdays", () => {
 
   it("skips profile already sent a birthday email this year", async () => {
     selectData[0] = [{ id: "p1", email: "alice@example.com", firstName: "Alice" }];
-    selectData[1] = [{ id: 99 }]; // existing sync_log → already sent
+    selectData[1] = [{ value: { birthdayDiscountPercent: 5 } }];
+    // select[2]: existing sync_log → already sent
+    selectData[2] = [{ id: 99 }];
 
     const res = await GET(makeGet("test-secret"));
     const body = await res.json();
@@ -140,7 +183,7 @@ describe("GET /api/cron/birthdays", () => {
 
   it("skips profiles with no email address", async () => {
     selectData[0] = [{ id: "p2", email: null, firstName: "Bob" }];
-    // no second select call expected (early continue)
+    selectData[1] = [{ value: { birthdayDiscountPercent: 5 } }];
 
     const res = await GET(makeGet("test-secret"));
     const body = await res.json();
@@ -153,8 +196,10 @@ describe("GET /api/cron/birthdays", () => {
       { id: "p1", email: "alice@example.com", firstName: "Alice" },
       { id: "p2", email: "bob@example.com", firstName: "Bob" },
     ];
-    selectData[1] = []; // Alice: no dedup → send
-    selectData[2] = [{ id: 55 }]; // Bob: already sent → skip
+    selectData[1] = [{ value: { birthdayDiscountPercent: 5 } }];
+    selectData[2] = []; // Alice: no dedup → send
+    selectData[3] = []; // Alice: promo uniqueness
+    selectData[4] = [{ id: 55 }]; // Bob: already sent → skip
 
     const res = await GET(makeGet("test-secret"));
     const body = await res.json();

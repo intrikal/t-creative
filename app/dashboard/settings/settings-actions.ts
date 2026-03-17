@@ -78,6 +78,8 @@ export interface LoyaltyConfig {
   tierSilver: number;
   tierGold: number;
   tierPlatinum: number;
+  /** Percent discount for birthday promo codes (e.g. 5 = 5% off). */
+  birthdayDiscountPercent: number;
 }
 
 export interface NotificationPrefs {
@@ -143,6 +145,7 @@ const DEFAULT_LOYALTY: LoyaltyConfig = {
   pointsFirstBooking: 75,
   pointsRebook: 50,
   pointsReview: 30,
+  birthdayDiscountPercent: 5,
   tierSilver: 300,
   tierGold: 700,
   tierPlatinum: 1500,
@@ -325,6 +328,7 @@ const loyaltyConfigSchema = z.object({
   tierSilver: z.number().int().nonnegative(),
   tierGold: z.number().int().nonnegative(),
   tierPlatinum: z.number().int().nonnegative(),
+  birthdayDiscountPercent: z.number().int().min(1).max(100),
 });
 
 export async function saveLoyaltyConfig(data: LoyaltyConfig): Promise<void> {

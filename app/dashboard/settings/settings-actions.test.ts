@@ -349,6 +349,7 @@ describe("settings-actions", () => {
         tierSilver: 300,
         tierGold: 700,
         tierPlatinum: 1500,
+        birthdayDiscountPercent: 5,
       });
       expect(mockTrackEvent).toHaveBeenCalledWith("user-1", "loyalty_config_updated");
     });

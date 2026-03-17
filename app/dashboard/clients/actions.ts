@@ -83,9 +83,22 @@ export type LoyaltyRow = {
 /*  Queries                                                            */
 /* ------------------------------------------------------------------ */
 
-export async function getClients(): Promise<ClientRow[]> {
+export type PaginatedClients = {
+  rows: ClientRow[];
+  hasMore: boolean;
+};
+
+const DEFAULT_CLIENTS_LIMIT = 100;
+
+export async function getClients(opts?: {
+  offset?: number;
+  limit?: number;
+}): Promise<PaginatedClients> {
   try {
     await getUser();
+
+    const limit = opts?.limit ?? DEFAULT_CLIENTS_LIMIT;
+    const offset = opts?.offset ?? 0;
 
     const referrer = alias(profiles, "referrer");
 
@@ -148,16 +161,24 @@ export async function getClients(): Promise<ClientRow[]> {
       .leftJoin(bookingStats, eq(profiles.id, bookingStats.clientId))
       .leftJoin(loyaltyStats, eq(profiles.id, loyaltyStats.profileId))
       .leftJoin(referralStats, eq(profiles.id, referralStats.referrerId))
-      .orderBy(desc(profiles.createdAt));
+      .orderBy(desc(profiles.createdAt))
+      .limit(limit + 1)
+      .offset(offset);
 
-    return rows.map((r) => ({
-      ...r,
-      lifecycleStage: (r.lifecycleStage as LifecycleStage | null) ?? null,
-      totalBookings: Number(r.totalBookings ?? 0),
-      totalSpent: Number(r.totalSpent ?? 0),
-      loyaltyPoints: Number(r.loyaltyPoints ?? 0),
-      referralCount: Number(r.referralCount ?? 0),
-    }));
+    const hasMore = rows.length > limit;
+    const page = hasMore ? rows.slice(0, limit) : rows;
+
+    return {
+      rows: page.map((r) => ({
+        ...r,
+        lifecycleStage: (r.lifecycleStage as LifecycleStage | null) ?? null,
+        totalBookings: Number(r.totalBookings ?? 0),
+        totalSpent: Number(r.totalSpent ?? 0),
+        loyaltyPoints: Number(r.loyaltyPoints ?? 0),
+        referralCount: Number(r.referralCount ?? 0),
+      })),
+      hasMore,
+    };
   } catch (err) {
     Sentry.captureException(err);
     throw err;

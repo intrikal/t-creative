@@ -17,7 +17,7 @@ export const metadata: Metadata = {
 
 export default async function Page() {
   const [
-    initialBookings,
+    bookingsResult,
     clients,
     serviceOptions,
     staffOptions,
@@ -26,7 +26,7 @@ export default async function Page() {
     lunchBreak,
     eventRows,
   ] = await Promise.all([
-    getBookings(),
+    getBookings({ limit: 500 }),
     getClientsForSelect(),
     getServicesForSelect(),
     getStaffForSelect(),
@@ -38,7 +38,7 @@ export default async function Page() {
 
   return (
     <CalendarPage
-      initialBookings={initialBookings}
+      initialBookings={bookingsResult.rows}
       clients={clients}
       serviceOptions={serviceOptions}
       staffOptions={staffOptions}

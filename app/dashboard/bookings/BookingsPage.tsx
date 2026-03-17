@@ -11,6 +11,7 @@ import {
   updateBooking,
   deleteBooking,
   cancelBookingSeries,
+  getBookings,
 } from "./actions";
 import type { BookingRow, BookingInput } from "./actions";
 import { BookingDialog, type BookingFormState } from "./components/BookingDialog";
@@ -168,12 +169,14 @@ type PageTab = (typeof PAGE_TABS)[number];
 
 export function BookingsPage({
   initialBookings,
+  initialHasMore = false,
   clients,
   serviceOptions,
   staffOptions,
   activeSubscriptions = [],
 }: {
   initialBookings: BookingRow[];
+  initialHasMore?: boolean;
   clients: {
     id: string;
     name: string;
@@ -192,10 +195,13 @@ export function BookingsPage({
   activeSubscriptions?: { id: number; clientId: string; name: string; sessionsRemaining: number }[];
 }) {
   const [isPending, startTransition] = useTransition();
+  const [allRows, setAllRows] = useState(initialBookings);
+  const [hasMore, setHasMore] = useState(initialHasMore);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [bookings, addOptimistic] = useOptimistic<
     Booking[],
     { type: "update_status"; id: number; status: BookingStatus } | { type: "delete"; id: number }
-  >(initialBookings.map(mapBookingRow), (state, action) => {
+  >(allRows.map(mapBookingRow), (state, action) => {
     switch (action.type) {
       case "update_status":
         return state.map((b) => (b.id === action.id ? { ...b, status: action.status } : b));
@@ -356,6 +362,17 @@ export function BookingsPage({
     });
   }
 
+  async function loadMore() {
+    setLoadingMore(true);
+    try {
+      const { rows, hasMore: more } = await getBookings({ offset: allRows.length });
+      setAllRows((prev) => [...prev, ...rows]);
+      setHasMore(more);
+    } finally {
+      setLoadingMore(false);
+    }
+  }
+
   /* ---- Render ---- */
 
   return (
@@ -472,29 +489,42 @@ export function BookingsPage({
             {filtered.length === 0 ? (
               <p className="text-sm text-muted text-center py-8">No bookings found.</p>
             ) : (
-              <div className="space-y-0">
-                {filtered.map((booking) => (
-                  <BookingRowComponent
-                    key={booking.id}
-                    booking={booking}
-                    menuOpen={menuOpen === booking.id}
-                    onToggleMenu={() => setMenuOpen(menuOpen === booking.id ? null : booking.id)}
-                    onEdit={() => openEdit(booking)}
-                    onQuickStatus={(status) => handleQuickStatus(booking, status)}
-                    onCancel={() => openCancelDialog(booking)}
-                    onDelete={() => openDeleteConfirm(booking)}
-                    onPayment={() => {
-                      setPaymentTarget(booking);
-                      setMenuOpen(null);
-                    }}
-                    onServiceNotes={() => {
-                      setServiceNotesTarget(booking);
-                      setMenuOpen(null);
-                    }}
-                    onCancelSeries={() => handleCancelSeries(booking)}
-                  />
-                ))}
-              </div>
+              <>
+                <div className="space-y-0">
+                  {filtered.map((booking) => (
+                    <BookingRowComponent
+                      key={booking.id}
+                      booking={booking}
+                      menuOpen={menuOpen === booking.id}
+                      onToggleMenu={() => setMenuOpen(menuOpen === booking.id ? null : booking.id)}
+                      onEdit={() => openEdit(booking)}
+                      onQuickStatus={(status) => handleQuickStatus(booking, status)}
+                      onCancel={() => openCancelDialog(booking)}
+                      onDelete={() => openDeleteConfirm(booking)}
+                      onPayment={() => {
+                        setPaymentTarget(booking);
+                        setMenuOpen(null);
+                      }}
+                      onServiceNotes={() => {
+                        setServiceNotesTarget(booking);
+                        setMenuOpen(null);
+                      }}
+                      onCancelSeries={() => handleCancelSeries(booking)}
+                    />
+                  ))}
+                </div>
+                {hasMore && (
+                  <div className="flex justify-center pt-4">
+                    <button
+                      onClick={loadMore}
+                      disabled={loadingMore}
+                      className="px-4 py-2 text-sm font-medium text-muted hover:text-foreground bg-surface border border-border rounded-lg hover:bg-foreground/5 transition-colors disabled:opacity-50"
+                    >
+                      {loadingMore ? "Loading…" : "Load more"}
+                    </button>
+                  </div>
+                )}
+              </>
             )}
           </CardContent>
         </Card>

@@ -1,17 +1,26 @@
 "use client";
 
-import { type ReactNode, useState, useTransition } from "react";
+import { type ReactNode, useTransition } from "react";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { Download } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { BookingExportRow } from "./actions";
+import type { BookingExportRow, Range } from "./actions";
 import { exportBookingsCsv } from "./actions";
 
 const RANGES = ["7d", "30d", "90d", "12m"] as const;
-type Range = (typeof RANGES)[number];
 
 export function AnalyticsShell({ children }: { children: ReactNode }) {
-  const [range, setRange] = useState<Range>("30d");
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const range = (searchParams.get("range") as Range) ?? "30d";
   const [isExporting, startExport] = useTransition();
+
+  function setRange(r: Range) {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("range", r);
+    router.push(`${pathname}?${params.toString()}`);
+  }
 
   function downloadCsv(rows: BookingExportRow[]) {
     const headers = [

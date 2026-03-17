@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { getClientSources, getClientLifetimeValues, getTopServices } from "../actions";
+import { getClientSources, getClientLifetimeValues, getTopServices, type Range } from "../actions";
 import { ClientLtvSection } from "../components/ClientLtvSection";
 import { ServicesAndSources } from "../components/ServicesAndSources";
 
@@ -12,11 +12,11 @@ function ClientsSkeleton() {
   );
 }
 
-async function ClientsData() {
+async function ClientsData({ range }: { range: Range }) {
   const [clientSources, clientLtv, topServices] = await Promise.all([
     getClientSources(),
     getClientLifetimeValues(),
-    getTopServices(),
+    getTopServices(range),
   ]);
 
   return (
@@ -27,10 +27,10 @@ async function ClientsData() {
   );
 }
 
-export function ClientsSection() {
+export function ClientsSection({ range }: { range: Range }) {
   return (
     <Suspense fallback={<ClientsSkeleton />}>
-      <ClientsData />
+      <ClientsData range={range} />
     </Suspense>
   );
 }

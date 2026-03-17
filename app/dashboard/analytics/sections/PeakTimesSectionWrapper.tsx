@@ -1,20 +1,20 @@
 import { Suspense } from "react";
-import { getPeakTimes } from "../actions";
+import { getPeakTimes, type Range } from "../actions";
 import { PeakTimesSection } from "../components/PeakTimes";
 
 function PeakTimesSkeleton() {
   return <div className="h-64 bg-surface rounded-xl animate-pulse" />;
 }
 
-async function PeakTimesData() {
-  const peakTimes = await getPeakTimes();
+async function PeakTimesData({ range }: { range: Range }) {
+  const peakTimes = await getPeakTimes(range);
   return <PeakTimesSection byHour={peakTimes.byHour} byDay={peakTimes.byDay} />;
 }
 
-export function PeakTimesSectionWrapper() {
+export function PeakTimesSectionWrapper({ range }: { range: Range }) {
   return (
     <Suspense fallback={<PeakTimesSkeleton />}>
-      <PeakTimesData />
+      <PeakTimesData range={range} />
     </Suspense>
   );
 }

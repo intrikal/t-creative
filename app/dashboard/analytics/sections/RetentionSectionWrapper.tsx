@@ -1,23 +1,23 @@
 import { Suspense } from "react";
-import { getRetentionTrend, getAtRiskClients } from "../actions";
+import { getRetentionTrend, getAtRiskClients, type Range } from "../actions";
 import { RetentionSection } from "../components/RetentionSection";
 
 function RetentionSkeleton() {
   return <div className="h-64 bg-surface rounded-xl animate-pulse" />;
 }
 
-async function RetentionData() {
+async function RetentionData({ range }: { range: Range }) {
   const [retentionTrend, atRiskClients] = await Promise.all([
-    getRetentionTrend(),
+    getRetentionTrend(range),
     getAtRiskClients(),
   ]);
   return <RetentionSection retentionTrend={retentionTrend} atRiskClients={atRiskClients} />;
 }
 
-export function RetentionSectionWrapper() {
+export function RetentionSectionWrapper({ range }: { range: Range }) {
   return (
     <Suspense fallback={<RetentionSkeleton />}>
-      <RetentionData />
+      <RetentionData range={range} />
     </Suspense>
   );
 }

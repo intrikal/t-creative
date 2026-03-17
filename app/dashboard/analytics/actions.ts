@@ -254,6 +254,25 @@ export type PeakTimeSlot = {
 };
 
 /* ------------------------------------------------------------------ */
+/*  Range selector                                                     */
+/* ------------------------------------------------------------------ */
+
+export type Range = "7d" | "30d" | "90d" | "12m";
+
+function rangeToInterval(range: Range): string {
+  switch (range) {
+    case "7d":
+      return "7 days";
+    case "30d":
+      return "30 days";
+    case "90d":
+      return "90 days";
+    case "12m":
+      return "12 months";
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
 /* ------------------------------------------------------------------ */
 
@@ -372,7 +391,7 @@ export async function getKpiStats(): Promise<KpiStats> {
 /*  Weekly Bookings by Category                                        */
 /* ------------------------------------------------------------------ */
 
-export async function getBookingsTrend(): Promise<WeeklyBookings[]> {
+export async function getBookingsTrend(range: Range = "30d"): Promise<WeeklyBookings[]> {
   try {
     await getUser();
 
@@ -384,7 +403,7 @@ export async function getBookingsTrend(): Promise<WeeklyBookings[]> {
       })
       .from(bookings)
       .leftJoin(services, eq(bookings.serviceId, services.id))
-      .where(gte(bookings.startsAt, sql`now() - interval '8 weeks'`))
+      .where(gte(bookings.startsAt, sql`now() - interval ${sql.raw(`'${rangeToInterval(range)}'`)}`))
       .groupBy(sql`date_trunc('week', ${bookings.startsAt})`, services.category)
       .orderBy(sql`date_trunc('week', ${bookings.startsAt})`);
 
@@ -413,7 +432,7 @@ export async function getBookingsTrend(): Promise<WeeklyBookings[]> {
 /*  Weekly Revenue                                                     */
 /* ------------------------------------------------------------------ */
 
-export async function getRevenueTrend(): Promise<WeeklyRevenue[]> {
+export async function getRevenueTrend(range: Range = "30d"): Promise<WeeklyRevenue[]> {
   try {
     await getUser();
 
@@ -424,7 +443,7 @@ export async function getRevenueTrend(): Promise<WeeklyRevenue[]> {
       })
       .from(payments)
       .where(
-        and(eq(payments.status, "paid"), gte(payments.paidAt, sql`now() - interval '8 weeks'`)),
+        and(eq(payments.status, "paid"), gte(payments.paidAt, sql`now() - interval ${sql.raw(`'${rangeToInterval(range)}'`)}`)),
       )
       .groupBy(sql`date_trunc('week', coalesce(${payments.paidAt}, ${payments.createdAt}))`)
       .orderBy(sql`date_trunc('week', coalesce(${payments.paidAt}, ${payments.createdAt}))`);
@@ -443,7 +462,7 @@ export async function getRevenueTrend(): Promise<WeeklyRevenue[]> {
 /*  Service Mix                                                        */
 /* ------------------------------------------------------------------ */
 
-export async function getServiceMix(): Promise<ServiceMixItem[]> {
+export async function getServiceMix(range: Range = "30d"): Promise<ServiceMixItem[]> {
   try {
     await getUser();
 
@@ -454,7 +473,7 @@ export async function getServiceMix(): Promise<ServiceMixItem[]> {
       })
       .from(bookings)
       .leftJoin(services, eq(bookings.serviceId, services.id))
-      .where(gte(bookings.startsAt, sql`now() - interval '30 days'`))
+      .where(gte(bookings.startsAt, sql`now() - interval ${sql.raw(`'${rangeToInterval(range)}'`)}`))
       .groupBy(services.category)
       .orderBy(sql`count(*) desc`);
 
@@ -477,7 +496,7 @@ export async function getServiceMix(): Promise<ServiceMixItem[]> {
 /*  Staff Performance                                                  */
 /* ------------------------------------------------------------------ */
 
-export async function getStaffPerformance(): Promise<StaffPerformanceItem[]> {
+export async function getStaffPerformance(range: Range = "30d"): Promise<StaffPerformanceItem[]> {
   try {
     await getUser();
 
@@ -496,7 +515,7 @@ export async function getStaffPerformance(): Promise<StaffPerformanceItem[]> {
       })
       .from(bookings)
       .leftJoin(staffProfile, eq(bookings.staffId, staffProfile.id))
-      .where(gte(bookings.startsAt, sql`now() - interval '30 days'`))
+      .where(gte(bookings.startsAt, sql`now() - interval ${sql.raw(`'${rangeToInterval(range)}'`)}`))
       .groupBy(bookings.staffId, staffProfile.firstName, staffProfile.lastName, staffProfile.role)
       .orderBy(sql`sum(${bookings.totalInCents}) desc`);
 
@@ -528,7 +547,7 @@ export async function getStaffPerformance(): Promise<StaffPerformanceItem[]> {
 /*  Attendance & Cancellations                                         */
 /* ------------------------------------------------------------------ */
 
-export async function getAttendanceStats(): Promise<AttendanceStats> {
+export async function getAttendanceStats(range: Range = "30d"): Promise<AttendanceStats> {
   try {
     await getUser();
 
@@ -540,7 +559,7 @@ export async function getAttendanceStats(): Promise<AttendanceStats> {
         lostCents: sql<number>`coalesce(sum(${bookings.totalInCents}) filter (where ${bookings.status} = 'no_show'), 0)`,
       })
       .from(bookings)
-      .where(gte(bookings.startsAt, sql`now() - interval '30 days'`));
+      .where(gte(bookings.startsAt, sql`now() - interval ${sql.raw(`'${rangeToInterval(range)}'`)}`));
 
     const completed = Number(row.completed);
     const noShow = Number(row.noShow);
@@ -562,7 +581,7 @@ export async function getAttendanceStats(): Promise<AttendanceStats> {
 /*  Client Retention (new vs returning per week)                       */
 /* ------------------------------------------------------------------ */
 
-export async function getRetentionTrend(): Promise<RetentionWeek[]> {
+export async function getRetentionTrend(range: Range = "30d"): Promise<RetentionWeek[]> {
   try {
     await getUser();
 
@@ -579,7 +598,7 @@ export async function getRetentionTrend(): Promise<RetentionWeek[]> {
         )`,
       })
       .from(bookings)
-      .where(gte(bookings.startsAt, sql`now() - interval '8 weeks'`))
+      .where(gte(bookings.startsAt, sql`now() - interval ${sql.raw(`'${rangeToInterval(range)}'`)}`))
       .groupBy(sql`date_trunc('week', ${bookings.startsAt})`)
       .orderBy(sql`date_trunc('week', ${bookings.startsAt})`);
 
@@ -649,7 +668,7 @@ export async function getAtRiskClients(): Promise<AtRiskClient[]> {
 /*  Top Services                                                       */
 /* ------------------------------------------------------------------ */
 
-export async function getTopServices(): Promise<TopService[]> {
+export async function getTopServices(range: Range = "30d"): Promise<TopService[]> {
   try {
     await getUser();
 
@@ -661,7 +680,7 @@ export async function getTopServices(): Promise<TopService[]> {
       })
       .from(bookings)
       .leftJoin(services, eq(bookings.serviceId, services.id))
-      .where(gte(bookings.startsAt, sql`now() - interval '30 days'`))
+      .where(gte(bookings.startsAt, sql`now() - interval ${sql.raw(`'${rangeToInterval(range)}'`)}`))
       .groupBy(services.name)
       .orderBy(sql`count(*) desc`)
       .limit(6);
@@ -681,7 +700,7 @@ export async function getTopServices(): Promise<TopService[]> {
 /*  Revenue by Individual Service                                      */
 /* ------------------------------------------------------------------ */
 
-export async function getRevenueByService(): Promise<ServiceRevenueItem[]> {
+export async function getRevenueByService(range: Range = "30d"): Promise<ServiceRevenueItem[]> {
   try {
     await getUser();
 
@@ -696,7 +715,7 @@ export async function getRevenueByService(): Promise<ServiceRevenueItem[]> {
       .innerJoin(bookings, eq(payments.bookingId, bookings.id))
       .innerJoin(services, eq(bookings.serviceId, services.id))
       .where(
-        and(eq(payments.status, "paid"), gte(payments.paidAt, sql`now() - interval '30 days'`)),
+        and(eq(payments.status, "paid"), gte(payments.paidAt, sql`now() - interval ${sql.raw(`'${rangeToInterval(range)}'`)}`)),
       )
       .groupBy(services.name, services.category)
       .orderBy(sql`sum(${payments.amountInCents}) desc`);
@@ -770,7 +789,7 @@ export async function getRebookRates(): Promise<RebookRate[]> {
 /*  Peak Times                                                         */
 /* ------------------------------------------------------------------ */
 
-export async function getPeakTimes(): Promise<{
+export async function getPeakTimes(range: Range = "30d"): Promise<{
   byHour: PeakTimeSlot[];
   byDay: PeakTimeSlot[];
 }> {
@@ -787,7 +806,7 @@ export async function getPeakTimes(): Promise<{
           count: sql<number>`count(*)`,
         })
         .from(bookings)
-        .where(gte(bookings.startsAt, sql`now() - interval '30 days'`))
+        .where(gte(bookings.startsAt, sql`now() - interval ${sql.raw(`'${rangeToInterval(range)}'`)}`))
         .groupBy(sql`extract(hour from ${bookings.startsAt})`),
       db
         .select({
@@ -795,7 +814,7 @@ export async function getPeakTimes(): Promise<{
           count: sql<number>`count(*)`,
         })
         .from(bookings)
-        .where(gte(bookings.startsAt, sql`now() - interval '30 days'`))
+        .where(gte(bookings.startsAt, sql`now() - interval ${sql.raw(`'${rangeToInterval(range)}'`)}`))
         .groupBy(sql`extract(dow from ${bookings.startsAt})`),
     ]);
 
@@ -1074,12 +1093,14 @@ function timeToHours(t: string): number {
   return h + m / 60;
 }
 
-export async function getRevenuePerHour(): Promise<RevenuePerHourDay[]> {
+export async function getRevenuePerHour(range: Range = "30d"): Promise<RevenuePerHourDay[]> {
   try {
     await getUser();
 
+    const daysBack =
+      range === "7d" ? 7 : range === "30d" ? 30 : range === "90d" ? 90 : 365;
     const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - daysBack);
 
     // 1. Studio-wide business hours (staffId IS NULL)
     const hours = await db
@@ -1158,7 +1179,7 @@ export async function getRevenuePerHour(): Promise<RevenuePerHourDay[]> {
       })
       .from(payments)
       .where(
-        and(eq(payments.status, "paid"), gte(payments.paidAt, sql`now() - interval '30 days'`)),
+        and(eq(payments.status, "paid"), gte(payments.paidAt, sql`now() - interval ${sql.raw(`'${rangeToInterval(range)}'`)}`)),
       )
       .groupBy(sql`extract(isodow from ${payments.paidAt})`);
 
@@ -1200,11 +1221,11 @@ export async function getRevenuePerHour(): Promise<RevenuePerHourDay[]> {
  * created their next booking within 24 hours of checkout?
  * Broken down overall, by staff, and by service category.
  */
-export async function getCheckoutRebookRate(): Promise<CheckoutRebookStats> {
+export async function getCheckoutRebookRate(range: Range = "30d"): Promise<CheckoutRebookStats> {
   try {
     await getUser();
 
-    const result = await db.execute(sql`
+    const result = await db.execute(sql.raw(`
       WITH completed AS (
         SELECT
           b.id,
@@ -1216,7 +1237,7 @@ export async function getCheckoutRebookRate(): Promise<CheckoutRebookStats> {
         JOIN services s ON s.id = b.service_id
         WHERE b.status = 'completed'
           AND b.completed_at IS NOT NULL
-          AND b.completed_at > now() - interval '30 days'
+          AND b.completed_at > now() - interval '${rangeToInterval(range)}'
       ),
       rebooked AS (
         SELECT DISTINCT c.id

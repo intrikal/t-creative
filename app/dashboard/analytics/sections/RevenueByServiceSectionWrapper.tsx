@@ -1,20 +1,20 @@
 import { Suspense } from "react";
-import { getRevenueByService } from "../actions";
+import { getRevenueByService, type Range } from "../actions";
 import { RevenueByServiceSection } from "../components/RevenueByServiceSection";
 
 function RevenueByServiceSkeleton() {
   return <div className="h-64 bg-surface rounded-xl animate-pulse" />;
 }
 
-async function RevenueByServiceData() {
-  const data = await getRevenueByService();
+async function RevenueByServiceData({ range }: { range: Range }) {
+  const data = await getRevenueByService(range);
   return <RevenueByServiceSection data={data} />;
 }
 
-export function RevenueByServiceSectionWrapper() {
+export function RevenueByServiceSectionWrapper({ range }: { range: Range }) {
   return (
     <Suspense fallback={<RevenueByServiceSkeleton />}>
-      <RevenueByServiceData />
+      <RevenueByServiceData range={range} />
     </Suspense>
   );
 }

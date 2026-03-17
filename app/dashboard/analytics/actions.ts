@@ -27,7 +27,15 @@ import * as Sentry from "@sentry/nextjs";
 import { eq, desc, sql, and, gte, lt, isNotNull } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
-import { bookings, payments, services, profiles, settings } from "@/db/schema";
+import {
+  bookings,
+  payments,
+  services,
+  profiles,
+  settings,
+  businessHours,
+  timeOff,
+} from "@/db/schema";
 import { createClient } from "@/utils/supabase/server";
 
 /* ------------------------------------------------------------------ */
@@ -160,6 +168,14 @@ export type VisitFrequencyBucket = {
   label: string;
   clients: number;
   pct: number;
+};
+
+export type RevenuePerHourDay = {
+  day: string;
+  isoDay: number;
+  revenue: number;
+  availableHours: number;
+  revenuePerHour: number;
 };
 
 export type PeakTimeSlot = {
@@ -962,6 +978,146 @@ export async function getVisitFrequency(): Promise<VisitFrequencyBucket[]> {
     });
 
     return buckets;
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Revenue per Available Hour                                         */
+/* ------------------------------------------------------------------ */
+
+const DAY_LABELS_ISO: Record<number, string> = {
+  1: "Monday",
+  2: "Tuesday",
+  3: "Wednesday",
+  4: "Thursday",
+  5: "Friday",
+  6: "Saturday",
+  7: "Sunday",
+};
+
+/** Parse "HH:MM" to fractional hours. */
+function timeToHours(t: string): number {
+  const [h, m] = t.split(":").map(Number);
+  return h + m / 60;
+}
+
+export async function getRevenuePerHour(): Promise<RevenuePerHourDay[]> {
+  try {
+    await getUser();
+
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    // 1. Studio-wide business hours (staffId IS NULL)
+    const hours = await db
+      .select({
+        dayOfWeek: businessHours.dayOfWeek,
+        isOpen: businessHours.isOpen,
+        opensAt: businessHours.opensAt,
+        closesAt: businessHours.closesAt,
+      })
+      .from(businessHours)
+      .where(sql`${businessHours.staffId} is null`);
+
+    // 2. Lunch break from settings
+    const [lunchRow] = await db
+      .select({ value: settings.value })
+      .from(settings)
+      .where(eq(settings.key, "lunch_break"));
+    const lunch = lunchRow?.value as { enabled?: boolean; start?: string; end?: string } | null;
+    const lunchHours =
+      lunch?.enabled && lunch.start && lunch.end
+        ? timeToHours(lunch.end) - timeToHours(lunch.start)
+        : 0;
+
+    // 3. Time-off days (studio-wide) in the last 30 days
+    const timeOffRows = await db
+      .select({ startDate: timeOff.startDate, endDate: timeOff.endDate })
+      .from(timeOff)
+      .where(
+        and(
+          sql`${timeOff.staffId} is null`,
+          sql`${timeOff.endDate} >= ${thirtyDaysAgo.toISOString().slice(0, 10)}`,
+        ),
+      );
+
+    // Build set of closed dates
+    const closedDates = new Set<string>();
+    for (const row of timeOffRows) {
+      const start = new Date(row.startDate);
+      const end = new Date(row.endDate);
+      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+        closedDates.add(d.toISOString().slice(0, 10));
+      }
+    }
+
+    // 4. Build available hours per ISO day-of-week
+    // Map ISO day (1=Mon..7=Sun) to hours-per-open-day
+    const hoursPerDay = new Map<number, number>();
+    for (const h of hours) {
+      if (h.isOpen && h.opensAt && h.closesAt) {
+        const open = timeToHours(h.opensAt);
+        const close = timeToHours(h.closesAt);
+        hoursPerDay.set(h.dayOfWeek, Math.max(close - open - lunchHours, 0));
+      } else {
+        hoursPerDay.set(h.dayOfWeek, 0);
+      }
+    }
+
+    // Count actual open days per day-of-week in the last 30 days
+    // (excluding time-off)
+    const openDayCount = new Map<number, number>();
+    const now = new Date();
+    for (let d = new Date(thirtyDaysAgo); d <= now; d.setDate(d.getDate() + 1)) {
+      const dateStr = d.toISOString().slice(0, 10);
+      // JS getDay: 0=Sun..6=Sat → ISO: 1=Mon..7=Sun
+      const jsDay = d.getDay();
+      const isoDay = jsDay === 0 ? 7 : jsDay;
+
+      if ((hoursPerDay.get(isoDay) ?? 0) === 0) continue;
+      if (closedDates.has(dateStr)) continue;
+
+      openDayCount.set(isoDay, (openDayCount.get(isoDay) ?? 0) + 1);
+    }
+
+    // 5. Revenue by ISO day-of-week (last 30 days, paid)
+    const revenueRows = await db
+      .select({
+        isoDay: sql<number>`extract(isodow from ${payments.paidAt})`,
+        total: sql<number>`coalesce(sum(${payments.amountInCents}), 0)`,
+      })
+      .from(payments)
+      .where(
+        and(eq(payments.status, "paid"), gte(payments.paidAt, sql`now() - interval '30 days'`)),
+      )
+      .groupBy(sql`extract(isodow from ${payments.paidAt})`);
+
+    const revenueByDay = new Map(
+      revenueRows.map((r) => [Number(r.isoDay), Math.round(Number(r.total) / 100)]),
+    );
+
+    // 6. Assemble results
+    const results: RevenuePerHourDay[] = [];
+    for (let isoDay = 1; isoDay <= 7; isoDay++) {
+      const hpd = hoursPerDay.get(isoDay) ?? 0;
+      const days = openDayCount.get(isoDay) ?? 0;
+      const availableHours = Math.round(hpd * days * 10) / 10;
+      const revenue = revenueByDay.get(isoDay) ?? 0;
+      const revenuePerHour = availableHours > 0 ? Math.round(revenue / availableHours) : 0;
+
+      results.push({
+        day: DAY_LABELS_ISO[isoDay],
+        isoDay,
+        revenue,
+        availableHours,
+        revenuePerHour,
+      });
+    }
+
+    return results;
   } catch (err) {
     Sentry.captureException(err);
     throw err;

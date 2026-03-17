@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Pencil, Trash2, Star, Heart, FileText, Users } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -23,32 +24,35 @@ export function ClientCard({
   const av = avatarColor(client.name);
 
   return (
-    <div className="group relative flex flex-col gap-3 p-4 rounded-xl border border-border bg-background hover:shadow-sm transition-all">
+    <Link
+      href={`/dashboard/clients/${client.id}`}
+      className="group relative flex flex-col gap-3 p-4 rounded-xl border border-border bg-background hover:shadow-sm transition-all cursor-pointer"
+    >
       {/* Actions — hover reveal */}
       <div className="absolute top-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
         <button
-          onClick={() => onWaivers(client)}
+          onClick={(e) => { e.preventDefault(); onWaivers(client); }}
           className="p-1.5 rounded-lg hover:bg-foreground/8 text-muted hover:text-foreground transition-colors"
           title="Waivers & Forms"
         >
           <FileText className="w-3.5 h-3.5" />
         </button>
         <button
-          onClick={() => onPreferences(client)}
+          onClick={(e) => { e.preventDefault(); onPreferences(client); }}
           className="p-1.5 rounded-lg hover:bg-foreground/8 text-muted hover:text-foreground transition-colors"
           title="Preferences"
         >
           <Heart className="w-3.5 h-3.5" />
         </button>
         <button
-          onClick={() => onEdit(client)}
+          onClick={(e) => { e.preventDefault(); onEdit(client); }}
           className="p-1.5 rounded-lg hover:bg-foreground/8 text-muted hover:text-foreground transition-colors"
           title="Edit"
         >
           <Pencil className="w-3.5 h-3.5" />
         </button>
         <button
-          onClick={() => onDelete(client)}
+          onClick={(e) => { e.preventDefault(); onDelete(client); }}
           className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted hover:text-destructive transition-colors"
           title="Delete"
         >
@@ -155,6 +159,6 @@ export function ClientCard({
           {client.notes}
         </p>
       )}
-    </div>
+    </Link>
   );
 }

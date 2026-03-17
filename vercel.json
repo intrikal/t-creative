@@ -31,6 +31,10 @@
     {
       "path": "/api/cron/backup",
       "schedule": "30 3 * * *"
+    },
+    {
+      "path": "/api/cron/daily-flash",
+      "schedule": "0 15 * * *"
     }
   ]
 }

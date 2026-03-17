@@ -145,6 +145,7 @@ function setupMocks(db: Record<string, unknown> | null = null) {
       { join: vi.fn(() => ({ type: "sql_join" })) },
     ),
     inArray: vi.fn((...args: unknown[]) => ({ type: "inArray", args })),
+    isNull: vi.fn((...args: unknown[]) => ({ type: "isNull", args })),
   }));
   vi.doMock("drizzle-orm/pg-core", () => ({
     alias: vi.fn((_table: unknown, name: string) => ({
@@ -766,20 +767,21 @@ describe("actions", () => {
       await expect(deleteBooking(1)).rejects.toThrow("Not authenticated");
     });
 
-    it("calls db.delete for the booking", async () => {
+    it("soft-deletes by setting deletedAt", async () => {
       vi.resetModules();
-      const mockDeleteWhere = vi.fn();
+      const mockUpdateWhere = vi.fn();
+      const mockUpdateSet = vi.fn(() => ({ where: mockUpdateWhere }));
       setupMocks({
         select: vi.fn(() => makeChain([])),
         insert: vi.fn(() => ({
           values: vi.fn(() => ({ returning: vi.fn().mockResolvedValue([{ id: 1 }]) })),
         })),
-        update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn() })) })),
-        delete: vi.fn(() => ({ where: mockDeleteWhere })),
+        update: vi.fn(() => ({ set: mockUpdateSet })),
+        delete: vi.fn(() => ({ where: vi.fn() })),
       });
       const { deleteBooking } = await import("./actions");
       await deleteBooking(99);
-      expect(mockDeleteWhere).toHaveBeenCalled();
+      expect(mockUpdateSet).toHaveBeenCalledWith({ deletedAt: expect.any(Date) });
     });
 
     it("revalidates /dashboard/bookings", async () => {

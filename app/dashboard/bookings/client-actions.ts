@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { eq, desc, and, sql } from "drizzle-orm";
+import { eq, desc, and, sql, isNull } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
 import { bookings, bookingAddOns, services, profiles, reviews } from "@/db/schema";
@@ -82,7 +82,7 @@ export async function getClientBookings(): Promise<ClientBookingsData> {
     .from(bookings)
     .leftJoin(services, eq(bookings.serviceId, services.id))
     .leftJoin(staffProfile, eq(bookings.staffId, staffProfile.id))
-    .where(eq(bookings.clientId, user.id))
+    .where(and(eq(bookings.clientId, user.id), isNull(bookings.deletedAt)))
     .orderBy(desc(bookings.startsAt));
 
   // Fetch add-ons for all bookings in one query
@@ -185,7 +185,7 @@ export async function submitClientReview(data: {
       serviceId: bookings.serviceId,
     })
     .from(bookings)
-    .where(eq(bookings.id, data.bookingId))
+    .where(and(eq(bookings.id, data.bookingId), isNull(bookings.deletedAt)))
     .limit(1);
 
   if (!booking || booking.clientId !== user.id) {
@@ -251,7 +251,7 @@ export async function rescheduleClientBooking(bookingId: number, newStartsAt: st
     })
     .from(bookings)
     .leftJoin(services, eq(bookings.serviceId, services.id))
-    .where(eq(bookings.id, bookingId))
+    .where(and(eq(bookings.id, bookingId), isNull(bookings.deletedAt)))
     .limit(1);
 
   if (!booking || booking.clientId !== user.id) {
@@ -318,7 +318,7 @@ export async function cancelClientBooking(bookingId: number) {
       depositPaidInCents: bookings.depositPaidInCents,
     })
     .from(bookings)
-    .where(eq(bookings.id, bookingId))
+    .where(and(eq(bookings.id, bookingId), isNull(bookings.deletedAt)))
     .limit(1);
 
   if (!booking || booking.clientId !== user.id) {

@@ -176,6 +176,13 @@
       "when": 1773800000001,
       "tag": "0024_corporate_events",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1773710370390,
+      "tag": "0025_wandering_bullseye",
+      "breakpoints": true
     }
   ]
 }

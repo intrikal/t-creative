@@ -28,7 +28,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { eq, desc, ne, and, sql, inArray } from "drizzle-orm";
+import { eq, desc, ne, and, sql, inArray, isNull } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type { MediaCategory } from "@/app/dashboard/media/actions";
 import { db } from "@/db";
@@ -136,6 +136,8 @@ async function hasOverlappingBooking(
     conditions.push(ne(bookings.id, excludeBookingId));
   }
 
+  conditions.push(isNull(bookings.deletedAt));
+
   const conflicts = await db
     .select({ id: bookings.id })
     .from(bookings)
@@ -173,6 +175,7 @@ export async function getBookings(): Promise<BookingRow[]> {
       parentBookingId: bookings.parentBookingId,
     })
     .from(bookings)
+    .where(isNull(bookings.deletedAt))
     .leftJoin(clientProfile, eq(bookings.clientId, clientProfile.id))
     .leftJoin(services, eq(bookings.serviceId, services.id))
     .leftJoin(staffProfile, eq(bookings.staffId, staffProfile.id))
@@ -213,7 +216,7 @@ export async function updateBookingStatus(
         totalInCents: bookings.totalInCents,
       })
       .from(bookings)
-      .where(eq(bookings.id, id));
+      .where(and(eq(bookings.id, id), isNull(bookings.deletedAt)));
 
     if (booking && !booking.squareOrderId) {
       await tryCreateSquareOrder(id, booking.serviceId, booking.totalInCents);
@@ -394,7 +397,7 @@ export async function updateBooking(
   const [oldBooking] = await db
     .select({ startsAt: bookings.startsAt })
     .from(bookings)
-    .where(eq(bookings.id, id));
+    .where(and(eq(bookings.id, id), isNull(bookings.deletedAt)));
 
   const updates: Record<string, unknown> = {
     clientId: input.clientId,
@@ -446,14 +449,14 @@ export async function updateBooking(
 
 export async function deleteBooking(id: number): Promise<void> {
   const user = await getUser();
-  await db.delete(bookings).where(eq(bookings.id, id));
+  await db.update(bookings).set({ deletedAt: new Date() }).where(eq(bookings.id, id));
 
   await logAction({
     actorId: user.id,
     action: "delete",
     entityType: "booking",
     entityId: String(id),
-    description: "Booking deleted",
+    description: "Booking soft-deleted",
   });
 
   revalidatePath("/dashboard/bookings");
@@ -473,7 +476,7 @@ export async function getClientsForSelect(): Promise<
     })
     .from(profiles)
     .leftJoin(clientPreferences, eq(clientPreferences.profileId, profiles.id))
-    .where(eq(profiles.role, "client"))
+    .where(and(eq(profiles.role, "client"), eq(profiles.isActive, true)))
     .orderBy(profiles.firstName);
 
   return rows.map((r) => ({
@@ -594,7 +597,7 @@ async function generateNextRecurringBooking(bookingId: number): Promise<void> {
         subscriptionId: bookings.subscriptionId,
       })
       .from(bookings)
-      .where(eq(bookings.id, bookingId));
+      .where(and(eq(bookings.id, bookingId), isNull(bookings.deletedAt)));
 
     if (!booking) return;
 
@@ -661,7 +664,7 @@ async function generateNextRecurringBooking(bookingId: number): Promise<void> {
           .from(bookings)
           .innerJoin(recurClient, eq(bookings.clientId, recurClient.id))
           .innerJoin(services, eq(bookings.serviceId, services.id))
-          .where(eq(bookings.id, newBooking.id));
+          .where(and(eq(bookings.id, newBooking.id), isNull(bookings.deletedAt)));
 
         if (row?.clientEmail && row.notifyEmail) {
           const dateFormatted = nextStart.toLocaleDateString("en-US", {
@@ -713,7 +716,7 @@ async function generateNextRecurringBooking(bookingId: number): Promise<void> {
       const [{ total }] = await db
         .select({ total: sql<number>`count(*)` })
         .from(bookings)
-        .where(and(eq(bookings.parentBookingId, seriesRoot)));
+        .where(and(eq(bookings.parentBookingId, seriesRoot), isNull(bookings.deletedAt)));
       // +1 for the root booking itself
       if (Number(total) + 1 >= interval.count) return;
     }
@@ -751,7 +754,7 @@ async function generateNextRecurringBooking(bookingId: number): Promise<void> {
         .from(bookings)
         .innerJoin(recurClient, eq(bookings.clientId, recurClient.id))
         .innerJoin(services, eq(bookings.serviceId, services.id))
-        .where(eq(bookings.id, newBooking.id));
+        .where(and(eq(bookings.id, newBooking.id), isNull(bookings.deletedAt)));
 
       if (row?.clientEmail && row.notifyEmail) {
         const dateFormatted = nextStart.toLocaleDateString("en-US", {
@@ -853,7 +856,7 @@ async function tryCreateZohoBooksInvoice(bookingId: number): Promise<void> {
       .from(bookings)
       .innerJoin(invoiceClient, eq(bookings.clientId, invoiceClient.id))
       .innerJoin(services, eq(bookings.serviceId, services.id))
-      .where(eq(bookings.id, bookingId));
+      .where(and(eq(bookings.id, bookingId), isNull(bookings.deletedAt)));
 
     if (!row || row.zohoInvoiceId) return; // Already has invoice or not found
 
@@ -903,7 +906,7 @@ async function tryAutoSendDepositLink(bookingId: number): Promise<void> {
       .from(bookings)
       .innerJoin(depositClient, eq(bookings.clientId, depositClient.id))
       .innerJoin(services, eq(bookings.serviceId, services.id))
-      .where(eq(bookings.id, bookingId));
+      .where(and(eq(bookings.id, bookingId), isNull(bookings.deletedAt)));
 
     if (
       !row?.depositInCents ||
@@ -1000,7 +1003,7 @@ async function trySendBookingConfirmation(bookingId: number): Promise<void> {
       .from(bookings)
       .innerJoin(confirmClient, eq(bookings.clientId, confirmClient.id))
       .innerJoin(services, eq(bookings.serviceId, services.id))
-      .where(eq(bookings.id, bookingId));
+      .where(and(eq(bookings.id, bookingId), isNull(bookings.deletedAt)));
 
     if (!row) return;
 
@@ -1073,7 +1076,7 @@ async function trySendBookingStatusEmail(
       .from(bookings)
       .innerJoin(statusClient, eq(bookings.clientId, statusClient.id))
       .innerJoin(services, eq(bookings.serviceId, services.id))
-      .where(eq(bookings.id, bookingId));
+      .where(and(eq(bookings.id, bookingId), isNull(bookings.deletedAt)));
 
     if (!row?.clientEmail || !row.notifyEmail) return;
 
@@ -1168,7 +1171,7 @@ async function trySendBookingReschedule(bookingId: number, oldStartsAt: Date): P
       .from(bookings)
       .innerJoin(reschedClient, eq(bookings.clientId, reschedClient.id))
       .innerJoin(services, eq(bookings.serviceId, services.id))
-      .where(eq(bookings.id, bookingId));
+      .where(and(eq(bookings.id, bookingId), isNull(bookings.deletedAt)));
 
     if (!row?.clientEmail || !row.notifyEmail) return;
 
@@ -1276,7 +1279,7 @@ export async function getAssistantBookings(): Promise<{
     .from(bookings)
     .innerJoin(clientProfile, eq(bookings.clientId, clientProfile.id))
     .innerJoin(services, eq(bookings.serviceId, services.id))
-    .where(eq(bookings.staffId, user.id))
+    .where(and(eq(bookings.staffId, user.id), isNull(bookings.deletedAt)))
     .orderBy(desc(bookings.startsAt));
 
   const mapped: AssistantBookingRow[] = rows.map((r) => {
@@ -1625,7 +1628,7 @@ export async function cancelBookingSeries(bookingId: number): Promise<void> {
   const [booking] = await db
     .select({ parentBookingId: bookings.parentBookingId })
     .from(bookings)
-    .where(eq(bookings.id, bookingId));
+    .where(and(eq(bookings.id, bookingId), isNull(bookings.deletedAt)));
 
   if (!booking) throw new Error("Booking not found");
 
@@ -1641,6 +1644,7 @@ export async function cancelBookingSeries(bookingId: number): Promise<void> {
         sql`(${bookings.id} = ${seriesRoot} OR ${bookings.parentBookingId} = ${seriesRoot})`,
         sql`${bookings.startsAt} >= ${now.toISOString()}`,
         sql`${bookings.status} NOT IN ('cancelled', 'completed', 'no_show')`,
+        isNull(bookings.deletedAt),
       ),
     );
 

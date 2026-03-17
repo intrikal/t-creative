@@ -113,6 +113,7 @@ function setupMocks(db: Record<string, unknown> | null = null) {
     inArray: vi.fn((...args: unknown[]) => ({ type: "inArray", args })),
     count: vi.fn((...args: unknown[]) => ({ type: "count", args })),
     sum: vi.fn((...args: unknown[]) => ({ type: "sum", args })),
+    isNull: vi.fn((...args: unknown[]) => ({ type: "isNull", args })),
   }));
   vi.doMock("drizzle-orm/pg-core", () => ({
     alias: vi.fn((_table: unknown, name: string) => ({
@@ -430,20 +431,21 @@ describe("clients/actions", () => {
       await expect(deleteClient("c-1")).rejects.toThrow("Not authenticated");
     });
 
-    it("calls db.delete", async () => {
+    it("soft-deletes by setting isActive to false", async () => {
       vi.resetModules();
-      const mockDeleteWhere = vi.fn();
+      const mockUpdateWhere = vi.fn();
+      const mockUpdateSet = vi.fn(() => ({ where: mockUpdateWhere }));
       setupMocks({
         select: vi.fn(() => makeChain([])),
         insert: vi.fn(() => ({
           values: vi.fn(() => ({ returning: vi.fn().mockResolvedValue([]) })),
         })),
-        update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn() })) })),
-        delete: vi.fn(() => ({ where: mockDeleteWhere })),
+        update: vi.fn(() => ({ set: mockUpdateSet })),
+        delete: vi.fn(() => ({ where: vi.fn() })),
       });
       const { deleteClient } = await import("./actions");
       await deleteClient("c-1");
-      expect(mockDeleteWhere).toHaveBeenCalled();
+      expect(mockUpdateSet).toHaveBeenCalledWith({ isActive: false });
     });
 
     it("fires PostHog client_deleted event", async () => {

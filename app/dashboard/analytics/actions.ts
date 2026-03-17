@@ -27,7 +27,15 @@ import * as Sentry from "@sentry/nextjs";
 import { eq, desc, sql, and, gte, lt, isNotNull } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
-import { bookings, payments, services, profiles, settings } from "@/db/schema";
+import {
+  bookings,
+  payments,
+  services,
+  profiles,
+  settings,
+  businessHours,
+  timeOff,
+} from "@/db/schema";
 import { createClient } from "@/utils/supabase/server";
 
 /* ------------------------------------------------------------------ */

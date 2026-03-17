@@ -20,7 +20,13 @@ export default async function Page() {
     return <AssistantClientsPage initialClients={clients} stats={stats} />;
   }
 
-  const [initialClients, initialLoyalty] = await Promise.all([getClients(), getClientLoyalty()]);
+  const [clientsResult, initialLoyalty] = await Promise.all([getClients(), getClientLoyalty()]);
 
-  return <ClientsPage initialClients={initialClients} initialLoyalty={initialLoyalty} />;
+  return (
+    <ClientsPage
+      initialClients={clientsResult.rows}
+      initialHasMore={clientsResult.hasMore}
+      initialLoyalty={initialLoyalty}
+    />
+  );
 }

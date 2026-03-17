@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import type { ClientRow, LoyaltyRow, LifecycleStage } from "./actions";
 export type { LifecycleStage };
-import { createClient, updateClient, deleteClient } from "./actions";
+import { createClient, updateClient, deleteClient, getClients as fetchClients } from "./actions";
 import { ClientCard } from "./components/ClientCard";
 import { ClientFormDialog, BLANK_FORM, type ClientFormState } from "./components/ClientFormDialog";
 import { ClientPreferencesDialog } from "./components/ClientPreferencesDialog";
@@ -247,12 +247,17 @@ type ClientsTab = (typeof CLIENTS_TABS)[number]["id"];
 
 export function ClientsPage({
   initialClients,
+  initialHasMore = false,
   initialLoyalty,
 }: {
   initialClients: ClientRow[];
+  initialHasMore?: boolean;
   initialLoyalty: LoyaltyRow[];
 }) {
-  const mappedClients = initialClients.map(mapClientRow);
+  const [allRows, setAllRows] = useState(initialClients);
+  const [hasMore, setHasMore] = useState(initialHasMore);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const mappedClients = allRows.map(mapClientRow);
   const totalSpentMap = new Map(mappedClients.map((c) => [c.id, c.totalSpent]));
   const mappedLoyalty = initialLoyalty.map((r) => mapLoyaltyRow(r, totalSpentMap));
 
@@ -376,6 +381,17 @@ export function ClientsPage({
       await deleteClient(targetId);
     });
   };
+
+  async function loadMore() {
+    setLoadingMore(true);
+    try {
+      const { rows, hasMore: more } = await fetchClients({ offset: allRows.length });
+      setAllRows((prev) => [...prev, ...rows]);
+      setHasMore(more);
+    } finally {
+      setLoadingMore(false);
+    }
+  }
 
   return (
     <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto w-full space-y-5">
@@ -552,6 +568,17 @@ export function ClientsPage({
                   onWaivers={(c) => setWaiversTarget(c)}
                 />
               ))}
+            </div>
+          )}
+          {hasMore && (
+            <div className="flex justify-center pt-4">
+              <button
+                onClick={loadMore}
+                disabled={loadingMore}
+                className="px-4 py-2 text-sm font-medium text-muted hover:text-foreground bg-surface border border-border rounded-lg hover:bg-foreground/5 transition-colors disabled:opacity-50"
+              >
+                {loadingMore ? "Loading…" : "Load more"}
+              </button>
             </div>
           )}
         </>

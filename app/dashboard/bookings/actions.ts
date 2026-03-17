@@ -147,8 +147,21 @@ async function hasOverlappingBooking(
   return conflicts.length > 0;
 }
 
-export async function getBookings(): Promise<BookingRow[]> {
+export type PaginatedBookings = {
+  rows: BookingRow[];
+  hasMore: boolean;
+};
+
+const DEFAULT_BOOKINGS_LIMIT = 100;
+
+export async function getBookings(opts?: {
+  offset?: number;
+  limit?: number;
+}): Promise<PaginatedBookings> {
   await getUser();
+
+  const limit = opts?.limit ?? DEFAULT_BOOKINGS_LIMIT;
+  const offset = opts?.offset ?? 0;
 
   const clientProfile = alias(profiles, "client");
   const staffProfile = alias(profiles, "staff");
@@ -179,14 +192,22 @@ export async function getBookings(): Promise<BookingRow[]> {
     .leftJoin(clientProfile, eq(bookings.clientId, clientProfile.id))
     .leftJoin(services, eq(bookings.serviceId, services.id))
     .leftJoin(staffProfile, eq(bookings.staffId, staffProfile.id))
-    .orderBy(desc(bookings.startsAt));
+    .orderBy(desc(bookings.startsAt))
+    .limit(limit + 1)
+    .offset(offset);
 
-  return rows.map((r) => ({
-    ...r,
-    clientFirstName: r.clientFirstName ?? "",
-    serviceName: r.serviceName ?? "",
-    serviceCategory: r.serviceCategory ?? "lash",
-  }));
+  const hasMore = rows.length > limit;
+  const page = hasMore ? rows.slice(0, limit) : rows;
+
+  return {
+    rows: page.map((r) => ({
+      ...r,
+      clientFirstName: r.clientFirstName ?? "",
+      serviceName: r.serviceName ?? "",
+      serviceCategory: r.serviceCategory ?? "lash",
+    })),
+    hasMore,
+  };
 }
 
 export async function updateBookingStatus(

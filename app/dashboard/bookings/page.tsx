@@ -34,7 +34,7 @@ export default async function Page() {
     return <AssistantBookingsPage initialBookings={bookings} stats={stats} />;
   }
 
-  const [initialBookings, clients, serviceOptions, staffOptions, allSubscriptions] =
+  const [bookingsResult, clients, serviceOptions, staffOptions, allSubscriptions] =
     await Promise.all([
       getBookings(),
       getClientsForSelect(),
@@ -52,7 +52,8 @@ export default async function Page() {
 
   return (
     <BookingsPage
-      initialBookings={initialBookings}
+      initialBookings={bookingsResult.rows}
+      initialHasMore={bookingsResult.hasMore}
       clients={clients}
       serviceOptions={serviceOptions}
       staffOptions={staffOptions}

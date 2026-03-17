@@ -13,6 +13,7 @@ function makeChain(rows: unknown[] = []) {
     innerJoin: () => chain,
     orderBy: () => chain,
     limit: () => chain,
+    offset: () => chain,
     groupBy: () => chain,
     as: () => chain,
     then: resolved.then.bind(resolved),
@@ -157,12 +158,12 @@ describe("clients/actions", () => {
       await expect(getClients()).rejects.toThrow("Not authenticated");
     });
 
-    it("returns empty array when no clients found", async () => {
+    it("returns empty rows when no clients found", async () => {
       vi.resetModules();
       setupMocks();
       const { getClients } = await import("./actions");
       const result = await getClients();
-      expect(result).toEqual([]);
+      expect(result).toEqual({ rows: [], hasMore: false });
     });
 
     it("maps rows to ClientRow shape with numeric coercions", async () => {
@@ -196,8 +197,9 @@ describe("clients/actions", () => {
       });
       const { getClients } = await import("./actions");
       const result = await getClients();
-      expect(result).toHaveLength(1);
-      expect(result[0]).toMatchObject({
+      expect(result.rows).toHaveLength(1);
+      expect(result.hasMore).toBe(false);
+      expect(result.rows[0]).toMatchObject({
         id: "c-1",
         firstName: "Jane",
         totalBookings: 5,
@@ -238,10 +240,10 @@ describe("clients/actions", () => {
       });
       const { getClients } = await import("./actions");
       const result = await getClients();
-      expect(result[0].totalBookings).toBe(0);
-      expect(result[0].totalSpent).toBe(0);
-      expect(result[0].loyaltyPoints).toBe(0);
-      expect(result[0].referralCount).toBe(0);
+      expect(result.rows[0].totalBookings).toBe(0);
+      expect(result.rows[0].totalSpent).toBe(0);
+      expect(result.rows[0].loyaltyPoints).toBe(0);
+      expect(result.rows[0].referralCount).toBe(0);
     });
   });
 

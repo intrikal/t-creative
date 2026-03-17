@@ -18,6 +18,7 @@ function makeChain(rows: unknown[] = []) {
     innerJoin: () => chain,
     orderBy: () => chain,
     limit: () => chain,
+    offset: () => chain,
     then: resolved.then.bind(resolved),
     catch: resolved.catch.bind(resolved),
     finally: resolved.finally.bind(resolved),
@@ -215,12 +216,12 @@ describe("actions", () => {
       await expect(getBookings()).rejects.toThrow("Not authenticated");
     });
 
-    it("returns empty array when there are no bookings", async () => {
+    it("returns empty rows when there are no bookings", async () => {
       vi.resetModules();
       setupMocks();
       const { getBookings } = await import("./actions");
       const result = await getBookings();
-      expect(result).toEqual([]);
+      expect(result).toEqual({ rows: [], hasMore: false });
     });
 
     it("maps rows to BookingRow shape with fallback values", async () => {
@@ -255,8 +256,9 @@ describe("actions", () => {
       });
       const { getBookings } = await import("./actions");
       const result = await getBookings();
-      expect(result).toHaveLength(1);
-      expect(result[0]).toMatchObject({
+      expect(result.rows).toHaveLength(1);
+      expect(result.hasMore).toBe(false);
+      expect(result.rows[0]).toMatchObject({
         id: 1,
         clientFirstName: "",
         serviceName: "",

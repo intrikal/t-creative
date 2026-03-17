@@ -308,7 +308,7 @@ describe("training/actions", () => {
 
     it("inserts placeholder sessions when sessions > 0", async () => {
       vi.resetModules();
-      const mockInsertValues = vi.fn(() => ({
+      const mockInsertValues = vi.fn((_: Record<string, unknown>) => ({
         returning: vi.fn().mockResolvedValue([{ id: 10 }]),
       }));
       const mockInsert = vi.fn(() => ({ values: mockInsertValues }));

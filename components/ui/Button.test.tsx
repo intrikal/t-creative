@@ -1,21 +1,22 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import { Button } from "./Button";
 
 vi.mock("next/link", () => ({
-  default: ({ children, ...props }: Record<string, unknown>) => <a {...props}>{children}</a>,
+  default: ({ children, ...props }: Record<string, unknown>) => <a {...props}>{children as ReactNode}</a>,
 }));
 
 vi.mock("framer-motion", () => ({
   motion: {
     button: ({ children, ...props }: Record<string, unknown>) => (
-      <button {...props}>{children}</button>
+      <button {...props}>{children as ReactNode}</button>
     ),
-    a: ({ children, ...props }: Record<string, unknown>) => <a {...props}>{children}</a>,
+    a: ({ children, ...props }: Record<string, unknown>) => <a {...props}>{children as ReactNode}</a>,
     create:
       () =>
-      ({ children, ...props }: Record<string, unknown>) => <a {...props}>{children}</a>,
+      ({ children, ...props }: Record<string, unknown>) => <a {...props}>{children as ReactNode}</a>,
   },
 }));
 

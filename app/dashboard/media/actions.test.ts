@@ -420,7 +420,7 @@ describe("media/actions", () => {
 
     it("does not auto-publish when un-featuring", async () => {
       vi.resetModules();
-      const mockUpdateSet = vi.fn(() => ({ where: vi.fn() }));
+      const mockUpdateSet = vi.fn((_: Record<string, unknown>) => ({ where: vi.fn() }));
       setupMocks({
         select: vi.fn(() => makeChain([])),
         insert: vi.fn(() => ({ values: vi.fn().mockResolvedValue(undefined) })),
@@ -456,7 +456,7 @@ describe("media/actions", () => {
 
     it("updates provided fields only", async () => {
       vi.resetModules();
-      const mockUpdateSet = vi.fn(() => ({ where: vi.fn() }));
+      const mockUpdateSet = vi.fn((_: Record<string, unknown>) => ({ where: vi.fn() }));
       setupMocks({
         select: vi.fn(() => makeChain([])),
         insert: vi.fn(() => ({ values: vi.fn().mockResolvedValue(undefined) })),
@@ -471,7 +471,7 @@ describe("media/actions", () => {
 
     it("trims caption and converts empty string to null", async () => {
       vi.resetModules();
-      const mockUpdateSet = vi.fn(() => ({ where: vi.fn() }));
+      const mockUpdateSet = vi.fn((_: Record<string, unknown>) => ({ where: vi.fn() }));
       setupMocks({
         select: vi.fn(() => makeChain([])),
         insert: vi.fn(() => ({ values: vi.fn().mockResolvedValue(undefined) })),

@@ -148,4 +148,6 @@ export interface BookingPageProps {
   addOnsByService: Record<number, ServiceAddOn[]>;
   /** URL slug used to build the shareable booking link in CopyLinkButton. */
   slug: string;
+  /** When set (from ?service=ID query param), auto-opens the booking dialog for this service. */
+  prefillServiceId?: number | null;
 }

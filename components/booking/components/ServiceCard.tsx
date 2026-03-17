@@ -48,6 +48,7 @@ export function ServiceCard({
   meta,
   addOns,
   isPopular,
+  autoOpen,
 }: {
   service: Service;
   meta: {
@@ -58,8 +59,10 @@ export function ServiceCard({
   };
   addOns: ServiceAddOn[];
   isPopular: boolean;
+  /** When true, auto-opens the booking dialog on mount (from ?service=ID link). */
+  autoOpen?: boolean;
 }) {
-  const [showRequest, setShowRequest] = useState(false);
+  const [showRequest, setShowRequest] = useState(autoOpen ?? false);
   const [showWaitlist, setShowWaitlist] = useState(false);
   const Icon = meta.icon;
 

@@ -120,6 +120,7 @@ export function BookingPage({
   reviewStats,
   addOnsByService,
   slug,
+  prefillServiceId,
 }: BookingPageProps) {
   // Save ?ref=CODE to a cookie so /auth/callback can award referral points on signup.
   useEffect(() => {
@@ -137,9 +138,23 @@ export function BookingPage({
   // Strip the leading "@" once so all downstream href and display uses are consistent.
   const instagramHandle = studio.socials.instagram?.replace("@", "") || null;
 
+  // Auto-scroll to the services section when a prefill service is specified.
+  useEffect(() => {
+    if (prefillServiceId) {
+      // Small delay to ensure DOM has rendered before scrolling.
+      const timer = setTimeout(() => {
+        document.getElementById("services")?.scrollIntoView({ behavior: "smooth" });
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [prefillServiceId]);
+
   // Only render tabs for categories that have at least one active service.
   const activeCategories = CATEGORIES.filter((cat) => services.some((s) => s.category === cat));
-  const defaultTab = activeCategories[0] ?? "lash";
+
+  // If a prefill service is specified, default to its category tab so the dialog opens in view.
+  const prefillService = prefillServiceId ? services.find((s) => s.id === prefillServiceId) : null;
+  const defaultTab = (prefillService?.category as string) ?? activeCategories[0] ?? "lash";
 
   // Build FAQ items from intake prep text. Categories without prep text are skipped.
   const faqItems = CATEGORIES.filter((cat) => studio.intake[cat]?.prep).map((cat) => ({
@@ -508,6 +523,7 @@ export function BookingPage({
                             meta={meta}
                             addOns={addOnsByService[service.id] ?? []}
                             isPopular={index === 0 && catServices.length > 1}
+                            autoOpen={prefillServiceId === service.id}
                           />
                         ))}
                       </div>

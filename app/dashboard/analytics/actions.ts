@@ -38,6 +38,7 @@ import {
   promotions,
   membershipSubscriptions,
   membershipPlans,
+  giftCards,
 } from "@/db/schema";
 import { createClient } from "@/utils/supabase/server";
 
@@ -226,6 +227,25 @@ export type RevenuePerHourDay = {
   revenue: number;
   availableHours: number;
   revenuePerHour: number;
+};
+
+export type GiftCardBreakageStats = {
+  totalSold: number;
+  totalOriginalValue: number;
+  totalRedeemed: number;
+  totalRemaining: number;
+  breakageRate: number;
+  byStatus: {
+    status: string;
+    count: number;
+    originalValue: number;
+    remaining: number;
+  }[];
+  aging: {
+    label: string;
+    count: number;
+    remaining: number;
+  }[];
 };
 
 export type PeakTimeSlot = {
@@ -1513,6 +1533,111 @@ export async function getMembershipValue(): Promise<MembershipValueStats> {
       activeCount,
       cancelledCount,
       byPlan,
+    };
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Gift Card Breakage                                                 */
+/* ------------------------------------------------------------------ */
+
+const AGING_BUCKETS = [
+  { label: "< 3 months", maxDays: 90 },
+  { label: "3–6 months", maxDays: 180 },
+  { label: "6–12 months", maxDays: 365 },
+  { label: "12+ months", maxDays: Infinity },
+] as const;
+
+const GC_STATUS_LABELS: Record<string, string> = {
+  active: "Active",
+  redeemed: "Fully Redeemed",
+  expired: "Expired",
+};
+
+export async function getGiftCardBreakage(): Promise<GiftCardBreakageStats> {
+  try {
+    await getUser();
+
+    const cards = await db
+      .select({
+        id: giftCards.id,
+        status: giftCards.status,
+        originalAmountInCents: giftCards.originalAmountInCents,
+        balanceInCents: giftCards.balanceInCents,
+        purchasedAt: giftCards.purchasedAt,
+      })
+      .from(giftCards);
+
+    if (cards.length === 0) {
+      return {
+        totalSold: 0,
+        totalOriginalValue: 0,
+        totalRedeemed: 0,
+        totalRemaining: 0,
+        breakageRate: 0,
+        byStatus: [],
+        aging: [],
+      };
+    }
+
+    const totalSold = cards.length;
+    const totalOriginalValue = Math.round(
+      cards.reduce((s, c) => s + c.originalAmountInCents, 0) / 100,
+    );
+    const totalRemaining = Math.round(cards.reduce((s, c) => s + c.balanceInCents, 0) / 100);
+    const totalRedeemed = totalOriginalValue - totalRemaining;
+    const breakageRate =
+      totalOriginalValue > 0 ? Math.round((totalRemaining / totalOriginalValue) * 100) : 0;
+
+    // By status
+    const statusMap = new Map<string, { count: number; original: number; remaining: number }>();
+    for (const c of cards) {
+      const entry = statusMap.get(c.status) ?? { count: 0, original: 0, remaining: 0 };
+      entry.count++;
+      entry.original += c.originalAmountInCents;
+      entry.remaining += c.balanceInCents;
+      statusMap.set(c.status, entry);
+    }
+
+    const byStatus = Array.from(statusMap.entries())
+      .map(([status, data]) => ({
+        status: GC_STATUS_LABELS[status] ?? status,
+        count: data.count,
+        originalValue: Math.round(data.original / 100),
+        remaining: Math.round(data.remaining / 100),
+      }))
+      .sort((a, b) => b.remaining - a.remaining);
+
+    // Aging — cards with remaining balance, by age since purchase
+    const now = new Date();
+    const cardsWithBalance = cards.filter((c) => c.balanceInCents > 0);
+
+    const aging = AGING_BUCKETS.map((bucket, i) => {
+      const minDays = i === 0 ? 0 : AGING_BUCKETS[i - 1].maxDays;
+      const matching = cardsWithBalance.filter((c) => {
+        const days = Math.floor(
+          (now.getTime() - new Date(c.purchasedAt).getTime()) / (1000 * 60 * 60 * 24),
+        );
+        return days >= minDays && days < bucket.maxDays;
+      });
+      return {
+        label: bucket.label,
+        count: matching.length,
+        remaining: Math.round(matching.reduce((s, c) => s + c.balanceInCents, 0) / 100),
+      };
+    });
+
+    return {
+      totalSold,
+      totalOriginalValue,
+      totalRedeemed,
+      totalRemaining,
+      breakageRate,
+      byStatus,
+      aging,
     };
   } catch (err) {
     Sentry.captureException(err);

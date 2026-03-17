@@ -7,12 +7,14 @@
  *         Past dates and closed days are disabled.
  * Step 2: Time slots — generates slots from the admin's working hours, excluding lunch.
  * Step 3: Confirm — service summary, selected date/time, optional notes, send request.
+ * Step 4: Pay (conditional) — when service has a deposit, collects payment inline
+ *         via Square Web Payments SDK before submitting the request.
  *
  * The admin manually approves all bookings — this just ensures clients pick from
  * valid windows so the sister gets clean, actionable requests.
  */
 
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { Turnstile } from "@marsidev/react-turnstile";
 import {
   X,
@@ -24,6 +26,7 @@ import {
   ImagePlus,
   Trash2,
   CalendarPlus,
+  CheckCircle2,
 } from "lucide-react";
 import {
   getStudioAvailability,
@@ -33,6 +36,7 @@ import {
 import { createBookingRequest } from "@/app/dashboard/messages/actions";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
+import { SquarePaymentForm } from "./components/SquarePaymentForm";
 import { formatPrice } from "./helpers";
 import type { Service } from "./types";
 
@@ -165,7 +169,7 @@ function downloadIcs(service: Service, date: Date, time: string): void {
 /*  Component                                                           */
 /* ------------------------------------------------------------------ */
 
-type Step = "date" | "time" | "confirm";
+type Step = "date" | "time" | "confirm" | "pay";
 
 const CADENCE_OPTIONS = [
   { value: "", label: "Does not repeat" },
@@ -201,9 +205,15 @@ export function BookingRequestDialog({
   const [photos, setPhotos] = useState<PhotoPreview[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [depositPaid, setDepositPaid] = useState(false);
   const [error, setError] = useState("");
   const [turnstileToken, setTurnstileToken] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  /** Cached photo URLs — uploaded once on confirm, reused in pay step. */
+  const uploadedPhotosRef = useRef<string[]>([]);
+
+  const hasDeposit = !!service.depositInCents && service.depositInCents > 0;
+  const totalSteps = hasDeposit ? 4 : 3;
 
   // Fetch availability + auth status on open
   useEffect(() => {
@@ -247,6 +257,69 @@ export function BookingRequestDialog({
     return generateSlots(dayHours.opensAt, dayHours.closesAt, availability.lunchBreak);
   }, [selectedDate, availability]);
 
+  /** Called by SquarePaymentForm after successful card tokenisation. */
+  const handleDepositPayment = useCallback(
+    async (token: string) => {
+      if (submitting || !selectedDate) return;
+
+      setSubmitting(true);
+      setError("");
+
+      const preferredDates = `${fmtDateLabel(selectedDate)} at ${fmt12(selectedTime)}`;
+      const idempotencyKey = crypto.randomUUID();
+
+      try {
+        const res = await fetch("/api/book/pay-deposit", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sourceId: token,
+            serviceId: service.id,
+            preferredDate: preferredDates,
+            notes: notes.trim(),
+            referencePhotoUrls: uploadedPhotosRef.current,
+            preferredCadence: cadence || undefined,
+            idempotencyKey,
+            // Guest fields
+            ...(isGuest
+              ? {
+                  name: guestName.trim(),
+                  email: guestEmail.trim(),
+                  phone: guestPhone.trim(),
+                  turnstileToken,
+                }
+              : {}),
+          }),
+        });
+
+        if (!res.ok) {
+          const data = (await res.json().catch(() => ({}))) as { error?: string };
+          throw new Error(data.error || "Payment failed. Please try again.");
+        }
+
+        setDepositPaid(true);
+        setSubmitted(true);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Payment failed. Please try again.");
+      } finally {
+        setSubmitting(false);
+      }
+    },
+    [
+      submitting,
+      selectedDate,
+      selectedTime,
+      service.id,
+      notes,
+      cadence,
+      isGuest,
+      guestName,
+      guestEmail,
+      guestPhone,
+      turnstileToken,
+    ],
+  );
+
   if (!open) return null;
 
   function handleDateSelect(date: Date | undefined) {
@@ -267,6 +340,8 @@ export function BookingRequestDialog({
       setSelectedTime("");
     } else if (step === "confirm") {
       setStep("time");
+    } else if (step === "pay") {
+      setStep("confirm");
     }
   }
 
@@ -314,6 +389,24 @@ export function BookingRequestDialog({
       return;
     }
 
+    // If service has deposit, proceed to pay step instead of submitting
+    if (hasDeposit) {
+      // Upload photos now so they're ready for the pay step
+      setSubmitting(true);
+      setError("");
+      try {
+        uploadedPhotosRef.current = await uploadPhotos();
+      } catch {
+        setError("Photo upload failed. Please try again.");
+        setSubmitting(false);
+        return;
+      }
+      setSubmitting(false);
+      setStep("pay");
+      return;
+    }
+
+    // No deposit — submit as before
     setSubmitting(true);
     setError("");
 
@@ -359,6 +452,7 @@ export function BookingRequestDialog({
   function handleClose() {
     photos.forEach((p) => URL.revokeObjectURL(p.preview));
     setSubmitted(false);
+    setDepositPaid(false);
     setStep("date");
     setSelectedDate(undefined);
     setSelectedTime("");
@@ -370,10 +464,11 @@ export function BookingRequestDialog({
     setPhotos([]);
     setError("");
     setTurnstileToken("");
+    uploadedPhotosRef.current = [];
     onClose();
   }
 
-  const stepNum = step === "date" ? 1 : step === "time" ? 2 : 3;
+  const stepNum = step === "date" ? 1 : step === "time" ? 2 : step === "confirm" ? 3 : 4;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -408,7 +503,7 @@ export function BookingRequestDialog({
           {/* Progress bar */}
           {!submitted && (
             <div className="flex gap-1 mt-4">
-              {[1, 2, 3].map((i) => (
+              {Array.from({ length: totalSteps }, (_, i) => i + 1).map((i) => (
                 <div
                   key={i}
                   className={cn(
@@ -432,13 +527,22 @@ export function BookingRequestDialog({
               We&apos;ll review your request and reach out soon to confirm your appointment. Check
               your messages for updates.
             </p>
-            {service.depositInCents && (
+            {depositPaid ? (
+              <p className="mt-4 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200/50 rounded-lg px-3 py-2.5 max-w-xs mx-auto text-left leading-relaxed flex items-start gap-2">
+                <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>
+                  <span className="font-medium">Deposit paid:</span> Your{" "}
+                  {formatPrice(service.depositInCents)} deposit has been collected. Your spot is
+                  secured!
+                </span>
+              </p>
+            ) : service.depositInCents ? (
               <p className="mt-4 text-xs text-amber-700 bg-amber-50 border border-amber-200/50 rounded-lg px-3 py-2.5 max-w-xs mx-auto text-left leading-relaxed">
                 <span className="font-medium">Deposit required:</span> Once confirmed, you&apos;ll
                 receive a {formatPrice(service.depositInCents)} deposit link by email to secure your
                 spot.
               </p>
-            )}
+            ) : null}
             {selectedDate && selectedTime && (
               <div className="mt-5 w-full max-w-xs mx-auto space-y-2">
                 <p className="text-xs text-stone-500 font-medium flex items-center justify-center gap-1.5">
@@ -584,10 +688,10 @@ export function BookingRequestDialog({
                   </div>
                 </div>
 
-                {service.depositInCents && (
-                  <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200/50 rounded-lg px-3 py-2">
-                    A {formatPrice(service.depositInCents)} deposit is required to confirm this
-                    booking.
+                {hasDeposit && (
+                  <p className="text-xs text-[#96604a] bg-[#faf6f1] border border-[#e8c4b8]/50 rounded-lg px-3 py-2">
+                    A {formatPrice(service.depositInCents)} deposit will be collected on the next
+                    step to secure your spot.
                   </p>
                 )}
 
@@ -753,6 +857,11 @@ export function BookingRequestDialog({
                 >
                   {submitting ? (
                     "Sending..."
+                  ) : hasDeposit ? (
+                    <>
+                      <Send className="w-4 h-4" />
+                      Continue to payment
+                    </>
                   ) : (
                     <>
                       <Send className="w-4 h-4" />
@@ -761,6 +870,64 @@ export function BookingRequestDialog({
                   )}
                 </button>
               </form>
+            )}
+
+            {/* ── Step 4: Pay deposit ── */}
+            {availability && step === "pay" && selectedDate && hasDeposit && (
+              <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={goBack}
+                    className="p-1.5 rounded-lg hover:bg-stone-100 text-stone-400 transition-colors"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  <div>
+                    <p className="text-sm font-medium text-stone-700">Pay deposit</p>
+                    <p className="text-xs text-stone-400">
+                      {formatPrice(service.depositInCents)} to secure your spot
+                    </p>
+                  </div>
+                </div>
+
+                {/* Compact booking summary */}
+                <div className="rounded-xl border border-stone-200 bg-stone-50 p-3 space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-stone-500">Service</span>
+                    <span className="font-medium text-stone-900">{service.name}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-stone-500">Date & time</span>
+                    <span className="font-medium text-stone-900">
+                      {fmtDateLabel(selectedDate)} at {fmt12(selectedTime)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs pt-1 border-t border-stone-200">
+                    <span className="text-stone-500">Deposit due now</span>
+                    <span className="font-semibold text-[#96604a]">
+                      {formatPrice(service.depositInCents)}
+                    </span>
+                  </div>
+                  {service.priceInCents && service.depositInCents && (
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-stone-400">Remaining at appointment</span>
+                      <span className="text-stone-500">
+                        {formatPrice(service.priceInCents - service.depositInCents)}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {error && (
+                  <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>
+                )}
+
+                <SquarePaymentForm
+                  amountInCents={service.depositInCents!}
+                  onTokenise={handleDepositPayment}
+                  submitting={submitting}
+                />
+              </div>
             )}
           </div>
         )}

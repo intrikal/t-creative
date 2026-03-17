@@ -153,6 +153,84 @@ export async function createSquarePaymentLink(params: {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Payments API — Inline card payment                                 */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Charges a card using a Web Payments SDK token (nonce).
+ *
+ * Creates an order first (for webhook matching), then creates a payment
+ * against that order. Returns the Square payment ID, order ID, and
+ * receipt URL.
+ *
+ * Used for inline deposit collection during the public booking flow.
+ */
+export async function createSquarePayment(params: {
+  bookingId: number;
+  serviceName: string;
+  amountInCents: number;
+  sourceId: string; // Web Payments SDK nonce
+  idempotencyKey: string;
+  note?: string;
+}): Promise<{ paymentId: string; orderId: string; receiptUrl: string | null }> {
+  if (!isSquareConfigured()) throw new Error("Square not configured");
+
+  try {
+    // 1. Create an order so the payment is linkable via webhook / POS
+    const orderResponse = await squareClient.orders.create({
+      order: {
+        locationId: SQUARE_LOCATION_ID,
+        referenceId: String(params.bookingId),
+        lineItems: [
+          {
+            name: `Deposit — ${params.serviceName}`,
+            quantity: "1",
+            basePriceMoney: {
+              amount: BigInt(params.amountInCents),
+              currency: "USD",
+            },
+          },
+        ],
+        metadata: {
+          bookingId: String(params.bookingId),
+          paymentType: "deposit",
+        },
+      },
+      idempotencyKey: `${params.idempotencyKey}-order`,
+    });
+
+    const orderId = orderResponse.order?.id;
+    if (!orderId) throw new Error("Square order creation failed");
+
+    // 2. Charge the card against the order
+    const paymentResponse = await squareClient.payments.create({
+      sourceId: params.sourceId,
+      amountMoney: {
+        amount: BigInt(params.amountInCents),
+        currency: "USD",
+      },
+      orderId,
+      locationId: SQUARE_LOCATION_ID,
+      idempotencyKey: params.idempotencyKey,
+      note: params.note ?? `Booking #${params.bookingId} (deposit)`,
+      autocomplete: true,
+    });
+
+    const payment = paymentResponse.payment;
+    if (!payment?.id) throw new Error("Square payment creation failed");
+
+    return {
+      paymentId: payment.id,
+      orderId,
+      receiptUrl: payment.receiptUrl ?? null,
+    };
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /*  Checkout API — Product Order Payment Links                         */
 /* ------------------------------------------------------------------ */
 

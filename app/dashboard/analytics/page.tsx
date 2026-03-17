@@ -6,6 +6,7 @@ import { KpiSection } from "./sections/KpiSection";
 import { OperationalSection } from "./sections/OperationalSection";
 import { PeakTimesSectionWrapper } from "./sections/PeakTimesSectionWrapper";
 import { RetentionSectionWrapper } from "./sections/RetentionSectionWrapper";
+import { RevenueByServiceSectionWrapper } from "./sections/RevenueByServiceSectionWrapper";
 import { RevenueSectionWrapper } from "./sections/RevenueSectionWrapper";
 import { StaffSection } from "./sections/StaffSection";
 
@@ -14,6 +15,7 @@ export default function Page() {
     <AnalyticsShell>
       <KpiSection />
       <RevenueSectionWrapper />
+      <RevenueByServiceSectionWrapper />
       <BookingsSectionWrapper />
       <StaffSection />
       <OperationalSection />

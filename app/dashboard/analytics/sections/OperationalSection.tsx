@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { getAttendanceStats, getCancellationReasons, getRebookRates } from "../actions";
+import { getAttendanceStats, getCancellationReasons, getRebookRates, type Range } from "../actions";
 import { AttendanceSection } from "../components/AttendanceSection";
 import { CancellationReasonsSection } from "../components/CancellationReasonsSection";
 
@@ -12,9 +12,9 @@ function OperationalSkeleton() {
   );
 }
 
-async function OperationalData() {
+async function OperationalData({ range }: { range: Range }) {
   const [attendanceStats, cancellationReasons, rebookRates] = await Promise.all([
-    getAttendanceStats(),
+    getAttendanceStats(range),
     getCancellationReasons(),
     getRebookRates(),
   ]);
@@ -27,10 +27,10 @@ async function OperationalData() {
   );
 }
 
-export function OperationalSection() {
+export function OperationalSection({ range }: { range: Range }) {
   return (
     <Suspense fallback={<OperationalSkeleton />}>
-      <OperationalData />
+      <OperationalData range={range} />
     </Suspense>
   );
 }

@@ -1,20 +1,20 @@
 import { Suspense } from "react";
-import { getRevenuePerHour } from "../actions";
+import { getRevenuePerHour, type Range } from "../actions";
 import { RevenuePerHourSection } from "../components/RevenuePerHourSection";
 
 function RevenuePerHourSkeleton() {
   return <div className="h-72 bg-surface rounded-xl animate-pulse" />;
 }
 
-async function RevenuePerHourData() {
-  const data = await getRevenuePerHour();
+async function RevenuePerHourData({ range }: { range: Range }) {
+  const data = await getRevenuePerHour(range);
   return <RevenuePerHourSection data={data} />;
 }
 
-export function RevenuePerHourSectionWrapper() {
+export function RevenuePerHourSectionWrapper({ range }: { range: Range }) {
   return (
     <Suspense fallback={<RevenuePerHourSkeleton />}>
-      <RevenuePerHourData />
+      <RevenuePerHourData range={range} />
     </Suspense>
   );
 }

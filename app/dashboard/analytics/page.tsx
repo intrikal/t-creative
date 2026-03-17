@@ -15,26 +15,38 @@ import { RevenuePerHourSectionWrapper } from "./sections/RevenuePerHourSectionWr
 import { RevenueSectionWrapper } from "./sections/RevenueSectionWrapper";
 import { StaffSection } from "./sections/StaffSection";
 import { VisitFrequencySectionWrapper } from "./sections/VisitFrequencySectionWrapper";
+import type { Range } from "./actions";
 
-export default function Page() {
+const VALID_RANGES: Range[] = ["7d", "30d", "90d", "12m"];
+
+export default async function Page({
+  searchParams,
+}: {
+  searchParams: Promise<{ range?: string }>;
+}) {
+  const { range: rawRange } = await searchParams;
+  const range: Range = VALID_RANGES.includes(rawRange as Range)
+    ? (rawRange as Range)
+    : "30d";
+
   return (
     <AnalyticsShell>
       <KpiSection />
-      <RevenueSectionWrapper />
-      <RevenueByServiceSectionWrapper />
-      <RevenuePerHourSectionWrapper />
-      <BookingsSectionWrapper />
-      <StaffSection />
-      <OperationalSection />
-      <CheckoutRebookSectionWrapper />
-      <RetentionSectionWrapper />
+      <RevenueSectionWrapper range={range} />
+      <RevenueByServiceSectionWrapper range={range} />
+      <RevenuePerHourSectionWrapper range={range} />
+      <BookingsSectionWrapper range={range} />
+      <StaffSection range={range} />
+      <OperationalSection range={range} />
+      <CheckoutRebookSectionWrapper range={range} />
+      <RetentionSectionWrapper range={range} />
       <VisitFrequencySectionWrapper />
       <AppointmentGapSectionWrapper />
-      <ClientsSection />
+      <ClientsSection range={range} />
       <PromotionRoiSectionWrapper />
       <MembershipValueSectionWrapper />
       <GiftCardBreakageSectionWrapper />
-      <PeakTimesSectionWrapper />
+      <PeakTimesSectionWrapper range={range} />
     </AnalyticsShell>
   );
 }

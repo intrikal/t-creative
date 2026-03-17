@@ -1,14 +1,14 @@
 import { Suspense } from "react";
-import { getRevenueTrend, getRevenueGoal, getKpiStats } from "../actions";
+import { getRevenueTrend, getRevenueGoal, getKpiStats, type Range } from "../actions";
 import { RevenueSection } from "../components/RevenueSection";
 
 function RevenueSkeleton() {
   return <div className="h-72 bg-surface rounded-xl animate-pulse" />;
 }
 
-async function RevenueData() {
+async function RevenueData({ range }: { range: Range }) {
   const [revenueTrend, revenueGoal, kpiStats] = await Promise.all([
-    getRevenueTrend(),
+    getRevenueTrend(range),
     getRevenueGoal(),
     getKpiStats(),
   ]);
@@ -22,10 +22,10 @@ async function RevenueData() {
   );
 }
 
-export function RevenueSectionWrapper() {
+export function RevenueSectionWrapper({ range }: { range: Range }) {
   return (
     <Suspense fallback={<RevenueSkeleton />}>
-      <RevenueData />
+      <RevenueData range={range} />
     </Suspense>
   );
 }

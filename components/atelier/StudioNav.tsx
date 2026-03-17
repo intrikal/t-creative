@@ -120,7 +120,7 @@ export function StudioNav() {
                   disabled={isTransitioning}
                   className="group relative flex items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 focus-visible:ring-offset-transparent rounded-full p-2"
                   aria-label={`View ${ZONES[zoneId].label}`}
-                  aria-current={isActive ? "true" : undefined}
+                  aria-current={isActive ? "page" : undefined}
                 >
                   <span
                     className={`block rounded-full transition-all duration-300 ${

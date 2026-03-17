@@ -13,6 +13,7 @@ import { ClientPreferencesDialog } from "./components/ClientPreferencesDialog";
 import { ClientWaiversDialog } from "./components/ClientWaiversDialog";
 import { DeleteDialog } from "./components/DeleteDialog";
 import { LoyaltyTab } from "./components/LoyaltyTab";
+import type { LoyaltyRewardRow } from "./loyalty-rewards-actions";
 
 /* ------------------------------------------------------------------ */
 /*  Types & helpers (exported for child components)                     */
@@ -249,10 +250,12 @@ export function ClientsPage({
   initialClients,
   initialHasMore = false,
   initialLoyalty,
+  initialRewards = [],
 }: {
   initialClients: ClientRow[];
   initialHasMore?: boolean;
   initialLoyalty: LoyaltyRow[];
+  initialRewards?: LoyaltyRewardRow[];
 }) {
   const [allRows, setAllRows] = useState(initialClients);
   const [hasMore, setHasMore] = useState(initialHasMore);
@@ -429,7 +432,9 @@ export function ClientsPage({
         ))}
       </div>
 
-      {activeTab === "loyalty" && <LoyaltyTab initialLoyalty={mappedLoyalty} />}
+      {activeTab === "loyalty" && (
+        <LoyaltyTab initialLoyalty={mappedLoyalty} initialRewards={initialRewards} />
+      )}
 
       {activeTab === "clients" && (
         <>

@@ -34,8 +34,8 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import type { LoyaltyPageData } from "./actions";
-import { redeemPoints } from "./actions";
+import type { LoyaltyPageData, ClientReward } from "./actions";
+import { redeemPoints, cancelRedemption } from "./actions";
 
 /* ------------------------------------------------------------------ */
 /*  Tier config                                                        */
@@ -125,17 +125,15 @@ const TIER_PERKS: Record<string, { perk: string; Icon: LucideIcon }[]> = {
 };
 
 /* ------------------------------------------------------------------ */
-/*  Redemption catalog (hardcoded for now)                             */
+/*  Category → icon mapping                                            */
 /* ------------------------------------------------------------------ */
 
-const REDEEM_OPTIONS: { label: string; points: number; Icon: LucideIcon; category: string }[] = [
-  { label: "Lash Bath Add-on", points: 300, Icon: Sparkles, category: "Add-on" },
-  { label: "$5 Off Any Service", points: 500, Icon: Tag, category: "Discount" },
-  { label: "Aftercare Kit", points: 800, Icon: ShoppingBag, category: "Shop" },
-  { label: "$10 Off Any Service", points: 1000, Icon: Tag, category: "Discount" },
-  { label: "Free Fill Touch-up", points: 1500, Icon: Scissors, category: "Service" },
-  { label: "$25 Off Any Service", points: 2500, Icon: Gift, category: "Discount" },
-];
+const CATEGORY_ICON: Record<string, LucideIcon> = {
+  discount: Tag,
+  add_on: Sparkles,
+  service: Scissors,
+  product: ShoppingBag,
+};
 
 /* ------------------------------------------------------------------ */
 /*  Earn opportunities                                                 */
@@ -179,13 +177,25 @@ export function LoyaltyPage({ data }: { data: LoyaltyPageData }) {
     setTimeout(() => setCopied(false), 2500);
   }
 
-  function handleRedeem(item: { label: string; points: number }) {
+  function handleRedeem(reward: ClientReward) {
     setRedeemError(null);
     startRedeemTransition(async () => {
       try {
-        await redeemPoints(item);
-        setRedeemedLabel(item.label);
+        await redeemPoints({ rewardId: reward.id });
+        setRedeemedLabel(reward.label);
         setTimeout(() => setRedeemedLabel(null), 4000);
+      } catch (err) {
+        setRedeemError(err instanceof Error ? err.message : "Something went wrong.");
+        setTimeout(() => setRedeemError(null), 4000);
+      }
+    });
+  }
+
+  function handleCancelRedemption(redemptionId: string) {
+    setRedeemError(null);
+    startRedeemTransition(async () => {
+      try {
+        await cancelRedemption(redemptionId);
       } catch (err) {
         setRedeemError(err instanceof Error ? err.message : "Something went wrong.");
         setTimeout(() => setRedeemError(null), 4000);
@@ -411,6 +421,53 @@ export function LoyaltyPage({ data }: { data: LoyaltyPageData }) {
             </Card>
           ) : null}
 
+          {/* Pending Redemptions */}
+          {data.pendingRedemptions.length > 0 && (
+            <Card className="gap-0">
+              <CardContent className="px-5 pb-5 pt-5 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Gift className="w-4 h-4 text-accent" />
+                  <p className="text-sm font-semibold text-foreground">Pending Rewards</p>
+                </div>
+                <div className="space-y-1.5">
+                  {data.pendingRedemptions.map((r) => {
+                    const CatIcon = CATEGORY_ICON[r.rewardCategory] ?? Gift;
+                    return (
+                      <div
+                        key={r.id}
+                        className="flex items-center gap-2.5 py-2 px-2 rounded-lg bg-accent/5 border border-accent/10"
+                      >
+                        <div className="w-7 h-7 rounded-md bg-accent/10 flex items-center justify-center shrink-0">
+                          <CatIcon className="w-3.5 h-3.5 text-accent" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-foreground truncate">
+                            {r.rewardLabel}
+                          </p>
+                          <p className="text-[10px] text-muted">
+                            Redeemed {r.createdAt}
+                            {r.discountInCents != null &&
+                              ` — $${(r.discountInCents / 100).toFixed(0)} off`}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => handleCancelRedemption(r.id)}
+                          disabled={isRedeeming}
+                          className="text-[10px] font-medium text-destructive border border-destructive/20 rounded-md px-2 py-0.5 hover:bg-destructive/8 transition-colors disabled:opacity-40 shrink-0"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+                <p className="text-[11px] text-muted">
+                  These rewards will be applied at your next appointment.
+                </p>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Redeem Points */}
           <Card className="gap-0">
             <CardContent className="px-5 pb-5 pt-5 space-y-3">
@@ -435,47 +492,58 @@ export function LoyaltyPage({ data }: { data: LoyaltyPageData }) {
                 </p>
               )}
 
-              <div className="space-y-1">
-                {REDEEM_OPTIONS.map((item) => {
-                  const affordable = data.totalPoints >= item.points;
-                  const isThisRedeeming = isRedeeming;
-                  return (
-                    <div
-                      key={item.label}
-                      className={`flex items-center gap-2.5 py-2 px-2 rounded-lg transition-colors ${
-                        affordable ? "hover:bg-surface/60" : "opacity-40"
-                      }`}
-                    >
+              {data.rewards.length > 0 ? (
+                <div className="space-y-1">
+                  {data.rewards.map((reward) => {
+                    const affordable = data.totalPoints >= reward.pointsCost;
+                    const CatIcon = CATEGORY_ICON[reward.category] ?? Gift;
+                    return (
                       <div
-                        className={`w-7 h-7 rounded-md flex items-center justify-center shrink-0 ${
-                          affordable ? "bg-accent/10" : "bg-foreground/5"
+                        key={reward.id}
+                        className={`flex items-center gap-2.5 py-2 px-2 rounded-lg transition-colors ${
+                          affordable ? "hover:bg-surface/60" : "opacity-40"
                         }`}
                       >
-                        <item.Icon
-                          className={`w-3.5 h-3.5 ${affordable ? "text-accent" : "text-muted"}`}
-                        />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm text-foreground truncate">{item.label}</p>
-                        <p className="text-[10px] text-muted">{item.category}</p>
-                      </div>
-                      {affordable ? (
-                        <button
-                          onClick={() => handleRedeem({ label: item.label, points: item.points })}
-                          disabled={isThisRedeeming}
-                          className="text-[11px] font-semibold text-accent border border-accent/30 rounded-md px-2 py-0.5 hover:bg-accent/10 transition-colors disabled:opacity-40 shrink-0"
+                        <div
+                          className={`w-7 h-7 rounded-md flex items-center justify-center shrink-0 ${
+                            affordable ? "bg-accent/10" : "bg-foreground/5"
+                          }`}
                         >
-                          {item.points.toLocaleString()} pts
-                        </button>
-                      ) : (
-                        <span className="text-xs font-semibold text-muted shrink-0">
-                          {item.points.toLocaleString()} pts
-                        </span>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
+                          <CatIcon
+                            className={`w-3.5 h-3.5 ${affordable ? "text-accent" : "text-muted"}`}
+                          />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-foreground truncate">{reward.label}</p>
+                          <p className="text-[10px] text-muted">
+                            {reward.category.replace("_", " ")}
+                            {reward.discountInCents != null &&
+                              ` — $${(reward.discountInCents / 100).toFixed(0)} off`}
+                          </p>
+                        </div>
+                        {affordable ? (
+                          <button
+                            onClick={() => handleRedeem(reward)}
+                            disabled={isRedeeming}
+                            className="text-[11px] font-semibold text-accent border border-accent/30 rounded-md px-2 py-0.5 hover:bg-accent/10 transition-colors disabled:opacity-40 shrink-0"
+                          >
+                            {reward.pointsCost.toLocaleString()} pts
+                          </button>
+                        ) : (
+                          <span className="text-xs font-semibold text-muted shrink-0">
+                            {reward.pointsCost.toLocaleString()} pts
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="py-3 text-center">
+                  <Tag className="w-7 h-7 text-muted/30 mx-auto mb-2" />
+                  <p className="text-xs text-muted">No rewards available yet. Check back soon!</p>
+                </div>
+              )}
 
               <p className="text-[11px] text-muted pt-1">
                 Points never expire. We&apos;ll apply your reward at your next appointment.

@@ -71,30 +71,49 @@ export async function purchaseGiftCard(
     return { success: false, error: "Amount must be between $25 and $500" };
   }
 
-  // Auto-generate next gift card code
-  const [lastCard] = await db
-    .select({ code: giftCards.code })
-    .from(giftCards)
-    .orderBy(desc(giftCards.id))
-    .limit(1);
+  // Auto-generate next gift card code with retry on unique-constraint collision.
+  // Two concurrent purchases can read the same lastCard and produce the same
+  // code. The unique index on gift_cards.code prevents silent duplicates — we
+  // catch the violation and retry with a fresh sequence read.
+  const MAX_RETRIES = 5;
+  let code = "";
+  let newCard!: { id: number };
 
-  const nextNum = lastCard
-    ? String(parseInt(lastCard.code.replace("TC-GC-", ""), 10) + 1).padStart(3, "0")
-    : "001";
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    const [lastCard] = await db
+      .select({ code: giftCards.code })
+      .from(giftCards)
+      .orderBy(desc(giftCards.id))
+      .limit(1);
 
-  const code = `TC-GC-${nextNum}`;
+    const nextNum = lastCard
+      ? String(parseInt(lastCard.code.replace("TC-GC-", ""), 10) + 1).padStart(3, "0")
+      : "001";
 
-  // Create the gift card
-  const [newCard] = await db
-    .insert(giftCards)
-    .values({
-      code,
-      purchasedByClientId: user.id,
-      recipientName: input.recipientName ?? null,
-      originalAmountInCents: input.amountInCents,
-      balanceInCents: input.amountInCents,
-    })
-    .returning({ id: giftCards.id });
+    code = `TC-GC-${nextNum}`;
+
+    try {
+      const [inserted] = await db
+        .insert(giftCards)
+        .values({
+          code,
+          purchasedByClientId: user.id,
+          recipientName: input.recipientName ?? null,
+          originalAmountInCents: input.amountInCents,
+          balanceInCents: input.amountInCents,
+        })
+        .returning({ id: giftCards.id });
+      newCard = inserted;
+      break;
+    } catch (err: unknown) {
+      const isDuplicate =
+        err instanceof Error &&
+        (err.message.includes("unique") ||
+          err.message.includes("duplicate") ||
+          err.message.includes("gift_cards_code_idx"));
+      if (!isDuplicate || attempt === MAX_RETRIES - 1) throw err;
+    }
+  }
 
   // Record purchase transaction in the ledger
   await db.insert(giftCardTransactions).values({

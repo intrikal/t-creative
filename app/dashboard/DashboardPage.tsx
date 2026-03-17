@@ -59,6 +59,8 @@ export interface AdminStats {
   unpaidInvoiceCount: number;
   openInquiries: number;
   newInquiriesToday: number;
+  lowStockProducts: number;
+  lowStockSupplies: number;
 }
 
 export interface AdminBooking {
@@ -252,6 +254,7 @@ function StatCard({
   icon: Icon,
   iconColor,
   iconBg,
+  href,
 }: {
   label: string;
   value: string;
@@ -260,9 +263,10 @@ function StatCard({
   icon: React.ComponentType<{ className?: string }>;
   iconColor: string;
   iconBg: string;
+  href?: string;
 }) {
-  return (
-    <Card className="gap-0 py-4">
+  const content = (
+    <Card className={cn("gap-0 py-4", href && "hover:border-foreground/20 transition-colors")}>
       <CardContent className="px-4">
         <div className="flex items-start justify-between gap-2">
           <div className="space-y-1">
@@ -281,6 +285,8 @@ function StatCard({
       </CardContent>
     </Card>
   );
+
+  return href ? <Link href={href}>{content}</Link> : content;
 }
 
 function BookingRow({ booking }: { booking: AdminBooking }) {
@@ -479,7 +485,20 @@ export function DashboardPage({
       iconColor: "text-[#5b8a8a]",
       iconBg: "bg-[#5b8a8a]/10",
     },
-  ] as const;
+    {
+      label: "Low Stock",
+      value: String(lowStockCount),
+      sub:
+        stats.lowStockSupplies > 0
+          ? `${stats.lowStockSupplies} supply item${stats.lowStockSupplies !== 1 ? "s" : ""} below reorder`
+          : "all stocked",
+      trend: lowStockCount > 0 ? ("down" as Trend) : ("neutral" as Trend),
+      icon: Package,
+      iconColor: lowStockCount > 0 ? "text-[#7a5c10]" : "text-muted",
+      iconBg: lowStockCount > 0 ? "bg-[#7a5c10]/10" : "bg-muted/10",
+      href: "/dashboard/marketplace",
+    },
+  ];
 
   const weeklyTotalDisplay = `$${weeklyRevenueTotal.toLocaleString()}`;
   const weeklyVsPriorDisplay =
@@ -521,7 +540,7 @@ export function DashboardPage({
       </div>
 
       {/* ── Stats ───────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3">
         {STATS.map((stat) => (
           <StatCard key={stat.label} {...stat} />
         ))}

@@ -522,8 +522,9 @@ export default async function Page() {
         cta: "View Invoices",
       });
     }
-    const lowStockCount =
-      Number(lowStockProductsRow?.count ?? 0) + Number(lowStockSuppliesRow?.count ?? 0);
+    const lowStockProducts = Number(lowStockProductsRow?.count ?? 0);
+    const lowStockSupplies = Number(lowStockSuppliesRow?.count ?? 0);
+    const lowStockCount = lowStockProducts + lowStockSupplies;
     if (lowStockCount > 0) {
       adminAlerts.push({
         id: "low-stock",
@@ -601,6 +602,8 @@ export default async function Page() {
           unpaidInvoiceCount: Number(outstandingRow?.cnt ?? 0),
           openInquiries: Number(openInquiriesRow?.count ?? 0),
           newInquiriesToday: Number(newInquiriesTodayRow?.count ?? 0),
+          lowStockProducts,
+          lowStockSupplies,
         }}
         alerts={adminAlerts}
         todayBookings={todayBookings}

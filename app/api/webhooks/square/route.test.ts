@@ -512,4 +512,204 @@ describe("POST /api/webhooks/square", () => {
     );
     expect(syncLogCall).toBeDefined();
   });
+
+  /* ---------- Tax amount handling ---------- */
+
+  it("stores taxAmountInCents from squarePayment.taxMoney", async () => {
+    vi.resetModules();
+
+    let selectCallCount = 0;
+    const localInsertValues = vi.fn();
+
+    const schemaMock = {
+      payments: {
+        id: "id",
+        squarePaymentId: "squarePaymentId",
+        taxAmountInCents: "taxAmountInCents",
+      },
+      bookings: {
+        id: "id",
+        clientId: "clientId",
+        squareOrderId: "squareOrderId",
+        zohoInvoiceId: "zohoInvoiceId",
+        depositPaidInCents: "depositPaidInCents",
+        depositPaidAt: "depositPaidAt",
+      },
+      orders: { id: "id", clientId: "clientId", squareOrderId: "squareOrderId" },
+      profiles: {
+        id: "id",
+        email: "email",
+        firstName: "firstName",
+        role: "role",
+        onboardingData: "onboardingData",
+        notifyEmail: "notifyEmail",
+      },
+      webhookEvents: {
+        id: "id",
+        provider: "provider",
+        externalEventId: "externalEventId",
+        isProcessed: "isProcessed",
+      },
+      syncLog: {},
+      loyaltyTransactions: { id: "id", profileId: "profileId", type: "type" },
+    };
+
+    vi.doMock("@/db", () => ({
+      db: {
+        select: () => ({
+          from: () => ({
+            where: (..._args: unknown[]) => {
+              selectCallCount++;
+              // Call 3: booking by squareOrderId → found
+              if (selectCallCount === 3) {
+                return [{ id: 10, clientId: "client-tax" }];
+              }
+              return [];
+            },
+            limit: () => [],
+          }),
+        }),
+        insert: () => ({
+          values: (...args: unknown[]) => {
+            localInsertValues(...args);
+            return { returning: () => [{ id: 1 }] };
+          },
+        }),
+        update: () => ({ set: () => ({ where: vi.fn() }) }),
+      },
+    }));
+    vi.doMock("@/db/schema", () => schemaMock);
+    vi.doMock("@/lib/square", () => ({
+      SQUARE_WEBHOOK_SIGNATURE_KEY: "",
+      squareClient: { orders: { get: vi.fn().mockRejectedValue(new Error("no")) } },
+      isSquareConfigured: vi.fn(() => false),
+    }));
+
+    const mod = await import("./route");
+    const event = makeEvent({
+      type: "payment.completed",
+      data: {
+        object: {
+          payment: {
+            id: "sq_pay_tax",
+            orderId: "sq_order_tax",
+            amountMoney: { amount: 10000, currency: "USD" },
+            taxMoney: { amount: 850, currency: "USD" },
+            tenders: [{ type: "CARD" }],
+          },
+        },
+      },
+    });
+
+    const res = await mod.POST(makeRequest(JSON.stringify(event)));
+    expect(res.status).toBe(200);
+
+    // Find the payment insert call (has bookingId)
+    const paymentInsert = localInsertValues.mock.calls.find(
+      (call: unknown[]) =>
+        call[0] &&
+        typeof call[0] === "object" &&
+        "bookingId" in (call[0] as Record<string, unknown>),
+    );
+    expect(paymentInsert).toBeDefined();
+    expect((paymentInsert![0] as Record<string, unknown>).taxAmountInCents).toBe(850);
+  });
+
+  it("defaults taxAmountInCents to 0 when taxMoney is absent", async () => {
+    vi.resetModules();
+
+    let selectCallCount = 0;
+    const localInsertValues = vi.fn();
+
+    const schemaMock = {
+      payments: {
+        id: "id",
+        squarePaymentId: "squarePaymentId",
+        taxAmountInCents: "taxAmountInCents",
+      },
+      bookings: {
+        id: "id",
+        clientId: "clientId",
+        squareOrderId: "squareOrderId",
+        zohoInvoiceId: "zohoInvoiceId",
+        depositPaidInCents: "depositPaidInCents",
+        depositPaidAt: "depositPaidAt",
+      },
+      orders: { id: "id", clientId: "clientId", squareOrderId: "squareOrderId" },
+      profiles: {
+        id: "id",
+        email: "email",
+        firstName: "firstName",
+        role: "role",
+        onboardingData: "onboardingData",
+        notifyEmail: "notifyEmail",
+      },
+      webhookEvents: {
+        id: "id",
+        provider: "provider",
+        externalEventId: "externalEventId",
+        isProcessed: "isProcessed",
+      },
+      syncLog: {},
+      loyaltyTransactions: { id: "id", profileId: "profileId", type: "type" },
+    };
+
+    vi.doMock("@/db", () => ({
+      db: {
+        select: () => ({
+          from: () => ({
+            where: (..._args: unknown[]) => {
+              selectCallCount++;
+              if (selectCallCount === 3) {
+                return [{ id: 11, clientId: "client-notax" }];
+              }
+              return [];
+            },
+            limit: () => [],
+          }),
+        }),
+        insert: () => ({
+          values: (...args: unknown[]) => {
+            localInsertValues(...args);
+            return { returning: () => [{ id: 1 }] };
+          },
+        }),
+        update: () => ({ set: () => ({ where: vi.fn() }) }),
+      },
+    }));
+    vi.doMock("@/db/schema", () => schemaMock);
+    vi.doMock("@/lib/square", () => ({
+      SQUARE_WEBHOOK_SIGNATURE_KEY: "",
+      squareClient: { orders: { get: vi.fn().mockRejectedValue(new Error("no")) } },
+      isSquareConfigured: vi.fn(() => false),
+    }));
+
+    const mod = await import("./route");
+    const event = makeEvent({
+      type: "payment.completed",
+      data: {
+        object: {
+          payment: {
+            id: "sq_pay_notax",
+            orderId: "sq_order_notax",
+            amountMoney: { amount: 5000, currency: "USD" },
+            tenders: [{ type: "CASH" }],
+            // no taxMoney field
+          },
+        },
+      },
+    });
+
+    const res = await mod.POST(makeRequest(JSON.stringify(event)));
+    expect(res.status).toBe(200);
+
+    const paymentInsert = localInsertValues.mock.calls.find(
+      (call: unknown[]) =>
+        call[0] &&
+        typeof call[0] === "object" &&
+        "bookingId" in (call[0] as Record<string, unknown>),
+    );
+    expect(paymentInsert).toBeDefined();
+    expect((paymentInsert![0] as Record<string, unknown>).taxAmountInCents).toBe(0);
+  });
 });

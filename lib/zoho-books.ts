@@ -200,6 +200,8 @@ export async function createZohoBooksInvoice(data: {
   phone?: string | null;
   lineItems: Array<{ name: string; description?: string; rate: number; quantity: number }>;
   depositInCents?: number;
+  /** Sales tax in cents as reported by Square. Added as an adjustment line. */
+  taxAmountInCents?: number;
 }): Promise<void> {
   if (!isZohoBooksConfigured()) return;
 
@@ -223,12 +225,20 @@ export async function createZohoBooksInvoice(data: {
       quantity: item.quantity,
     }));
 
+    const taxAmountCents = data.taxAmountInCents ?? 0;
+
     const invoiceResult = await booksFetch("/invoices", {
       method: "POST",
       body: {
         customer_id: customerId,
         line_items: invoiceLineItems,
         is_inclusive_tax: false,
+        ...(taxAmountCents > 0
+          ? {
+              adjustment: taxAmountCents / 100,
+              adjustment_description: "Sales tax",
+            }
+          : {}),
         notes: `Auto-generated from T Creative ${data.entityType} #${data.entityId}`,
         reference_number: `tc-${data.entityType}-${data.entityId}`,
       },

@@ -296,6 +296,7 @@ describe("financial/actions", () => {
       expect(result).toMatchObject({
         totalRevenue: expect.any(Number),
         totalTips: expect.any(Number),
+        taxCollected: expect.any(Number),
         transactionCount: expect.any(Number),
         avgTicket: expect.any(Number),
       });

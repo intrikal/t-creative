@@ -62,6 +62,8 @@ export type PaymentRow = {
 export type RevenueStats = {
   totalRevenue: number;
   totalTips: number;
+  /** Sales tax collected in dollars (reported by Square, not app revenue). */
+  taxCollected: number;
   transactionCount: number;
   avgTicket: number;
   revenueVsPriorPeriodPct: number | null;
@@ -237,9 +239,18 @@ export async function getRevenueStats(): Promise<RevenueStats> {
     const revenueVsPriorPeriodPct =
       priorRev === 0 ? null : Math.round(((currentRev - priorRev) / priorRev) * 100);
 
+    // Sales tax collected this month (reported by Square — not app revenue)
+    const [taxRow] = await db
+      .select({ total: sql<number>`coalesce(sum(${payments.taxAmountInCents}), 0)` })
+      .from(payments)
+      .where(and(eq(payments.status, "paid"), gte(payments.paidAt, monthStart)));
+
+    const taxCollected = Math.round(Number(taxRow.total) / 100);
+
     return {
       totalRevenue,
       totalTips,
+      taxCollected,
       transactionCount: count,
       avgTicket: count > 0 ? Math.round(totalRevenue / count) : 0,
       revenueVsPriorPeriodPct,
@@ -409,6 +420,8 @@ export async function createInvoice(input: {
   clientId: string;
   description: string;
   amountInCents: number;
+  /** Sales tax in cents. Calculated by Square, not this app. */
+  taxAmountInCents?: number;
   dueAt?: string;
   notes?: string;
   isRecurring?: boolean;
@@ -445,6 +458,7 @@ export async function createInvoice(input: {
       number: `INV-${nextNum}`,
       description: input.description,
       amountInCents: input.amountInCents,
+      taxAmountInCents: input.taxAmountInCents ?? 0,
       dueAt: dueDate,
       notes: input.notes ?? null,
       isRecurring: input.isRecurring ?? false,

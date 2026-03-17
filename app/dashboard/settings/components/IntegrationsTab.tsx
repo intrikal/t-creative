@@ -26,6 +26,8 @@ function buildIntegrations(
       connected: squareConnected,
       icon: "💳",
       category: "Payments" as const,
+      note: "Sales tax is calculated by Square based on your location and item categories. Configure tax settings in your Square Dashboard under Settings \u2192 Sales Tax.",
+      noteUrl: "https://squareup.com/dashboard/sales/taxes",
     },
     {
       name: "Zoho",
@@ -191,6 +193,24 @@ export function IntegrationsTab({
                           </span>
                         </div>
                         <p className="text-xs text-muted mt-0.5">{integration.description}</p>
+                        {"note" in integration && integration.note && (
+                          <p className="text-[10px] text-muted/70 mt-1.5 leading-relaxed">
+                            {integration.note}
+                            {"noteUrl" in integration && integration.noteUrl && (
+                              <>
+                                {" "}
+                                <a
+                                  href={integration.noteUrl as string}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="underline hover:text-foreground"
+                                >
+                                  Open Square tax settings
+                                </a>
+                              </>
+                            )}
+                          </p>
+                        )}
                       </div>
                       <button
                         className={cn(

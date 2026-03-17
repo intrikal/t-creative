@@ -11,6 +11,10 @@
  * Always returns 200 to Square — failures are handled internally via
  * the `attempts` and `errorMessage` fields on `webhook_events`.
  *
+ * Sales tax calculation is delegated to Square — this handler only
+ * captures the tax amount Square reports (`taxMoney`) and stores it
+ * in `payments.taxAmountInCents`.
+ *
  * @module api/webhooks/square
  */
 import { createHmac } from "crypto";
@@ -85,10 +89,12 @@ function mapTenderType(tenderType?: string): PaymentMethod {
 /*  Event processors                                                   */
 /* ------------------------------------------------------------------ */
 
-// Square webhook payments may include a `tenders` field not present in the SDK's Payment type
-// (Terminal payments still populate it for payment method detection).
+// Square webhook payments may include fields not present in the SDK's Payment type:
+// - `tenders`: Terminal payments still populate it for payment method detection.
+// - `taxMoney`: Sales tax collected. Tax calculation is handled by Square, not this app.
 interface SquareWebhookPayment extends Payment {
   tenders?: Tender[];
+  taxMoney?: { amount?: bigint; currency?: string };
 }
 
 async function handlePaymentCompleted(data: PaymentCreatedEventData | undefined): Promise<string> {
@@ -112,6 +118,7 @@ async function handlePaymentCompleted(data: PaymentCreatedEventData | undefined)
         paidAt: squarePayment.updatedAt ? new Date(squarePayment.updatedAt) : new Date(),
         squareReceiptUrl: squarePayment.receiptUrl ?? null,
         squareOrderId: squareOrderId,
+        taxAmountInCents: Number(squarePayment.taxMoney?.amount ?? 0),
       })
       .where(eq(payments.id, existing.id));
 
@@ -135,6 +142,8 @@ async function handlePaymentCompleted(data: PaymentCreatedEventData | undefined)
     const tenders = squarePayment.tenders;
     const method = tenders?.[0]?.type ? mapTenderType(tenders[0].type) : "square_other";
     const tipCents = Number(squarePayment.tipMoney?.amount ?? 0);
+    /** Sales tax collected by Square for this transaction (cents). */
+    const taxCents = Number(squarePayment.taxMoney?.amount ?? 0);
 
     // Determine if this is a deposit payment.
     // Primary: Square order metadata.paymentType (set when payment link is created).
@@ -149,6 +158,7 @@ async function handlePaymentCompleted(data: PaymentCreatedEventData | undefined)
       clientId: booking.clientId,
       amountInCents: amountCents,
       tipInCents: tipCents,
+      taxAmountInCents: taxCents,
       method,
       status: "paid",
       paidAt: new Date(),
@@ -379,12 +389,16 @@ async function handlePaymentUpdated(data: PaymentUpdatedEventData | undefined): 
   const tenders = squarePayment.tenders;
   const method = tenders?.[0]?.type ? mapTenderType(tenders[0].type) : undefined;
 
+  const taxCents =
+    squarePayment.taxMoney?.amount != null ? Number(squarePayment.taxMoney.amount) : undefined;
+
   await db
     .update(payments)
     .set({
       squareReceiptUrl: squarePayment.receiptUrl ?? undefined,
       squareOrderId: squarePayment.orderId ?? undefined,
       ...(method ? { method } : {}),
+      ...(taxCents != null ? { taxAmountInCents: taxCents } : {}),
     })
     .where(eq(payments.id, existing.id));
 

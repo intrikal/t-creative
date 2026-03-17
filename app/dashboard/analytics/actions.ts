@@ -35,6 +35,9 @@ import {
   settings,
   businessHours,
   timeOff,
+  promotions,
+  membershipSubscriptions,
+  membershipPlans,
 } from "@/db/schema";
 import { createClient } from "@/utils/supabase/server";
 
@@ -197,6 +200,32 @@ export type PromotionRoiItem = {
   totalDiscount: number;
   netRevenue: number;
   roi: number;
+};
+
+export type MembershipValueStats = {
+  memberAvgSpend: number;
+  nonMemberAvgSpend: number;
+  spendLift: number;
+  avgLifetimeDays: number | null;
+  monthlyChurnRate: number;
+  activeCount: number;
+  cancelledCount: number;
+  byPlan: {
+    plan: string;
+    active: number;
+    cancelled: number;
+    avgSpend: number;
+    avgLifetimeDays: number | null;
+    churnRate: number;
+  }[];
+};
+
+export type RevenuePerHourDay = {
+  day: string;
+  isoDay: number;
+  revenue: number;
+  availableHours: number;
+  revenuePerHour: number;
 };
 
 export type PeakTimeSlot = {
@@ -1006,6 +1035,143 @@ export async function getVisitFrequency(): Promise<VisitFrequencyBucket[]> {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Revenue per Available Hour                                         */
+/* ------------------------------------------------------------------ */
+
+const DAY_LABELS_ISO: Record<number, string> = {
+  1: "Monday",
+  2: "Tuesday",
+  3: "Wednesday",
+  4: "Thursday",
+  5: "Friday",
+  6: "Saturday",
+  7: "Sunday",
+};
+
+/** Parse "HH:MM" to fractional hours. */
+function timeToHours(t: string): number {
+  const [h, m] = t.split(":").map(Number);
+  return h + m / 60;
+}
+
+export async function getRevenuePerHour(): Promise<RevenuePerHourDay[]> {
+  try {
+    await getUser();
+
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    // 1. Studio-wide business hours (staffId IS NULL)
+    const hours = await db
+      .select({
+        dayOfWeek: businessHours.dayOfWeek,
+        isOpen: businessHours.isOpen,
+        opensAt: businessHours.opensAt,
+        closesAt: businessHours.closesAt,
+      })
+      .from(businessHours)
+      .where(sql`${businessHours.staffId} is null`);
+
+    // 2. Lunch break from settings
+    const [lunchRow] = await db
+      .select({ value: settings.value })
+      .from(settings)
+      .where(eq(settings.key, "lunch_break"));
+    const lunch = lunchRow?.value as { enabled?: boolean; start?: string; end?: string } | null;
+    const lunchHours =
+      lunch?.enabled && lunch.start && lunch.end
+        ? timeToHours(lunch.end) - timeToHours(lunch.start)
+        : 0;
+
+    // 3. Time-off days (studio-wide) in the last 30 days
+    const timeOffRows = await db
+      .select({ startDate: timeOff.startDate, endDate: timeOff.endDate })
+      .from(timeOff)
+      .where(
+        and(
+          sql`${timeOff.staffId} is null`,
+          sql`${timeOff.endDate} >= ${thirtyDaysAgo.toISOString().slice(0, 10)}`,
+        ),
+      );
+
+    // Build set of closed dates
+    const closedDates = new Set<string>();
+    for (const row of timeOffRows) {
+      const start = new Date(row.startDate);
+      const end = new Date(row.endDate);
+      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+        closedDates.add(d.toISOString().slice(0, 10));
+      }
+    }
+
+    // 4. Build available hours per ISO day-of-week
+    const hoursPerDay = new Map<number, number>();
+    for (const h of hours) {
+      if (h.isOpen && h.opensAt && h.closesAt) {
+        const open = timeToHours(h.opensAt);
+        const close = timeToHours(h.closesAt);
+        hoursPerDay.set(h.dayOfWeek, Math.max(close - open - lunchHours, 0));
+      } else {
+        hoursPerDay.set(h.dayOfWeek, 0);
+      }
+    }
+
+    // Count actual open days per day-of-week in the last 30 days
+    const openDayCount = new Map<number, number>();
+    const now = new Date();
+    for (let d = new Date(thirtyDaysAgo); d <= now; d.setDate(d.getDate() + 1)) {
+      const dateStr = d.toISOString().slice(0, 10);
+      const jsDay = d.getDay();
+      const isoDay = jsDay === 0 ? 7 : jsDay;
+
+      if ((hoursPerDay.get(isoDay) ?? 0) === 0) continue;
+      if (closedDates.has(dateStr)) continue;
+
+      openDayCount.set(isoDay, (openDayCount.get(isoDay) ?? 0) + 1);
+    }
+
+    // 5. Revenue by ISO day-of-week (last 30 days, paid)
+    const revenueRows = await db
+      .select({
+        isoDay: sql<number>`extract(isodow from ${payments.paidAt})`,
+        total: sql<number>`coalesce(sum(${payments.amountInCents}), 0)`,
+      })
+      .from(payments)
+      .where(
+        and(eq(payments.status, "paid"), gte(payments.paidAt, sql`now() - interval '30 days'`)),
+      )
+      .groupBy(sql`extract(isodow from ${payments.paidAt})`);
+
+    const revenueByDay = new Map(
+      revenueRows.map((r) => [Number(r.isoDay), Math.round(Number(r.total) / 100)]),
+    );
+
+    // 6. Assemble results
+    const results: RevenuePerHourDay[] = [];
+    for (let isoDay = 1; isoDay <= 7; isoDay++) {
+      const hpd = hoursPerDay.get(isoDay) ?? 0;
+      const days = openDayCount.get(isoDay) ?? 0;
+      const availableHours = Math.round(hpd * days * 10) / 10;
+      const revenue = revenueByDay.get(isoDay) ?? 0;
+      const revenuePerHour = availableHours > 0 ? Math.round(revenue / availableHours) : 0;
+
+      results.push({
+        day: DAY_LABELS_ISO[isoDay],
+        isoDay,
+        revenue,
+        availableHours,
+        revenuePerHour,
+      });
+    }
+
+    return results;
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /*  Checkout Rebook Rate                                               */
 /* ------------------------------------------------------------------ */
 
@@ -1175,6 +1341,179 @@ export async function getPromotionRoi(): Promise<PromotionRoiItem[]> {
         roi,
       };
     });
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Membership Value Tracking                                          */
+/* ------------------------------------------------------------------ */
+
+export async function getMembershipValue(): Promise<MembershipValueStats> {
+  try {
+    await getUser();
+
+    // 1. Get all membership subscriptions with plan names
+    const subs = await db
+      .select({
+        id: membershipSubscriptions.id,
+        clientId: membershipSubscriptions.clientId,
+        planName: membershipPlans.name,
+        status: membershipSubscriptions.status,
+        createdAt: membershipSubscriptions.createdAt,
+        cancelledAt: membershipSubscriptions.cancelledAt,
+      })
+      .from(membershipSubscriptions)
+      .innerJoin(membershipPlans, eq(membershipSubscriptions.planId, membershipPlans.id));
+
+    // Collect member client IDs (anyone who has ever had a membership)
+    const memberClientIds = new Set(subs.map((s) => s.clientId));
+
+    // 2. Average spend per client (last 12 months) — members vs non-members
+    const spendRows = await db
+      .select({
+        clientId: payments.clientId,
+        total: sql<number>`coalesce(sum(${payments.amountInCents}), 0)`,
+      })
+      .from(payments)
+      .where(
+        and(eq(payments.status, "paid"), gte(payments.paidAt, sql`now() - interval '12 months'`)),
+      )
+      .groupBy(payments.clientId);
+
+    let memberTotal = 0;
+    let memberCount = 0;
+    let nonMemberTotal = 0;
+    let nonMemberCount = 0;
+
+    for (const r of spendRows) {
+      const spend = Math.round(Number(r.total) / 100);
+      if (memberClientIds.has(r.clientId)) {
+        memberTotal += spend;
+        memberCount++;
+      } else {
+        nonMemberTotal += spend;
+        nonMemberCount++;
+      }
+    }
+
+    const memberAvgSpend = memberCount > 0 ? Math.round(memberTotal / memberCount) : 0;
+    const nonMemberAvgSpend = nonMemberCount > 0 ? Math.round(nonMemberTotal / nonMemberCount) : 0;
+    const spendLift =
+      nonMemberAvgSpend > 0
+        ? Math.round(((memberAvgSpend - nonMemberAvgSpend) / nonMemberAvgSpend) * 100)
+        : 0;
+
+    // 3. Membership lifetime (for cancelled memberships)
+    const cancelledSubs = subs.filter((s) => s.status === "cancelled" && s.cancelledAt);
+    const lifetimeDays = cancelledSubs.map((s) => {
+      const created = new Date(s.createdAt);
+      const cancelled = new Date(s.cancelledAt!);
+      return Math.floor((cancelled.getTime() - created.getTime()) / (1000 * 60 * 60 * 24));
+    });
+    const avgLifetimeDays =
+      lifetimeDays.length > 0
+        ? Math.round(lifetimeDays.reduce((a, b) => a + b, 0) / lifetimeDays.length)
+        : null;
+
+    // 4. Monthly churn rate
+    // Churn = memberships cancelled in last 30 days / active memberships at start of period
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const recentCancels = cancelledSubs.filter(
+      (s) => new Date(s.cancelledAt!) >= thirtyDaysAgo,
+    ).length;
+
+    const activeCount = subs.filter((s) => s.status === "active").length;
+    const cancelledCount = cancelledSubs.length;
+    // Denominator: active now + recently cancelled (approximation of start-of-period active)
+    const periodStart = activeCount + recentCancels;
+    const monthlyChurnRate = periodStart > 0 ? Math.round((recentCancels / periodStart) * 100) : 0;
+
+    // 5. By plan
+    const planMap = new Map<
+      string,
+      { active: number; cancelled: number; clientIds: Set<string>; lifetimes: number[] }
+    >();
+
+    for (const s of subs) {
+      const entry = planMap.get(s.planName) ?? {
+        active: 0,
+        cancelled: 0,
+        clientIds: new Set<string>(),
+        lifetimes: [],
+      };
+      entry.clientIds.add(s.clientId);
+
+      if (s.status === "active") entry.active++;
+      if (s.status === "cancelled") {
+        entry.cancelled++;
+        if (s.cancelledAt) {
+          const days = Math.floor(
+            (new Date(s.cancelledAt).getTime() - new Date(s.createdAt).getTime()) /
+              (1000 * 60 * 60 * 24),
+          );
+          entry.lifetimes.push(days);
+        }
+      }
+
+      planMap.set(s.planName, entry);
+    }
+
+    // Compute per-plan spend from the spend data we already have
+    const clientSpendMap = new Map(
+      spendRows.map((r) => [r.clientId, Math.round(Number(r.total) / 100)]),
+    );
+
+    const byPlan = Array.from(planMap.entries())
+      .map(([plan, data]) => {
+        const planClientSpends = Array.from(data.clientIds)
+          .map((id) => clientSpendMap.get(id) ?? 0)
+          .filter((s) => s > 0);
+        const avgSpend =
+          planClientSpends.length > 0
+            ? Math.round(planClientSpends.reduce((a, b) => a + b, 0) / planClientSpends.length)
+            : 0;
+        const planAvgLifetime =
+          data.lifetimes.length > 0
+            ? Math.round(data.lifetimes.reduce((a, b) => a + b, 0) / data.lifetimes.length)
+            : null;
+
+        const planRecentCancels = subs.filter(
+          (s) =>
+            s.planName === plan &&
+            s.status === "cancelled" &&
+            s.cancelledAt &&
+            new Date(s.cancelledAt) >= thirtyDaysAgo,
+        ).length;
+        const planPeriodStart = data.active + planRecentCancels;
+        const churnRate =
+          planPeriodStart > 0 ? Math.round((planRecentCancels / planPeriodStart) * 100) : 0;
+
+        return {
+          plan,
+          active: data.active,
+          cancelled: data.cancelled,
+          avgSpend,
+          avgLifetimeDays: planAvgLifetime,
+          churnRate,
+        };
+      })
+      .sort((a, b) => b.active - a.active);
+
+    return {
+      memberAvgSpend,
+      nonMemberAvgSpend,
+      spendLift,
+      avgLifetimeDays,
+      monthlyChurnRate,
+      activeCount,
+      cancelledCount,
+      byPlan,
+    };
   } catch (err) {
     Sentry.captureException(err);
     throw err;

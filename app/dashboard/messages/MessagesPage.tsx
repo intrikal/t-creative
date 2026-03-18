@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useOptimistic, useTransition } from "react";
 import { MessageSquare } from "lucide-react";
 import { ComposeDialog } from "@/components/messages/ComposeDialog";
 import type { ThreadRow, MessageRow } from "./actions";
@@ -30,7 +30,39 @@ export function MessagesPage({
   initialThreads: ThreadRow[];
   clients: { id: string; name: string }[];
 }) {
-  const [threadsList, setThreadsList] = useState(initialThreads);
+  const [baseThreads, setBaseThreads] = useState(initialThreads);
+  const [isPending, startTransition] = useTransition();
+  const [threadsList, updateThreads] = useOptimistic<
+    ThreadRow[],
+    | { type: "mark_read"; id: number }
+    | { type: "update_last_message"; id: number; body: string; at: Date; senderId: string }
+    | { type: "star"; id: number }
+    | { type: "archive"; id: number }
+    | { type: "status"; id: number; status: string }
+  >(baseThreads, (state, action) => {
+    switch (action.type) {
+      case "mark_read":
+        return state.map((t) => (t.id === action.id ? { ...t, unreadCount: 0 } : t));
+      case "update_last_message":
+        return state.map((t) =>
+          t.id === action.id
+            ? {
+                ...t,
+                lastMessageBody: action.body,
+                lastMessageAt: action.at,
+                lastMessageSenderId: action.senderId,
+              }
+            : t,
+        );
+      case "star":
+        return state.map((t) => (t.id === action.id ? { ...t, isStarred: !t.isStarred } : t));
+      case "archive":
+        return state.map((t) => (t.id === action.id ? { ...t, isArchived: true } : t));
+      case "status":
+        return state.map((t) => (t.id === action.id ? { ...t, status: action.status } : t));
+    }
+  });
+
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [msgs, setMsgs] = useState<MessageRow[]>([]);
   const [loadingMsgs, setLoadingMsgs] = useState(false);
@@ -72,10 +104,9 @@ export function MessagesPage({
       if (cancelled) return;
       setMsgs(rows);
       setLoadingMsgs(false);
-      markThreadRead(selectedId).then(() => {
-        setThreadsList((prev) =>
-          prev.map((t) => (t.id === selectedId ? { ...t, unreadCount: 0 } : t)),
-        );
+      startTransition(async () => {
+        updateThreads({ type: "mark_read", id: selectedId });
+        await markThreadRead(selectedId);
       });
     });
     return () => {
@@ -95,7 +126,7 @@ export function MessagesPage({
       const newMsg = await sendMessage(selectedId, draft.trim());
       setMsgs((prev) => [...prev, newMsg]);
       setDraft("");
-      setThreadsList((prev) =>
+      setBaseThreads((prev) =>
         prev.map((t) =>
           t.id === selectedId
             ? {
@@ -112,32 +143,34 @@ export function MessagesPage({
     }
   }
 
-  async function handleStar() {
+  function handleStar() {
     if (!selectedId) return;
-    await toggleThreadStar(selectedId);
-    setThreadsList((prev) =>
-      prev.map((t) => (t.id === selectedId ? { ...t, isStarred: !t.isStarred } : t)),
-    );
+    startTransition(async () => {
+      updateThreads({ type: "star", id: selectedId });
+      await toggleThreadStar(selectedId);
+    });
   }
 
-  async function handleArchive() {
+  function handleArchive() {
     if (!selectedId) return;
-    await archiveThread(selectedId);
-    setThreadsList((prev) =>
-      prev.map((t) => (t.id === selectedId ? { ...t, isArchived: true } : t)),
-    );
+    startTransition(async () => {
+      updateThreads({ type: "archive", id: selectedId });
+      await archiveThread(selectedId);
+    });
     setSelectedId(null);
   }
 
-  async function handleStatus(status: "approved" | "rejected" | "resolved") {
+  function handleStatus(status: "approved" | "rejected" | "resolved") {
     if (!selectedId) return;
-    await updateThreadStatus(selectedId, status);
-    setThreadsList((prev) => prev.map((t) => (t.id === selectedId ? { ...t, status } : t)));
+    startTransition(async () => {
+      updateThreads({ type: "status", id: selectedId, status });
+      await updateThreadStatus(selectedId, status);
+    });
   }
 
   function handleCreated(threadId: number) {
     getThreads().then((rows) => {
-      setThreadsList(rows);
+      setBaseThreads(rows);
       setSelectedId(threadId);
     });
   }

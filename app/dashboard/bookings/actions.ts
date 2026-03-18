@@ -1640,28 +1640,3 @@ export async function cancelBookingSeries(bookingId: number): Promise<void> {
     throw err;
   }
 }
-
-/* ------------------------------------------------------------------ */
-/*  Barrel re-exports for backward compatibility                       */
-/* ------------------------------------------------------------------ */
-
-export { checkBookingWaivers, sendWaiverLink } from "./waiver-actions";
-export type { MissingWaiver, WaiverCheckResult } from "./waiver-actions";
-
-export {
-  getWaitlist,
-  addToWaitlist,
-  updateWaitlistStatus,
-  removeFromWaitlistById,
-} from "./waitlist-actions";
-export type { WaitlistRow, WaitlistInput } from "./waitlist-actions";
-
-export {
-  getServiceRecord,
-  upsertServiceRecord,
-  uploadServicePhoto,
-  promoteToPortfolio,
-} from "./service-record-actions";
-export type { ServiceRecordRow, ServiceRecordInput } from "./service-record-actions";
-
-export { getClientsForSelect, getServicesForSelect, getStaffForSelect } from "./select-actions";

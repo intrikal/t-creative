@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useOptimistic, useTransition } from "react";
 import { Scale } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { saveLegalDoc, type LegalDocEntry, type LegalDocInput } from "./actions";
@@ -20,30 +20,37 @@ interface LegalDocumentsPageProps {
 
 export function LegalDocumentsPage({ initialPrivacy, initialTerms }: LegalDocumentsPageProps) {
   const [activeTab, setActiveTab] = useState<TabType>("privacy_policy");
-  const [privacyDoc, setPrivacyDoc] = useState<LegalDocEntry | null>(initialPrivacy);
-  const [termsDoc, setTermsDoc] = useState<LegalDocEntry | null>(initialTerms);
   const [, startTransition] = useTransition();
 
+  const [privacyDoc, updatePrivacy] = useOptimistic<LegalDocEntry | null, LegalDocEntry>(
+    initialPrivacy,
+    (_state, updated) => updated,
+  );
+
+  const [termsDoc, updateTerms] = useOptimistic<LegalDocEntry | null, LegalDocEntry>(
+    initialTerms,
+    (_state, updated) => updated,
+  );
+
   function handleSave(type: TabType, input: LegalDocInput) {
+    const updated: LegalDocEntry = {
+      id: (type === "privacy_policy" ? privacyDoc?.id : termsDoc?.id) ?? 0,
+      type,
+      version: input.version,
+      intro: input.intro,
+      sections: input.sections,
+      effectiveDate: input.effectiveDate,
+      changeNotes: input.changeNotes ?? null,
+      isPublished: true,
+      publishedAt: new Date().toISOString(),
+    };
     startTransition(async () => {
-      await saveLegalDoc(type, input);
-      // Optimistically update the local state so the UI reflects the save
-      const updated: LegalDocEntry = {
-        id: (type === "privacy_policy" ? privacyDoc?.id : termsDoc?.id) ?? 0,
-        type,
-        version: input.version,
-        intro: input.intro,
-        sections: input.sections,
-        effectiveDate: input.effectiveDate,
-        changeNotes: input.changeNotes ?? null,
-        isPublished: true,
-        publishedAt: new Date().toISOString(),
-      };
       if (type === "privacy_policy") {
-        setPrivacyDoc(updated);
+        updatePrivacy(updated);
       } else {
-        setTermsDoc(updated);
+        updateTerms(updated);
       }
+      await saveLegalDoc(type, input);
     });
   }
 

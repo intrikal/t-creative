@@ -11,8 +11,8 @@ import {
   upsertServiceRecord,
   uploadServicePhoto,
   promoteToPortfolio,
-} from "../actions";
-import type { ServiceRecordInput } from "../actions";
+} from "../service-record-actions";
+import type { ServiceRecordInput } from "../service-record-actions";
 
 export type ServiceRecordFormState = {
   lashMapping: string;

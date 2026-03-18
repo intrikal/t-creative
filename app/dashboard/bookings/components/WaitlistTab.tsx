@@ -12,8 +12,8 @@ import {
   addToWaitlist,
   updateWaitlistStatus,
   removeFromWaitlistById,
-} from "../actions";
-import type { WaitlistRow, WaitlistInput } from "../actions";
+} from "../waitlist-actions";
+import type { WaitlistRow, WaitlistInput } from "../waitlist-actions";
 import { categoryDot, type Booking, type ServiceCategory } from "./helpers";
 
 /* ------------------------------------------------------------------ */

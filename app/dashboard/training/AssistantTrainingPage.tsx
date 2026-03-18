@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useOptimistic, useTransition } from "react";
 import {
   CheckCircle2,
   BookOpen,
@@ -73,12 +73,37 @@ function formatDuration(min: number): string {
 }
 
 export function AssistantTrainingPage({ data }: { data: AssistantTrainingData }) {
-  const [modules, setModules] = useState<AssistantModule[]>(data.modules);
+  const [isPending, startTransition] = useTransition();
+  const [modules, toggleModule] = useOptimistic<
+    AssistantModule[],
+    { moduleId: number; lessonId: number }
+  >(data.modules, (state, { moduleId, lessonId }) =>
+    state.map((mod) => {
+      if (mod.id !== moduleId) return mod;
+      const updated = mod.lessons.map((l) =>
+        l.id === lessonId ? { ...l, completed: !l.completed } : l,
+      );
+      const allDone = updated.every((l) => l.completed);
+      const anyStarted = updated.some((l) => l.completed);
+      return {
+        ...mod,
+        lessons: updated,
+        status: allDone
+          ? ("completed" as const)
+          : anyStarted
+            ? ("in_progress" as const)
+            : ("available" as const),
+        completedDate: allDone
+          ? new Date().toLocaleDateString("en-US", { month: "short", year: "numeric" })
+          : undefined,
+      };
+    }),
+  );
+
   const [expanded, setExpanded] = useState<number | null>(
-    modules.find((m) => m.status === "available" || m.status === "in_progress")?.id ?? null,
+    data.modules.find((m) => m.status === "available" || m.status === "in_progress")?.id ?? null,
   );
   const [viewingLesson, setViewingLesson] = useState<AssistantLesson | null>(null);
-  const [isPending, startTransition] = useTransition();
 
   const { stats } = data;
 
@@ -92,31 +117,8 @@ export function AssistantTrainingPage({ data }: { data: AssistantTrainingData })
     totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0;
 
   function handleToggleLesson(moduleId: number, lessonId: number) {
-    // Optimistic update
-    setModules((prev) =>
-      prev.map((mod) => {
-        if (mod.id !== moduleId) return mod;
-        const updated = mod.lessons.map((l) =>
-          l.id === lessonId ? { ...l, completed: !l.completed } : l,
-        );
-        const allDone = updated.every((l) => l.completed);
-        const anyStarted = updated.some((l) => l.completed);
-        return {
-          ...mod,
-          lessons: updated,
-          status: allDone
-            ? ("completed" as const)
-            : anyStarted
-              ? ("in_progress" as const)
-              : ("available" as const),
-          completedDate: allDone
-            ? new Date().toLocaleDateString("en-US", { month: "short", year: "numeric" })
-            : undefined,
-        };
-      }),
-    );
-
     startTransition(async () => {
+      toggleModule({ moduleId, lessonId });
       await toggleLessonCompletion(lessonId);
     });
   }

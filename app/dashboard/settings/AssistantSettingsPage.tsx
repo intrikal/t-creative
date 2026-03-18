@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useOptimistic, useTransition } from "react";
 import { cn } from "@/lib/utils";
 import {
   type Section,
@@ -78,7 +78,10 @@ export function AssistantSettingsPage({ data }: { data: AssistantSettingsData })
   const [notifications, setNotifications] = useState<NotificationPrefs>(data.notifications);
 
   // Time off state
-  const [requests, setRequests] = useState<TimeOffRequest[]>(data.timeOffRequests);
+  const [requests, addOptimisticRequest] = useOptimistic<TimeOffRequest[], TimeOffRequest>(
+    data.timeOffRequests,
+    (state, newReq) => [newReq, ...state],
+  );
   const [newFrom, setNewFrom] = useState("");
   const [newTo, setNewTo] = useState("");
   const [newReason, setNewReason] = useState("");
@@ -127,7 +130,6 @@ export function AssistantSettingsPage({ data }: { data: AssistantSettingsData })
     const toDate = newTo || newFrom;
     const reason = newReason.trim() || "No reason provided";
 
-    // Optimistic update
     const req: TimeOffRequest = {
       id: Date.now(),
       from: newFrom,
@@ -136,7 +138,6 @@ export function AssistantSettingsPage({ data }: { data: AssistantSettingsData })
       status: "pending",
       submittedOn: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" }),
     };
-    setRequests((prev) => [req, ...prev]);
     setNewFrom("");
     setNewTo("");
     setNewReason("");
@@ -144,6 +145,7 @@ export function AssistantSettingsPage({ data }: { data: AssistantSettingsData })
     setTimeout(() => setSubmitted(false), 3000);
 
     startTransition(async () => {
+      addOptimisticRequest(req);
       await submitTimeOffRequest({ from: newFrom, to: toDate, reason });
     });
   }

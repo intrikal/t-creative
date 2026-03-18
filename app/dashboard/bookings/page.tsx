@@ -2,17 +2,12 @@ import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { getCurrentUser } from "@/lib/auth";
 import { getSubscriptions } from "../subscriptions/actions";
-import {
-  getBookings,
-  getClientsForSelect,
-  getServicesForSelect,
-  getStaffForSelect,
-  getAssistantBookings,
-} from "./actions";
+import { getBookings, getAssistantBookings } from "./actions";
 import { AssistantBookingsPage } from "./AssistantBookingsPage";
 import { BookingsPage } from "./BookingsPage";
 import { getClientBookings } from "./client-actions";
 import { ClientBookingsPage } from "./ClientBookingsPage";
+import { getClientsForSelect, getServicesForSelect, getStaffForSelect } from "./select-actions";
 
 export const metadata: Metadata = {
   title: "Bookings — T Creative Studio",

@@ -888,7 +888,7 @@ describe("actions", () => {
       vi.resetModules();
       mockGetUser.mockResolvedValue({ data: { user: null } });
       setupMocks();
-      const { getClientsForSelect } = await import("./actions");
+      const { getClientsForSelect } = await import("./select-actions");
       await expect(getClientsForSelect()).rejects.toThrow("Not authenticated");
     });
 
@@ -912,7 +912,7 @@ describe("actions", () => {
         update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn() })) })),
         delete: vi.fn(() => ({ where: vi.fn() })),
       });
-      const { getClientsForSelect } = await import("./actions");
+      const { getClientsForSelect } = await import("./select-actions");
       const result = await getClientsForSelect();
       expect(result).toHaveLength(1);
       expect(result[0]).toEqual({
@@ -943,7 +943,7 @@ describe("actions", () => {
         update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn() })) })),
         delete: vi.fn(() => ({ where: vi.fn() })),
       });
-      const { getClientsForSelect } = await import("./actions");
+      const { getClientsForSelect } = await import("./select-actions");
       const result = await getClientsForSelect();
       expect(result[0].name).toBe("Jane");
       expect(result[0].preferredRebookIntervalDays).toBeNull();
@@ -957,7 +957,7 @@ describe("actions", () => {
       vi.resetModules();
       mockGetUser.mockResolvedValue({ data: { user: null } });
       setupMocks();
-      const { getServicesForSelect } = await import("./actions");
+      const { getServicesForSelect } = await import("./select-actions");
       await expect(getServicesForSelect()).rejects.toThrow("Not authenticated");
     });
 
@@ -982,7 +982,7 @@ describe("actions", () => {
         update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn() })) })),
         delete: vi.fn(() => ({ where: vi.fn() })),
       });
-      const { getServicesForSelect } = await import("./actions");
+      const { getServicesForSelect } = await import("./select-actions");
       const result = await getServicesForSelect();
       expect(result).toHaveLength(1);
       expect(result[0]).toEqual({
@@ -1003,7 +1003,7 @@ describe("actions", () => {
       vi.resetModules();
       mockGetUser.mockResolvedValue({ data: { user: null } });
       setupMocks();
-      const { getStaffForSelect } = await import("./actions");
+      const { getStaffForSelect } = await import("./select-actions");
       await expect(getStaffForSelect()).rejects.toThrow("Not authenticated");
     });
 
@@ -1017,7 +1017,7 @@ describe("actions", () => {
         update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn() })) })),
         delete: vi.fn(() => ({ where: vi.fn() })),
       });
-      const { getStaffForSelect } = await import("./actions");
+      const { getStaffForSelect } = await import("./select-actions");
       const result = await getStaffForSelect();
       expect(result).toHaveLength(1);
       expect(result[0]).toEqual({ id: "s1", name: "Alex Smith" });
@@ -1031,7 +1031,7 @@ describe("actions", () => {
       vi.resetModules();
       mockGetUser.mockResolvedValue({ data: { user: null } });
       setupMocks();
-      const { addToWaitlist } = await import("./actions");
+      const { addToWaitlist } = await import("./waitlist-actions");
       await expect(addToWaitlist({ clientId: "c1", serviceId: 1 })).rejects.toThrow(
         "Not authenticated",
       );
@@ -1048,7 +1048,7 @@ describe("actions", () => {
         update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn() })) })),
         delete: vi.fn(() => ({ where: vi.fn() })),
       });
-      const { addToWaitlist } = await import("./actions");
+      const { addToWaitlist } = await import("./waitlist-actions");
       await addToWaitlist({ clientId: "client-1", serviceId: 3, notes: "Flexible" });
       expect(mockInsertValues).toHaveBeenCalledWith(
         expect.objectContaining({ clientId: "client-1", serviceId: 3, notes: "Flexible" }),
@@ -1058,7 +1058,7 @@ describe("actions", () => {
     it("fires PostHog waitlist_added event with user id", async () => {
       vi.resetModules();
       setupMocks();
-      const { addToWaitlist } = await import("./actions");
+      const { addToWaitlist } = await import("./waitlist-actions");
       await addToWaitlist({ clientId: "client-1", serviceId: 3 });
       expect(mockTrackEvent).toHaveBeenCalledWith(
         "user-1",
@@ -1070,7 +1070,7 @@ describe("actions", () => {
     it("revalidates /dashboard/bookings", async () => {
       vi.resetModules();
       setupMocks();
-      const { addToWaitlist } = await import("./actions");
+      const { addToWaitlist } = await import("./waitlist-actions");
       await addToWaitlist({ clientId: "c1", serviceId: 1 });
       expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/bookings");
     });
@@ -1083,7 +1083,7 @@ describe("actions", () => {
       vi.resetModules();
       mockGetUser.mockResolvedValue({ data: { user: null } });
       setupMocks();
-      const { updateWaitlistStatus } = await import("./actions");
+      const { updateWaitlistStatus } = await import("./waitlist-actions");
       await expect(updateWaitlistStatus(1, "notified")).rejects.toThrow("Not authenticated");
     });
 
@@ -1098,7 +1098,7 @@ describe("actions", () => {
         update: vi.fn(() => ({ set: mockUpdateSet })),
         delete: vi.fn(() => ({ where: vi.fn() })),
       });
-      const { updateWaitlistStatus } = await import("./actions");
+      const { updateWaitlistStatus } = await import("./waitlist-actions");
       await updateWaitlistStatus(5, "booked");
       expect(mockUpdateSet).toHaveBeenCalledWith(expect.objectContaining({ status: "booked" }));
     });
@@ -1114,7 +1114,7 @@ describe("actions", () => {
         update: vi.fn(() => ({ set: mockUpdateSet })),
         delete: vi.fn(() => ({ where: vi.fn() })),
       });
-      const { updateWaitlistStatus } = await import("./actions");
+      const { updateWaitlistStatus } = await import("./waitlist-actions");
       await updateWaitlistStatus(5, "notified");
       expect(mockUpdateSet).toHaveBeenCalledWith(
         expect.objectContaining({ status: "notified", notifiedAt: expect.any(Date) }),
@@ -1140,7 +1140,7 @@ describe("actions", () => {
         update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn() })) })),
         delete: vi.fn(() => ({ where: vi.fn() })),
       });
-      const { updateWaitlistStatus } = await import("./actions");
+      const { updateWaitlistStatus } = await import("./waitlist-actions");
       await updateWaitlistStatus(5, "notified");
       expect(mockSendEmail).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -1169,7 +1169,7 @@ describe("actions", () => {
         update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn() })) })),
         delete: vi.fn(() => ({ where: vi.fn() })),
       });
-      const { updateWaitlistStatus } = await import("./actions");
+      const { updateWaitlistStatus } = await import("./waitlist-actions");
       await updateWaitlistStatus(5, "notified");
       expect(mockSendEmail).not.toHaveBeenCalled();
     });
@@ -1177,7 +1177,7 @@ describe("actions", () => {
     it("does not send email for non-notified statuses", async () => {
       vi.resetModules();
       setupMocks();
-      const { updateWaitlistStatus } = await import("./actions");
+      const { updateWaitlistStatus } = await import("./waitlist-actions");
       await updateWaitlistStatus(5, "expired");
       expect(mockSendEmail).not.toHaveBeenCalled();
     });
@@ -1190,7 +1190,7 @@ describe("actions", () => {
       vi.resetModules();
       mockGetUser.mockResolvedValue({ data: { user: null } });
       setupMocks();
-      const { removeFromWaitlistById } = await import("./actions");
+      const { removeFromWaitlistById } = await import("./waitlist-actions");
       await expect(removeFromWaitlistById(1)).rejects.toThrow("Not authenticated");
     });
 
@@ -1205,7 +1205,7 @@ describe("actions", () => {
         update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn() })) })),
         delete: vi.fn(() => ({ where: mockDeleteWhere })),
       });
-      const { removeFromWaitlistById } = await import("./actions");
+      const { removeFromWaitlistById } = await import("./waitlist-actions");
       await removeFromWaitlistById(7);
       expect(mockDeleteWhere).toHaveBeenCalled();
     });
@@ -1213,7 +1213,7 @@ describe("actions", () => {
     it("revalidates /dashboard/bookings", async () => {
       vi.resetModules();
       setupMocks();
-      const { removeFromWaitlistById } = await import("./actions");
+      const { removeFromWaitlistById } = await import("./waitlist-actions");
       await removeFromWaitlistById(1);
       expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/bookings");
     });
@@ -1566,7 +1566,7 @@ describe("actions", () => {
         update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn() })) })),
         delete: vi.fn(() => ({ where: vi.fn() })),
       });
-      const { checkBookingWaivers } = await import("./actions");
+      const { checkBookingWaivers } = await import("./waiver-actions");
       const result = await checkBookingWaivers(1);
       expect(result.passed).toBe(true);
       expect(result.missing).toHaveLength(0);
@@ -1595,7 +1595,7 @@ describe("actions", () => {
         update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn() })) })),
         delete: vi.fn(() => ({ where: vi.fn() })),
       });
-      const { checkBookingWaivers } = await import("./actions");
+      const { checkBookingWaivers } = await import("./waiver-actions");
       const result = await checkBookingWaivers(1);
       expect(result.passed).toBe(false);
       expect(result.missing).toHaveLength(2);
@@ -1624,7 +1624,7 @@ describe("actions", () => {
         update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn() })) })),
         delete: vi.fn(() => ({ where: vi.fn() })),
       });
-      const { checkBookingWaivers } = await import("./actions");
+      const { checkBookingWaivers } = await import("./waiver-actions");
       const result = await checkBookingWaivers(1);
       expect(result.passed).toBe(false);
       expect(result.missing).toEqual([
@@ -1660,7 +1660,7 @@ describe("actions", () => {
         update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn() })) })),
         delete: vi.fn(() => ({ where: vi.fn() })),
       });
-      const { sendWaiverLink } = await import("./actions");
+      const { sendWaiverLink } = await import("./waiver-actions");
       await sendWaiverLink(42);
       expect(mockGenerateWaiverToken).toHaveBeenCalledWith({
         bookingId: 42,
@@ -1925,7 +1925,7 @@ describe("actions", () => {
         update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn() })) })),
         delete: vi.fn(() => ({ where: vi.fn() })),
       });
-      const { checkBookingWaivers } = await import("./actions");
+      const { checkBookingWaivers } = await import("./waiver-actions");
       const result = await checkBookingWaivers(5);
       expect(result.passed).toBe(true);
       expect(result.missing).toHaveLength(0);
@@ -1956,7 +1956,7 @@ describe("actions", () => {
         update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn() })) })),
         delete: vi.fn(() => ({ where: vi.fn() })),
       });
-      const { checkBookingWaivers } = await import("./actions");
+      const { checkBookingWaivers } = await import("./waiver-actions");
       const result = await checkBookingWaivers(5);
       expect(result.passed).toBe(false);
       expect(result.missing).toHaveLength(2);
@@ -1994,7 +1994,7 @@ describe("actions", () => {
         update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn() })) })),
         delete: vi.fn(() => ({ where: vi.fn() })),
       });
-      const { sendWaiverLink } = await import("./actions");
+      const { sendWaiverLink } = await import("./waiver-actions");
       await sendWaiverLink(1);
       expect(mockGenerateWaiverToken).toHaveBeenCalledWith({
         bookingId: 1,

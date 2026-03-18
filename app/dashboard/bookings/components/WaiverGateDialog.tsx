@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { AlertTriangle, Send, FileText, CheckCircle2 } from "lucide-react";
 import { Dialog } from "@/components/ui/dialog";
-import { sendWaiverLink, type MissingWaiver } from "../actions";
+import { sendWaiverLink, type MissingWaiver } from "../waiver-actions";
 import type { Booking } from "./helpers";
 
 export function WaiverGateDialog({

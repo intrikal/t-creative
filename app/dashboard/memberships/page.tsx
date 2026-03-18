@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { getCurrentUser } from "@/lib/auth";
-import { getClientsForSelect } from "../bookings/actions";
+import { getClientsForSelect } from "../bookings/select-actions";
 import { getMembershipPlans, getMemberships } from "./actions";
 import { MembershipsPage } from "./MembershipsPage";
 

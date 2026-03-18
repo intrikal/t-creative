@@ -12,9 +12,8 @@ import {
   deleteBooking,
   cancelBookingSeries,
   getBookings,
-  checkBookingWaivers,
 } from "./actions";
-import type { BookingRow, BookingInput, MissingWaiver } from "./actions";
+import type { BookingRow, BookingInput } from "./actions";
 import type { BookingFormState } from "./components/BookingDialog";
 import { BookingRow as BookingRowComponent } from "./components/BookingRow";
 import {
@@ -27,6 +26,8 @@ import {
   type PageTab,
 } from "./components/helpers";
 import { WaitlistTab } from "./components/WaitlistTab";
+import type { MissingWaiver } from "./waiver-actions";
+import { checkBookingWaivers } from "./waiver-actions";
 
 const PaymentChoiceDialog = dynamic(
   () => import("@/components/booking/PaymentChoiceDialog").then((m) => m.PaymentChoiceDialog),

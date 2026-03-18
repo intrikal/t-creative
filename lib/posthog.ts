@@ -6,6 +6,7 @@
  *
  * @module lib/posthog
  */
+import * as Sentry from "@sentry/nextjs";
 import { PostHog } from "posthog-node";
 
 const apiKey = process.env.POSTHOG_API_KEY;
@@ -39,7 +40,7 @@ export function trackEvent(
   try {
     getPostHogServer().capture({ distinctId, event, properties });
   } catch (err) {
-    console.error("[posthog] Failed to track event:", err);
+    Sentry.captureException(err);
   }
 }
 
@@ -53,6 +54,6 @@ export function identifyUser(distinctId: string, properties: Record<string, unkn
   try {
     getPostHogServer().identify({ distinctId, properties });
   } catch (err) {
-    console.error("[posthog] Failed to identify user:", err);
+    Sentry.captureException(err);
   }
 }

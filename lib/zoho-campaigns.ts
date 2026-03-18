@@ -149,7 +149,6 @@ export async function syncCampaignsSubscriber(data: CampaignsSubscriberData): Pr
     });
   } catch (err) {
     Sentry.captureException(err);
-    console.error("[zoho-campaigns] Failed to sync subscriber:", err);
     await logSync({
       status: "failed",
       entityType: "campaigns_subscriber",
@@ -193,7 +192,6 @@ export async function unsubscribeFromCampaigns(profileId: string): Promise<void>
     });
   } catch (err) {
     Sentry.captureException(err);
-    console.error("[zoho-campaigns] Failed to unsubscribe:", err);
     await logSync({
       status: "failed",
       entityType: "campaigns_unsubscribe",

@@ -70,7 +70,7 @@ export async function sendEmail(params: {
   localId: string;
 }): Promise<boolean> {
   if (!isResendConfigured()) {
-    console.warn("[resend] Not configured — skipping email:", params.subject);
+    Sentry.captureMessage(`[resend] Not configured — skipping email: ${params.subject}`, "warning");
     return false;
   }
 
@@ -99,7 +99,6 @@ export async function sendEmail(params: {
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : "Unknown email error";
     Sentry.captureException(err);
-    console.error("[resend] Failed to send email:", errorMessage);
 
     await db.insert(syncLog).values({
       provider: "resend",

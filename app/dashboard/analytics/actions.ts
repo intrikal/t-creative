@@ -384,17 +384,18 @@ function pctDelta(current: number, prior: number): number | null {
   return Math.round(((current - prior) / prior) * 100);
 }
 
-export async function getKpiStats(): Promise<KpiStats> {
+export async function getKpiStats(range: Range = "30d"): Promise<KpiStats> {
   try {
     await getUser();
 
     const now = new Date();
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    const priorMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const daysBack = range === "7d" ? 7 : range === "30d" ? 30 : range === "90d" ? 90 : 365;
+    const periodStart = new Date(now.getTime() - daysBack * 24 * 60 * 60 * 1000);
+    const priorStart = new Date(now.getTime() - 2 * daysBack * 24 * 60 * 60 * 1000);
 
     const [current, prior] = await Promise.all([
-      computeKpiForPeriod(monthStart, now),
-      computeKpiForPeriod(priorMonthStart, monthStart),
+      computeKpiForPeriod(periodStart, now),
+      computeKpiForPeriod(priorStart, periodStart),
     ]);
 
     return {
@@ -1011,7 +1012,7 @@ export async function getCancellationReasons(): Promise<CancellationReasonItem[]
 /*  Average Days Between Appointments                                  */
 /* ------------------------------------------------------------------ */
 
-export async function getAppointmentGaps(): Promise<AppointmentGapStats> {
+export async function getAppointmentGaps(range: Range = "30d"): Promise<AppointmentGapStats> {
   try {
     await getUser();
 
@@ -1025,7 +1026,7 @@ export async function getAppointmentGaps(): Promise<AppointmentGapStats> {
             ))) AS gap_days
           FROM bookings b
           WHERE b.status = 'completed'
-            AND b.starts_at > now() - interval '12 months'
+            AND b.starts_at > now() - interval ${sql.raw(`'${rangeToInterval(range)}'`)}
         )
         SELECT round(avg(gap_days))::int AS avg_days
         FROM gaps
@@ -1042,7 +1043,7 @@ export async function getAppointmentGaps(): Promise<AppointmentGapStats> {
           FROM bookings b
           JOIN services s ON s.id = b.service_id
           WHERE b.status = 'completed'
-            AND b.starts_at > now() - interval '12 months'
+            AND b.starts_at > now() - interval ${sql.raw(`'${rangeToInterval(range)}'`)}
         )
         SELECT category, round(avg(gap_days))::int AS avg_days
         FROM gaps
@@ -1084,7 +1085,7 @@ const VISIT_BUCKETS = [
   { label: "13+ visits", min: 13, max: Infinity },
 ] as const;
 
-export async function getVisitFrequency(): Promise<VisitFrequencyBucket[]> {
+export async function getVisitFrequency(range: Range = "30d"): Promise<VisitFrequencyBucket[]> {
   try {
     await getUser();
 
@@ -1097,7 +1098,7 @@ export async function getVisitFrequency(): Promise<VisitFrequencyBucket[]> {
       .where(
         and(
           eq(bookings.status, "completed"),
-          gte(bookings.startsAt, sql`now() - interval '12 months'`),
+          gte(bookings.startsAt, sql`now() - interval ${sql.raw(`'${rangeToInterval(range)}'`)}`),
         ),
       )
       .groupBy(bookings.clientId);
@@ -1392,7 +1393,7 @@ export async function getCheckoutRebookRate(range: Range = "30d"): Promise<Check
  * - Net revenue: actual paid revenue from payments on those bookings
  * - ROI: (netRevenue - totalDiscount) / totalDiscount as a percentage
  */
-export async function getPromotionRoi(): Promise<PromotionRoiItem[]> {
+export async function getPromotionRoi(range: Range = "30d"): Promise<PromotionRoiItem[]> {
   try {
     await getUser();
 
@@ -1410,7 +1411,12 @@ export async function getPromotionRoi(): Promise<PromotionRoiItem[]> {
       .from(promotions)
       .innerJoin(bookings, eq(bookings.promotionId, promotions.id))
       .leftJoin(payments, and(eq(payments.bookingId, bookings.id), eq(payments.status, "paid")))
-      .where(sql`${promotions.redemptionCount} > 0`)
+      .where(
+        and(
+          sql`${promotions.redemptionCount} > 0`,
+          gte(bookings.startsAt, sql`now() - interval ${sql.raw(`'${rangeToInterval(range)}'`)}`),
+        ),
+      )
       .groupBy(promotions.id, promotions.code, promotions.description, promotions.discountType)
       .orderBy(sql`sum(${bookings.discountInCents}) desc`);
 
@@ -1442,7 +1448,7 @@ export async function getPromotionRoi(): Promise<PromotionRoiItem[]> {
 /*  Membership Value Tracking                                          */
 /* ------------------------------------------------------------------ */
 
-export async function getMembershipValue(): Promise<MembershipValueStats> {
+export async function getMembershipValue(range: Range = "30d"): Promise<MembershipValueStats> {
   try {
     await getUser();
 
@@ -1462,7 +1468,7 @@ export async function getMembershipValue(): Promise<MembershipValueStats> {
     // Collect member client IDs (anyone who has ever had a membership)
     const memberClientIds = new Set(subs.map((s) => s.clientId));
 
-    // 2. Average spend per client (last 12 months) — members vs non-members
+    // 2. Average spend per client — members vs non-members
     const spendRows = await db
       .select({
         clientId: payments.clientId,
@@ -1470,7 +1476,10 @@ export async function getMembershipValue(): Promise<MembershipValueStats> {
       })
       .from(payments)
       .where(
-        and(eq(payments.status, "paid"), gte(payments.paidAt, sql`now() - interval '12 months'`)),
+        and(
+          eq(payments.status, "paid"),
+          gte(payments.paidAt, sql`now() - interval ${sql.raw(`'${rangeToInterval(range)}'`)}`),
+        ),
       )
       .groupBy(payments.clientId);
 
@@ -1628,7 +1637,7 @@ const GC_STATUS_LABELS: Record<string, string> = {
   expired: "Expired",
 };
 
-export async function getGiftCardBreakage(): Promise<GiftCardBreakageStats> {
+export async function getGiftCardBreakage(range: Range = "30d"): Promise<GiftCardBreakageStats> {
   try {
     await getUser();
 
@@ -1640,7 +1649,10 @@ export async function getGiftCardBreakage(): Promise<GiftCardBreakageStats> {
         balanceInCents: giftCards.balanceInCents,
         purchasedAt: giftCards.purchasedAt,
       })
-      .from(giftCards);
+      .from(giftCards)
+      .where(
+        gte(giftCards.purchasedAt, sql`now() - interval ${sql.raw(`'${rangeToInterval(range)}'`)}`),
+      );
 
     if (cards.length === 0) {
       return {

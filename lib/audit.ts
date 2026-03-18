@@ -14,6 +14,7 @@
  *     metadata: { old: "confirmed", new: "completed" },
  *   });
  */
+import * as Sentry from "@sentry/nextjs";
 import { headers } from "next/headers";
 import { db } from "@/db";
 import { auditLog } from "@/db/schema";
@@ -58,6 +59,6 @@ export async function logAction(input: LogActionInput): Promise<void> {
       userAgent,
     });
   } catch (err) {
-    console.error("[audit] Failed to log action:", err);
+    Sentry.captureException(err);
   }
 }

@@ -11,6 +11,7 @@
  *
  * Limits: images only, max 8 MB, max filename length enforced.
  */
+import * as Sentry from "@sentry/nextjs";
 import { NextResponse } from "next/server";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
@@ -68,7 +69,7 @@ export async function POST(request: Request) {
   });
 
   if (uploadError) {
-    console.error("Reference photo upload failed:", uploadError.message);
+    Sentry.captureException(uploadError);
     return NextResponse.json({ error: "Upload failed" }, { status: 500 });
   }
 

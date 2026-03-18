@@ -37,6 +37,10 @@
       "schedule": "0 6 * * *"
     },
     {
+      "path": "/api/cron/membership-reminders",
+      "schedule": "0 9 1 * *"
+    },
+    {
       "path": "/api/cron/daily-flash",
       "schedule": "0 15 * * *"
     }

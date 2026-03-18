@@ -39,7 +39,7 @@ export default async function Page({
 
   return (
     <AnalyticsShell>
-      <KpiSection />
+      <KpiSection range={range} />
       <RevenueSectionWrapper range={range} />
       <RevenueByServiceSectionWrapper range={range} />
       <RevenuePerHourSectionWrapper range={range} />
@@ -48,13 +48,13 @@ export default async function Page({
       <OperationalSection range={range} />
       <CheckoutRebookSectionWrapper range={range} />
       <RetentionSectionWrapper range={range} />
-      <VisitFrequencySectionWrapper />
-      <AppointmentGapSectionWrapper />
+      <VisitFrequencySectionWrapper range={range} />
+      <AppointmentGapSectionWrapper range={range} />
       <ClientsSection range={range} />
       <WaitlistConversionSectionWrapper range={range} />
-      <PromotionRoiSectionWrapper />
-      <MembershipValueSectionWrapper />
-      <GiftCardBreakageSectionWrapper />
+      <PromotionRoiSectionWrapper range={range} />
+      <MembershipValueSectionWrapper range={range} />
+      <GiftCardBreakageSectionWrapper range={range} />
       <PeakTimesSectionWrapper range={range} />
     </AnalyticsShell>
   );

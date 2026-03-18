@@ -136,7 +136,6 @@ export async function upsertZohoContact(data: {
     });
   } catch (err) {
     Sentry.captureException(err);
-    console.error("[zoho] Failed to upsert contact:", err);
     await logSync({
       status: "failed",
       entityType: "contact",
@@ -205,7 +204,6 @@ export async function createZohoDeal(data: {
     });
   } catch (err) {
     Sentry.captureException(err);
-    console.error("[zoho] Failed to create deal:", err);
     await logSync({
       status: "failed",
       entityType: "deal",
@@ -247,7 +245,6 @@ export async function updateZohoDeal(bookingId: number, stage: string): Promise<
     });
   } catch (err) {
     Sentry.captureException(err);
-    console.error("[zoho] Failed to update deal:", err);
     await logSync({
       status: "failed",
       entityType: "deal",
@@ -300,7 +297,6 @@ export async function logZohoNote(
     });
   } catch (err) {
     Sentry.captureException(err);
-    console.error("[zoho] Failed to add note:", err);
     await logSync({
       status: "failed",
       entityType: "note",

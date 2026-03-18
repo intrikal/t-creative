@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { getKpiStats } from "../actions";
+import { getKpiStats, type Range } from "../actions";
 import { KpiCards } from "../components/KpiCards";
 
 function KpiSkeleton() {
@@ -12,15 +12,15 @@ function KpiSkeleton() {
   );
 }
 
-async function KpiData() {
-  const kpiStats = await getKpiStats();
+async function KpiData({ range }: { range: Range }) {
+  const kpiStats = await getKpiStats(range);
   return <KpiCards stats={kpiStats} />;
 }
 
-export function KpiSection() {
+export function KpiSection({ range }: { range: Range }) {
   return (
     <Suspense fallback={<KpiSkeleton />}>
-      <KpiData />
+      <KpiData range={range} />
     </Suspense>
   );
 }

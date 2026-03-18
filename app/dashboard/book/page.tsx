@@ -1,9 +1,16 @@
 import { redirect } from "next/navigation";
+import type { Metadata } from "next";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { services, serviceAddOns } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
 import { ClientBookPage } from "./BookPage";
+
+export const metadata: Metadata = {
+  title: "Book Appointment — T Creative Studio",
+  description: "Book a new appointment or service.",
+  robots: { index: false, follow: false },
+};
 
 export default async function Page() {
   const user = await getCurrentUser();

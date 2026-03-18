@@ -1,7 +1,14 @@
 import { redirect } from "next/navigation";
+import type { Metadata } from "next";
 import { getCurrentUser } from "@/lib/auth";
 import { getInboxPage } from "../notification-inbox";
 import { NotificationsPage } from "./NotificationsPage";
+
+export const metadata: Metadata = {
+  title: "Notifications — T Creative Studio",
+  description: "View your studio notifications and inbox.",
+  robots: { index: false, follow: false },
+};
 
 export default async function Page({
   searchParams,

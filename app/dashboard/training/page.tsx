@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import type { Metadata } from "next";
 import { getCurrentUser } from "@/lib/auth";
 import {
   getPrograms,
@@ -11,6 +12,12 @@ import { AssistantTrainingPage } from "./AssistantTrainingPage";
 import { getClientTraining } from "./client-actions";
 import { ClientTrainingPage } from "./ClientTrainingPage";
 import { TrainingPage } from "./TrainingPage";
+
+export const metadata: Metadata = {
+  title: "Training — T Creative Studio",
+  description: "Manage and track training programs and student progress.",
+  robots: { index: false, follow: false },
+};
 
 export default async function Page() {
   const user = await getCurrentUser();

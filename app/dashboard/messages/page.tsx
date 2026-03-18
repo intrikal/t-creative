@@ -7,6 +7,13 @@ import { getThreads } from "./actions";
 import { AssistantMessagesPage } from "./AssistantMessagesPage";
 import { ClientMessagesPage } from "./ClientMessagesPage";
 import { MessagesPage } from "./MessagesPage";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Messages — T Creative Studio",
+  description: "View and manage client messages and conversations.",
+  robots: { index: false, follow: false },
+};
 
 async function getClientList() {
   const rows = await db

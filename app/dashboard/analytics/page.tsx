@@ -17,6 +17,13 @@ import { StaffSection } from "./sections/StaffSection";
 import { VisitFrequencySectionWrapper } from "./sections/VisitFrequencySectionWrapper";
 import { WaitlistConversionSectionWrapper } from "./sections/WaitlistConversionSectionWrapper";
 import type { Range } from "./actions";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Analytics — T Creative Studio",
+  description: "View studio analytics, performance metrics, and insights.",
+  robots: { index: false, follow: false },
+};
 
 const VALID_RANGES: Range[] = ["7d", "30d", "90d", "12m"];
 

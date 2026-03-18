@@ -40,6 +40,7 @@ import {
   membershipPlans,
   giftCards,
   waitlist,
+  serviceRecords,
 } from "@/db/schema";
 import { createClient } from "@/utils/supabase/server";
 
@@ -126,6 +127,7 @@ export type StaffPerformanceItem = {
   revenue: number;
   avgTicket: number;
   utilization: number;
+  serviceRecordCompletion: number;
 };
 
 export type AttendanceStats = {
@@ -540,9 +542,11 @@ export async function getStaffPerformance(range: Range = "30d"): Promise<StaffPe
         revenue: sql<number>`coalesce(sum(${bookings.totalInCents}), 0)`,
         completedCount: sql<number>`count(*) filter (where ${bookings.status} = 'completed')`,
         totalSlots: sql<number>`count(*) filter (where ${bookings.status} in ('completed', 'no_show', 'cancelled'))`,
+        serviceRecordCount: sql<number>`count(${serviceRecords.id}) filter (where ${bookings.status} = 'completed')`,
       })
       .from(bookings)
       .leftJoin(staffProfile, eq(bookings.staffId, staffProfile.id))
+      .leftJoin(serviceRecords, eq(bookings.id, serviceRecords.bookingId))
       .where(gte(bookings.startsAt, sql`now() - interval ${sql.raw(`'${rangeToInterval(range)}'`)}`))
       .groupBy(bookings.staffId, staffProfile.firstName, staffProfile.lastName, staffProfile.role)
       .orderBy(sql`sum(${bookings.totalInCents}) desc`);
@@ -555,6 +559,7 @@ export async function getStaffPerformance(range: Range = "30d"): Promise<StaffPe
         const rev = Math.round(Number(r.revenue) / 100);
         const totalSlots = Number(r.totalSlots);
         const completed = Number(r.completedCount);
+        const srCount = Number(r.serviceRecordCount);
         return {
           name,
           role: r.role === "admin" ? "Owner" : "Staff",
@@ -563,6 +568,7 @@ export async function getStaffPerformance(range: Range = "30d"): Promise<StaffPe
           revenue: rev,
           avgTicket: bk > 0 ? Math.round(rev / bk) : 0,
           utilization: totalSlots > 0 ? Math.round((completed / totalSlots) * 100) : 0,
+          serviceRecordCompletion: completed > 0 ? Math.round((srCount / completed) * 100) : 0,
         };
       });
   } catch (err) {

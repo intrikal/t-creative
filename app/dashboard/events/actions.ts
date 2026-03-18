@@ -9,7 +9,7 @@ import { events, eventGuests, eventStaff, eventVenues, profiles } from "@/db/sch
 import { EventInviteEmail } from "@/emails/EventInviteEmail";
 import { trackEvent } from "@/lib/posthog";
 import { sendEmail } from "@/lib/resend";
-import { createClient } from "@/utils/supabase/server";
+import { requireAdmin } from "@/lib/auth";
 
 const PATH = "/dashboard/events";
 
@@ -17,14 +17,7 @@ const PATH = "/dashboard/events";
 /*  Auth guard                                                         */
 /* ------------------------------------------------------------------ */
 
-async function getUser() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
-  return user;
-}
+const getUser = requireAdmin;
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */

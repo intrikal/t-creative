@@ -5,6 +5,7 @@
  * authenticated user, then queries the Drizzle profiles table for
  * application-level data (role, onboarding status, etc.).
  */
+import { cache } from "react";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { profiles } from "@/db/schema";
@@ -19,8 +20,12 @@ export type CurrentUser = {
 /**
  * Read the authenticated Supabase user + their profile row.
  * Returns null if not authenticated.
+ *
+ * Wrapped with React `cache()` so repeated calls within the same server
+ * render (e.g. multiple server actions called in Promise.all) are
+ * deduplicated to a single Supabase + DB round-trip.
  */
-export async function getCurrentUser(): Promise<CurrentUser | null> {
+export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   const supabase = await createClient();
   const {
     data: { user },
@@ -35,14 +40,17 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
     email: user.email!,
     profile: profile ?? null,
   };
-}
+});
 
 /**
  * Require the current user to be authenticated AND have role "admin".
  * Throws "Not authenticated" (→ 401) or "Forbidden" (→ 403) otherwise.
  * Returns the Supabase auth user object on success.
+ *
+ * Wrapped with React `cache()` so repeated calls within the same server
+ * render are deduplicated to a single Supabase + DB round-trip.
  */
-export async function requireAdmin() {
+export const requireAdmin = cache(async () => {
   const supabase = await createClient();
   const {
     data: { user },
@@ -59,7 +67,7 @@ export async function requireAdmin() {
   if (!profile || profile.role !== "admin") throw new Error("Forbidden");
 
   return user;
-}
+});
 
 /**
  * Check if a profile has completed onboarding (firstName is filled).

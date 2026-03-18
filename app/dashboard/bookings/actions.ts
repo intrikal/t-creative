@@ -68,7 +68,7 @@ import { sendSms } from "@/lib/twilio";
 import { notifyWaitlistForCancelledBooking } from "@/lib/waitlist-notify";
 import { createZohoDeal, updateZohoDeal } from "@/lib/zoho";
 import { createZohoBooksInvoice } from "@/lib/zoho-books";
-import { createClient } from "@/utils/supabase/server";
+import { requireAdmin } from "@/lib/auth";
 
 export type BookingStatus =
   | "completed"
@@ -112,14 +112,7 @@ export type BookingInput = {
   subscriptionId?: number;
 };
 
-async function getUser() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
-  return user;
-}
+const getUser = requireAdmin;
 
 /**
  * Checks whether a staff member already has a confirmed/in_progress booking

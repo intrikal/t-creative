@@ -22,7 +22,8 @@ Step-by-step instructions for configuring every third-party service used by T Cr
 8. [Cloudflare Turnstile (required for public forms)](#8-cloudflare-turnstile-required-for-public-forms)
 9. [S3-Compatible Backup Storage (optional)](#9-s3-compatible-backup-storage-optional)
 10. [Instagram (optional, for feed sync)](#10-instagram-optional-for-feed-sync)
-11. [App Configuration](#11-app-configuration)
+11. [EasyPost (optional, for shipping)](#11-easypost-optional-for-shipping)
+12. [App Configuration](#12-app-configuration)
 
 ---
 
@@ -693,7 +694,89 @@ The Instagram feed section is hidden entirely. `isInstagramConfigured()` in `lib
 
 ---
 
-## 11. App Configuration
+## 11. EasyPost (optional, for shipping)
+
+EasyPost handles shipping label generation, multi-carrier rate shopping (USPS, UPS, FedEx, DHL), and package tracking for shop orders. When a customer selects shipping at checkout, the app fetches carrier rates via EasyPost, then auto-purchases a label after Square payment confirms.
+
+### Create an account
+
+1. Go to [easypost.com](https://www.easypost.com) and sign up
+2. Go to [Account → API Keys](https://www.easypost.com/account/api-keys)
+3. Copy your **Test API Key** (for sandbox) or **Production API Key** (for live shipping)
+
+```env
+EASYPOST_API_KEY=EZ...
+```
+
+### Set up the webhook
+
+1. Go to [Webhooks](https://www.easypost.com/account/webhooks) in the EasyPost dashboard
+2. Click **Add Webhook URL**
+3. URL: `https://tcreativestudio.com/api/webhooks/easypost`
+4. Copy the **Webhook Secret** shown after saving
+
+```env
+EASYPOST_WEBHOOK_SECRET=whsec_...
+```
+
+The webhook handler (`app/api/webhooks/easypost/route.ts`) verifies HMAC-SHA256 signatures, stores raw events for audit/replay, updates order tracking status (in_transit → shipped, delivered → completed), and sends shipment notification emails to customers.
+
+### Configure the studio origin address
+
+The studio address is used as the "from" address on all shipping labels:
+
+```env
+STUDIO_STREET1=123 Main St
+STUDIO_STREET2=Suite 4
+STUDIO_CITY=San Jose
+STUDIO_STATE=CA
+STUDIO_ZIP=95112
+STUDIO_PHONE=+14085551234
+```
+
+### How it works
+
+1. **Checkout:** Customer enters a shipping address → `fetchShippingRates()` calls EasyPost to get carrier rates → customer selects a rate
+2. **Payment:** Customer pays via Square (shipping cost included as a line item)
+3. **Label purchase:** Square payment webhook fires → `buyShippingLabel()` purchases the label from EasyPost → tracking number, tracking URL, and label PDF URL are saved on the order
+4. **Tracking:** EasyPost sends tracking webhooks as the package moves → order status updates automatically (shipped → completed on delivery) → customer receives email notification with tracking link
+
+### Verify it's working
+
+**Test mode (recommended first):**
+
+1. Set `EASYPOST_API_KEY` to your Test API key
+2. Place a shop order with `ship_standard` fulfillment
+3. The checkout should show carrier rates (test rates are returned instantly)
+4. Complete payment via Square sandbox
+5. Check the `orders` table — `tracking_number`, `tracking_url`, and `shipping_label_url` should be populated
+6. Check the `sync_log` table for entries with `provider = 'easypost'`
+
+**Production:**
+
+1. Switch to your Production API key
+2. Process a real order — a real shipping label will be purchased and charged to your EasyPost account
+
+### If not configured
+
+The app boots in "pickup-only mode." The `isEasyPostConfigured()` check (`lib/easypost.ts`) returns `false`, and all shipping-related features are skipped. The shop still works with `pickup_cash` and `pickup_online` fulfillment methods. No shipping options appear at checkout when EasyPost is unconfigured.
+
+### Env vars
+
+| Variable                  | Required | Description                                            |
+| ------------------------- | -------- | ------------------------------------------------------ |
+| `EASYPOST_API_KEY`        | No       | API key (test or production)                           |
+| `EASYPOST_WEBHOOK_SECRET` | No       | Webhook signature secret                               |
+| `STUDIO_STREET1`          | No       | Studio street address line 1 (shipping label origin)   |
+| `STUDIO_STREET2`          | No       | Studio street address line 2                           |
+| `STUDIO_CITY`             | No       | Studio city                                            |
+| `STUDIO_STATE`            | No       | Studio state (2-letter code)                           |
+| `STUDIO_ZIP`              | No       | Studio ZIP code                                        |
+| `STUDIO_PHONE`            | No       | Studio phone (E.164 format)                            |
+
+---
+
+## 12. App Configuration
 
 These env vars configure the application itself, independent of any third-party service.
 
@@ -792,6 +875,14 @@ Run this once for `CRON_SECRET` and once for `INVITE_SECRET` — use different v
 | `BACKUP_S3_ENDPOINT`             | Backup    | No         |
 | `BACKUP_S3_KEY_PREFIX`           | Backup    | No         |
 | `INSTAGRAM_ACCESS_TOKEN`         | Instagram | No         |
+| `EASYPOST_API_KEY`               | EasyPost  | No         |
+| `EASYPOST_WEBHOOK_SECRET`        | EasyPost  | No         |
+| `STUDIO_STREET1`                 | EasyPost  | No         |
+| `STUDIO_STREET2`                 | EasyPost  | No         |
+| `STUDIO_CITY`                    | EasyPost  | No         |
+| `STUDIO_STATE`                   | EasyPost  | No         |
+| `STUDIO_ZIP`                     | EasyPost  | No         |
+| `STUDIO_PHONE`                   | EasyPost  | No         |
 | `NEXT_PUBLIC_SITE_URL`           | App       | Yes        |
 | `CRON_SECRET`                    | App       | Yes        |
 | `INVITE_SECRET`                  | App       | Yes        |

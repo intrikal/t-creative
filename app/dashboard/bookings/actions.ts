@@ -78,6 +78,7 @@ import { notifyWaitlistForCancelledBooking } from "@/lib/waitlist-notify";
 import { createZohoDeal, updateZohoDeal } from "@/lib/zoho";
 import { createZohoBooksInvoice } from "@/lib/zoho-books";
 import { generateWaiverToken } from "@/lib/waiver-token";
+import { getUser } from "@/lib/auth";
 import { createClient } from "@/utils/supabase/server";
 
 export type BookingStatus =
@@ -121,15 +122,6 @@ export type BookingInput = {
   recurrenceRule?: string;
   subscriptionId?: number;
 };
-
-async function getUser() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
-  return user;
-}
 
 /**
  * Checks whether a staff member already has a confirmed/in_progress booking

@@ -6,22 +6,9 @@ import { z } from "zod";
 import { db } from "@/db";
 import { profiles, assistantProfiles, businessHours, timeOff, settings } from "@/db/schema";
 import { trackEvent } from "@/lib/posthog";
-import { createClient } from "@/utils/supabase/server";
+import { getUser } from "@/lib/auth";
 
 const PATH = "/dashboard/settings";
-
-/* ------------------------------------------------------------------ */
-/*  Auth guard                                                         */
-/* ------------------------------------------------------------------ */
-
-async function getUser() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
-  return user;
-}
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */

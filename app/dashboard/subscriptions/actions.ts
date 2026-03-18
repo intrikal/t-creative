@@ -6,20 +6,7 @@ import { desc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import { bookingSubscriptions, profiles, services } from "@/db/schema";
-import { createClient } from "@/utils/supabase/server";
-
-/* ------------------------------------------------------------------ */
-/*  Auth                                                               */
-/* ------------------------------------------------------------------ */
-
-async function getUser() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
-  return user;
-}
+import { getUser } from "@/lib/auth";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */

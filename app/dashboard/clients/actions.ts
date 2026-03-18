@@ -9,20 +9,7 @@ import { db } from "@/db";
 import { profiles, bookings, services, loyaltyTransactions, clientPreferences } from "@/db/schema";
 import { logAction } from "@/lib/audit";
 import { trackEvent } from "@/lib/posthog";
-import { createClient as createSupabaseClient } from "@/utils/supabase/server";
-
-/* ------------------------------------------------------------------ */
-/*  Auth guard                                                         */
-/* ------------------------------------------------------------------ */
-
-async function getUser() {
-  const supabase = await createSupabaseClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
-  return user;
-}
+import { getUser } from "@/lib/auth";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */

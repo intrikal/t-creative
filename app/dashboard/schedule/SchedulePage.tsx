@@ -28,7 +28,7 @@ export function AssistantSchedulePage({
   stats: ScheduleStats;
   todayKey: string;
 }) {
-  const [view, setView] = useState<View>("list");
+  const [view, setView] = useState<View>("week");
   const [cursor, setCursor] = useState(() => new Date());
   const [selected, setSelected] = useState<AppointmentRow | null>(null);
 

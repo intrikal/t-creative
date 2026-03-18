@@ -31,7 +31,7 @@ import { z } from "zod";
 import { db } from "@/db";
 import { bookings, services } from "@/db/schema";
 import { logAction } from "@/lib/audit";
-import { requireAdmin } from "@/lib/auth";
+import { requireAdmin, requireStaff } from "@/lib/auth";
 import { trackEvent } from "@/lib/posthog";
 
 /* ------------------------------------------------------------------ */
@@ -541,7 +541,7 @@ export async function getAssistantServices(): Promise<{
   stats: AssistantServiceStats;
 }> {
   try {
-    const user = await getUser();
+    const user = await requireStaff();
 
     // Get all active services
     const allServices = await db

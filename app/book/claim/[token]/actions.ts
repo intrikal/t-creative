@@ -1,5 +1,6 @@
 "use server";
 
+import * as Sentry from "@sentry/nextjs";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { bookings, profiles, services, waitlist } from "@/db/schema";
@@ -99,7 +100,7 @@ export async function claimWaitlistSlot(token: string): Promise<ClaimResult> {
 
     return { success: true, bookingId: newBooking.id };
   } catch (err) {
-    console.error("[claimWaitlistSlot]", err);
+    Sentry.captureException(err);
     return { success: false, error: "unknown" };
   }
 }

@@ -10,6 +10,7 @@
  *
  * @module lib/twilio
  */
+import * as Sentry from "@sentry/nextjs";
 import { eq } from "drizzle-orm";
 import twilio from "twilio";
 import { db } from "@/db";
@@ -68,7 +69,7 @@ export async function sendSms(params: {
   localId: string;
 }): Promise<boolean> {
   if (!isTwilioConfigured()) {
-    console.warn("[twilio] Not configured — skipping SMS:", params.entityType);
+    Sentry.captureMessage(`[twilio] Not configured — skipping SMS: ${params.entityType}`, "warning");
     return false;
   }
 
@@ -93,7 +94,7 @@ export async function sendSms(params: {
     return true;
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : "Unknown SMS error";
-    console.error("[twilio] Failed to send SMS:", errorMessage);
+    Sentry.captureException(err);
 
     await db.insert(syncLog).values({
       provider: "twilio",

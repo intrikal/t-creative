@@ -167,7 +167,6 @@ export async function ensureZohoBooksCustomer(data: {
     return customerId ?? null;
   } catch (err) {
     Sentry.captureException(err);
-    console.error("[zoho-books] Failed to ensure customer:", err);
     await logSync({
       status: "failed",
       entityType: "books_customer",
@@ -303,7 +302,6 @@ export async function createZohoBooksInvoice(data: {
     });
   } catch (err) {
     Sentry.captureException(err);
-    console.error("[zoho-books] Failed to create invoice:", err);
     await logSync({
       status: "failed",
       entityType: "books_invoice",
@@ -363,7 +361,6 @@ export async function recordZohoBooksPayment(data: {
     });
   } catch (err) {
     Sentry.captureException(err);
-    console.error("[zoho-books] Failed to record payment:", err);
     await logSync({
       status: "failed",
       entityType: "books_payment",

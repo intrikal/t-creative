@@ -9,16 +9,9 @@ import * as Sentry from "@sentry/nextjs";
 import { eq, ne, and } from "drizzle-orm";
 import { db } from "@/db";
 import { profiles, services, clientPreferences } from "@/db/schema";
-import { createClient } from "@/utils/supabase/server";
+import { requireAdmin } from "@/lib/auth";
 
-async function getUser() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
-  return user;
-}
+const getUser = requireAdmin;
 
 export async function getClientsForSelect(): Promise<
   { id: string; name: string; phone: string | null; preferredRebookIntervalDays: number | null }[]

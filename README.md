@@ -45,6 +45,7 @@ Full-stack operations platform for a multi-service creative studio in San Jose, 
 **Public Pages**
 
 - Landing page with interactive 3D studio diorama (React Three Fiber)
+- Auto-synced Instagram feed (cron-cached from Graph API)
 - Service catalog with pricing
 - Portfolio gallery
 - Training program listings
@@ -88,7 +89,7 @@ Routing is role-based: each `page.tsx` in the dashboard checks the user's role (
 
 Square webhooks handle real-time payment reconciliation. The webhook route verifies HMAC-SHA256 signatures, stores raw events in `webhook_events` for audit and replay, then processes payment and refund events into the local database.
 
-Seven Vercel Cron jobs automate recurring operations: hourly booking reminders, daily review requests, daily birthday greetings, weekly re-engagement campaigns, daily Zoho Books sync, daily lash fill reminders, and hourly waitlist expiry cleanup.
+Cron jobs automate recurring operations: hourly booking reminders, daily review requests, daily birthday greetings, weekly re-engagement campaigns, daily Zoho Books sync, daily lash fill reminders, hourly waitlist expiry cleanup, recurring booking generation, membership renewal reminders, and 6-hourly Instagram feed sync.
 
 Row-level security is enforced on every table via Supabase RLS policies. The Next.js Proxy (middleware) handles rate limiting on public POST endpoints and auth session refresh before requests reach route handlers.
 
@@ -108,7 +109,7 @@ See [docs/INTEGRATION_SETUP.md](docs/INTEGRATION_SETUP.md) for step-by-step inst
 
 ## Documentation
 
-- [Integration Setup](docs/INTEGRATION_SETUP.md) -- Square, Supabase, Resend, Twilio, Zoho, PostHog, Sentry, Turnstile, S3
+- [Integration Setup](docs/INTEGRATION_SETUP.md) -- Square, Supabase, Resend, Twilio, Zoho, PostHog, Sentry, Turnstile, Instagram, S3
 - [Deployment Checklist](docs/DEPLOYMENT_CHECKLIST.md)
 - [Engineering Standards](docs/ENGINEERING_STANDARDS.md)
 - [Recovery Runbook](docs/RECOVERY_RUNBOOK.md)

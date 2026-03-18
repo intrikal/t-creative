@@ -20,6 +20,7 @@
  * Server Component — all sections are client components imported here.
  */
 
+import { desc, eq } from "drizzle-orm";
 import { ChatWidgetLoader } from "@/components/chat/ChatWidgetLoader";
 import { CallToAction } from "@/components/landing/CallToAction";
 import { EditorialPortfolio } from "@/components/landing/EditorialPortfolio";
@@ -29,6 +30,7 @@ import { FeaturedProducts } from "@/components/landing/FeaturedProducts";
 import { Footer } from "@/components/landing/Footer";
 import { Hero } from "@/components/landing/Hero";
 import { HowItWorks } from "@/components/landing/HowItWorks";
+import { InstagramFeed } from "@/components/landing/InstagramFeed";
 import { Services } from "@/components/landing/Services";
 import { Stats } from "@/components/landing/Stats";
 import { StickyMobileCTA } from "@/components/landing/StickyMobileCTA";
@@ -36,6 +38,8 @@ import { StudioDiorama } from "@/components/landing/StudioDiorama";
 import { Testimonials } from "@/components/landing/Testimonials";
 import { TrainingTeaser } from "@/components/landing/TrainingTeaser";
 import { TrustBar } from "@/components/landing/TrustBar";
+import { db } from "@/db";
+import { instagramPosts } from "@/db/schema";
 
 const BASE_URL = "https://tcreativestudio.com";
 
@@ -110,7 +114,31 @@ const eventServicesJsonLd = {
   ],
 };
 
-export default function Home() {
+export default async function Home() {
+  // Fetch cached Instagram posts (non-blocking — empty array if table is empty)
+  const igPosts = await db
+    .select({
+      id: instagramPosts.id,
+      igMediaId: instagramPosts.igMediaId,
+      igUsername: instagramPosts.igUsername,
+      mediaType: instagramPosts.mediaType,
+      mediaUrl: instagramPosts.mediaUrl,
+      thumbnailUrl: instagramPosts.thumbnailUrl,
+      permalink: instagramPosts.permalink,
+      caption: instagramPosts.caption,
+      postedAt: instagramPosts.postedAt,
+    })
+    .from(instagramPosts)
+    .where(eq(instagramPosts.isVisible, true))
+    .orderBy(desc(instagramPosts.postedAt))
+    .limit(8)
+    .catch(() => []);
+
+  const igPostsSerialized = igPosts.map((p) => ({
+    ...p,
+    postedAt: p.postedAt.toISOString(),
+  }));
+
   return (
     <>
       <script
@@ -128,6 +156,7 @@ export default function Home() {
         <Events />
         <TrainingTeaser />
         <FeaturedProducts />
+        <InstagramFeed posts={igPostsSerialized} />
         <Testimonials />
         <FAQ />
         <CallToAction />

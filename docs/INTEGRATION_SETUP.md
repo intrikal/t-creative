@@ -21,7 +21,8 @@ Step-by-step instructions for configuring every third-party service used by T Cr
 7. [Sentry (optional, for error tracking)](#7-sentry-optional-for-error-tracking)
 8. [Cloudflare Turnstile (required for public forms)](#8-cloudflare-turnstile-required-for-public-forms)
 9. [S3-Compatible Backup Storage (optional)](#9-s3-compatible-backup-storage-optional)
-10. [App Configuration](#10-app-configuration)
+10. [Instagram (optional, for feed sync)](#10-instagram-optional-for-feed-sync)
+11. [App Configuration](#11-app-configuration)
 
 ---
 
@@ -631,7 +632,68 @@ Backup manifests can still be created and downloaded manually — `isStorageConf
 
 ---
 
-## 10. App Configuration
+## 10. Instagram (optional, for feed sync)
+
+Instagram feed sync automatically pulls your latest posts and displays them on the landing page. A cron job fetches media every 6 hours from the Instagram Graph API and caches it in the `instagram_posts` table so page loads never hit the IG API directly.
+
+### Get a long-lived access token
+
+1. Go to [developers.facebook.com](https://developers.facebook.com) → **My Apps** → create or select an app
+2. Add the **Instagram Basic Display** product (or **Instagram API with Instagram Login** for newer apps)
+3. Add your Instagram account as a test user and accept the invitation in the Instagram app
+4. Generate a **short-lived token** from the Basic Display settings page
+5. Exchange it for a **long-lived token** (valid 60 days):
+
+```bash
+curl -s "https://graph.instagram.com/access_token?\
+grant_type=ig_exchange_token&\
+client_secret=YOUR_APP_SECRET&\
+access_token=YOUR_SHORT_LIVED_TOKEN" | jq .
+```
+
+6. Copy the `access_token` from the response
+
+```env
+INSTAGRAM_ACCESS_TOKEN=IGQ...
+```
+
+> **Token refresh:** Long-lived tokens expire after 60 days. The cron job at `/api/cron/instagram-sync` can refresh the token automatically — call `refreshLongLivedToken()` from `lib/instagram.ts`. You can also manually refresh before expiry with the same exchange endpoint using `grant_type=ig_refresh_token`.
+
+### Set up the cron job
+
+Add a pg_cron entry in the Supabase SQL Editor (or Vercel Cron):
+
+```sql
+SELECT cron.schedule(
+  'instagram-sync',
+  '0 */6 * * *',  -- every 6 hours
+  $$SELECT net.http_get(
+    url := 'YOUR_SITE_URL/api/cron/instagram-sync',
+    headers := jsonb_build_object('x-cron-secret', 'YOUR_CRON_SECRET')
+  )$$
+);
+```
+
+### Verify it's working
+
+1. Trigger a manual sync: `curl -H "x-cron-secret: YOUR_SECRET" https://your-site.com/api/cron/instagram-sync`
+2. Check the `instagram_posts` table — it should contain your latest posts
+3. Visit the landing page — the "Fresh from the studio" section should appear between FeaturedProducts and Testimonials
+4. Check the `sync_log` table for entries with `provider = 'instagram'`
+
+### If not configured
+
+The Instagram feed section is hidden entirely. `isInstagramConfigured()` in `lib/instagram.ts` checks for the access token. The landing page query returns an empty array and `<InstagramFeed>` renders nothing when there are no posts. No errors, no empty states — the section simply doesn't appear.
+
+### Env vars
+
+| Variable                  | Required | Description                                  |
+| ------------------------- | -------- | -------------------------------------------- |
+| `INSTAGRAM_ACCESS_TOKEN`  | No       | Long-lived Instagram user token (60-day TTL) |
+
+---
+
+## 11. App Configuration
 
 These env vars configure the application itself, independent of any third-party service.
 
@@ -729,6 +791,7 @@ Run this once for `CRON_SECRET` and once for `INVITE_SECRET` — use different v
 | `BACKUP_S3_REGION`               | Backup    | No         |
 | `BACKUP_S3_ENDPOINT`             | Backup    | No         |
 | `BACKUP_S3_KEY_PREFIX`           | Backup    | No         |
+| `INSTAGRAM_ACCESS_TOKEN`         | Instagram | No         |
 | `NEXT_PUBLIC_SITE_URL`           | App       | Yes        |
 | `CRON_SECRET`                    | App       | Yes        |
 | `INVITE_SECRET`                  | App       | Yes        |

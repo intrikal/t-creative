@@ -33,12 +33,12 @@
       "schedule": "30 3 * * *"
     },
     {
-      "path": "/api/cron/daily-flash",
-      "schedule": "0 15 * * *"
+      "path": "/api/cron/recurring-bookings",
+      "schedule": "0 6 * * *"
     },
     {
-      "path": "/api/cron/recurring-bookings",
-      "schedule": "0 * * * *"
+      "path": "/api/cron/daily-flash",
+      "schedule": "0 15 * * *"
     }
   ]
 }

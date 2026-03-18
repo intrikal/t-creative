@@ -66,7 +66,7 @@ const formInputSchema = z.object({
 const formSubmissionInputSchema = z.object({
   clientId: z.string().min(1),
   formId: z.number().int().positive(),
-  data: z.record(z.unknown()),
+  data: z.record(z.string(), z.unknown()),
   signatureUrl: z.string().optional(),
   formVersion: z.string().optional(),
   ipAddress: z.string().optional(),

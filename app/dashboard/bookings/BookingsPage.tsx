@@ -12,13 +12,15 @@ import {
   deleteBooking,
   cancelBookingSeries,
   getBookings,
+  checkBookingWaivers,
 } from "./actions";
-import type { BookingRow, BookingInput } from "./actions";
+import type { BookingRow, BookingInput, MissingWaiver } from "./actions";
 import { BookingDialog, type BookingFormState } from "./components/BookingDialog";
 import { BookingRow as BookingRowComponent } from "./components/BookingRow";
 import { CancelDialog } from "./components/CancelDialog";
 import { DeleteDialog } from "./components/DeleteDialog";
 import { ServiceRecordDialog } from "./components/ServiceRecordDialog";
+import { WaiverGateDialog } from "./components/WaiverGateDialog";
 import { WaitlistTab } from "./components/WaitlistTab";
 
 /* ------------------------------------------------------------------ */
@@ -220,6 +222,8 @@ export function BookingsPage({
   const [deleteTarget, setDeleteTarget] = useState<Booking | null>(null);
   const [paymentTarget, setPaymentTarget] = useState<Booking | null>(null);
   const [serviceNotesTarget, setServiceNotesTarget] = useState<Booking | null>(null);
+  const [waiverGateTarget, setWaiverGateTarget] = useState<Booking | null>(null);
+  const [missingWaivers, setMissingWaivers] = useState<MissingWaiver[]>([]);
 
   const filtered = bookings.filter((b) => {
     const matchSearch =
@@ -252,6 +256,21 @@ export function BookingsPage({
 
   async function handleQuickStatus(booking: Booking, status: BookingStatus) {
     setMenuOpen(null);
+
+    // Check waivers before confirming
+    if (status === "confirmed") {
+      try {
+        const result = await checkBookingWaivers(booking.id);
+        if (!result.passed) {
+          setMissingWaivers(result.missing);
+          setWaiverGateTarget(booking);
+          return;
+        }
+      } catch {
+        // If waiver check fails, proceed with server-side enforcement as fallback
+      }
+    }
+
     startTransition(async () => {
       addOptimistic({ type: "update_status", id: booking.id, status });
       await updateBookingStatus(booking.id, status);
@@ -576,6 +595,18 @@ export function BookingsPage({
           serviceCategory={serviceNotesTarget.category}
         />
       )}
+
+      <WaiverGateDialog
+        target={waiverGateTarget}
+        missingWaivers={missingWaivers}
+        onClose={() => {
+          setWaiverGateTarget(null);
+          setMissingWaivers([]);
+        }}
+        onWaiversSent={() => {
+          // Waiver link sent — admin should wait for client to complete
+        }}
+      />
 
       {paymentTarget &&
         (() => {

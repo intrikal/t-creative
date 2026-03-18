@@ -404,7 +404,7 @@ describe("GET /api/client-export", () => {
 
   /* ---------- Auth ---------- */
 
-  it("returns 401 for unauthenticated request", async () => {
+  it("returns 401 when user is not authenticated", async () => {
     mockGetUser.mockResolvedValueOnce({ data: { user: null } });
 
     const res = await GET();
@@ -415,7 +415,18 @@ describe("GET /api/client-export", () => {
 
   /* ---------- Authorisation ---------- */
 
-  it("returns 403 for non-client role", async () => {
+  it("returns 403 when profile is not found", async () => {
+    // Reset so the first select returns empty (no profile row)
+    mockDbSelect.mockReset();
+    mockDbSelect.mockReturnValue(makeSelectChain([]));
+
+    const res = await GET();
+
+    expect(res.status).toBe(403);
+    expect(await res.json()).toMatchObject({ error: "Forbidden" });
+  });
+
+  it("returns 403 when user is not a client role", async () => {
     // Reset so the first select returns an admin profile instead
     mockDbSelect.mockReset();
     mockDbSelect
@@ -430,7 +441,7 @@ describe("GET /api/client-export", () => {
 
   /* ---------- Happy path ---------- */
 
-  it("returns JSON with all client data sections", async () => {
+  it("returns 200 with JSON data for authenticated client", async () => {
     const res = await GET();
 
     expect(res.status).toBe(200);
@@ -488,7 +499,7 @@ describe("GET /api/client-export", () => {
 
   /* ---------- Audit log ---------- */
 
-  it("logs the export action in audit log", async () => {
+  it("calls logAction for audit trail", async () => {
     await GET();
 
     expect(mockLogAction).toHaveBeenCalledOnce();

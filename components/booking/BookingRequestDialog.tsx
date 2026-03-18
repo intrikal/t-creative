@@ -38,6 +38,7 @@ import {
 } from "@/app/dashboard/book/actions";
 import { createBookingRequest } from "@/app/dashboard/messages/actions";
 import { Calendar } from "@/components/ui/calendar";
+import { CADENCE_OPTIONS, rruleToCadenceLabel } from "@/lib/cadence";
 import { cn } from "@/lib/utils";
 import { SquarePaymentForm } from "./components/SquarePaymentForm";
 import { formatPrice } from "./helpers";
@@ -174,15 +175,6 @@ function downloadIcs(service: Service, date: Date, time: string): void {
 
 type Step = "date" | "time" | "confirm" | "pay";
 
-const CADENCE_OPTIONS = [
-  { value: "", label: "Does not repeat" },
-  { value: "Every week", label: "Every week" },
-  { value: "Every 2 weeks", label: "Every 2 weeks" },
-  { value: "Every 3 weeks", label: "Every 3 weeks" },
-  { value: "Every month", label: "Every month" },
-  { value: "Every 6 weeks", label: "Every 6 weeks" },
-  { value: "Every 8 weeks", label: "Every 8 weeks" },
-] as const;
 
 type PhotoPreview = { file: File; preview: string };
 
@@ -296,7 +288,7 @@ export function BookingRequestDialog({
             preferredDate: preferredDates,
             notes: notes.trim(),
             referencePhotoUrls: uploadedPhotosRef.current,
-            preferredCadence: cadence || undefined,
+            recurrenceRule: cadence || undefined,
             idempotencyKey,
             selectedAddOns: addOnPayload,
             // Guest fields
@@ -465,7 +457,7 @@ export function BookingRequestDialog({
             preferredDate: preferredDates,
             notes: notes.trim(),
             referencePhotoUrls,
-            preferredCadence: cadence || undefined,
+            preferredCadence: cadence ? rruleToCadenceLabel(cadence) : undefined,
             turnstileToken,
             selectedAddOns: addOnPayload,
           }),
@@ -477,7 +469,7 @@ export function BookingRequestDialog({
           message: notes.trim() || `I'd like to book ${service.name} on ${preferredDates}.`,
           preferredDates,
           referencePhotoUrls,
-          preferredCadence: cadence || undefined,
+          recurrenceRule: cadence || undefined,
           selectedAddOns: addOnPayload,
         });
       }
@@ -752,6 +744,14 @@ export function BookingRequestDialog({
                       {formatPrice(adjustedPrice)}
                     </span>
                   </div>
+                  {cadence && (
+                    <div className="flex items-center justify-between text-sm pt-1 border-t border-stone-200">
+                      <span className="text-stone-500">Repeats</span>
+                      <span className="font-medium text-[#96604a]">
+                        {rruleToCadenceLabel(cadence)}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Add-on upsells */}

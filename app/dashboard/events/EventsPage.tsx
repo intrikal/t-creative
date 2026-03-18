@@ -15,6 +15,8 @@ import {
   sendEventRsvpInvite,
   createVenue,
   updateVenue,
+  assignStaff,
+  removeStaffAssignment,
 } from "./actions";
 import { EventCard } from "./components/EventCard";
 import { EventDialog } from "./components/EventDialog";
@@ -36,9 +38,11 @@ import { VenuesDialog } from "./components/VenuesDialog";
 export function EventsPage({
   initialEvents,
   initialVenues,
+  staffList,
 }: {
   initialEvents: EventRow[];
   initialVenues: VenueRow[];
+  staffList: { id: string; name: string }[];
 }) {
   const [events, setEvents] = useOptimistic<EventRow[]>(initialEvents);
   const [venues, setVenues] = useOptimistic<VenueRow[]>(initialVenues);
@@ -125,6 +129,7 @@ export function EventsPage({
             billingEmail: input.billingEmail ?? null,
             poNumber: input.poNumber ?? null,
             guests: [],
+            staffAssignments: [],
           },
           ...prev,
         ]);
@@ -180,6 +185,51 @@ export function EventsPage({
         ),
       );
       await toggleGuestPaid(guestId);
+    });
+  }
+
+  function handleAssignStaff(
+    eventId: number,
+    data: { staffId: string; role?: string },
+  ) {
+    const staffMember = staffList.find((s) => s.id === data.staffId);
+    startTransition(async () => {
+      setEvents((prev) =>
+        prev.map((e) =>
+          e.id === eventId
+            ? {
+                ...e,
+                staffAssignments: [
+                  ...e.staffAssignments,
+                  {
+                    id: -1,
+                    staffId: data.staffId,
+                    staffName: staffMember?.name ?? "Staff",
+                    role: data.role ?? null,
+                    notes: null,
+                  },
+                ],
+              }
+            : e,
+        ),
+      );
+      await assignStaff(eventId, data);
+    });
+  }
+
+  function handleRemoveStaff(eventId: number, assignmentId: number) {
+    startTransition(async () => {
+      setEvents((prev) =>
+        prev.map((e) =>
+          e.id === eventId
+            ? {
+                ...e,
+                staffAssignments: e.staffAssignments.filter((s) => s.id !== assignmentId),
+              }
+            : e,
+        ),
+      );
+      await removeStaffAssignment(assignmentId);
     });
   }
 
@@ -322,12 +372,15 @@ export function EventsPage({
             <EventCard
               key={e.id}
               event={e}
+              staffList={staffList}
               onEdit={() => openEdit(e)}
               onDelete={() => handleDelete(e.id)}
               onAddGuest={(guest) => handleAddGuest(e.id, guest)}
               onToggleGuestPaid={(guestId) => handleToggleGuestPaid(e.id, guestId)}
               onRemoveGuest={(guestId) => removeGuest(guestId)}
               onSendInvite={() => sendEventRsvpInvite(e.id)}
+              onAssignStaff={(data) => handleAssignStaff(e.id, data)}
+              onRemoveStaff={(assignmentId) => handleRemoveStaff(e.id, assignmentId)}
             />
           ))}
         </div>

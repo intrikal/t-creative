@@ -140,9 +140,11 @@ export {
   eventStatusEnum,
   eventVenues,
   events,
+  eventStaff,
   eventGuests,
   eventVenuesRelations,
   eventsRelations,
+  eventStaffRelations,
   eventGuestsRelations,
 } from "./events";
 

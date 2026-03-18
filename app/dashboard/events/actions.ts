@@ -2,10 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import * as Sentry from "@sentry/nextjs";
-import { eq, desc, sql } from "drizzle-orm";
+import { eq, desc, ne, sql, and, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
-import { events, eventGuests, eventVenues } from "@/db/schema";
+import { events, eventGuests, eventStaff, eventVenues, profiles } from "@/db/schema";
 import { EventInviteEmail } from "@/emails/EventInviteEmail";
 import { trackEvent } from "@/lib/posthog";
 import { sendEmail } from "@/lib/resend";
@@ -68,6 +68,14 @@ export type VenueInput = {
   defaultTravelFeeInCents?: number | null;
 };
 
+export type EventStaffRow = {
+  id: number;
+  staffId: string;
+  staffName: string;
+  role: string | null;
+  notes: string | null;
+};
+
 export type EventGuestRow = {
   id: number;
   name: string;
@@ -102,6 +110,7 @@ export type EventRow = {
   billingEmail: string | null;
   poNumber: string | null;
   guests: EventGuestRow[];
+  staffAssignments: EventStaffRow[];
 };
 
 export type EventInput = {
@@ -314,22 +323,49 @@ export async function getEvents(): Promise<EventRow[]> {
       .leftJoin(eventVenues, eq(events.venueId, eventVenues.id))
       .orderBy(desc(events.startsAt));
 
-    // Fetch guests for all events in one query
-    const allGuests = await db
-      .select({
-        id: eventGuests.id,
-        eventId: eventGuests.eventId,
-        name: eventGuests.name,
-        service: eventGuests.service,
-        paid: eventGuests.paid,
-      })
-      .from(eventGuests);
+    // Fetch guests and staff assignments for all events in parallel
+    const [allGuests, allStaffRows] = await Promise.all([
+      db
+        .select({
+          id: eventGuests.id,
+          eventId: eventGuests.eventId,
+          name: eventGuests.name,
+          service: eventGuests.service,
+          paid: eventGuests.paid,
+        })
+        .from(eventGuests),
+      db
+        .select({
+          id: eventStaff.id,
+          eventId: eventStaff.eventId,
+          staffId: eventStaff.staffId,
+          firstName: profiles.firstName,
+          lastName: profiles.lastName,
+          role: eventStaff.role,
+          notes: eventStaff.notes,
+        })
+        .from(eventStaff)
+        .innerJoin(profiles, eq(eventStaff.staffId, profiles.id)),
+    ]);
 
     const guestsByEvent = new Map<number, EventGuestRow[]>();
     for (const g of allGuests) {
       const list = guestsByEvent.get(g.eventId) ?? [];
       list.push({ id: g.id, name: g.name, service: g.service, paid: g.paid });
       guestsByEvent.set(g.eventId, list);
+    }
+
+    const staffByEvent = new Map<number, EventStaffRow[]>();
+    for (const s of allStaffRows) {
+      const list = staffByEvent.get(s.eventId) ?? [];
+      list.push({
+        id: s.id,
+        staffId: s.staffId,
+        staffName: [s.firstName, s.lastName].filter(Boolean).join(" "),
+        role: s.role,
+        notes: s.notes,
+      });
+      staffByEvent.set(s.eventId, list);
     }
 
     return rows.map((r) => ({
@@ -340,6 +376,7 @@ export async function getEvents(): Promise<EventRow[]> {
       endsAt: r.endsAt?.toISOString() ?? null,
       venueName: r.venueName ?? null,
       guests: guestsByEvent.get(r.id) ?? [],
+      staffAssignments: staffByEvent.get(r.id) ?? [],
     }));
   } catch (err) {
     Sentry.captureException(err);
@@ -406,6 +443,37 @@ export async function getClientEvents(): Promise<EventRow[]> {
       guestsByEvent.set(g.eventId, list);
     }
 
+    // Fetch staff assignments for client's events
+    const allStaffRows =
+      eventIds.length > 0
+        ? await db
+            .select({
+              id: eventStaff.id,
+              eventId: eventStaff.eventId,
+              staffId: eventStaff.staffId,
+              firstName: profiles.firstName,
+              lastName: profiles.lastName,
+              role: eventStaff.role,
+              notes: eventStaff.notes,
+            })
+            .from(eventStaff)
+            .innerJoin(profiles, eq(eventStaff.staffId, profiles.id))
+            .where(inArray(eventStaff.eventId, eventIds))
+        : [];
+
+    const staffByEvent = new Map<number, EventStaffRow[]>();
+    for (const s of allStaffRows) {
+      const list = staffByEvent.get(s.eventId) ?? [];
+      list.push({
+        id: s.id,
+        staffId: s.staffId,
+        staffName: [s.firstName, s.lastName].filter(Boolean).join(" "),
+        role: s.role,
+        notes: s.notes,
+      });
+      staffByEvent.set(s.eventId, list);
+    }
+
     return rows.map((r) => ({
       ...r,
       eventType: r.eventType as EventType,
@@ -417,6 +485,7 @@ export async function getClientEvents(): Promise<EventRow[]> {
       billingEmail: null, // Don't expose billing details to clients
       poNumber: null, // Don't expose billing details to clients
       guests: guestsByEvent.get(r.id) ?? [],
+      staffAssignments: staffByEvent.get(r.id) ?? [],
     }));
   } catch (err) {
     Sentry.captureException(err);
@@ -692,6 +761,106 @@ export async function sendEventRsvpInvite(eventId: number): Promise<{ url: strin
 
     revalidatePath(PATH);
     return { url: rsvpUrl };
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Staff queries                                                      */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Returns all non-client profiles for the staff assignment selector.
+ * Reuses the same pattern as bookings' getStaffForSelect.
+ */
+export async function getStaffForEvents(): Promise<{ id: string; name: string }[]> {
+  try {
+    await getUser();
+    const rows = await db
+      .select({
+        id: profiles.id,
+        firstName: profiles.firstName,
+        lastName: profiles.lastName,
+      })
+      .from(profiles)
+      .where(ne(profiles.role, "client"))
+      .orderBy(profiles.firstName);
+
+    return rows.map((r) => ({
+      id: r.id,
+      name: [r.firstName, r.lastName].filter(Boolean).join(" "),
+    }));
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Staff assignment mutations                                         */
+/* ------------------------------------------------------------------ */
+
+const staffAssignmentSchema = z.object({
+  staffId: z.string().uuid(),
+  role: z.string().optional(),
+  notes: z.string().optional(),
+});
+
+export async function assignStaff(
+  eventId: number,
+  data: { staffId: string; role?: string; notes?: string },
+): Promise<number> {
+  try {
+    z.number().int().positive().parse(eventId);
+    staffAssignmentSchema.parse(data);
+    await getUser();
+
+    const [row] = await db
+      .insert(eventStaff)
+      .values({
+        eventId,
+        staffId: data.staffId,
+        role: data.role ?? null,
+        notes: data.notes ?? null,
+      })
+      .returning({ id: eventStaff.id });
+
+    revalidatePath(PATH);
+    return row.id;
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
+}
+
+export async function updateStaffAssignment(
+  assignmentId: number,
+  data: { role?: string; notes?: string },
+) {
+  try {
+    z.number().int().positive().parse(assignmentId);
+    await getUser();
+
+    const set: Record<string, unknown> = {};
+    if (data.role !== undefined) set.role = data.role || null;
+    if (data.notes !== undefined) set.notes = data.notes || null;
+
+    await db.update(eventStaff).set(set).where(eq(eventStaff.id, assignmentId));
+    revalidatePath(PATH);
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
+}
+
+export async function removeStaffAssignment(assignmentId: number) {
+  try {
+    z.number().int().positive().parse(assignmentId);
+    await getUser();
+    await db.delete(eventStaff).where(eq(eventStaff.id, assignmentId));
+    revalidatePath(PATH);
   } catch (err) {
     Sentry.captureException(err);
     throw err;

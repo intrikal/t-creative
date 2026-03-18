@@ -13,6 +13,7 @@
  *   GET /api/export?type=payments&from=2024-01-01&to=2024-12-31
  */
 import { NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import { and, asc, eq, gte, lt } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
@@ -496,7 +497,7 @@ export async function GET(request: Request) {
       }
     }
   } catch (err) {
-    console.error("[export] Query failed:", err);
+    Sentry.captureException(err, { extra: { context: "[export] Query failed" } });
     return NextResponse.json({ error: "Export failed" }, { status: 500 });
   }
 

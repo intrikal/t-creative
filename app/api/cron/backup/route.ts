@@ -42,16 +42,16 @@ export async function POST(request: Request) {
   try {
     manifest = await createBackupManifest();
   } catch (err) {
-    Sentry.captureException(err);
-    console.error("[cron/backup] Manifest creation failed:", err);
+    Sentry.captureException(err, { extra: { context: "[cron/backup] Manifest creation failed" } });
     return NextResponse.json({ error: "Backup failed" }, { status: 500 });
   }
 
   /* ── Upload to storage (if configured) ── */
   if (!isStorageConfigured()) {
-    console.warn(
+    Sentry.captureMessage(
       "[cron/backup] Storage not configured — skipping upload. " +
         "Set BACKUP_S3_BUCKET, BACKUP_S3_ACCESS_KEY_ID, BACKUP_S3_SECRET_ACCESS_KEY to enable.",
+      "warning",
     );
 
     await logAction({
@@ -75,8 +75,7 @@ export async function POST(request: Request) {
   try {
     result = await uploadBackupToStorage(manifest);
   } catch (err) {
-    Sentry.captureException(err);
-    console.error("[cron/backup] Upload failed:", err);
+    Sentry.captureException(err, { extra: { context: "[cron/backup] Upload failed" } });
     return NextResponse.json({ error: "Upload failed" }, { status: 500 });
   }
 

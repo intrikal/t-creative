@@ -13,6 +13,7 @@
  * and wishlist items.
  */
 import { NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import {
@@ -306,7 +307,7 @@ export async function GET() {
       },
     });
   } catch (err) {
-    console.error("[client-export] Failed:", err);
+    Sentry.captureException(err, { extra: { context: "[client-export] Failed" } });
     return NextResponse.json({ error: "Export failed" }, { status: 500 });
   }
 }

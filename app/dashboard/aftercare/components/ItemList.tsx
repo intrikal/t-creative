@@ -74,6 +74,7 @@ export function ItemList({
               <button
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => setEditIdx(null)}
+                aria-label="Cancel edit"
                 className="p-1.5 rounded-lg hover:bg-foreground/5 text-muted shrink-0"
               >
                 <X className="w-3 h-3" />
@@ -91,6 +92,7 @@ export function ItemList({
               </span>
               <button
                 onClick={() => onRemove(i)}
+                aria-label="Remove item"
                 className="p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-destructive/8 text-muted hover:text-destructive transition-all shrink-0"
               >
                 <X className="w-3 h-3" />

@@ -388,6 +388,7 @@ export function HoursTab({
                 onClick={() => handleDeleteBlocked(entry.id)}
                 className="text-muted hover:text-destructive transition-colors shrink-0 p-1.5 rounded-lg hover:bg-destructive/10"
                 title="Remove blocked date"
+                aria-label="Remove blocked date"
               >
                 <Trash2 className="w-3.5 h-3.5" />
               </button>

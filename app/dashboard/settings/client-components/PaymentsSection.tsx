@@ -76,6 +76,7 @@ export function PaymentsSection() {
                     )}
                     <button
                       onClick={() => removeCard(card.id)}
+                      aria-label="Remove card"
                       className="p-1 rounded-md text-muted hover:text-destructive hover:bg-destructive/8 transition-colors"
                     >
                       <Trash2 className="w-3.5 h-3.5" />

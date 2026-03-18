@@ -59,6 +59,7 @@ export function PolicyCard({
           )}
           <button
             onClick={onDelete}
+            aria-label="Delete policy"
             className="p-1.5 rounded-lg hover:bg-destructive/8 text-muted hover:text-destructive transition-colors shrink-0"
           >
             <Trash2 className="w-3.5 h-3.5" />

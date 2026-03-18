@@ -98,7 +98,7 @@ export function PaymentLinkDialog({
       description={`${booking.clientName} — ${booking.service}`}
     >
       <div className="space-y-4">
-        {error && <p className="text-xs text-destructive">{error}</p>}
+        {error && <p role="alert" aria-live="polite" className="text-xs text-destructive">{error}</p>}
 
         {/* Booking summary */}
         <div className="bg-surface border border-border/60 rounded-lg p-3 space-y-1">

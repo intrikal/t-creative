@@ -95,7 +95,7 @@ export function RecordPaymentDialog({
       description="Record a payment against a booking."
     >
       <form ref={formRef} onSubmit={(e) => e.preventDefault()} className="space-y-4">
-        {error && <p className="text-xs text-destructive">{error}</p>}
+        {error && <p role="alert" aria-live="polite" className="text-xs text-destructive">{error}</p>}
 
         <Field label="Booking" required>
           <Select

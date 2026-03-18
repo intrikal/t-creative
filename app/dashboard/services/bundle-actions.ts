@@ -23,6 +23,7 @@
 import * as Sentry from "@sentry/nextjs";
 import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
+import { z } from "zod";
 import { db } from "@/db";
 import { serviceBundles } from "@/db/schema";
 import { requireAdmin } from "@/lib/auth";
@@ -41,6 +42,21 @@ export type BundleInput = {
 
 const getUser = requireAdmin;
 
+/* ------------------------------------------------------------------ */
+/*  Schemas                                                            */
+/* ------------------------------------------------------------------ */
+
+const bundleInputSchema = z.object({
+  name: z.string().min(1).max(200),
+  description: z.string(),
+  serviceNames: z.array(z.string().min(1)).min(1),
+  originalPriceInCents: z.number().int().nonnegative(),
+  bundlePriceInCents: z.number().int().nonnegative(),
+  isActive: z.boolean(),
+});
+
+const idSchema = z.number().int().positive();
+
 export async function getBundles(): Promise<BundleRow[]> {
   try {
     await getUser();
@@ -53,6 +69,7 @@ export async function getBundles(): Promise<BundleRow[]> {
 
 export async function createBundle(input: BundleInput): Promise<BundleRow> {
   try {
+    bundleInputSchema.parse(input);
     const user = await getUser();
     const [row] = await db
       .insert(serviceBundles)
@@ -76,6 +93,8 @@ export async function createBundle(input: BundleInput): Promise<BundleRow> {
 
 export async function updateBundle(id: number, input: BundleInput): Promise<BundleRow> {
   try {
+    idSchema.parse(id);
+    bundleInputSchema.parse(input);
     await getUser();
     const [row] = await db
       .update(serviceBundles)
@@ -99,6 +118,7 @@ export async function updateBundle(id: number, input: BundleInput): Promise<Bund
 
 export async function deleteBundle(id: number): Promise<void> {
   try {
+    idSchema.parse(id);
     const user = await getUser();
     await db.delete(serviceBundles).where(eq(serviceBundles.id, id));
     trackEvent(user.id, "bundle_deleted", { bundleId: id });
@@ -111,6 +131,8 @@ export async function deleteBundle(id: number): Promise<void> {
 
 export async function toggleBundleActive(id: number, isActive: boolean): Promise<void> {
   try {
+    idSchema.parse(id);
+    z.boolean().parse(isActive);
     await getUser();
     await db.update(serviceBundles).set({ isActive }).where(eq(serviceBundles.id, id));
     revalidatePath("/dashboard/services");

@@ -20,6 +20,7 @@
 import * as Sentry from "@sentry/nextjs";
 import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
+import { z } from "zod";
 import { db } from "@/db";
 import { serviceAddOns } from "@/db/schema";
 import { requireAdmin } from "@/lib/auth";
@@ -35,6 +36,19 @@ export type AddOnInput = {
 };
 
 const getUser = requireAdmin;
+
+/* ------------------------------------------------------------------ */
+/*  Schemas                                                            */
+/* ------------------------------------------------------------------ */
+
+const addOnInputSchema = z.object({
+  name: z.string().min(1).max(200),
+  description: z.string().optional(),
+  priceInCents: z.number().int().nonnegative(),
+  additionalMinutes: z.number().int().nonnegative(),
+});
+
+const idSchema = z.number().int().positive();
 
 export async function getAddOns(serviceId: number): Promise<AddOnRow[]> {
   try {
@@ -52,6 +66,8 @@ export async function getAddOns(serviceId: number): Promise<AddOnRow[]> {
 
 export async function createAddOn(serviceId: number, input: AddOnInput): Promise<AddOnRow> {
   try {
+    idSchema.parse(serviceId);
+    addOnInputSchema.parse(input);
     const user = await getUser();
     const [row] = await db
       .insert(serviceAddOns)
@@ -75,6 +91,8 @@ export async function createAddOn(serviceId: number, input: AddOnInput): Promise
 
 export async function updateAddOn(id: number, input: AddOnInput): Promise<AddOnRow> {
   try {
+    idSchema.parse(id);
+    addOnInputSchema.parse(input);
     await getUser();
     const [row] = await db
       .update(serviceAddOns)
@@ -96,6 +114,7 @@ export async function updateAddOn(id: number, input: AddOnInput): Promise<AddOnR
 
 export async function deleteAddOn(id: number): Promise<void> {
   try {
+    idSchema.parse(id);
     const user = await getUser();
     await db.delete(serviceAddOns).where(eq(serviceAddOns.id, id));
     trackEvent(user.id, "addon_deleted", { addonId: id });
@@ -108,6 +127,8 @@ export async function deleteAddOn(id: number): Promise<void> {
 
 export async function toggleAddOnActive(id: number, isActive: boolean): Promise<void> {
   try {
+    idSchema.parse(id);
+    z.boolean().parse(isActive);
     await getUser();
     await db.update(serviceAddOns).set({ isActive }).where(eq(serviceAddOns.id, id));
     revalidatePath("/dashboard/services");

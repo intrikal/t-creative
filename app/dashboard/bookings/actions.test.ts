@@ -368,8 +368,7 @@ describe("actions", () => {
         select: vi.fn(() => {
           selectCount++;
           // 1st select: waiver check — booking lookup (needs clientId+serviceCategory)
-          if (selectCount === 1)
-            return makeChain([{ clientId: "c1", serviceCategory: "lash" }]);
+          if (selectCount === 1) return makeChain([{ clientId: "c1", serviceCategory: "lash" }]);
           // 2nd select: waiver forms lookup — return none (no forms required)
           return makeChain([]);
         }),
@@ -442,8 +441,7 @@ describe("actions", () => {
         select: vi.fn(() => {
           selectCount++;
           // 1st select: waiver check booking lookup
-          if (selectCount === 1)
-            return makeChain([{ clientId: "c1", serviceCategory: "lash" }]);
+          if (selectCount === 1) return makeChain([{ clientId: "c1", serviceCategory: "lash" }]);
           return makeChain([]);
         }),
         insert: vi.fn(() => ({
@@ -1378,9 +1376,7 @@ describe("actions", () => {
         receiptUrl: "https://receipt.url/1",
       });
       setupMocks({
-        select: vi.fn(() =>
-          makeChain([{ ...feeRow, squareCustomerId: "sq_cust_1" }]),
-        ),
+        select: vi.fn(() => makeChain([{ ...feeRow, squareCustomerId: "sq_cust_1" }])),
         insert: vi.fn(() => ({
           values: vi.fn(() => ({ returning: vi.fn().mockResolvedValue([{ id: 1 }]) })),
         })),
@@ -1417,8 +1413,7 @@ describe("actions", () => {
         select: vi.fn(() => {
           selectCount++;
           // 1st: fee row
-          if (selectCount === 1)
-            return makeChain([{ ...feeRow, squareCustomerId: "sq_cust_1" }]);
+          if (selectCount === 1) return makeChain([{ ...feeRow, squareCustomerId: "sq_cust_1" }]);
           // 2nd: invoice number lookup
           if (selectCount === 2) return makeChain([{ number: "INV-005" }]);
           return makeChain([]);
@@ -1453,9 +1448,7 @@ describe("actions", () => {
         receiptUrl: "https://receipt.url/1",
       });
       setupMocks({
-        select: vi.fn(() =>
-          makeChain([{ ...feeRow, squareCustomerId: "sq_cust_1" }]),
-        ),
+        select: vi.fn(() => makeChain([{ ...feeRow, squareCustomerId: "sq_cust_1" }])),
         insert: vi.fn(() => ({
           values: vi.fn(() => ({ returning: vi.fn().mockResolvedValue([{ id: 1 }]) })),
         })),
@@ -1520,8 +1513,7 @@ describe("actions", () => {
       // The only sendEmail calls should be from booking status notifications, not fee
       const feeCalls = mockSendEmail.mock.calls.filter(
         (c: any[]) =>
-          c[0]?.entityType === "no_show_fee_charged" ||
-          c[0]?.entityType === "no_show_fee_invoice",
+          c[0]?.entityType === "no_show_fee_charged" || c[0]?.entityType === "no_show_fee_invoice",
       );
       expect(feeCalls).toHaveLength(0);
     });
@@ -1536,9 +1528,7 @@ describe("actions", () => {
       mockIsSquareConfigured.mockReturnValue(true);
       mockGetSquareCardOnFile.mockRejectedValue(new Error("Square API down"));
       setupMocks({
-        select: vi.fn(() =>
-          makeChain([{ ...feeRow, squareCustomerId: "sq_cust_1" }]),
-        ),
+        select: vi.fn(() => makeChain([{ ...feeRow, squareCustomerId: "sq_cust_1" }])),
         insert: vi.fn(() => ({
           values: vi.fn(() => ({ returning: vi.fn().mockResolvedValue([{ id: 1 }]) })),
         })),
@@ -1565,9 +1555,7 @@ describe("actions", () => {
             return makeChain([{ clientId: "client-1", serviceCategory: "lash" }]);
           // 2nd: active required forms
           if (selectCount === 2)
-            return makeChain([
-              { id: 10, name: "Lash Waiver", type: "waiver", appliesTo: ["All"] },
-            ]);
+            return makeChain([{ id: 10, name: "Lash Waiver", type: "waiver", appliesTo: ["All"] }]);
           // 3rd: client submissions
           if (selectCount === 3) return makeChain([{ formId: 10 }]);
           return makeChain([]);
@@ -1705,6 +1693,314 @@ describe("actions", () => {
       const { updateBookingStatus } = await import("./actions");
       // With skipWaiverCheck=true, should not throw even if waivers aren't signed
       await expect(updateBookingStatus(42, "confirmed", undefined, true)).resolves.toBeUndefined();
+    });
+  });
+
+  /* ---- No-show / late-cancel fee enforcement (additional) ---- */
+
+  describe("no-show / late-cancel fee enforcement", () => {
+    const feeRow2 = {
+      clientId: "client-2",
+      clientEmail: "client2@example.com",
+      clientFirstName: "Bob",
+      notifyEmail: true,
+      squareCustomerId: "sq_cust" as string | null,
+      serviceName: "Brow Lamination",
+      totalInCents: 20000,
+      startsAt: new Date("2026-06-15T14:00:00Z"),
+    };
+
+    it("charges correct fee amount from settings percentage", async () => {
+      vi.resetModules();
+      mockGetPolicies.mockResolvedValue({
+        noShowFeePercent: 50,
+        lateCancelFeePercent: 25,
+        cancelWindowHours: 24,
+      });
+      mockIsSquareConfigured.mockReturnValue(true);
+      mockGetSquareCardOnFile.mockResolvedValue("card_123");
+      mockChargeCardOnFile.mockResolvedValue({
+        paymentId: "pay_2",
+        orderId: "ord_2",
+        receiptUrl: "https://receipt.url/2",
+      });
+      setupMocks({
+        select: vi.fn(() => makeChain([{ ...feeRow2 }])),
+        insert: vi.fn(() => ({
+          values: vi.fn(() => ({ returning: vi.fn().mockResolvedValue([{ id: 1 }]) })),
+        })),
+        update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn() })) })),
+        delete: vi.fn(() => ({ where: vi.fn() })),
+      });
+      const { updateBookingStatus } = await import("./actions");
+      await updateBookingStatus(1, "no_show");
+      // Fee = 20000 * 50 / 100 = 10000 cents
+      expect(mockChargeCardOnFile).toHaveBeenCalledWith(
+        expect.objectContaining({ amountInCents: 10000 }),
+      );
+    });
+
+    it("charges card on file via Square when available", async () => {
+      vi.resetModules();
+      mockGetPolicies.mockResolvedValue({
+        noShowFeePercent: 50,
+        lateCancelFeePercent: 25,
+        cancelWindowHours: 24,
+      });
+      mockIsSquareConfigured.mockReturnValue(true);
+      mockGetSquareCardOnFile.mockResolvedValue("card_123");
+      mockChargeCardOnFile.mockResolvedValue({
+        paymentId: "pay_3",
+        orderId: "ord_3",
+        receiptUrl: "https://receipt.url/3",
+      });
+      setupMocks({
+        select: vi.fn(() => makeChain([{ ...feeRow2 }])),
+        insert: vi.fn(() => ({
+          values: vi.fn(() => ({ returning: vi.fn().mockResolvedValue([{ id: 1 }]) })),
+        })),
+        update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn() })) })),
+        delete: vi.fn(() => ({ where: vi.fn() })),
+      });
+      const { updateBookingStatus } = await import("./actions");
+      await updateBookingStatus(1, "no_show");
+      expect(mockChargeCardOnFile).toHaveBeenCalled();
+      expect(mockSendEmail).toHaveBeenCalledWith(
+        expect.objectContaining({
+          entityType: "no_show_fee_charged",
+        }),
+      );
+    });
+
+    it("creates invoice when no card on file", async () => {
+      vi.resetModules();
+      mockGetPolicies.mockResolvedValue({
+        noShowFeePercent: 50,
+        lateCancelFeePercent: 25,
+        cancelWindowHours: 24,
+      });
+      mockIsSquareConfigured.mockReturnValue(true);
+      mockGetSquareCardOnFile.mockResolvedValue(null);
+      let selectCount = 0;
+      const mockInsertValues = vi.fn(() => ({
+        returning: vi.fn().mockResolvedValue([{ id: 1 }]),
+      }));
+      setupMocks({
+        select: vi.fn(() => {
+          selectCount++;
+          // 1st: fee row
+          if (selectCount === 1) return makeChain([{ ...feeRow2 }]);
+          // 2nd: invoice number lookup
+          if (selectCount === 2) return makeChain([]);
+          return makeChain([]);
+        }),
+        insert: vi.fn(() => ({ values: mockInsertValues })),
+        update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn() })) })),
+        delete: vi.fn(() => ({ where: vi.fn() })),
+      });
+      const { updateBookingStatus } = await import("./actions");
+      await updateBookingStatus(1, "no_show");
+      // Should have inserted an invoice
+      expect(mockInsertValues).toHaveBeenCalledWith(
+        expect.objectContaining({
+          amountInCents: 10000,
+        }),
+      );
+      expect(mockSendEmail).toHaveBeenCalledWith(
+        expect.objectContaining({
+          entityType: "no_show_fee_invoice",
+        }),
+      );
+    });
+
+    it("sends correct email template for card charge", async () => {
+      vi.resetModules();
+      mockGetPolicies.mockResolvedValue({
+        noShowFeePercent: 50,
+        lateCancelFeePercent: 25,
+        cancelWindowHours: 24,
+      });
+      mockIsSquareConfigured.mockReturnValue(true);
+      mockGetSquareCardOnFile.mockResolvedValue("card_123");
+      mockChargeCardOnFile.mockResolvedValue({
+        paymentId: "pay_4",
+        orderId: "ord_4",
+        receiptUrl: "https://receipt.url/4",
+      });
+      setupMocks({
+        select: vi.fn(() => makeChain([{ ...feeRow2 }])),
+        insert: vi.fn(() => ({
+          values: vi.fn(() => ({ returning: vi.fn().mockResolvedValue([{ id: 1 }]) })),
+        })),
+        update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn() })) })),
+        delete: vi.fn(() => ({ where: vi.fn() })),
+      });
+      const { updateBookingStatus } = await import("./actions");
+      await updateBookingStatus(1, "no_show");
+      expect(mockSendEmail).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: "client2@example.com",
+          entityType: "no_show_fee_charged",
+        }),
+      );
+    });
+
+    it("sends correct email template for invoice", async () => {
+      vi.resetModules();
+      mockGetPolicies.mockResolvedValue({
+        noShowFeePercent: 50,
+        lateCancelFeePercent: 25,
+        cancelWindowHours: 24,
+      });
+      mockIsSquareConfigured.mockReturnValue(false);
+      let selectCount = 0;
+      setupMocks({
+        select: vi.fn(() => {
+          selectCount++;
+          // 1st: fee row
+          if (selectCount === 1) return makeChain([{ ...feeRow2, squareCustomerId: null }]);
+          // 2nd: invoice number lookup
+          if (selectCount === 2) return makeChain([]);
+          return makeChain([]);
+        }),
+        insert: vi.fn(() => ({
+          values: vi.fn(() => ({ returning: vi.fn().mockResolvedValue([{ id: 1 }]) })),
+        })),
+        update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn() })) })),
+        delete: vi.fn(() => ({ where: vi.fn() })),
+      });
+      const { updateBookingStatus } = await import("./actions");
+      await updateBookingStatus(1, "no_show");
+      expect(mockSendEmail).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: "client2@example.com",
+          entityType: "no_show_fee_invoice",
+        }),
+      );
+    });
+
+    it("does not charge when fee percentage is 0", async () => {
+      vi.resetModules();
+      mockGetPolicies.mockResolvedValue({
+        noShowFeePercent: 0,
+        lateCancelFeePercent: 0,
+        cancelWindowHours: 24,
+      });
+      setupMocks();
+      const { updateBookingStatus } = await import("./actions");
+      await updateBookingStatus(1, "no_show");
+      expect(mockChargeCardOnFile).not.toHaveBeenCalled();
+      const feeCalls = mockSendEmail.mock.calls.filter(
+        (c: any[]) =>
+          c[0]?.entityType === "no_show_fee_charged" || c[0]?.entityType === "no_show_fee_invoice",
+      );
+      expect(feeCalls).toHaveLength(0);
+    });
+  });
+
+  /* ---- checkBookingWaivers (additional) ---- */
+
+  describe("checkBookingWaivers", () => {
+    it("passes when all required waivers are signed", async () => {
+      vi.resetModules();
+      let selectCount = 0;
+      setupMocks({
+        select: vi.fn(() => {
+          selectCount++;
+          // 1st: booking + service category lookup
+          if (selectCount === 1)
+            return makeChain([{ clientId: "client-3", serviceCategory: "brow" }]);
+          // 2nd: active required forms (1 required)
+          if (selectCount === 2)
+            return makeChain([
+              { id: 20, name: "Brow Consent", type: "consent", appliesTo: ["All"] },
+            ]);
+          // 3rd: client submissions (1 matching)
+          if (selectCount === 3) return makeChain([{ formId: 20 }]);
+          return makeChain([]);
+        }),
+        insert: vi.fn(() => ({
+          values: vi.fn(() => ({ returning: vi.fn().mockResolvedValue([{ id: 1 }]) })),
+        })),
+        update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn() })) })),
+        delete: vi.fn(() => ({ where: vi.fn() })),
+      });
+      const { checkBookingWaivers } = await import("./actions");
+      const result = await checkBookingWaivers(5);
+      expect(result.passed).toBe(true);
+      expect(result.missing).toHaveLength(0);
+    });
+
+    it("fails with correct missing waiver names", async () => {
+      vi.resetModules();
+      let selectCount = 0;
+      setupMocks({
+        select: vi.fn(() => {
+          selectCount++;
+          // 1st: booking + service category
+          if (selectCount === 1)
+            return makeChain([{ clientId: "client-3", serviceCategory: "brow" }]);
+          // 2nd: active required forms (2 required)
+          if (selectCount === 2)
+            return makeChain([
+              { id: 20, name: "Brow Consent", type: "consent", appliesTo: ["All"] },
+              { id: 21, name: "Allergy Disclaimer", type: "waiver", appliesTo: ["Brow"] },
+            ]);
+          // 3rd: no submissions
+          if (selectCount === 3) return makeChain([]);
+          return makeChain([]);
+        }),
+        insert: vi.fn(() => ({
+          values: vi.fn(() => ({ returning: vi.fn().mockResolvedValue([{ id: 1 }]) })),
+        })),
+        update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn() })) })),
+        delete: vi.fn(() => ({ where: vi.fn() })),
+      });
+      const { checkBookingWaivers } = await import("./actions");
+      const result = await checkBookingWaivers(5);
+      expect(result.passed).toBe(false);
+      expect(result.missing).toHaveLength(2);
+      expect(result.missing).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ formId: 20, formName: "Brow Consent" }),
+          expect.objectContaining({ formId: 21, formName: "Allergy Disclaimer" }),
+        ]),
+      );
+    });
+
+    it("sendWaiverLink sends email with correct token", async () => {
+      vi.resetModules();
+      mockGetEmailRecipient.mockResolvedValue({
+        email: "test@test.com",
+        firstName: "TestUser",
+      });
+      let selectCount = 0;
+      setupMocks({
+        select: vi.fn(() => {
+          selectCount++;
+          if (selectCount === 1)
+            return makeChain([
+              {
+                clientId: "c1",
+                serviceName: "Brow Lamination",
+                startsAt: new Date("2026-06-15T14:00:00Z"),
+              },
+            ]);
+          return makeChain([]);
+        }),
+        insert: vi.fn(() => ({
+          values: vi.fn(() => ({ returning: vi.fn().mockResolvedValue([{ id: 1 }]) })),
+        })),
+        update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn() })) })),
+        delete: vi.fn(() => ({ where: vi.fn() })),
+      });
+      const { sendWaiverLink } = await import("./actions");
+      await sendWaiverLink(1);
+      expect(mockGenerateWaiverToken).toHaveBeenCalledWith({
+        bookingId: 1,
+        clientId: "c1",
+      });
+      expect(mockSendEmail).toHaveBeenCalled();
     });
   });
 });

@@ -27,11 +27,14 @@ import {
   Trash2,
   CalendarPlus,
   CheckCircle2,
+  AlertTriangle,
 } from "lucide-react";
 import {
   getStudioAvailability,
   checkIsAuthenticated,
+  checkClientWaivers,
   type StudioAvailability,
+  type PendingWaiver,
 } from "@/app/dashboard/book/actions";
 import { createBookingRequest } from "@/app/dashboard/messages/actions";
 import { Calendar } from "@/components/ui/calendar";
@@ -214,6 +217,8 @@ export function BookingRequestDialog({
   const fileInputRef = useRef<HTMLInputElement>(null);
   /** Cached photo URLs — uploaded once on confirm, reused in pay step. */
   const uploadedPhotosRef = useRef<string[]>([]);
+  const [pendingWaivers, setPendingWaivers] = useState<PendingWaiver[]>([]);
+  const [waiversChecked, setWaiversChecked] = useState(false);
 
   const hasDeposit = !!service.depositInCents && service.depositInCents > 0;
   const totalSteps = hasDeposit ? 4 : 3;
@@ -347,6 +352,14 @@ export function BookingRequestDialog({
   function handleTimeSelect(time: string) {
     setSelectedTime(time);
     setStep("confirm");
+
+    // Check waivers for authenticated users when entering confirm step
+    if (isGuest === false && !waiversChecked) {
+      checkClientWaivers(service.category).then((waivers) => {
+        setPendingWaivers(waivers);
+        setWaiversChecked(true);
+      });
+    }
   }
 
   function goBack() {
@@ -492,6 +505,8 @@ export function BookingRequestDialog({
     setSelectedAddOnIds(new Set());
     setError("");
     setTurnstileToken("");
+    setPendingWaivers([]);
+    setWaiversChecked(false);
     uploadedPhotosRef.current = [];
     onClose();
   }
@@ -949,6 +964,31 @@ export function BookingRequestDialog({
                     onExpire={() => setTurnstileToken("")}
                     options={{ theme: "light", size: "flexible" }}
                   />
+                )}
+
+                {pendingWaivers.length > 0 && !isGuest && (
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 space-y-1.5">
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-xs font-medium text-amber-800">
+                          Waiver required before your appointment
+                        </p>
+                        <p className="text-[11px] text-amber-700 mt-0.5 leading-relaxed">
+                          You&apos;ll receive a waiver to sign by email once your request is
+                          reviewed. Your booking can only be confirmed after it&apos;s completed.
+                        </p>
+                        <ul className="mt-1.5 space-y-0.5">
+                          {pendingWaivers.map((w) => (
+                            <li key={w.formId} className="text-[11px] text-amber-700 flex items-center gap-1">
+                              <span className="w-1 h-1 rounded-full bg-amber-500 shrink-0" />
+                              {w.formName}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
                 )}
 
                 {error && (

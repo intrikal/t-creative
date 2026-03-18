@@ -10,9 +10,9 @@
  */
 
 import * as Sentry from "@sentry/nextjs";
-import { isNull, eq } from "drizzle-orm";
+import { isNull, eq, and, inArray } from "drizzle-orm";
 import { db } from "@/db";
-import { businessHours, timeOff, settings } from "@/db/schema";
+import { businessHours, clientForms, formSubmissions, timeOff, settings } from "@/db/schema";
 import { createClient } from "@/utils/supabase/server";
 
 /* ------------------------------------------------------------------ */
@@ -93,5 +93,71 @@ export async function checkIsAuthenticated(): Promise<boolean> {
   } catch (err) {
     Sentry.captureException(err);
     throw err;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Waiver check for booking flow                                      */
+/* ------------------------------------------------------------------ */
+
+export type PendingWaiver = {
+  formId: number;
+  formName: string;
+  formType: string;
+};
+
+/**
+ * Check whether the current authenticated user has outstanding required
+ * waivers for a given service category. Returns an empty array if
+ * all waivers are complete or the user is not authenticated.
+ */
+export async function checkClientWaivers(
+  serviceCategory: string,
+): Promise<PendingWaiver[]> {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return [];
+
+    const allForms = await db
+      .select({
+        id: clientForms.id,
+        name: clientForms.name,
+        type: clientForms.type,
+        appliesTo: clientForms.appliesTo,
+      })
+      .from(clientForms)
+      .where(and(eq(clientForms.isActive, true), eq(clientForms.required, true)));
+
+    const categoryLabel =
+      serviceCategory.charAt(0).toUpperCase() + serviceCategory.slice(1);
+    const applicableForms = allForms.filter(
+      (f) => f.appliesTo.includes("All") || f.appliesTo.includes(categoryLabel),
+    );
+
+    if (applicableForms.length === 0) return [];
+
+    const submissions = await db
+      .select({ formId: formSubmissions.formId })
+      .from(formSubmissions)
+      .where(
+        and(
+          eq(formSubmissions.clientId, user.id),
+          inArray(
+            formSubmissions.formId,
+            applicableForms.map((f) => f.id),
+          ),
+        ),
+      );
+
+    const submittedIds = new Set(submissions.map((s) => s.formId));
+    return applicableForms
+      .filter((f) => !submittedIds.has(f.id))
+      .map((f) => ({ formId: f.id, formName: f.name, formType: f.type }));
+  } catch (err) {
+    Sentry.captureException(err);
+    return [];
   }
 }

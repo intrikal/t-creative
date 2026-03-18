@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
 import { TrendingUp, DollarSign, CreditCard, TrendingDown } from "lucide-react";
 import {
+  BarChart,
   ComposedChart,
   Bar,
   Line,
@@ -59,10 +59,6 @@ export function OverviewContent({
   tipTrends: TipStats;
   expenseCategories: ExpenseCategoryBreakdown[];
 }) {
-  const [hoveredBar, setHoveredBar] = useState<number | null>(null);
-
-  const maxBar = Math.max(...weeklyRevenue.map((b) => b.amount), 1);
-  const gridLines = [2000, 1500, 1000, 500].filter((g) => g <= maxBar * 1.1);
   const totalWeek = weeklyRevenue.reduce((s, b) => s + b.amount, 0);
 
   return (
@@ -179,54 +175,36 @@ export function OverviewContent({
             </div>
           </CardHeader>
           <CardContent className="px-5 pb-5 pt-4">
-            <div className="relative h-44">
-              {gridLines.map((line) => (
-                <div
-                  key={line}
-                  className="absolute left-0 right-0 flex items-center gap-2"
-                  style={{ bottom: `${(line / maxBar) * 100}%` }}
-                >
-                  <span className="text-[9px] text-muted/50 tabular-nums w-10 text-right shrink-0">
-                    ${(line / 1000).toFixed(1)}k
-                  </span>
-                  <div className="flex-1 border-t border-dashed border-border/40" />
-                </div>
-              ))}
-              <div className="absolute inset-0 pl-12 flex items-end gap-2">
-                {weeklyRevenue.map((bar, i) => (
-                  <div
-                    key={bar.day}
-                    className="relative flex-1 flex flex-col items-center justify-end h-full"
-                    onMouseEnter={() => setHoveredBar(i)}
-                    onMouseLeave={() => setHoveredBar(null)}
-                  >
-                    {hoveredBar === i && (
-                      <div className="absolute bottom-full mb-1.5 z-10 pointer-events-none">
-                        <div className="bg-foreground text-background text-[10px] font-semibold rounded-md px-2 py-1 whitespace-nowrap shadow-sm">
-                          ${bar.amount.toLocaleString()}
-                        </div>
-                        <div className="w-1.5 h-1.5 bg-foreground rotate-45 mx-auto -mt-1" />
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={weeklyRevenue} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-tertiary)" opacity={0.3} />
+                <XAxis
+                  dataKey="day"
+                  tick={{ fontSize: 11, fontFamily: "inherit", fill: "var(--color-text-secondary)" }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <YAxis
+                  tickFormatter={(v) => `$${(v / 1000).toFixed(1)}k`}
+                  tick={{ fontSize: 11, fontFamily: "inherit", fill: "var(--color-text-secondary)" }}
+                  axisLine={false}
+                  tickLine={false}
+                  width={44}
+                />
+                <Tooltip
+                  content={({ active, payload, label }) => {
+                    if (!active || !payload?.length) return null;
+                    return (
+                      <div className="bg-background border rounded-lg shadow-md px-3 py-2 text-xs">
+                        <p className="font-semibold mb-1">{label}</p>
+                        <p className="text-muted">${(payload[0].value as number).toLocaleString()}</p>
                       </div>
-                    )}
-                    <div
-                      className={cn(
-                        "w-full rounded-t transition-all cursor-default",
-                        i === 4 ? "bg-[#c4907a]" : "bg-[#e8c4b8]",
-                        hoveredBar === i && "brightness-90",
-                      )}
-                      style={{ height: `${(bar.amount / maxBar) * 100}%` }}
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="flex gap-2 pl-12 mt-1.5">
-              {weeklyRevenue.map((bar) => (
-                <div key={bar.day} className="flex-1 text-center">
-                  <span className="text-[10px] text-muted">{bar.day}</span>
-                </div>
-              ))}
-            </div>
+                    );
+                  }}
+                />
+                <Bar dataKey="amount" fill="#c4907a" radius={[4, 4, 0, 0]} isAnimationActive={false} />
+              </BarChart>
+            </ResponsiveContainer>
           </CardContent>
         </Card>
 

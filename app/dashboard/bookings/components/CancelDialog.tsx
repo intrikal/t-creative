@@ -1,7 +1,7 @@
 "use client";
 
 import { Dialog, Field, Textarea, DialogFooter } from "@/components/ui/dialog";
-import type { Booking } from "../BookingsPage";
+import type { Booking } from "./helpers";
 
 export function CancelDialog({
   target,

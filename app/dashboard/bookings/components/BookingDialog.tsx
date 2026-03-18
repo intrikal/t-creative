@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Dialog, DialogFooter, Field, Input, Textarea, Select } from "@/components/ui/dialog";
+import { CADENCE_OPTIONS } from "@/lib/cadence";
 import type { Booking, BookingStatus } from "../BookingsPage";
 
 export type BookingFormState = {
@@ -21,15 +22,6 @@ export type BookingFormState = {
   subscriptionId: number | "";
 };
 
-const RECURRENCE_OPTIONS = [
-  { value: "", label: "Does not repeat" },
-  { value: "FREQ=WEEKLY;INTERVAL=1", label: "Every week" },
-  { value: "FREQ=WEEKLY;INTERVAL=2", label: "Every 2 weeks" },
-  { value: "FREQ=WEEKLY;INTERVAL=3", label: "Every 3 weeks" },
-  { value: "FREQ=MONTHLY;INTERVAL=1", label: "Every month" },
-  { value: "FREQ=WEEKLY;INTERVAL=6", label: "Every 6 weeks" },
-  { value: "FREQ=WEEKLY;INTERVAL=8", label: "Every 8 weeks" },
-] as const;
 
 /** Maps preferredRebookIntervalDays → RRULE base frequency string. */
 const INTERVAL_DAYS_TO_RRULE: Record<number, string> = {
@@ -305,7 +297,7 @@ export function BookingDialog({
           </Field>
           <Field label="Repeat">
             <Select value={form.recurrenceRule} onChange={(e) => onRepeatChange(e.target.value)}>
-              {RECURRENCE_OPTIONS.map((o) => (
+              {CADENCE_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>
                   {o.label}
                 </option>

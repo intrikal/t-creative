@@ -13,7 +13,7 @@
  *   serviceId      — service ID
  *   preferredDate  — formatted date string
  *   notes          — optional
- *   preferredCadence — optional
+ *   recurrenceRule  — optional RRULE string (e.g. "FREQ=WEEKLY;INTERVAL=3")
  *   referencePhotoUrls — optional string[]
  *   idempotencyKey — client-generated UUID for Square payment dedup
  *
@@ -30,6 +30,7 @@ import { logAction } from "@/lib/audit";
 import { trackEvent } from "@/lib/posthog";
 import { RESEND_FROM, isResendConfigured } from "@/lib/resend";
 import { isSquareConfigured, createSquarePayment } from "@/lib/square";
+import { rruleToCadenceLabel } from "@/lib/cadence";
 import { verifyTurnstileToken } from "@/lib/turnstile";
 import { createClient } from "@/utils/supabase/server";
 
@@ -50,7 +51,7 @@ export async function POST(request: Request) {
     serviceId,
     preferredDate,
     notes,
-    preferredCadence,
+    recurrenceRule,
     referencePhotoUrls,
     idempotencyKey,
     selectedAddOns,
@@ -64,7 +65,7 @@ export async function POST(request: Request) {
     serviceId: number;
     preferredDate: string;
     notes?: string;
-    preferredCadence?: string;
+    recurrenceRule?: string;
     referencePhotoUrls?: string[];
     idempotencyKey: string;
     name?: string;
@@ -119,9 +120,10 @@ export async function POST(request: Request) {
 
   // ── Create pending booking ──
   const clientId = user?.id;
+  const cadenceLabel = recurrenceRule ? rruleToCadenceLabel(recurrenceRule) : null;
   const clientNotes = [
     preferredDate ? `Preferred dates: ${preferredDate}` : null,
-    preferredCadence ? `Preferred cadence: ${preferredCadence}` : null,
+    cadenceLabel ? `Recurring: ${cadenceLabel}` : null,
     notes?.trim() || null,
     isGuest
       ? `Guest booking: ${guestName!.trim()} (${guestEmail!.trim()}${guestPhone?.trim() ? `, ${guestPhone.trim()}` : ""})`
@@ -160,6 +162,7 @@ export async function POST(request: Request) {
         startsAt: new Date(), // Placeholder — admin sets actual time on confirmation
         durationMinutes: service.durationMinutes ?? 60,
         totalInCents: service.priceInCents ?? 0,
+        recurrenceRule: recurrenceRule || null,
         clientNotes,
       })
       .returning({ id: bookings.id });
@@ -285,7 +288,7 @@ export async function POST(request: Request) {
               <tr><td style="padding:8px 0;color:#78716c;width:120px">Service</td><td style="padding:8px 0;font-weight:600;color:#1c1917">${service.name} (${price})</td></tr>
               ${contactInfo}
               <tr><td style="padding:8px 0;color:#78716c">Preferred time</td><td style="padding:8px 0;color:#1c1917">${preferredDate}</td></tr>
-              ${preferredCadence ? `<tr><td style="padding:8px 0;color:#78716c">Repeat</td><td style="padding:8px 0;color:#1c1917">${preferredCadence}</td></tr>` : ""}
+              ${cadenceLabel ? `<tr><td style="padding:8px 0;color:#78716c">Repeat</td><td style="padding:8px 0;color:#1c1917">${cadenceLabel}</td></tr>` : ""}
               ${Array.isArray(selectedAddOns) && selectedAddOns.length > 0 ? `<tr><td style="padding:8px 0;color:#78716c">Add-ons</td><td style="padding:8px 0;color:#1c1917">${selectedAddOns.map((a: { name: string; priceInCents: number }) => `${a.name} (+$${(a.priceInCents / 100).toFixed(0)})`).join(", ")}</td></tr>` : ""}
               ${notes?.trim() ? `<tr><td style="padding:8px 0;color:#78716c;vertical-align:top">Notes</td><td style="padding:8px 0;color:#1c1917">${notes.trim()}</td></tr>` : ""}
             </table>

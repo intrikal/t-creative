@@ -26,6 +26,7 @@ import {
 } from "@/db/schema";
 import { MessageNotification } from "@/emails/MessageNotification";
 import { trackEvent } from "@/lib/posthog";
+import { rruleToCadenceLabel } from "@/lib/cadence";
 import { sendEmail } from "@/lib/resend";
 import { createZohoDeal } from "@/lib/zoho";
 import { createClient } from "@/utils/supabase/server";
@@ -713,7 +714,7 @@ const createBookingRequestSchema = z.object({
   message: z.string(),
   preferredDates: z.string().optional(),
   referencePhotoUrls: z.array(z.string()).optional(),
-  preferredCadence: z.string().optional(),
+  recurrenceRule: z.string().optional(),
   selectedAddOns: z.array(addOnItemSchema).optional(),
 });
 
@@ -722,7 +723,7 @@ export async function createBookingRequest(input: {
   message: string;
   preferredDates?: string;
   referencePhotoUrls?: string[];
-  preferredCadence?: string;
+  recurrenceRule?: string;
   selectedAddOns?: { name: string; priceInCents: number }[];
 }): Promise<{ threadId: number; bookingId: number }> {
   createBookingRequestSchema.parse(input);
@@ -741,6 +742,7 @@ export async function createBookingRequest(input: {
   if (!service) throw new Error("Service not found");
 
   // Create a pending booking
+  const cadenceLabel = input.recurrenceRule ? rruleToCadenceLabel(input.recurrenceRule) : null;
   const [booking] = await db
     .insert(bookings)
     .values({
@@ -751,9 +753,10 @@ export async function createBookingRequest(input: {
       startsAt: new Date(), // Placeholder — admin will set actual time
       durationMinutes: service.durationMinutes ?? 60,
       totalInCents: service.priceInCents ?? 0,
+      recurrenceRule: input.recurrenceRule || null,
       clientNotes: [
         input.preferredDates ? `Preferred dates: ${input.preferredDates}` : null,
-        input.preferredCadence ? `Preferred cadence: ${input.preferredCadence}` : null,
+        cadenceLabel ? `Recurring: ${cadenceLabel}` : null,
         input.message || null,
       ]
         .filter(Boolean)
@@ -795,7 +798,7 @@ export async function createBookingRequest(input: {
     bodyParts.push(`Add-ons: ${addOnList}`);
   }
   if (input.preferredDates) bodyParts.push(`Preferred dates: ${input.preferredDates}`);
-  if (input.preferredCadence) bodyParts.push(`Repeat: ${input.preferredCadence}`);
+  if (cadenceLabel) bodyParts.push(`Repeat: ${cadenceLabel}`);
   if (input.message) bodyParts.push(input.message);
   const body = bodyParts.join("\n\n");
 

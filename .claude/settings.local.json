@@ -3,7 +3,8 @@
     "allow": [
       "Bash(git -C \"/c/Users/lacod/Desktop/t-creative\" log --oneline --all --grep=\"revenue\\\\|goal\" -i)",
       "Bash(git -C \"/c/Users/lacod/Desktop/t-creative\" show 18c0e9b --stat)",
-      "Bash(grep -r \"birthday.*perk\\\\|BIRTHDAY.*PERK\\\\|TODO.*birthday\" /c/Users/lacod/Desktop/t-creative --include=*.ts --include=*.tsx --include=*.md)"
+      "Bash(grep -r \"birthday.*perk\\\\|BIRTHDAY.*PERK\\\\|TODO.*birthday\" /c/Users/lacod/Desktop/t-creative --include=*.ts --include=*.tsx --include=*.md)",
+      "Bash(grep -rn \"interface.*Recurring\\\\|type.*Recurring\" /c/Users/lacod/Desktop/t-creative --include=*.ts --include=*.tsx)"
     ]
   }
 }

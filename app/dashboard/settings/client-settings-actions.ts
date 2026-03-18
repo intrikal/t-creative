@@ -21,22 +21,10 @@ import {
 import { logAction } from "@/lib/audit";
 import { trackEvent } from "@/lib/posthog";
 import { syncCampaignsSubscriber, unsubscribeFromCampaigns } from "@/lib/zoho-campaigns";
+import { getUser } from "@/lib/auth";
 import { createClient } from "@/utils/supabase/server";
 
 const PATH = "/dashboard/settings";
-
-/* ------------------------------------------------------------------ */
-/*  Auth guard                                                         */
-/* ------------------------------------------------------------------ */
-
-async function getUser() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
-  return user;
-}
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */

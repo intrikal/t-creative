@@ -16,20 +16,7 @@ import {
   formSubmissions,
   clientForms,
 } from "@/db/schema";
-import { createClient as createSupabaseClient } from "@/utils/supabase/server";
-
-/* ------------------------------------------------------------------ */
-/*  Auth guard                                                         */
-/* ------------------------------------------------------------------ */
-
-async function getUser() {
-  const supabase = await createSupabaseClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
-  return user;
-}
+import { getUser } from "@/lib/auth";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */

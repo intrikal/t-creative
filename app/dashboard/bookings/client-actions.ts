@@ -12,22 +12,9 @@ import { calendarUrl } from "@/lib/calendar-token";
 import { trackEvent } from "@/lib/posthog";
 import { notifyWaitlistForCancelledBooking } from "@/lib/waitlist-notify";
 import { updateZohoDeal, logZohoNote } from "@/lib/zoho";
-import { createClient } from "@/utils/supabase/server";
+import { getUser } from "@/lib/auth";
 
 const PATH = "/dashboard/bookings";
-
-/* ------------------------------------------------------------------ */
-/*  Auth guard                                                         */
-/* ------------------------------------------------------------------ */
-
-async function getUser() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
-  return user;
-}
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */

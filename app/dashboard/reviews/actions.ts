@@ -18,19 +18,13 @@ import { eq, desc, sql, and } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import { reviews, profiles, bookings } from "@/db/schema";
-import { requireAdmin, getCurrentUser } from "@/lib/auth";
+import { getUser, getCurrentUser } from "@/lib/auth";
 
 async function getAssistantUser() {
   const user = await getCurrentUser();
   if (!user) throw new Error("Not authenticated");
   return user;
 }
-
-/* ------------------------------------------------------------------ */
-/*  Auth guard                                                         */
-/* ------------------------------------------------------------------ */
-
-const getUser = requireAdmin;
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */

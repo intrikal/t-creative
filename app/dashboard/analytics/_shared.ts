@@ -3,9 +3,9 @@
  *
  * Auth guard, range selector, and category labels used across all analytics modules.
  */
-import { requireAdmin } from "@/lib/auth";
+import { getUser } from "@/lib/auth";
 
-export const getUser = requireAdmin;
+export { getUser };
 
 export type Range = "7d" | "30d" | "90d" | "12m";
 

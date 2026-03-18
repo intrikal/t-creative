@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useOptimistic, useTransition } from "react";
+import { useState, useOptimistic, useTransition, useMemo } from "react";
 import dynamic from "next/dynamic";
 import { Search, Plus } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -28,6 +28,7 @@ import {
 import { WaitlistTab } from "./components/WaitlistTab";
 import type { MissingWaiver } from "./waiver-actions";
 import { checkBookingWaivers } from "./waiver-actions";
+import { StaffBookingsCal } from "./components/StaffBookingsCal";
 
 const PaymentChoiceDialog = dynamic(
   () => import("@/components/booking/PaymentChoiceDialog").then((m) => m.PaymentChoiceDialog),
@@ -117,8 +118,19 @@ export function BookingsPage({
   const [serviceNotesTarget, setServiceNotesTarget] = useState<Booking | null>(null);
   const [waiverGateTarget, setWaiverGateTarget] = useState<Booking | null>(null);
   const [missingWaivers, setMissingWaivers] = useState<MissingWaiver[]>([]);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+
+  const calEntries = useMemo(
+    () =>
+      bookings.map((b) => ({
+        dateISO: b.startsAtIso.slice(0, 10),
+        category: b.category,
+      })),
+    [bookings],
+  );
 
   const filtered = bookings.filter((b) => {
+    if (selectedDate && b.startsAtIso.slice(0, 10) !== selectedDate) return false;
     const matchSearch =
       !search ||
       b.client.toLowerCase().includes(search.toLowerCase()) ||
@@ -339,6 +351,9 @@ export function BookingsPage({
           </CardContent>
         </Card>
       </div>
+
+      {/* Calendar */}
+      <StaffBookingsCal entries={calEntries} selected={selectedDate} onSelect={setSelectedDate} />
 
       {/* Tab bar */}
       <div className="flex border-b border-border">

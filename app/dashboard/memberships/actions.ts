@@ -12,7 +12,7 @@ import {
   membershipStatusEnum,
   profiles,
 } from "@/db/schema";
-import { requireAdmin } from "@/lib/auth";
+import { getUser, requireAdmin } from "@/lib/auth";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */

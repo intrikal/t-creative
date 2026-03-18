@@ -12,20 +12,7 @@ import * as Sentry from "@sentry/nextjs";
 import { eq, and, gte, lte, asc, count, not, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { bookings, services, profiles, events, eventGuests } from "@/db/schema";
-import { createClient } from "@/utils/supabase/server";
-
-/* ------------------------------------------------------------------ */
-/*  Auth                                                               */
-/* ------------------------------------------------------------------ */
-
-async function getUser() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
-  return user;
-}
+import { getUser } from "@/lib/auth";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */

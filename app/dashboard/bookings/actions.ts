@@ -68,7 +68,9 @@ import { sendSms } from "@/lib/twilio";
 import { notifyWaitlistForCancelledBooking } from "@/lib/waitlist-notify";
 import { createZohoDeal, updateZohoDeal } from "@/lib/zoho";
 import { createZohoBooksInvoice } from "@/lib/zoho-books";
-import { requireAdmin } from "@/lib/auth";
+import { generateWaiverToken } from "@/lib/waiver-token";
+import { getUser } from "@/lib/auth";
+import { createClient } from "@/utils/supabase/server";
 
 export type BookingStatus =
   | "completed"
@@ -111,8 +113,6 @@ export type BookingInput = {
   recurrenceRule?: string;
   subscriptionId?: number;
 };
-
-const getUser = requireAdmin;
 
 /**
  * Checks whether a staff member already has a confirmed/in_progress booking

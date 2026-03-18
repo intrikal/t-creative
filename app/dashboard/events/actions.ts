@@ -9,15 +9,9 @@ import { events, eventGuests, eventStaff, eventVenues, profiles } from "@/db/sch
 import { EventInviteEmail } from "@/emails/EventInviteEmail";
 import { trackEvent } from "@/lib/posthog";
 import { sendEmail } from "@/lib/resend";
-import { requireAdmin } from "@/lib/auth";
+import { getUser } from "@/lib/auth";
 
 const PATH = "/dashboard/events";
-
-/* ------------------------------------------------------------------ */
-/*  Auth guard                                                         */
-/* ------------------------------------------------------------------ */
-
-const getUser = requireAdmin;
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */

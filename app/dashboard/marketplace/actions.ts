@@ -19,15 +19,9 @@ import { products, orders, supplies, profiles } from "@/db/schema";
 import { CommissionQuote } from "@/emails/CommissionQuote";
 import { OrderStatusUpdate } from "@/emails/OrderStatusUpdate";
 import { sendEmail, getEmailRecipient } from "@/lib/resend";
-import { requireAdmin } from "@/lib/auth";
+import { getUser } from "@/lib/auth";
 
 const PATH = "/dashboard/marketplace";
-
-/* ------------------------------------------------------------------ */
-/*  Auth guard                                                         */
-/* ------------------------------------------------------------------ */
-
-const getUser = requireAdmin;
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */

@@ -5,20 +5,7 @@ import { eq, desc, and, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
 import { invoices, payments, bookings, services, profiles } from "@/db/schema";
-import { createClient } from "@/utils/supabase/server";
-
-/* ------------------------------------------------------------------ */
-/*  Auth guard                                                         */
-/* ------------------------------------------------------------------ */
-
-async function getUser() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
-  return user;
-}
+import { getUser } from "@/lib/auth";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */

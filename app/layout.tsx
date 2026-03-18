@@ -16,6 +16,7 @@ import { ConditionalNavbar } from "@/components/ConditionalNavbar";
 import { NavbarWrapper } from "@/components/NavbarWrapper";
 import { PostHogProvider } from "@/components/providers/PostHogProvider";
 import { ServiceWorkerRegistration } from "@/components/providers/ServiceWorkerRegistration";
+import { WebVitals } from "@/components/providers/WebVitals";
 import { SmoothScroll } from "@/components/providers/SmoothScroll";
 import { GrainOverlay } from "@/components/ui/GrainOverlay";
 import { LoadingScreen } from "@/components/ui/LoadingScreen";
@@ -122,6 +123,7 @@ export default function RootLayout({
           Skip to main content
         </a>
         <ServiceWorkerRegistration />
+        <WebVitals />
         <PostHogProvider>
           <LoadingScreen />
           <GrainOverlay />

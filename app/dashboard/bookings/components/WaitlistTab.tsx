@@ -14,7 +14,7 @@ import {
   removeFromWaitlistById,
 } from "../actions";
 import type { WaitlistRow, WaitlistInput } from "../actions";
-import { categoryDot, type Booking, type ServiceCategory } from "../BookingsPage";
+import { categoryDot, type Booking, type ServiceCategory } from "./helpers";
 
 /* ------------------------------------------------------------------ */
 /*  Status badge config                                                */

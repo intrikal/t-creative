@@ -16,7 +16,7 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { statusConfig, categoryDot, type Booking, type BookingStatus } from "../BookingsPage";
+import { statusConfig, categoryDot, type Booking, type BookingStatus } from "./helpers";
 
 export function BookingRow({
   booking,

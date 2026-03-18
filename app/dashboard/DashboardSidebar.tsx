@@ -238,6 +238,7 @@ function ProfileMenu({
             <Link
               key={href}
               href={href}
+              prefetch={false}
               onClick={() => setOpen(false)}
               className={cn(
                 "flex items-center gap-2.5 px-3 py-2 text-[13px] font-medium transition-colors",
@@ -408,6 +409,7 @@ function MobileDrawer({
                   <Link
                     key={href}
                     href={href}
+                    prefetch={false}
                     aria-current={isActive(href) ? "page" : undefined}
                     className={cn(
                       "flex items-center gap-2.5 px-2 py-2 rounded-md text-[13px] font-medium transition-colors",
@@ -501,6 +503,7 @@ export function DashboardSidebar({
                   <Link
                     key={href}
                     href={href}
+                    prefetch={false}
                     aria-current={isActive(href) ? "page" : undefined}
                     className={cn(
                       "flex items-center gap-2.5 px-2 py-1.5 rounded-md text-[13px] font-medium transition-colors",
@@ -552,6 +555,7 @@ export function DashboardSidebar({
           <Link
             key={href}
             href={href}
+            prefetch={false}
             aria-current={isActive(href) ? "page" : undefined}
             className={cn(
               "flex-1 flex flex-col items-center gap-1 py-2.5 text-[10px] font-medium transition-colors",

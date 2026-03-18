@@ -4,6 +4,8 @@
 import type { Metadata } from "next";
 import { ContactPage } from "./ContactPage";
 
+export const revalidate = 86400;
+
 export const metadata: Metadata = {
   title: "Contact | T Creative Studio",
   description:

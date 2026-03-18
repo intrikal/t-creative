@@ -44,7 +44,7 @@ export function StaffPerformanceSection({ staff }: { staff: StaffPerformanceItem
                   <p className="text-[11px] text-muted truncate">{s.role}</p>
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-2 text-center">
+              <div className="grid grid-cols-4 gap-2 text-center">
                 <div>
                   <p className="text-base font-semibold text-foreground tabular-nums">
                     {s.bookings}
@@ -62,6 +62,21 @@ export function StaffPerformanceSection({ staff }: { staff: StaffPerformanceItem
                     ${s.avgTicket}
                   </p>
                   <p className="text-[9px] text-muted uppercase tracking-wide">Avg Ticket</p>
+                </div>
+                <div>
+                  <p
+                    className={cn(
+                      "text-base font-semibold tabular-nums",
+                      s.serviceRecordCompletion >= 80
+                        ? "text-[#4e6b51]"
+                        : s.serviceRecordCompletion >= 50
+                          ? "text-[#d4a574]"
+                          : "text-destructive/80",
+                    )}
+                  >
+                    {s.serviceRecordCompletion}%
+                  </p>
+                  <p className="text-[9px] text-muted uppercase tracking-wide">Records</p>
                 </div>
               </div>
               <div>

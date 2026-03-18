@@ -7,6 +7,8 @@
  */
 import { eq, and } from "drizzle-orm";
 import type { Metadata } from "next";
+
+export const revalidate = 86400;
 import { db } from "@/db";
 import { legalDocuments } from "@/db/schema";
 import { TermsPage } from "./TermsPage";

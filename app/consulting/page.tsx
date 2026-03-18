@@ -4,6 +4,8 @@
 import type { Metadata } from "next";
 import { ConsultingPage } from "./ConsultingPage";
 
+export const revalidate = 86400;
+
 const BASE_URL = "https://tcreativestudio.com";
 
 const consultingJsonLd = {

@@ -214,6 +214,7 @@ export default async function Page() {
       lowStockSuppliesRow,
       recentClientsRaw,
       teamShiftsRaw,
+      clientCategoriesRaw,
     ] = await Promise.all([
       db
         .select({ total: sql<number>`coalesce(sum(${payments.amountInCents}), 0)` })
@@ -412,19 +413,19 @@ export default async function Page() {
         .where(and(gte(shifts.startsAt, todayStart), lte(shifts.startsAt, todayEnd)))
         .orderBy(asc(shifts.startsAt))
         .limit(8),
+      // Recent client booking categories (for the last 5 clients)
+      db
+        .select({ clientId: bookings.clientId, category: services.category })
+        .from(bookings)
+        .innerJoin(services, eq(bookings.serviceId, services.id))
+        .where(
+          and(
+            eq(bookings.status, "completed"),
+            gte(bookings.startsAt, monthStart),
+          ),
+        )
+        .orderBy(desc(bookings.startsAt)),
     ]);
-
-    // ── Fetch recent client booking categories ──────────────────────
-    const clientIds = recentClientsRaw.map((c) => c.id);
-    const clientCategoriesRaw =
-      clientIds.length > 0
-        ? await db
-            .select({ clientId: bookings.clientId, category: services.category })
-            .from(bookings)
-            .innerJoin(services, eq(bookings.serviceId, services.id))
-            .where(and(inArray(bookings.clientId, clientIds), eq(bookings.status, "completed")))
-            .orderBy(desc(bookings.startsAt))
-        : [];
 
     // ── Transform data ──────────────────────────────────────────────
 

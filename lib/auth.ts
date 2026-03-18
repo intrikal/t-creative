@@ -70,6 +70,33 @@ export const requireAdmin = cache(async () => {
 });
 
 /**
+ * Require the current user to be authenticated.
+ * Throws "Not authenticated" otherwise.
+ * Returns the Supabase auth user object on success.
+ *
+ * Uses `getCurrentUser` under the hood so the Supabase call is
+ * deduplicated when both are called in the same render.
+ */
+export async function getUser() {
+  const cu = await getCurrentUser();
+  if (!cu) throw new Error("Not authenticated");
+  return { id: cu.id, email: cu.email };
+}
+
+/**
+ * Require the current user to be authenticated AND have role "admin" or "assistant".
+ * Throws "Not authenticated" (→ 401) or "Forbidden" (→ 403) otherwise.
+ * Returns the Supabase auth user object on success.
+ */
+export async function requireStaff() {
+  const cu = await getCurrentUser();
+  if (!cu) throw new Error("Not authenticated");
+  if (!cu.profile || (cu.profile.role !== "admin" && cu.profile.role !== "assistant"))
+    throw new Error("Forbidden");
+  return { id: cu.id, email: cu.email };
+}
+
+/**
  * Check if a profile has completed onboarding (firstName is filled).
  */
 export function isOnboardingComplete(profile: typeof profiles.$inferSelect | null): boolean {

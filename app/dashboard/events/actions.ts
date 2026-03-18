@@ -9,13 +9,9 @@ import { events, eventGuests, eventStaff, eventVenues, profiles } from "@/db/sch
 import { EventInviteEmail } from "@/emails/EventInviteEmail";
 import { trackEvent } from "@/lib/posthog";
 import { sendEmail } from "@/lib/resend";
-import { requireAdmin } from "@/lib/auth";
+import { requireAdmin, getUser as requireAuth } from "@/lib/auth";
 
 const PATH = "/dashboard/events";
-
-/* ------------------------------------------------------------------ */
-/*  Auth guard                                                         */
-/* ------------------------------------------------------------------ */
 
 const getUser = requireAdmin;
 
@@ -383,7 +379,7 @@ export async function getEvents(): Promise<EventRow[]> {
 
 export async function getClientEvents(): Promise<EventRow[]> {
   try {
-    const user = await getUser();
+    const user = await requireAuth();
 
     const rows = await db
       .select({

@@ -168,40 +168,37 @@ export async function getPrograms(): Promise<ProgramRow[]> {
   try {
     await getUser();
 
-    const rows = await db
-      .select({
-        id: trainingPrograms.id,
-        name: trainingPrograms.name,
-        category: trainingPrograms.category,
-        priceInCents: trainingPrograms.priceInCents,
-        description: trainingPrograms.description,
-        isActive: trainingPrograms.isActive,
-        maxStudents: trainingPrograms.maxStudents,
-      })
-      .from(trainingPrograms)
-      .orderBy(asc(trainingPrograms.sortOrder), asc(trainingPrograms.name));
-
-    // Session counts per program
-    const sessionCounts = await db
-      .select({
-        programId: trainingSessions.programId,
-        count: sql<number>`count(*)`,
-      })
-      .from(trainingSessions)
-      .groupBy(trainingSessions.programId);
+    const [rows, sessionCounts, waitlistRows] = await Promise.all([
+      db
+        .select({
+          id: trainingPrograms.id,
+          name: trainingPrograms.name,
+          category: trainingPrograms.category,
+          priceInCents: trainingPrograms.priceInCents,
+          description: trainingPrograms.description,
+          isActive: trainingPrograms.isActive,
+          maxStudents: trainingPrograms.maxStudents,
+        })
+        .from(trainingPrograms)
+        .orderBy(asc(trainingPrograms.sortOrder), asc(trainingPrograms.name)),
+      db
+        .select({
+          programId: trainingSessions.programId,
+          count: sql<number>`count(*)`,
+        })
+        .from(trainingSessions)
+        .groupBy(trainingSessions.programId),
+      db
+        .select({
+          programId: trainingSessions.programId,
+          anyOpen: sql<boolean>`bool_or(${trainingSessions.isWaitlistOpen})`,
+        })
+        .from(trainingSessions)
+        .where(eq(trainingSessions.status, "scheduled"))
+        .groupBy(trainingSessions.programId),
+    ]);
 
     const sessionCountMap = new Map(sessionCounts.map((r) => [r.programId, Number(r.count)]));
-
-    // Waitlist status — true if any scheduled session has isWaitlistOpen
-    const waitlistRows = await db
-      .select({
-        programId: trainingSessions.programId,
-        anyOpen: sql<boolean>`bool_or(${trainingSessions.isWaitlistOpen})`,
-      })
-      .from(trainingSessions)
-      .where(eq(trainingSessions.status, "scheduled"))
-      .groupBy(trainingSessions.programId);
-
     const waitlistMap = new Map(waitlistRows.map((r) => [r.programId, r.anyOpen]));
 
     return rows.map((r) => ({
@@ -225,68 +222,65 @@ export async function getStudents(): Promise<StudentRow[]> {
   try {
     await getUser();
 
-    // Enrollments + profiles + programs
-    const rows = await db
-      .select({
-        enrollmentId: enrollments.id,
-        firstName: profiles.firstName,
-        lastName: profiles.lastName,
-        programId: enrollments.programId,
-        programCategory: trainingPrograms.category,
-        programPriceInCents: trainingPrograms.priceInCents,
-        enrollmentStatus: enrollments.status,
-        enrolledAt: enrollments.enrolledAt,
-        sessionsCompleted: enrollments.sessionsCompleted,
-        amountPaidInCents: enrollments.amountPaidInCents,
-      })
-      .from(enrollments)
-      .innerJoin(profiles, eq(enrollments.clientId, profiles.id))
-      .innerJoin(trainingPrograms, eq(enrollments.programId, trainingPrograms.id))
-      .orderBy(desc(enrollments.enrolledAt));
-
-    // Session counts per program
-    const sessionCounts = await db
-      .select({
-        programId: trainingSessions.programId,
-        count: sql<number>`count(*)`,
-      })
-      .from(trainingSessions)
-      .groupBy(trainingSessions.programId);
+    const [rows, sessionCounts, certs, allSessions, attendanceRows] = await Promise.all([
+      // Enrollments + profiles + programs
+      db
+        .select({
+          enrollmentId: enrollments.id,
+          firstName: profiles.firstName,
+          lastName: profiles.lastName,
+          programId: enrollments.programId,
+          programCategory: trainingPrograms.category,
+          programPriceInCents: trainingPrograms.priceInCents,
+          enrollmentStatus: enrollments.status,
+          enrolledAt: enrollments.enrolledAt,
+          sessionsCompleted: enrollments.sessionsCompleted,
+          amountPaidInCents: enrollments.amountPaidInCents,
+        })
+        .from(enrollments)
+        .innerJoin(profiles, eq(enrollments.clientId, profiles.id))
+        .innerJoin(trainingPrograms, eq(enrollments.programId, trainingPrograms.id))
+        .orderBy(desc(enrollments.enrolledAt)),
+      // Session counts per program
+      db
+        .select({
+          programId: trainingSessions.programId,
+          count: sql<number>`count(*)`,
+        })
+        .from(trainingSessions)
+        .groupBy(trainingSessions.programId),
+      // Certificates
+      db
+        .select({
+          enrollmentId: certificates.enrollmentId,
+          issuedAt: certificates.issuedAt,
+        })
+        .from(certificates),
+      // All sessions (for session log)
+      db
+        .select({
+          id: trainingSessions.id,
+          programId: trainingSessions.programId,
+          status: trainingSessions.status,
+          startsAt: trainingSessions.startsAt,
+          notes: trainingSessions.notes,
+          location: trainingSessions.location,
+        })
+        .from(trainingSessions)
+        .orderBy(asc(trainingSessions.startsAt)),
+      // Attendance records
+      db
+        .select({
+          sessionId: sessionAttendance.sessionId,
+          enrollmentId: sessionAttendance.enrollmentId,
+          attended: sessionAttendance.attended,
+          notes: sessionAttendance.notes,
+        })
+        .from(sessionAttendance),
+    ]);
 
     const sessionCountMap = new Map(sessionCounts.map((r) => [r.programId, Number(r.count)]));
-
-    // Certificates
-    const certs = await db
-      .select({
-        enrollmentId: certificates.enrollmentId,
-        issuedAt: certificates.issuedAt,
-      })
-      .from(certificates);
-
     const certMap = new Map(certs.map((c) => [c.enrollmentId, c.issuedAt]));
-
-    // All sessions (for session log)
-    const allSessions = await db
-      .select({
-        id: trainingSessions.id,
-        programId: trainingSessions.programId,
-        status: trainingSessions.status,
-        startsAt: trainingSessions.startsAt,
-        notes: trainingSessions.notes,
-        location: trainingSessions.location,
-      })
-      .from(trainingSessions)
-      .orderBy(asc(trainingSessions.startsAt));
-
-    // Attendance records
-    const attendanceRows = await db
-      .select({
-        sessionId: sessionAttendance.sessionId,
-        enrollmentId: sessionAttendance.enrollmentId,
-        attended: sessionAttendance.attended,
-        notes: sessionAttendance.notes,
-      })
-      .from(sessionAttendance);
 
     // Build attendance lookup: enrollmentId → sessionId → record
     const attendanceMap = new Map<

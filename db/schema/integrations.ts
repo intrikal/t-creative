@@ -38,6 +38,7 @@ export const integrationProviderEnum = pgEnum("integration_provider", [
   "zoho",
   "resend",
   "twilio",
+  "instagram",
 ]);
 
 /** Direction of the sync operation. */

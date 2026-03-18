@@ -233,6 +233,9 @@ export { serviceRecords, serviceRecordsRelations } from "./service-records";
 /* Notifications */
 export { notifications, notificationsRelations } from "./notifications";
 
+/* Instagram feed cache */
+export { instagramPosts } from "./instagram";
+
 /* Audit log */
 export { auditLog } from "./audit-log";
 

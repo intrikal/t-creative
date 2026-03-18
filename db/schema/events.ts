@@ -238,6 +238,38 @@ export const events = pgTable(
 );
 
 /* ------------------------------------------------------------------ */
+/*  Event staff assignments (many-to-many)                             */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Join table linking multiple staff members to an event.
+ * Each row represents one staff assignment with an optional role
+ * label (e.g. "lead", "assistant") and free-text notes for workload
+ * splitting (e.g. "handles guests 1-5").
+ */
+export const eventStaff = pgTable(
+  "event_staff",
+  {
+    id: serial("id").primaryKey(),
+    eventId: integer("event_id")
+      .notNull()
+      .references(() => events.id, { onDelete: "cascade" }),
+    staffId: uuid("staff_id")
+      .notNull()
+      .references(() => profiles.id, { onDelete: "cascade" }),
+    /** Role on this event — e.g. "lead", "assistant", "setup". Free-text. */
+    role: varchar("role", { length: 100 }),
+    /** Per-assignment notes — e.g. "handles permanent jewelry station". */
+    notes: text("notes"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("event_staff_event_idx").on(t.eventId),
+    index("event_staff_staff_idx").on(t.staffId),
+  ],
+);
+
+/* ------------------------------------------------------------------ */
 /*  Event guests                                                       */
 /* ------------------------------------------------------------------ */
 
@@ -276,6 +308,18 @@ export const eventsRelations = relations(events, ({ one, many }) => ({
     references: [eventVenues.id],
   }),
   guests: many(eventGuests),
+  staffAssignments: many(eventStaff),
+}));
+
+export const eventStaffRelations = relations(eventStaff, ({ one }) => ({
+  event: one(events, {
+    fields: [eventStaff.eventId],
+    references: [events.id],
+  }),
+  staff: one(profiles, {
+    fields: [eventStaff.staffId],
+    references: [profiles.id],
+  }),
 }));
 
 export const eventGuestsRelations = relations(eventGuests, ({ one }) => ({

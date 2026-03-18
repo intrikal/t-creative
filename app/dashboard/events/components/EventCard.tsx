@@ -20,6 +20,7 @@ import {
   Mail,
   X,
   Building2,
+  UserCog,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -30,24 +31,33 @@ import { TYPE_CONFIG, statusConfig, formatDateRange, centsToDisplay } from "./he
 
 export function EventCard({
   event,
+  staffList = [],
   onEdit,
   onDelete,
   onAddGuest,
   onToggleGuestPaid,
   onRemoveGuest,
   onSendInvite,
+  onAssignStaff,
+  onRemoveStaff,
 }: {
   event: EventRow;
+  staffList?: { id: string; name: string }[];
   onEdit: () => void;
   onDelete: () => void;
   onAddGuest: (guest: { name: string; service: string; paid: boolean }) => void;
   onToggleGuestPaid: (guestId: number) => void;
   onRemoveGuest: (guestId: number) => void;
   onSendInvite: () => void;
+  onAssignStaff?: (data: { staffId: string; role?: string }) => void;
+  onRemoveStaff?: (assignmentId: number) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [guestDialogOpen, setGuestDialogOpen] = useState(false);
   const [isSendingInvite, startInviteTransition] = useTransition();
+  const [addingStaff, setAddingStaff] = useState(false);
+  const [newStaffId, setNewStaffId] = useState("");
+  const [newStaffRole, setNewStaffRole] = useState("");
   const type = TYPE_CONFIG[event.eventType];
   const status = statusConfig(event.status);
   const paidCount = event.guests.filter((g) => g.paid).length;
@@ -117,6 +127,12 @@ export function EventCard({
                     {displayLocation}
                   </span>
                 )}
+                {event.staffAssignments.length > 0 && (
+                  <span className="text-xs text-muted flex items-center gap-1">
+                    <UserCog className="w-3 h-3" />
+                    {event.staffAssignments.length} staff
+                  </span>
+                )}
                 <span className="text-xs text-muted flex items-center gap-1">
                   <Users className="w-3 h-3" />
                   {event.guests.length}
@@ -184,6 +200,99 @@ export function EventCard({
                   </div>
                 </div>
               )}
+
+              {/* Staff assignments */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-muted flex items-center gap-1">
+                    <UserCog className="w-3 h-3" />
+                    Staff ({event.staffAssignments.length})
+                  </p>
+                  {onAssignStaff && !addingStaff && (
+                    <button
+                      onClick={() => setAddingStaff(true)}
+                      className="flex items-center gap-1 text-xs text-accent hover:opacity-80 transition-opacity"
+                    >
+                      <UserPlus className="w-3 h-3" /> Assign staff
+                    </button>
+                  )}
+                </div>
+                {event.staffAssignments.length > 0 ? (
+                  <div className="space-y-1.5">
+                    {event.staffAssignments.map((s) => (
+                      <div key={s.id} className="flex items-center gap-3 text-xs">
+                        <span className="flex-1 text-foreground font-medium">{s.staffName}</span>
+                        {s.role && (
+                          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-foreground/8 text-muted border border-foreground/10">
+                            {s.role}
+                          </span>
+                        )}
+                        {s.notes && <span className="text-muted truncate max-w-[140px]">{s.notes}</span>}
+                        {onRemoveStaff && (
+                          <button
+                            onClick={() => onRemoveStaff(s.id)}
+                            className="text-muted hover:text-destructive transition-colors"
+                            aria-label="Remove staff"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted">No staff assigned yet.</p>
+                )}
+                {addingStaff && onAssignStaff && (
+                  <div className="flex items-end gap-2 mt-2">
+                    <select
+                      value={newStaffId}
+                      onChange={(e) => setNewStaffId(e.target.value)}
+                      className="flex-1 text-xs px-2 py-1.5 rounded-lg border border-border bg-background text-foreground"
+                    >
+                      <option value="">Select staff…</option>
+                      {staffList
+                        .filter((s) => !event.staffAssignments.some((a) => a.staffId === s.id))
+                        .map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {s.name}
+                          </option>
+                        ))}
+                    </select>
+                    <input
+                      type="text"
+                      value={newStaffRole}
+                      onChange={(e) => setNewStaffRole(e.target.value)}
+                      placeholder="Role (optional)"
+                      className="w-28 text-xs px-2 py-1.5 rounded-lg border border-border bg-background text-foreground placeholder:text-muted"
+                    />
+                    <button
+                      onClick={() => {
+                        if (newStaffId) {
+                          onAssignStaff({ staffId: newStaffId, role: newStaffRole || undefined });
+                          setNewStaffId("");
+                          setNewStaffRole("");
+                          setAddingStaff(false);
+                        }
+                      }}
+                      disabled={!newStaffId}
+                      className="text-xs px-2.5 py-1.5 rounded-lg bg-accent text-white hover:bg-accent/90 transition-colors disabled:opacity-50"
+                    >
+                      Add
+                    </button>
+                    <button
+                      onClick={() => {
+                        setAddingStaff(false);
+                        setNewStaffId("");
+                        setNewStaffRole("");
+                      }}
+                      className="text-xs text-muted hover:text-foreground px-1.5 py-1.5"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
+              </div>
 
               {/* Guest list */}
               <div>

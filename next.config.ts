@@ -3,7 +3,14 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   experimental: {
-    optimizePackageImports: ["recharts", "lucide-react", "framer-motion"],
+    optimizePackageImports: [
+      "recharts",
+      "lucide-react",
+      "framer-motion",
+      "date-fns",
+      "@react-email/components",
+      "react-icons",
+    ],
   },
   images: {
     remotePatterns: [

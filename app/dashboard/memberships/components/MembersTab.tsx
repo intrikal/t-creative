@@ -3,6 +3,7 @@
 /** MembersTab — member list with status filters, stats cards, and action menus. */
 
 import { useState, useTransition } from "react";
+import dynamic from "next/dynamic";
 import { PauseCircle, Plus, RefreshCw, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -19,7 +20,11 @@ import {
   STATUS_FILTERS,
   type StatusFilter,
 } from "./membership-helpers";
-import { CreateMembershipDialog } from "./CreateMembershipDialog";
+
+const CreateMembershipDialog = dynamic(
+  () => import("./CreateMembershipDialog").then((m) => m.CreateMembershipDialog),
+  { ssr: false },
+);
 
 export function MembersTab({
   memberships,

@@ -64,6 +64,7 @@ Full-stack operations platform for a multi-service creative studio in San Jose, 
 | ORM              | Drizzle ORM 0.45.1                                     |
 | Auth             | Supabase Auth (@supabase/ssr)                          |
 | Payments         | Square 44.0.0                                          |
+| Shipping         | EasyPost (@easypost/api)                               |
 | Email            | Resend 6.9.2 (React Email templates)                   |
 | SMS              | Twilio 5.13.0                                          |
 | CRM/Accounting   | Zoho CRM v7 (REST API via fetch)                       |
@@ -109,7 +110,7 @@ See [docs/INTEGRATION_SETUP.md](docs/INTEGRATION_SETUP.md) for step-by-step inst
 
 ## Documentation
 
-- [Integration Setup](docs/INTEGRATION_SETUP.md) -- Square, Supabase, Resend, Twilio, Zoho, PostHog, Sentry, Turnstile, Instagram, S3
+- [Integration Setup](docs/INTEGRATION_SETUP.md) -- Square, Supabase, Resend, Twilio, Zoho, PostHog, Sentry, Turnstile, Instagram, S3, EasyPost
 - [Deployment Checklist](docs/DEPLOYMENT_CHECKLIST.md)
 - [Engineering Standards](docs/ENGINEERING_STANDARDS.md)
 - [Recovery Runbook](docs/RECOVERY_RUNBOOK.md)

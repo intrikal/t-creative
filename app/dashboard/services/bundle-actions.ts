@@ -20,6 +20,7 @@
  */
 "use server";
 
+import * as Sentry from "@sentry/nextjs";
 import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
@@ -41,55 +42,80 @@ export type BundleInput = {
 const getUser = requireAdmin;
 
 export async function getBundles(): Promise<BundleRow[]> {
-  await getUser();
-  return db.select().from(serviceBundles).orderBy(serviceBundles.createdAt);
+  try {
+    await getUser();
+    return db.select().from(serviceBundles).orderBy(serviceBundles.createdAt);
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 export async function createBundle(input: BundleInput): Promise<BundleRow> {
-  const user = await getUser();
-  const [row] = await db
-    .insert(serviceBundles)
-    .values({
-      name: input.name,
-      description: input.description || null,
-      serviceNames: input.serviceNames,
-      originalPriceInCents: input.originalPriceInCents,
-      bundlePriceInCents: input.bundlePriceInCents,
-      isActive: input.isActive,
-    })
-    .returning();
-  trackEvent(user.id, "bundle_created", { name: input.name });
-  revalidatePath("/dashboard/services");
-  return row;
+  try {
+    const user = await getUser();
+    const [row] = await db
+      .insert(serviceBundles)
+      .values({
+        name: input.name,
+        description: input.description || null,
+        serviceNames: input.serviceNames,
+        originalPriceInCents: input.originalPriceInCents,
+        bundlePriceInCents: input.bundlePriceInCents,
+        isActive: input.isActive,
+      })
+      .returning();
+    trackEvent(user.id, "bundle_created", { name: input.name });
+    revalidatePath("/dashboard/services");
+    return row;
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 export async function updateBundle(id: number, input: BundleInput): Promise<BundleRow> {
-  await getUser();
-  const [row] = await db
-    .update(serviceBundles)
-    .set({
-      name: input.name,
-      description: input.description || null,
-      serviceNames: input.serviceNames,
-      originalPriceInCents: input.originalPriceInCents,
-      bundlePriceInCents: input.bundlePriceInCents,
-      isActive: input.isActive,
-    })
-    .where(eq(serviceBundles.id, id))
-    .returning();
-  revalidatePath("/dashboard/services");
-  return row;
+  try {
+    await getUser();
+    const [row] = await db
+      .update(serviceBundles)
+      .set({
+        name: input.name,
+        description: input.description || null,
+        serviceNames: input.serviceNames,
+        originalPriceInCents: input.originalPriceInCents,
+        bundlePriceInCents: input.bundlePriceInCents,
+        isActive: input.isActive,
+      })
+      .where(eq(serviceBundles.id, id))
+      .returning();
+    revalidatePath("/dashboard/services");
+    return row;
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 export async function deleteBundle(id: number): Promise<void> {
-  const user = await getUser();
-  await db.delete(serviceBundles).where(eq(serviceBundles.id, id));
-  trackEvent(user.id, "bundle_deleted", { bundleId: id });
-  revalidatePath("/dashboard/services");
+  try {
+    const user = await getUser();
+    await db.delete(serviceBundles).where(eq(serviceBundles.id, id));
+    trackEvent(user.id, "bundle_deleted", { bundleId: id });
+    revalidatePath("/dashboard/services");
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 export async function toggleBundleActive(id: number, isActive: boolean): Promise<void> {
-  await getUser();
-  await db.update(serviceBundles).set({ isActive }).where(eq(serviceBundles.id, id));
-  revalidatePath("/dashboard/services");
+  try {
+    await getUser();
+    await db.update(serviceBundles).set({ isActive }).where(eq(serviceBundles.id, id));
+    revalidatePath("/dashboard/services");
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }

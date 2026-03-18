@@ -41,6 +41,7 @@ import {
 import { LoyaltyPointsAwarded } from "@/emails/LoyaltyPointsAwarded";
 import { PaymentReceipt } from "@/emails/PaymentReceipt";
 import { logAction } from "@/lib/audit";
+import { buyShippingLabel, isEasyPostConfigured } from "@/lib/easypost";
 import { sendEmail } from "@/lib/resend";
 import { SQUARE_WEBHOOK_SIGNATURE_KEY, squareClient, isSquareConfigured } from "@/lib/square";
 import { recordZohoBooksPayment } from "@/lib/zoho-books";
@@ -240,6 +241,63 @@ async function handlePaymentCompleted(data: PaymentCreatedEventData | undefined)
   if (productOrder) {
     await db.update(orders).set({ status: "in_progress" }).where(eq(orders.id, productOrder.id));
 
+    // Buy shipping label for shipping orders
+    const isShippingOrder =
+      productOrder.fulfillmentMethod === "ship_standard" ||
+      productOrder.fulfillmentMethod === "ship_express";
+
+    if (isShippingOrder && productOrder.easypostShipmentId && isEasyPostConfigured()) {
+      try {
+        // Fetch the shipment to get the cheapest or selected rate
+        const { easypostClient } = await import("@/lib/easypost");
+        const shipment = await easypostClient!.Shipment.retrieve(productOrder.easypostShipmentId);
+        const rates = shipment.rates ?? [];
+
+        // Pick the rate — for express use the fastest, for standard use the cheapest
+        const sorted =
+          productOrder.fulfillmentMethod === "ship_express"
+            ? [...rates].sort((a, b) => (a.delivery_days ?? 99) - (b.delivery_days ?? 99))
+            : [...rates].sort((a, b) => parseFloat(a.rate) - parseFloat(b.rate));
+
+        const bestRate = sorted[0];
+        if (bestRate) {
+          const label = await buyShippingLabel(productOrder.easypostShipmentId, bestRate.id);
+
+          await db
+            .update(orders)
+            .set({
+              trackingNumber: label.trackingNumber,
+              trackingUrl: label.trackingUrl,
+              shippingLabelUrl: label.labelUrl,
+            })
+            .where(eq(orders.id, productOrder.id));
+
+          await db.insert(syncLog).values({
+            provider: "easypost",
+            direction: "outbound",
+            status: "success",
+            entityType: "shipping_label",
+            localId: String(productOrder.id),
+            remoteId: productOrder.easypostShipmentId,
+            message: `Purchased ${label.carrier} ${label.service} label for order #${productOrder.id}`,
+            payload: { trackingNumber: label.trackingNumber, carrier: label.carrier },
+          });
+        }
+      } catch (labelErr) {
+        Sentry.captureException(labelErr);
+        const msg = labelErr instanceof Error ? labelErr.message : "Failed to buy shipping label";
+        await db.insert(syncLog).values({
+          provider: "easypost",
+          direction: "outbound",
+          status: "failed",
+          entityType: "shipping_label",
+          localId: String(productOrder.id),
+          message: "Failed to purchase shipping label after payment",
+          errorMessage: msg,
+        });
+      }
+    }
+
     // Send payment receipt email (non-fatal)
     const [orderClient] = await db
       .select({ email: profiles.email, firstName: profiles.firstName })
@@ -364,11 +422,21 @@ async function findBookingByOrder(
  */
 async function findProductOrderBySquareOrder(
   squareOrderId: string | null,
-): Promise<{ id: number; clientId: string } | null> {
+): Promise<{
+  id: number;
+  clientId: string;
+  fulfillmentMethod: string | null;
+  easypostShipmentId: string | null;
+} | null> {
   if (!squareOrderId) return null;
 
   const [row] = await db
-    .select({ id: orders.id, clientId: orders.clientId })
+    .select({
+      id: orders.id,
+      clientId: orders.clientId,
+      fulfillmentMethod: orders.fulfillmentMethod,
+      easypostShipmentId: orders.easypostShipmentId,
+    })
     .from(orders)
     .where(eq(orders.squareOrderId, squareOrderId));
 

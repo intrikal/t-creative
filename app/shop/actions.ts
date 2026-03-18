@@ -19,10 +19,13 @@ import {
   giftCards,
   giftCardTransactions,
   wishlistItems,
+  type ShippingAddress,
 } from "@/db/schema";
 import { OrderConfirmation } from "@/emails/OrderConfirmation";
 import { trackEvent } from "@/lib/posthog";
 import { sendEmail } from "@/lib/resend";
+import { getShippingRates, isEasyPostConfigured } from "@/lib/easypost";
+import type { ShipmentResult } from "@/lib/easypost";
 import { isSquareConfigured, createSquareOrderPaymentLink } from "@/lib/square";
 import { createZohoDeal } from "@/lib/zoho";
 import { createZohoBooksInvoice } from "@/lib/zoho-books";
@@ -70,8 +73,16 @@ export type CartItemInput = {
 
 export type PlaceOrderInput = {
   items: CartItemInput[];
-  fulfillmentMethod: "pickup_cash" | "pickup_online";
+  fulfillmentMethod: "pickup_cash" | "pickup_online" | "ship_standard" | "ship_express";
   giftCardCode?: string;
+  /** Required when fulfillmentMethod is ship_standard or ship_express. */
+  shippingAddress?: ShippingAddress;
+  /** EasyPost shipment ID from the rate fetch step. */
+  easypostShipmentId?: string;
+  /** Selected EasyPost rate ID. */
+  easypostRateId?: string;
+  /** Shipping cost in cents (from the selected rate). */
+  shippingCostInCents?: number;
 };
 
 export type GiftCardLookupResult = {
@@ -95,8 +106,28 @@ export type ClientOrder = {
   quantity: number;
   finalInCents: number | null;
   fulfillmentMethod: string | null;
+  trackingNumber: string | null;
+  trackingUrl: string | null;
+  shippingCostInCents: number | null;
   createdAt: string;
 };
+
+/* ------------------------------------------------------------------ */
+/*  Shipping rates                                                     */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Fetches available shipping rates from EasyPost for the given address.
+ * Called at checkout when the customer selects a shipping fulfillment method.
+ */
+export async function fetchShippingRates(
+  address: ShippingAddress,
+): Promise<ShipmentResult> {
+  if (!isEasyPostConfigured()) {
+    throw new Error("Shipping is not available at this time");
+  }
+  return getShippingRates(address);
+}
 
 /* ------------------------------------------------------------------ */
 /*  Gift card lookup                                                   */
@@ -190,6 +221,16 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
     return { success: false, error: "Cart is empty" };
   }
 
+  const isShipping =
+    input.fulfillmentMethod === "ship_standard" || input.fulfillmentMethod === "ship_express";
+
+  if (isShipping) {
+    if (!input.shippingAddress) return { success: false, error: "Shipping address is required" };
+    if (!input.easypostShipmentId || !input.easypostRateId) {
+      return { success: false, error: "Shipping rate selection is required" };
+    }
+  }
+
   // Validate all products exist and are purchasable
   const productIds = input.items.map((i) => i.productId);
   const productRows = await db
@@ -253,6 +294,11 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
         quantity: item.quantity,
         finalInCents: itemTotal,
         fulfillmentMethod: input.fulfillmentMethod,
+        ...(isShipping && {
+          shippingAddress: input.shippingAddress,
+          easypostShipmentId: input.easypostShipmentId,
+          shippingCostInCents: input.shippingCostInCents ?? 0,
+        }),
       })
       .returning({ id: orders.id });
 
@@ -310,11 +356,21 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
     }
   }
 
+  // Add shipping cost to the total
+  const shippingInCents = isShipping ? (input.shippingCostInCents ?? 0) : 0;
+  if (shippingInCents > 0) {
+    lineItems.push({ name: "Shipping", quantity: 1, amountInCents: shippingInCents });
+    totalInCents += shippingInCents;
+  }
+
   const chargeInCents = totalInCents - giftCardDiscountInCents;
 
   // Generate Square payment link for online payments
   let paymentUrl: string | undefined;
-  if (input.fulfillmentMethod === "pickup_online" && isSquareConfigured() && chargeInCents > 0) {
+  const requiresOnlinePayment =
+    input.fulfillmentMethod === "pickup_online" || isShipping;
+
+  if (requiresOnlinePayment && isSquareConfigured() && chargeInCents > 0) {
     try {
       // Reduce the Square charge by appending a negative line item for the gift card.
       const squareLineItems =
@@ -447,6 +503,9 @@ export async function getClientOrders(): Promise<ClientOrder[]> {
       quantity: orders.quantity,
       finalInCents: orders.finalInCents,
       fulfillmentMethod: orders.fulfillmentMethod,
+      trackingNumber: orders.trackingNumber,
+      trackingUrl: orders.trackingUrl,
+      shippingCostInCents: orders.shippingCostInCents,
       createdAt: orders.createdAt,
     })
     .from(orders)

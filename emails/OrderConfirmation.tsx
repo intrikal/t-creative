@@ -9,7 +9,7 @@ export type OrderConfirmationProps = {
   orderNumber: string;
   items: { name: string; quantity: number; amountInCents: number }[];
   totalInCents: number;
-  fulfillmentMethod: "pickup_cash" | "pickup_online";
+  fulfillmentMethod: "pickup_cash" | "pickup_online" | "ship_standard" | "ship_express";
   paymentUrl?: string;
 };
 
@@ -33,7 +33,10 @@ export function OrderConfirmation({
       <PriceTable items={items} totalInCents={totalInCents} />
 
       <Section style={content}>
-        {fulfillmentMethod === "pickup_online" && paymentUrl ? (
+        {(fulfillmentMethod === "pickup_online" ||
+          fulfillmentMethod === "ship_standard" ||
+          fulfillmentMethod === "ship_express") &&
+        paymentUrl ? (
           <>
             <Text style={paragraph}>Complete your payment to finalize this order:</Text>
             <Button href={paymentUrl}>Pay Now</Button>
@@ -44,7 +47,11 @@ export function OrderConfirmation({
           </Text>
         )}
 
-        <Text style={muted}>We&apos;ll let you know when your order is ready for pickup.</Text>
+        <Text style={muted}>
+          {fulfillmentMethod === "ship_standard" || fulfillmentMethod === "ship_express"
+            ? "We\u2019ll send you a tracking number once your order ships."
+            : "We\u2019ll let you know when your order is ready for pickup."}
+        </Text>
       </Section>
     </Layout>
   );

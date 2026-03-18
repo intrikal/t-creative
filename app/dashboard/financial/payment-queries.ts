@@ -213,48 +213,46 @@ export async function getRevenueStats(): Promise<RevenueStats> {
   try {
     await getUser();
 
-    const [row] = await db
-      .select({
-        totalRevenue: sql<number>`coalesce(sum(${payments.amountInCents}), 0)`,
-        totalTips: sql<number>`coalesce(sum(${payments.tipInCents}), 0)`,
-        count: sql<number>`count(*)`,
-      })
-      .from(payments)
-      .where(eq(payments.status, "paid"));
-
-    const totalRevenue = Math.round(Number(row.totalRevenue) / 100);
-    const totalTips = Math.round(Number(row.totalTips) / 100);
-    const count = Number(row.count);
-
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const priorMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
 
-    const [currentMonth] = await db
-      .select({ total: sql<number>`coalesce(sum(${payments.amountInCents}), 0)` })
-      .from(payments)
-      .where(and(eq(payments.status, "paid"), gte(payments.paidAt, monthStart)));
-
-    const [priorMonth] = await db
-      .select({ total: sql<number>`coalesce(sum(${payments.amountInCents}), 0)` })
-      .from(payments)
-      .where(
-        and(
-          eq(payments.status, "paid"),
-          gte(payments.paidAt, priorMonthStart),
-          lt(payments.paidAt, monthStart),
+    const [[row], [currentMonth], [priorMonth], [taxRow]] = await Promise.all([
+      db
+        .select({
+          totalRevenue: sql<number>`coalesce(sum(${payments.amountInCents}), 0)`,
+          totalTips: sql<number>`coalesce(sum(${payments.tipInCents}), 0)`,
+          count: sql<number>`count(*)`,
+        })
+        .from(payments)
+        .where(eq(payments.status, "paid")),
+      db
+        .select({ total: sql<number>`coalesce(sum(${payments.amountInCents}), 0)` })
+        .from(payments)
+        .where(and(eq(payments.status, "paid"), gte(payments.paidAt, monthStart))),
+      db
+        .select({ total: sql<number>`coalesce(sum(${payments.amountInCents}), 0)` })
+        .from(payments)
+        .where(
+          and(
+            eq(payments.status, "paid"),
+            gte(payments.paidAt, priorMonthStart),
+            lt(payments.paidAt, monthStart),
+          ),
         ),
-      );
+      db
+        .select({ total: sql<number>`coalesce(sum(${payments.taxAmountInCents}), 0)` })
+        .from(payments)
+        .where(and(eq(payments.status, "paid"), gte(payments.paidAt, monthStart))),
+    ]);
 
+    const totalRevenue = Math.round(Number(row.totalRevenue) / 100);
+    const totalTips = Math.round(Number(row.totalTips) / 100);
+    const count = Number(row.count);
     const currentRev = Number(currentMonth.total);
     const priorRev = Number(priorMonth.total);
     const revenueVsPriorPeriodPct =
       priorRev === 0 ? null : Math.round(((currentRev - priorRev) / priorRev) * 100);
-
-    const [taxRow] = await db
-      .select({ total: sql<number>`coalesce(sum(${payments.taxAmountInCents}), 0)` })
-      .from(payments)
-      .where(and(eq(payments.status, "paid"), gte(payments.paidAt, monthStart)));
 
     const taxCollected = Math.round(Number(taxRow.total) / 100);
 
@@ -334,29 +332,25 @@ export async function getDepositStats(): Promise<DepositStats> {
   try {
     await getUser();
 
-    const [row] = await db
-      .select({
-        expectedCents: sql<number>`coalesce(sum(${services.depositInCents}), 0)`,
-        collectedCents: sql<number>`coalesce(sum(${bookings.depositPaidInCents}), 0)`,
-        needingDeposit: sql<number>`count(*)`,
-        withDeposit: sql<number>`count(*) filter (where ${bookings.depositPaidInCents} > 0)`,
-      })
-      .from(bookings)
-      .innerJoin(services, eq(bookings.serviceId, services.id))
-      .where(
-        and(
-          sql`${services.depositInCents} > 0`,
-          gte(bookings.startsAt, sql`now() - interval '90 days'`),
-        ),
-      );
-
-    const expected = Math.round(Number(row.expectedCents) / 100);
-    const collected = Math.round(Number(row.collectedCents) / 100);
-    const needing = Number(row.needingDeposit);
-    const withDep = Number(row.withDeposit);
-
     const depositClient = alias(profiles, "depositClient");
-    const pendingRows = await db
+
+    const [[row], pendingRows] = await Promise.all([
+      db
+        .select({
+          expectedCents: sql<number>`coalesce(sum(${services.depositInCents}), 0)`,
+          collectedCents: sql<number>`coalesce(sum(${bookings.depositPaidInCents}), 0)`,
+          needingDeposit: sql<number>`count(*)`,
+          withDeposit: sql<number>`count(*) filter (where ${bookings.depositPaidInCents} > 0)`,
+        })
+        .from(bookings)
+        .innerJoin(services, eq(bookings.serviceId, services.id))
+        .where(
+          and(
+            sql`${services.depositInCents} > 0`,
+            gte(bookings.startsAt, sql`now() - interval '90 days'`),
+          ),
+        ),
+      db
       .select({
         bookingId: bookings.id,
         clientFirstName: depositClient.firstName,
@@ -377,7 +371,13 @@ export async function getDepositStats(): Promise<DepositStats> {
         ),
       )
       .orderBy(bookings.startsAt)
-      .limit(10);
+      .limit(10),
+    ]);
+
+    const expected = Math.round(Number(row.expectedCents) / 100);
+    const collected = Math.round(Number(row.collectedCents) / 100);
+    const needing = Number(row.needingDeposit);
+    const withDep = Number(row.withDeposit);
 
     const pendingDeposits: PendingDeposit[] = pendingRows.map((r) => ({
       bookingId: r.bookingId,
@@ -497,12 +497,6 @@ export async function getTaxEstimate(): Promise<TaxEstimate> {
     await getUser();
 
     const { settings: settingsTable } = await import("@/db/schema");
-    const [settingsRow] = await db
-      .select()
-      .from(settingsTable)
-      .where(eq(settingsTable.key, "financial_config"));
-    const config = (settingsRow?.value as { estimatedTaxRate?: number }) ?? {};
-    const taxRate = config.estimatedTaxRate ?? 25;
 
     const now = new Date();
     const quarterMonth = Math.floor(now.getMonth() / 3) * 3;
@@ -510,15 +504,20 @@ export async function getTaxEstimate(): Promise<TaxEstimate> {
     const quarterLabels = ["Q1", "Q2", "Q3", "Q4"];
     const quarterLabel = `${quarterLabels[Math.floor(now.getMonth() / 3)]} ${now.getFullYear()}`;
 
-    const [revRow] = await db
-      .select({ total: sql<number>`coalesce(sum(${payments.amountInCents}), 0)` })
-      .from(payments)
-      .where(and(eq(payments.status, "paid"), gte(payments.paidAt, quarterStart)));
+    const [[settingsRow], [revRow], [expRow]] = await Promise.all([
+      db.select().from(settingsTable).where(eq(settingsTable.key, "financial_config")),
+      db
+        .select({ total: sql<number>`coalesce(sum(${payments.amountInCents}), 0)` })
+        .from(payments)
+        .where(and(eq(payments.status, "paid"), gte(payments.paidAt, quarterStart))),
+      db
+        .select({ total: sql<number>`coalesce(sum(${expenses.amountInCents}), 0)` })
+        .from(expenses)
+        .where(gte(expenses.expenseDate, quarterStart)),
+    ]);
 
-    const [expRow] = await db
-      .select({ total: sql<number>`coalesce(sum(${expenses.amountInCents}), 0)` })
-      .from(expenses)
-      .where(gte(expenses.expenseDate, quarterStart));
+    const config = (settingsRow?.value as { estimatedTaxRate?: number }) ?? {};
+    const taxRate = config.estimatedTaxRate ?? 25;
 
     const revenue = Math.round(Number(revRow.total) / 100);
     const expenseTotal = Math.round(Number(expRow.total) / 100);
@@ -543,27 +542,28 @@ export async function getProfitLoss(): Promise<ProfitLossRow[]> {
   try {
     await getUser();
 
-    const revenueRows = await db
-      .select({
-        month: sql<string>`to_char(coalesce(${payments.paidAt}, ${payments.createdAt}), 'YYYY-MM')`,
-        total: sql<number>`coalesce(sum(${payments.amountInCents}), 0)`,
-      })
-      .from(payments)
-      .where(
-        and(eq(payments.status, "paid"), gte(payments.paidAt, sql`now() - interval '6 months'`)),
-      )
-      .groupBy(sql`to_char(coalesce(${payments.paidAt}, ${payments.createdAt}), 'YYYY-MM')`)
-      .orderBy(sql`to_char(coalesce(${payments.paidAt}, ${payments.createdAt}), 'YYYY-MM')`);
-
-    const expenseRows = await db
-      .select({
-        month: sql<string>`to_char(${expenses.expenseDate}, 'YYYY-MM')`,
-        total: sql<number>`coalesce(sum(${expenses.amountInCents}), 0)`,
-      })
-      .from(expenses)
-      .where(gte(expenses.expenseDate, sql`now() - interval '6 months'`))
-      .groupBy(sql`to_char(${expenses.expenseDate}, 'YYYY-MM')`)
-      .orderBy(sql`to_char(${expenses.expenseDate}, 'YYYY-MM')`);
+    const [revenueRows, expenseRows] = await Promise.all([
+      db
+        .select({
+          month: sql<string>`to_char(coalesce(${payments.paidAt}, ${payments.createdAt}), 'YYYY-MM')`,
+          total: sql<number>`coalesce(sum(${payments.amountInCents}), 0)`,
+        })
+        .from(payments)
+        .where(
+          and(eq(payments.status, "paid"), gte(payments.paidAt, sql`now() - interval '6 months'`)),
+        )
+        .groupBy(sql`to_char(coalesce(${payments.paidAt}, ${payments.createdAt}), 'YYYY-MM')`)
+        .orderBy(sql`to_char(coalesce(${payments.paidAt}, ${payments.createdAt}), 'YYYY-MM')`),
+      db
+        .select({
+          month: sql<string>`to_char(${expenses.expenseDate}, 'YYYY-MM')`,
+          total: sql<number>`coalesce(sum(${expenses.amountInCents}), 0)`,
+        })
+        .from(expenses)
+        .where(gte(expenses.expenseDate, sql`now() - interval '6 months'`))
+        .groupBy(sql`to_char(${expenses.expenseDate}, 'YYYY-MM')`)
+        .orderBy(sql`to_char(${expenses.expenseDate}, 'YYYY-MM')`),
+    ]);
 
     const months = new Map<string, { revenue: number; expenses: number }>();
 

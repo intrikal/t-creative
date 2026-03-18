@@ -162,6 +162,9 @@ export const bookings = pgTable(
     index("bookings_square_order_idx").on(t.squareOrderId),
     index("bookings_gift_card_idx").on(t.giftCardId),
     index("bookings_promotion_idx").on(t.promotionId),
+    // Composite indexes for analytics queries that filter on both columns
+    index("bookings_starts_at_status_idx").on(t.startsAt, t.status),
+    index("bookings_client_starts_at_idx").on(t.clientId, t.startsAt),
   ],
 );
 

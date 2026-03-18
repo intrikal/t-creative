@@ -3,16 +3,9 @@
  *
  * Auth guard, range selector, and category labels used across all analytics modules.
  */
-import { createClient } from "@/utils/supabase/server";
+import { requireAdmin } from "@/lib/auth";
 
-export async function getUser() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
-  return user;
-}
+export const getUser = requireAdmin;
 
 export type Range = "7d" | "30d" | "90d" | "12m";
 

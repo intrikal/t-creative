@@ -251,38 +251,50 @@ export async function getRevenuePerHour(range: Range = "30d"): Promise<RevenuePe
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - daysBack);
 
-    // 1. Studio-wide business hours (staffId IS NULL)
-    const hours = await db
-      .select({
-        dayOfWeek: businessHours.dayOfWeek,
-        isOpen: businessHours.isOpen,
-        opensAt: businessHours.opensAt,
-        closesAt: businessHours.closesAt,
-      })
-      .from(businessHours)
-      .where(sql`${businessHours.staffId} is null`);
+    // 1–3 + 5. Business hours, lunch break, time-off, and revenue all in parallel
+    const [hours, [lunchRow], timeOffRows, revenueRows] = await Promise.all([
+      db
+        .select({
+          dayOfWeek: businessHours.dayOfWeek,
+          isOpen: businessHours.isOpen,
+          opensAt: businessHours.opensAt,
+          closesAt: businessHours.closesAt,
+        })
+        .from(businessHours)
+        .where(sql`${businessHours.staffId} is null`),
+      db
+        .select({ value: settings.value })
+        .from(settings)
+        .where(eq(settings.key, "lunch_break")),
+      db
+        .select({ startDate: timeOff.startDate, endDate: timeOff.endDate })
+        .from(timeOff)
+        .where(
+          and(
+            sql`${timeOff.staffId} is null`,
+            sql`${timeOff.endDate} >= ${thirtyDaysAgo.toISOString().slice(0, 10)}`,
+          ),
+        ),
+      db
+        .select({
+          isoDay: sql<number>`extract(isodow from ${payments.paidAt})`,
+          total: sql<number>`coalesce(sum(${payments.amountInCents}), 0)`,
+        })
+        .from(payments)
+        .where(
+          and(
+            eq(payments.status, "paid"),
+            gte(payments.paidAt, sql`now() - interval ${sql.raw(`'${rangeToInterval(range)}'`)}`),
+          ),
+        )
+        .groupBy(sql`extract(isodow from ${payments.paidAt})`),
+    ]);
 
-    // 2. Lunch break from settings
-    const [lunchRow] = await db
-      .select({ value: settings.value })
-      .from(settings)
-      .where(eq(settings.key, "lunch_break"));
     const lunch = lunchRow?.value as { enabled?: boolean; start?: string; end?: string } | null;
     const lunchHours =
       lunch?.enabled && lunch.start && lunch.end
         ? timeToHours(lunch.end) - timeToHours(lunch.start)
         : 0;
-
-    // 3. Time-off days (studio-wide) in the last 30 days
-    const timeOffRows = await db
-      .select({ startDate: timeOff.startDate, endDate: timeOff.endDate })
-      .from(timeOff)
-      .where(
-        and(
-          sql`${timeOff.staffId} is null`,
-          sql`${timeOff.endDate} >= ${thirtyDaysAgo.toISOString().slice(0, 10)}`,
-        ),
-      );
 
     // Build set of closed dates
     const closedDates = new Set<string>();
@@ -320,21 +332,7 @@ export async function getRevenuePerHour(range: Range = "30d"): Promise<RevenuePe
       openDayCount.set(isoDay, (openDayCount.get(isoDay) ?? 0) + 1);
     }
 
-    // 5. Revenue by ISO day-of-week (last 30 days, paid)
-    const revenueRows = await db
-      .select({
-        isoDay: sql<number>`extract(isodow from ${payments.paidAt})`,
-        total: sql<number>`coalesce(sum(${payments.amountInCents}), 0)`,
-      })
-      .from(payments)
-      .where(
-        and(
-          eq(payments.status, "paid"),
-          gte(payments.paidAt, sql`now() - interval ${sql.raw(`'${rangeToInterval(range)}'`)}`),
-        ),
-      )
-      .groupBy(sql`extract(isodow from ${payments.paidAt})`);
-
+    // 5. Assemble revenue map (fetched in parallel above)
     const revenueByDay = new Map(
       revenueRows.map((r) => [Number(r.isoDay), Math.round(Number(r.total) / 100)]),
     );

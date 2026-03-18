@@ -35,8 +35,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const user = await getCurrentUser();
 
   if (!user || user.profile?.role !== "admin") {
-    Sentry.captureMessage("[AdminLayout] access denied", "warning", {
-      extra: { userId: user?.id, role: user?.profile?.role ?? "no profile" },
+    Sentry.withScope((scope) => {
+      scope.setExtras({ userId: user?.id, role: user?.profile?.role ?? "no profile" });
+      Sentry.captureMessage("[AdminLayout] access denied", "warning");
     });
     redirect("/");
   }

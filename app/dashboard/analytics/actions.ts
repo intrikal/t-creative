@@ -7,8 +7,6 @@
  * @module analytics/actions
  * @see {@link ./AnalyticsPage.tsx} — client component consuming this data
  */
-"use server";
-
 // Shared types
 export type { Range } from "./_shared";
 

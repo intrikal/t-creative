@@ -7,8 +7,6 @@
  * @module financial/actions
  * @see {@link ./FinancialPage.tsx} — client component consuming this data
  */
-"use server";
-
 // Payment & revenue queries
 export type {
   PaymentRow,

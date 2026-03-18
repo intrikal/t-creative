@@ -26,6 +26,7 @@
  */
 "use server";
 
+import * as Sentry from "@sentry/nextjs";
 import { revalidatePath } from "next/cache";
 import { eq, desc } from "drizzle-orm";
 import { db } from "@/db";
@@ -47,63 +48,93 @@ export type FormInput = {
 const getUser = requireAdmin;
 
 export async function getForms(): Promise<FormRow[]> {
-  await getUser();
-  return db.select().from(clientForms).orderBy(clientForms.createdAt);
+  try {
+    await getUser();
+    return db.select().from(clientForms).orderBy(clientForms.createdAt);
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 export async function createForm(input: FormInput): Promise<FormRow> {
-  const user = await getUser();
-  const [row] = await db
-    .insert(clientForms)
-    .values({
-      name: input.name,
-      type: input.type,
-      description: input.description || null,
-      appliesTo: input.appliesTo,
-      required: input.required,
-      isActive: input.isActive,
-    })
-    .returning();
-  trackEvent(user.id, "form_created", { name: input.name, type: input.type });
-  revalidatePath("/dashboard/services");
-  return row;
+  try {
+    const user = await getUser();
+    const [row] = await db
+      .insert(clientForms)
+      .values({
+        name: input.name,
+        type: input.type,
+        description: input.description || null,
+        appliesTo: input.appliesTo,
+        required: input.required,
+        isActive: input.isActive,
+      })
+      .returning();
+    trackEvent(user.id, "form_created", { name: input.name, type: input.type });
+    revalidatePath("/dashboard/services");
+    return row;
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 export async function updateForm(id: number, input: FormInput): Promise<FormRow> {
-  await getUser();
-  const [row] = await db
-    .update(clientForms)
-    .set({
-      name: input.name,
-      type: input.type,
-      description: input.description || null,
-      appliesTo: input.appliesTo,
-      required: input.required,
-      isActive: input.isActive,
-    })
-    .where(eq(clientForms.id, id))
-    .returning();
-  revalidatePath("/dashboard/services");
-  return row;
+  try {
+    await getUser();
+    const [row] = await db
+      .update(clientForms)
+      .set({
+        name: input.name,
+        type: input.type,
+        description: input.description || null,
+        appliesTo: input.appliesTo,
+        required: input.required,
+        isActive: input.isActive,
+      })
+      .where(eq(clientForms.id, id))
+      .returning();
+    revalidatePath("/dashboard/services");
+    return row;
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 export async function deleteForm(id: number): Promise<void> {
-  const user = await getUser();
-  await db.delete(clientForms).where(eq(clientForms.id, id));
-  trackEvent(user.id, "form_deleted", { formId: id });
-  revalidatePath("/dashboard/services");
+  try {
+    const user = await getUser();
+    await db.delete(clientForms).where(eq(clientForms.id, id));
+    trackEvent(user.id, "form_deleted", { formId: id });
+    revalidatePath("/dashboard/services");
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 export async function toggleFormActive(id: number, isActive: boolean): Promise<void> {
-  await getUser();
-  await db.update(clientForms).set({ isActive }).where(eq(clientForms.id, id));
-  revalidatePath("/dashboard/services");
+  try {
+    await getUser();
+    await db.update(clientForms).set({ isActive }).where(eq(clientForms.id, id));
+    revalidatePath("/dashboard/services");
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 export async function updateFormFields(id: number, fields: unknown): Promise<void> {
-  await getUser();
-  await db.update(clientForms).set({ fields }).where(eq(clientForms.id, id));
-  revalidatePath("/dashboard/services");
+  try {
+    await getUser();
+    await db.update(clientForms).set({ fields }).where(eq(clientForms.id, id));
+    revalidatePath("/dashboard/services");
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -131,61 +162,76 @@ export type FormSubmissionInput = {
 };
 
 export async function getFormSubmissions(clientId: string): Promise<FormSubmissionRow[]> {
-  await getUser();
+  try {
+    await getUser();
 
-  const rows = await db
-    .select({
-      id: formSubmissions.id,
-      formId: formSubmissions.formId,
-      formName: clientForms.name,
-      formType: clientForms.type,
-      data: formSubmissions.data,
-      signatureUrl: formSubmissions.signatureUrl,
-      formVersion: formSubmissions.formVersion,
-      submittedAt: formSubmissions.submittedAt,
-    })
-    .from(formSubmissions)
-    .innerJoin(clientForms, eq(formSubmissions.formId, clientForms.id))
-    .where(eq(formSubmissions.clientId, clientId))
-    .orderBy(desc(formSubmissions.submittedAt));
+    const rows = await db
+      .select({
+        id: formSubmissions.id,
+        formId: formSubmissions.formId,
+        formName: clientForms.name,
+        formType: clientForms.type,
+        data: formSubmissions.data,
+        signatureUrl: formSubmissions.signatureUrl,
+        formVersion: formSubmissions.formVersion,
+        submittedAt: formSubmissions.submittedAt,
+      })
+      .from(formSubmissions)
+      .innerJoin(clientForms, eq(formSubmissions.formId, clientForms.id))
+      .where(eq(formSubmissions.clientId, clientId))
+      .orderBy(desc(formSubmissions.submittedAt));
 
-  return rows.map((r) => ({
-    ...r,
-    submittedAt: new Date(r.submittedAt).toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-    }),
-  }));
+    return rows.map((r) => ({
+      ...r,
+      submittedAt: new Date(r.submittedAt).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      }),
+    }));
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 export async function getActiveForms(): Promise<FormRow[]> {
-  await getUser();
-  return db
-    .select()
-    .from(clientForms)
-    .where(eq(clientForms.isActive, true))
-    .orderBy(clientForms.name);
+  try {
+    await getUser();
+    return db
+      .select()
+      .from(clientForms)
+      .where(eq(clientForms.isActive, true))
+      .orderBy(clientForms.name);
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 export async function submitForm(input: FormSubmissionInput): Promise<void> {
-  const user = await getUser();
+  try {
+    const user = await getUser();
 
-  await db.insert(formSubmissions).values({
-    clientId: input.clientId,
-    formId: input.formId,
-    data: input.data,
-    signatureUrl: input.signatureUrl ?? null,
-    formVersion: input.formVersion ?? null,
-    ipAddress: input.ipAddress ?? null,
-  });
+    await db.insert(formSubmissions).values({
+      clientId: input.clientId,
+      formId: input.formId,
+      data: input.data,
+      signatureUrl: input.signatureUrl ?? null,
+      formVersion: input.formVersion ?? null,
+      ipAddress: input.ipAddress ?? null,
+    });
 
-  trackEvent(user.id, "form_submitted", {
-    clientId: input.clientId,
-    formId: input.formId,
-  });
+    trackEvent(user.id, "form_submitted", {
+      clientId: input.clientId,
+      formId: input.formId,
+    });
 
-  revalidatePath("/dashboard/clients");
+    revalidatePath("/dashboard/clients");
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }

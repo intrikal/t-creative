@@ -22,6 +22,7 @@
  * and non-admin callers receive "Forbidden" (Next.js converts these to errors on the RSC boundary).
  */
 
+import * as Sentry from "@sentry/nextjs";
 import { revalidatePath } from "next/cache";
 import { eq, isNull } from "drizzle-orm";
 import { z } from "zod";
@@ -102,19 +103,24 @@ const DEFAULT_HOURS: HourInput[] = [
  * This eliminates a separate "seed" step during onboarding.
  */
 export async function getBusinessHours(): Promise<BusinessHourRow[]> {
-  await getUser();
+  try {
+    await getUser();
 
-  const rows = await db.select().from(businessHours).where(isNull(businessHours.staffId));
+    const rows = await db.select().from(businessHours).where(isNull(businessHours.staffId));
 
-  if (rows.length === 0) {
-    const inserted = await db
-      .insert(businessHours)
-      .values(DEFAULT_HOURS.map((h) => ({ ...h, staffId: null })))
-      .returning();
-    return inserted.sort((a, b) => a.dayOfWeek - b.dayOfWeek);
+    if (rows.length === 0) {
+      const inserted = await db
+        .insert(businessHours)
+        .values(DEFAULT_HOURS.map((h) => ({ ...h, staffId: null })))
+        .returning();
+      return inserted.sort((a, b) => a.dayOfWeek - b.dayOfWeek);
+    }
+
+    return rows.sort((a, b) => a.dayOfWeek - b.dayOfWeek);
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
   }
-
-  return rows.sort((a, b) => a.dayOfWeek - b.dayOfWeek);
 }
 
 /**
@@ -144,15 +150,20 @@ const lunchBreakSchema = z.object({
 });
 
 export async function saveBusinessHours(days: HourInput[]): Promise<void> {
-  z.array(hourInputSchema).parse(days);
-  await getUser();
+  try {
+    z.array(hourInputSchema).parse(days);
+    await getUser();
 
-  await db.transaction(async (tx) => {
-    await tx.delete(businessHours).where(isNull(businessHours.staffId));
-    await tx.insert(businessHours).values(days.map((d) => ({ ...d, staffId: null })));
-  });
+    await db.transaction(async (tx) => {
+      await tx.delete(businessHours).where(isNull(businessHours.staffId));
+      await tx.insert(businessHours).values(days.map((d) => ({ ...d, staffId: null })));
+    });
 
-  revalidatePath("/dashboard/settings");
+    revalidatePath("/dashboard/settings");
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -164,9 +175,13 @@ export async function saveBusinessHours(days: HourInput[]): Promise<void> {
  * Results are ordered by start date ascending.
  */
 export async function getTimeOff(): Promise<TimeOffRow[]> {
-  await getUser();
-
-  return db.select().from(timeOff).where(isNull(timeOff.staffId));
+  try {
+    await getUser();
+    return db.select().from(timeOff).where(isNull(timeOff.staffId));
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 /**
@@ -174,22 +189,27 @@ export async function getTimeOff(): Promise<TimeOffRow[]> {
  * Returns the inserted row (including the auto-generated id).
  */
 export async function addTimeOff(input: TimeOffInput): Promise<TimeOffRow> {
-  timeOffInputSchema.parse(input);
-  await getUser();
+  try {
+    timeOffInputSchema.parse(input);
+    await getUser();
 
-  const [row] = await db
-    .insert(timeOff)
-    .values({
-      type: input.type,
-      startDate: input.startDate,
-      endDate: input.endDate,
-      label: input.label ?? null,
-      staffId: null,
-    })
-    .returning();
+    const [row] = await db
+      .insert(timeOff)
+      .values({
+        type: input.type,
+        startDate: input.startDate,
+        endDate: input.endDate,
+        label: input.label ?? null,
+        staffId: null,
+      })
+      .returning();
 
-  revalidatePath("/dashboard/settings");
-  return row;
+    revalidatePath("/dashboard/settings");
+    return row;
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 /**
@@ -197,12 +217,17 @@ export async function addTimeOff(input: TimeOffInput): Promise<TimeOffRow> {
  * No-op if the row does not exist (idempotent).
  */
 export async function deleteTimeOff(id: number): Promise<void> {
-  z.number().int().positive().parse(id);
-  await getUser();
+  try {
+    z.number().int().positive().parse(id);
+    await getUser();
 
-  await db.delete(timeOff).where(eq(timeOff.id, id));
+    await db.delete(timeOff).where(eq(timeOff.id, id));
 
-  revalidatePath("/dashboard/settings");
+    revalidatePath("/dashboard/settings");
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -216,12 +241,17 @@ const LUNCH_KEY = "lunch_break";
  * Returns null if it has never been saved (first-time setup).
  */
 export async function getLunchBreak(): Promise<LunchBreak | null> {
-  await getUser();
+  try {
+    await getUser();
 
-  const [row] = await db.select().from(settings).where(eq(settings.key, LUNCH_KEY));
+    const [row] = await db.select().from(settings).where(eq(settings.key, LUNCH_KEY));
 
-  if (!row) return null;
-  return row.value as LunchBreak;
+    if (!row) return null;
+    return row.value as LunchBreak;
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 /**
@@ -229,21 +259,26 @@ export async function getLunchBreak(): Promise<LunchBreak | null> {
  * Creates the settings row on first call, updates it on subsequent calls.
  */
 export async function saveLunchBreak(data: LunchBreak): Promise<void> {
-  lunchBreakSchema.parse(data);
-  await getUser();
+  try {
+    lunchBreakSchema.parse(data);
+    await getUser();
 
-  await db
-    .insert(settings)
-    .values({
-      key: LUNCH_KEY,
-      label: "Lunch Break",
-      description: "Daily lunch break window during which no new bookings are accepted.",
-      value: data,
-    })
-    .onConflictDoUpdate({
-      target: settings.key,
-      set: { value: data },
-    });
+    await db
+      .insert(settings)
+      .values({
+        key: LUNCH_KEY,
+        label: "Lunch Break",
+        description: "Daily lunch break window during which no new bookings are accepted.",
+        value: data,
+      })
+      .onConflictDoUpdate({
+        target: settings.key,
+        set: { value: data },
+      });
 
-  revalidatePath("/dashboard/settings");
+    revalidatePath("/dashboard/settings");
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }

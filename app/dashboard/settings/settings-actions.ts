@@ -29,6 +29,7 @@
  */
 "use server";
 
+import * as Sentry from "@sentry/nextjs";
 import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
@@ -260,8 +261,13 @@ async function upsertSetting(key: string, label: string, value: unknown): Promis
 /* ------------------------------------------------------------------ */
 
 export async function getBusinessProfile(): Promise<BusinessProfile> {
-  await getUser();
-  return getSetting(KEY_BUSINESS, DEFAULT_BUSINESS);
+  try {
+    await getUser();
+    return getSetting(KEY_BUSINESS, DEFAULT_BUSINESS);
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 const businessProfileSchema = z.object({
@@ -277,11 +283,16 @@ const businessProfileSchema = z.object({
 });
 
 export async function saveBusinessProfile(data: BusinessProfile): Promise<void> {
-  businessProfileSchema.parse(data);
-  const user = await getUser();
-  await upsertSetting(KEY_BUSINESS, "Business Profile", data);
-  trackEvent(user.id, "business_profile_updated");
-  revalidatePath("/dashboard/settings");
+  try {
+    businessProfileSchema.parse(data);
+    const user = await getUser();
+    await upsertSetting(KEY_BUSINESS, "Business Profile", data);
+    trackEvent(user.id, "business_profile_updated");
+    revalidatePath("/dashboard/settings");
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -289,8 +300,13 @@ export async function saveBusinessProfile(data: BusinessProfile): Promise<void> 
 /* ------------------------------------------------------------------ */
 
 export async function getPolicies(): Promise<PolicySettings> {
-  await getUser();
-  return getSetting(KEY_POLICIES, DEFAULT_POLICIES);
+  try {
+    await getUser();
+    return getSetting(KEY_POLICIES, DEFAULT_POLICIES);
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 const policySettingsSchema = z.object({
@@ -302,11 +318,16 @@ const policySettingsSchema = z.object({
 });
 
 export async function savePolicies(data: PolicySettings): Promise<void> {
-  policySettingsSchema.parse(data);
-  const user = await getUser();
-  await upsertSetting(KEY_POLICIES, "Policy Settings", data);
-  trackEvent(user.id, "policies_updated");
-  revalidatePath("/dashboard/settings");
+  try {
+    policySettingsSchema.parse(data);
+    const user = await getUser();
+    await upsertSetting(KEY_POLICIES, "Policy Settings", data);
+    trackEvent(user.id, "policies_updated");
+    revalidatePath("/dashboard/settings");
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -314,8 +335,13 @@ export async function savePolicies(data: PolicySettings): Promise<void> {
 /* ------------------------------------------------------------------ */
 
 export async function getLoyaltyConfig(): Promise<LoyaltyConfig> {
-  await getUser();
-  return getSetting(KEY_LOYALTY, DEFAULT_LOYALTY);
+  try {
+    await getUser();
+    return getSetting(KEY_LOYALTY, DEFAULT_LOYALTY);
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 const loyaltyConfigSchema = z.object({
@@ -332,11 +358,16 @@ const loyaltyConfigSchema = z.object({
 });
 
 export async function saveLoyaltyConfig(data: LoyaltyConfig): Promise<void> {
-  loyaltyConfigSchema.parse(data);
-  const user = await getUser();
-  await upsertSetting(KEY_LOYALTY, "Loyalty Config", data);
-  trackEvent(user.id, "loyalty_config_updated");
-  revalidatePath("/dashboard/settings");
+  try {
+    loyaltyConfigSchema.parse(data);
+    const user = await getUser();
+    await upsertSetting(KEY_LOYALTY, "Loyalty Config", data);
+    trackEvent(user.id, "loyalty_config_updated");
+    revalidatePath("/dashboard/settings");
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -344,8 +375,13 @@ export async function saveLoyaltyConfig(data: LoyaltyConfig): Promise<void> {
 /* ------------------------------------------------------------------ */
 
 export async function getNotificationPrefs(): Promise<NotificationPrefs> {
-  await getUser();
-  return getSetting(KEY_NOTIFICATIONS, DEFAULT_NOTIFICATIONS);
+  try {
+    await getUser();
+    return getSetting(KEY_NOTIFICATIONS, DEFAULT_NOTIFICATIONS);
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 const notificationPrefsSchema = z.object({
@@ -359,10 +395,15 @@ const notificationPrefsSchema = z.object({
 });
 
 export async function saveNotificationPrefs(data: NotificationPrefs): Promise<void> {
-  notificationPrefsSchema.parse(data);
-  await getUser();
-  await upsertSetting(KEY_NOTIFICATIONS, "Notification Preferences", data);
-  revalidatePath("/dashboard/settings");
+  try {
+    notificationPrefsSchema.parse(data);
+    await getUser();
+    await upsertSetting(KEY_NOTIFICATIONS, "Notification Preferences", data);
+    revalidatePath("/dashboard/settings");
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -370,8 +411,13 @@ export async function saveNotificationPrefs(data: NotificationPrefs): Promise<vo
 /* ------------------------------------------------------------------ */
 
 export async function getBookingRules(): Promise<BookingRulesConfig> {
-  await getUser();
-  return getSetting(KEY_BOOKING_RULES, DEFAULT_BOOKING_RULES);
+  try {
+    await getUser();
+    return getSetting(KEY_BOOKING_RULES, DEFAULT_BOOKING_RULES);
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 const bookingRulesSchema = z.object({
@@ -386,11 +432,16 @@ const bookingRulesSchema = z.object({
 });
 
 export async function saveBookingRules(data: BookingRulesConfig): Promise<void> {
-  bookingRulesSchema.parse(data);
-  const user = await getUser();
-  await upsertSetting(KEY_BOOKING_RULES, "Booking Rules", data);
-  trackEvent(user.id, "booking_rules_updated");
-  revalidatePath("/dashboard/settings");
+  try {
+    bookingRulesSchema.parse(data);
+    const user = await getUser();
+    await upsertSetting(KEY_BOOKING_RULES, "Booking Rules", data);
+    trackEvent(user.id, "booking_rules_updated");
+    revalidatePath("/dashboard/settings");
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -398,8 +449,13 @@ export async function saveBookingRules(data: BookingRulesConfig): Promise<void> 
 /* ------------------------------------------------------------------ */
 
 export async function getReminders(): Promise<RemindersConfig> {
-  await getUser();
-  return getSetting(KEY_REMINDERS, DEFAULT_REMINDERS);
+  try {
+    await getUser();
+    return getSetting(KEY_REMINDERS, DEFAULT_REMINDERS);
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 const remindersSchema = z.object({
@@ -416,10 +472,15 @@ const remindersSchema = z.object({
 });
 
 export async function saveReminders(data: RemindersConfig): Promise<void> {
-  remindersSchema.parse(data);
-  await getUser();
-  await upsertSetting(KEY_REMINDERS, "Reminder Config", data);
-  revalidatePath("/dashboard/settings");
+  try {
+    remindersSchema.parse(data);
+    await getUser();
+    await upsertSetting(KEY_REMINDERS, "Reminder Config", data);
+    revalidatePath("/dashboard/settings");
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -439,8 +500,13 @@ const DEFAULT_FINANCIAL: FinancialConfig = {
 const KEY_FINANCIAL = "financial_config";
 
 export async function getFinancialConfig(): Promise<FinancialConfig> {
-  await getUser();
-  return getSetting(KEY_FINANCIAL, DEFAULT_FINANCIAL);
+  try {
+    await getUser();
+    return getSetting(KEY_FINANCIAL, DEFAULT_FINANCIAL);
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 const financialConfigSchema = z.object({
@@ -449,12 +515,17 @@ const financialConfigSchema = z.object({
 });
 
 export async function saveFinancialConfig(data: FinancialConfig): Promise<void> {
-  financialConfigSchema.parse(data);
-  await getUser();
-  await upsertSetting(KEY_FINANCIAL, "Financial Config", data);
-  revalidatePath("/dashboard/settings");
-  revalidatePath("/dashboard/analytics");
-  revalidatePath("/dashboard/financial");
+  try {
+    financialConfigSchema.parse(data);
+    await getUser();
+    await upsertSetting(KEY_FINANCIAL, "Financial Config", data);
+    revalidatePath("/dashboard/settings");
+    revalidatePath("/dashboard/analytics");
+    revalidatePath("/dashboard/financial");
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -470,8 +541,13 @@ export interface RevenueGoal {
 const KEY_REVENUE_GOALS = "revenue_goals";
 
 export async function getRevenueGoals(): Promise<RevenueGoal[]> {
-  await getUser();
-  return getSetting<RevenueGoal[]>(KEY_REVENUE_GOALS, []);
+  try {
+    await getUser();
+    return getSetting<RevenueGoal[]>(KEY_REVENUE_GOALS, []);
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 const revenueGoalItemSchema = z.object({
@@ -481,11 +557,16 @@ const revenueGoalItemSchema = z.object({
 });
 
 export async function saveRevenueGoals(data: RevenueGoal[]): Promise<void> {
-  z.array(revenueGoalItemSchema).parse(data);
-  await getUser();
-  await upsertSetting(KEY_REVENUE_GOALS, "Revenue Goals", data);
-  revalidatePath("/dashboard/settings");
-  revalidatePath("/dashboard/analytics");
+  try {
+    z.array(revenueGoalItemSchema).parse(data);
+    await getUser();
+    await upsertSetting(KEY_REVENUE_GOALS, "Revenue Goals", data);
+    revalidatePath("/dashboard/settings");
+    revalidatePath("/dashboard/analytics");
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -499,11 +580,16 @@ export interface SquareConnectionStatus {
 }
 
 export async function getSquareConnectionStatus(): Promise<SquareConnectionStatus> {
-  await getUser();
-  const connected = isSquareConfigured();
-  return {
-    connected,
-    environment: process.env.SQUARE_ENVIRONMENT ?? "sandbox",
-    locationId: connected ? `...${(process.env.SQUARE_LOCATION_ID ?? "").slice(-6)}` : "",
-  };
+  try {
+    await getUser();
+    const connected = isSquareConfigured();
+    return {
+      connected,
+      environment: process.env.SQUARE_ENVIRONMENT ?? "sandbox",
+      locationId: connected ? `...${(process.env.SQUARE_LOCATION_ID ?? "").slice(-6)}` : "",
+    };
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }

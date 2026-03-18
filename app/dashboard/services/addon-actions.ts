@@ -17,6 +17,7 @@
  */
 "use server";
 
+import * as Sentry from "@sentry/nextjs";
 import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
@@ -36,57 +37,82 @@ export type AddOnInput = {
 const getUser = requireAdmin;
 
 export async function getAddOns(serviceId: number): Promise<AddOnRow[]> {
-  await getUser();
-  return db
-    .select()
-    .from(serviceAddOns)
-    .where(eq(serviceAddOns.serviceId, serviceId))
-    .orderBy(serviceAddOns.id);
+  try {
+    await getUser();
+    return db
+      .select()
+      .from(serviceAddOns)
+      .where(eq(serviceAddOns.serviceId, serviceId))
+      .orderBy(serviceAddOns.id);
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 export async function createAddOn(serviceId: number, input: AddOnInput): Promise<AddOnRow> {
-  const user = await getUser();
-  const [row] = await db
-    .insert(serviceAddOns)
-    .values({
-      serviceId,
-      name: input.name,
-      description: input.description || null,
-      priceInCents: input.priceInCents,
-      additionalMinutes: input.additionalMinutes,
-      isActive: true,
-    })
-    .returning();
-  trackEvent(user.id, "addon_created", { serviceId, name: input.name });
-  revalidatePath("/dashboard/services");
-  return row;
+  try {
+    const user = await getUser();
+    const [row] = await db
+      .insert(serviceAddOns)
+      .values({
+        serviceId,
+        name: input.name,
+        description: input.description || null,
+        priceInCents: input.priceInCents,
+        additionalMinutes: input.additionalMinutes,
+        isActive: true,
+      })
+      .returning();
+    trackEvent(user.id, "addon_created", { serviceId, name: input.name });
+    revalidatePath("/dashboard/services");
+    return row;
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 export async function updateAddOn(id: number, input: AddOnInput): Promise<AddOnRow> {
-  await getUser();
-  const [row] = await db
-    .update(serviceAddOns)
-    .set({
-      name: input.name,
-      description: input.description || null,
-      priceInCents: input.priceInCents,
-      additionalMinutes: input.additionalMinutes,
-    })
-    .where(eq(serviceAddOns.id, id))
-    .returning();
-  revalidatePath("/dashboard/services");
-  return row;
+  try {
+    await getUser();
+    const [row] = await db
+      .update(serviceAddOns)
+      .set({
+        name: input.name,
+        description: input.description || null,
+        priceInCents: input.priceInCents,
+        additionalMinutes: input.additionalMinutes,
+      })
+      .where(eq(serviceAddOns.id, id))
+      .returning();
+    revalidatePath("/dashboard/services");
+    return row;
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 export async function deleteAddOn(id: number): Promise<void> {
-  const user = await getUser();
-  await db.delete(serviceAddOns).where(eq(serviceAddOns.id, id));
-  trackEvent(user.id, "addon_deleted", { addonId: id });
-  revalidatePath("/dashboard/services");
+  try {
+    const user = await getUser();
+    await db.delete(serviceAddOns).where(eq(serviceAddOns.id, id));
+    trackEvent(user.id, "addon_deleted", { addonId: id });
+    revalidatePath("/dashboard/services");
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }
 
 export async function toggleAddOnActive(id: number, isActive: boolean): Promise<void> {
-  await getUser();
-  await db.update(serviceAddOns).set({ isActive }).where(eq(serviceAddOns.id, id));
-  revalidatePath("/dashboard/services");
+  try {
+    await getUser();
+    await db.update(serviceAddOns).set({ isActive }).where(eq(serviceAddOns.id, id));
+    revalidatePath("/dashboard/services");
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
 }

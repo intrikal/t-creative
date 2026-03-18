@@ -85,7 +85,7 @@ export function PromotionsTab({
                   </div>
                   <p className="text-xs text-muted mt-0.5">{p.description ?? "No description"}</p>
                 </div>
-                <button className="p-1.5 text-muted hover:text-destructive hover:bg-destructive/8 rounded-lg transition-colors">
+                <button aria-label="Remove promotion" className="p-1.5 text-muted hover:text-destructive hover:bg-destructive/8 rounded-lg transition-colors">
                   <X className="w-3.5 h-3.5" />
                 </button>
               </div>

@@ -537,6 +537,7 @@ export function BookingRequestDialog({
             </div>
             <button
               onClick={handleClose}
+              aria-label="Close"
               className="p-1.5 rounded-lg hover:bg-stone-100 text-stone-400 transition-colors"
             >
               <X className="w-4 h-4" />
@@ -651,6 +652,7 @@ export function BookingRequestDialog({
                 <div className="flex items-center gap-2">
                   <button
                     onClick={goBack}
+                    aria-label="Go back"
                     className="p-1.5 rounded-lg hover:bg-stone-100 text-stone-400 transition-colors"
                   >
                     <ChevronLeft className="w-4 h-4" />
@@ -693,6 +695,7 @@ export function BookingRequestDialog({
                   <button
                     type="button"
                     onClick={goBack}
+                    aria-label="Go back"
                     className="p-1.5 rounded-lg hover:bg-stone-100 text-stone-400 transition-colors"
                   >
                     <ChevronLeft className="w-4 h-4" />
@@ -928,6 +931,7 @@ export function BookingRequestDialog({
                           <button
                             type="button"
                             onClick={() => removePhoto(i)}
+                            aria-label="Remove photo"
                             className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
                           >
                             <Trash2 className="w-3.5 h-3.5 text-white" />
@@ -992,7 +996,7 @@ export function BookingRequestDialog({
                 )}
 
                 {error && (
-                  <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>
+                  <p role="alert" aria-live="polite" className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>
                 )}
 
                 <p className="text-[11px] text-stone-400 leading-relaxed">
@@ -1033,6 +1037,7 @@ export function BookingRequestDialog({
                 <div className="flex items-center gap-2">
                   <button
                     onClick={goBack}
+                    aria-label="Go back"
                     className="p-1.5 rounded-lg hover:bg-stone-100 text-stone-400 transition-colors"
                   >
                     <ChevronLeft className="w-4 h-4" />
@@ -1082,7 +1087,7 @@ export function BookingRequestDialog({
                 </div>
 
                 {error && (
-                  <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>
+                  <p role="alert" aria-live="polite" className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>
                 )}
 
                 <SquarePaymentForm

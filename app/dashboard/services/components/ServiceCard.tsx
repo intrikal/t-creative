@@ -90,6 +90,7 @@ export function ServiceCard({
                 onClick={onEdit}
                 className="p-1.5 rounded-lg text-muted hover:text-foreground hover:bg-foreground/8 transition-colors"
                 title="Edit"
+                aria-label="Edit"
               >
                 <Pencil className="w-3.5 h-3.5" />
               </button>
@@ -97,6 +98,7 @@ export function ServiceCard({
                 onClick={onAddOns}
                 className="p-1.5 rounded-lg text-muted hover:text-foreground hover:bg-foreground/8 transition-colors"
                 title="Manage add-ons"
+                aria-label="Manage add-ons"
               >
                 <Layers className="w-3.5 h-3.5" />
               </button>
@@ -104,6 +106,7 @@ export function ServiceCard({
                 onClick={() => setConfirmDelete(true)}
                 className="p-1.5 rounded-lg text-muted hover:text-destructive hover:bg-destructive/8 transition-colors"
                 title="Delete"
+                aria-label="Delete"
               >
                 <Trash2 className="w-3.5 h-3.5" />
               </button>

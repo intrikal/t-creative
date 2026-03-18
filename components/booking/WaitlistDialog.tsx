@@ -97,6 +97,7 @@ export function WaitlistDialog({
             </div>
             <button
               onClick={handleClose}
+              aria-label="Close"
               className="p-1.5 rounded-lg hover:bg-stone-100 text-stone-400 transition-colors"
             >
               <X className="w-4 h-4" />
@@ -176,7 +177,7 @@ export function WaitlistDialog({
               )}
 
               {error && (
-                <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>
+                <p role="alert" aria-live="polite" className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>
               )}
 
               <button

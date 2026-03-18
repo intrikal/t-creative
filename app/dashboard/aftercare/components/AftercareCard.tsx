@@ -50,6 +50,7 @@ export function AftercareCard({
                   setEditingTitle(false);
                   setTitleDraft(section.title);
                 }}
+                aria-label="Cancel"
                 className="p-1.5 rounded-lg hover:bg-foreground/5 text-muted"
               >
                 <X className="w-3.5 h-3.5" />
@@ -67,6 +68,7 @@ export function AftercareCard({
                 </button>
                 <button
                   onClick={onDelete}
+                  aria-label="Delete section"
                   className="p-1.5 rounded-lg hover:bg-destructive/8 text-muted hover:text-destructive transition-colors"
                 >
                   <Trash2 className="w-3.5 h-3.5" />

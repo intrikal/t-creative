@@ -57,7 +57,7 @@ export function ProfileSection({ initial }: { initial: ClientProfile }) {
               <div className="w-16 h-16 rounded-full bg-accent/15 flex items-center justify-center">
                 <span className="text-xl font-bold text-accent">{initials}</span>
               </div>
-              <button className="absolute -bottom-0.5 -right-0.5 w-6 h-6 rounded-full bg-foreground text-background flex items-center justify-center border-2 border-background hover:bg-foreground/80 transition-colors">
+              <button aria-label="Change profile photo" className="absolute -bottom-0.5 -right-0.5 w-6 h-6 rounded-full bg-foreground text-background flex items-center justify-center border-2 border-background hover:bg-foreground/80 transition-colors">
                 <Camera className="w-3 h-3" />
               </button>
             </div>

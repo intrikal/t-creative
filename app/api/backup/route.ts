@@ -30,6 +30,7 @@
  */
 
 import { NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { profiles } from "@/db/schema";
@@ -76,7 +77,7 @@ export async function GET() {
   try {
     manifest = await createBackupManifest();
   } catch (err) {
-    console.error("[backup] Manifest creation failed:", err);
+    Sentry.captureException(err, { extra: { context: "[backup] Manifest creation failed" } });
     return NextResponse.json({ error: "Backup failed" }, { status: 500 });
   }
 
@@ -123,7 +124,7 @@ export async function POST() {
   try {
     manifest = await createBackupManifest();
   } catch (err) {
-    console.error("[backup] Manifest creation failed:", err);
+    Sentry.captureException(err, { extra: { context: "[backup] Manifest creation failed" } });
     return NextResponse.json({ error: "Backup failed" }, { status: 500 });
   }
 
@@ -131,7 +132,7 @@ export async function POST() {
   try {
     result = await uploadBackupToStorage(manifest);
   } catch (err) {
-    console.error("[backup] Upload failed:", err);
+    Sentry.captureException(err, { extra: { context: "[backup] Upload failed" } });
     return NextResponse.json({ error: "Upload failed" }, { status: 500 });
   }
 

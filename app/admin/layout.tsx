@@ -24,6 +24,7 @@
  */
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
+import * as Sentry from "@sentry/nextjs";
 import { getCurrentUser } from "@/lib/auth";
 
 export const metadata: Metadata = {
@@ -34,12 +35,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const user = await getCurrentUser();
 
   if (!user || user.profile?.role !== "admin") {
-    console.error(
-      "[AdminLayout] access denied — id:",
-      user?.id,
-      "role:",
-      user?.profile?.role ?? "no profile",
-    );
+    Sentry.captureMessage("[AdminLayout] access denied", "warning", {
+      extra: { userId: user?.id, role: user?.profile?.role ?? "no profile" },
+    });
     redirect("/");
   }
 

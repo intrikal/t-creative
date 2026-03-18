@@ -12,7 +12,7 @@ import {
   membershipStatusEnum,
   profiles,
 } from "@/db/schema";
-import { getUser } from "@/lib/auth";
+import { getUser, requireAdmin } from "@/lib/auth";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -94,7 +94,7 @@ export type UpdatePlanInput = Partial<Omit<CreatePlanInput, "slug"> & { isActive
 
 export async function getMembershipPlans(includeInactive = false): Promise<MembershipPlan[]> {
   try {
-    await getUser();
+    await requireAdmin();
 
     const rows = await db
       .select()
@@ -119,7 +119,7 @@ export async function getMembershipPlans(includeInactive = false): Promise<Membe
 
 export async function getMemberships(statusFilter?: MembershipStatus): Promise<MembershipRow[]> {
   try {
-    await getUser();
+    await requireAdmin();
 
     const rows = await db
       .select({
@@ -181,7 +181,7 @@ export async function getMemberships(statusFilter?: MembershipStatus): Promise<M
  */
 export async function getClientMembership(clientId: string): Promise<ClientMembership | null> {
   try {
-    await getUser();
+    await requireAdmin();
 
     const [row] = await db
       .select({
@@ -270,7 +270,7 @@ const updatePlanSchema = z.object({
 export async function createMembership(input: CreateMembershipInput): Promise<{ id: string }> {
   try {
     createMembershipSchema.parse(input);
-    await getUser();
+    await requireAdmin();
 
     const [plan] = await db
       .select()
@@ -309,7 +309,7 @@ export async function updateMembershipStatus(id: string, status: MembershipStatu
   try {
     z.string().min(1).parse(id);
     membershipStatusSchema.parse(status);
-    await getUser();
+    await requireAdmin();
 
     const updates: Partial<typeof membershipSubscriptions.$inferInsert> = { status };
 
@@ -334,7 +334,7 @@ export async function updateMembershipStatus(id: string, status: MembershipStatu
 export async function useMembershipFill(id: string): Promise<void> {
   try {
     z.string().min(1).parse(id);
-    await getUser();
+    await requireAdmin();
 
     const [sub] = await db
       .select({ fillsRemainingThisCycle: membershipSubscriptions.fillsRemainingThisCycle })
@@ -365,7 +365,7 @@ export async function useMembershipFill(id: string): Promise<void> {
 export async function renewMembership(id: string): Promise<void> {
   try {
     z.string().min(1).parse(id);
-    await getUser();
+    await requireAdmin();
 
     const [row] = await db
       .select({
@@ -405,7 +405,7 @@ export async function updateMembershipNotes(id: string, notes: string): Promise<
   try {
     z.string().min(1).parse(id);
     z.string().parse(notes);
-    await getUser();
+    await requireAdmin();
 
     await db
       .update(membershipSubscriptions)
@@ -426,7 +426,7 @@ export async function updateMembershipNotes(id: string, notes: string): Promise<
 export async function createMembershipPlan(input: CreatePlanInput): Promise<{ id: number }> {
   try {
     createPlanSchema.parse(input);
-    await getUser();
+    await requireAdmin();
 
     const [plan] = await db
       .insert(membershipPlans)
@@ -455,7 +455,7 @@ export async function updateMembershipPlan(id: number, input: UpdatePlanInput): 
   try {
     z.number().int().positive().parse(id);
     updatePlanSchema.parse(input);
-    await getUser();
+    await requireAdmin();
 
     await db
       .update(membershipPlans)

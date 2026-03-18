@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useTransition } from "react";
+import { useState, useMemo, useOptimistic, useTransition } from "react";
 import Image from "next/image";
 import {
   X,
@@ -246,22 +246,31 @@ export function ClientGalleryPage({ data }: { data: ClientGalleryData }) {
   const [tab, setTab] = useState<Tab>(data.myPhotos.length > 0 ? "my-photos" : "portfolio");
   const [categoryFilter, setCategoryFilter] = useState<"all" | GalleryCategory>("all");
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
-  const [approvedIds, setApprovedIds] = useState<Set<number>>(new Set());
   const [, startConsentTransition] = useTransition();
 
+  const [myPhotos, addOptimisticConsent] = useOptimistic<
+    GalleryItem[],
+    { type: "approve"; id: number }
+  >(data.myPhotos, (state, action) => {
+    switch (action.type) {
+      case "approve":
+        return state.map((i) => (i.id === action.id ? { ...i, clientConsentGiven: true } : i));
+    }
+  });
+
   function handleApproveConsent(itemId: number) {
-    setApprovedIds((prev) => new Set(prev).add(itemId));
     startConsentTransition(async () => {
+      addOptimisticConsent({ type: "approve", id: itemId });
       await grantPhotoConsent(itemId);
     });
   }
 
   const pendingConsentItems = useMemo(
-    () => data.myPhotos.filter((i) => !i.clientConsentGiven && !approvedIds.has(i.id)),
-    [data.myPhotos, approvedIds],
+    () => myPhotos.filter((i) => !i.clientConsentGiven),
+    [myPhotos],
   );
 
-  const items = tab === "my-photos" ? data.myPhotos : data.portfolio;
+  const items = tab === "my-photos" ? myPhotos : data.portfolio;
 
   const filtered = useMemo(
     () => (categoryFilter === "all" ? items : items.filter((i) => i.category === categoryFilter)),

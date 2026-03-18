@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useOptimistic, useTransition } from "react";
 import { CheckCircle, FileText, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { AftercareSection, PolicyEntry } from "./actions";
@@ -25,15 +25,45 @@ export function AftercarePage({
   initialPolicies: PolicyEntry[];
 }) {
   const [tab, setTab] = useState<"aftercare" | "policies">("aftercare");
-  const [sections, setSections] = useState<AftercareSection[]>(initialSections);
-  const [policyList, setPolicyList] = useState<PolicyEntry[]>(initialPolicies);
   const [newSectionOpen, setNewSectionOpen] = useState(false);
   const [newPolicyOpen, setNewPolicyOpen] = useState(false);
   const [, startTransition] = useTransition();
 
+  const [sections, updateSections] = useOptimistic<
+    AftercareSection[],
+    | { type: "update"; section: AftercareSection }
+    | { type: "delete"; id: number }
+    | { type: "create"; section: AftercareSection }
+  >(initialSections, (state, action) => {
+    switch (action.type) {
+      case "update":
+        return state.map((s) => (s.id === action.section.id ? action.section : s));
+      case "delete":
+        return state.filter((s) => s.id !== action.id);
+      case "create":
+        return [...state, action.section];
+    }
+  });
+
+  const [policyList, updatePolicies] = useOptimistic<
+    PolicyEntry[],
+    | { type: "update"; policy: PolicyEntry }
+    | { type: "delete"; id: number }
+    | { type: "create"; policy: PolicyEntry }
+  >(initialPolicies, (state, action) => {
+    switch (action.type) {
+      case "update":
+        return state.map((p) => (p.id === action.policy.id ? action.policy : p));
+      case "delete":
+        return state.filter((p) => p.id !== action.id);
+      case "create":
+        return [...state, action.policy];
+    }
+  });
+
   function handleUpdateSection(updated: AftercareSection) {
-    setSections((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
     startTransition(async () => {
+      updateSections({ type: "update", section: updated });
       await updateAftercareSection(updated.id, {
         title: updated.title,
         category: updated.category ?? undefined,
@@ -44,40 +74,40 @@ export function AftercarePage({
   }
 
   function handleDeleteSection(id: number) {
-    setSections((prev) => prev.filter((s) => s.id !== id));
     startTransition(async () => {
+      updateSections({ type: "delete", id });
       await deleteAftercareSection(id);
     });
   }
 
   function handleCreateSection(title: string) {
     startTransition(async () => {
+      updateSections({
+        type: "create",
+        section: { id: Date.now(), title, category: null, dos: [], donts: [] },
+      });
       await createAftercareSection({ title, dos: [], donts: [] });
-      setSections((prev) => [
-        ...prev,
-        { id: Date.now(), title, category: null, dos: [], donts: [] },
-      ]);
     });
   }
 
   function handleUpdatePolicy(updated: PolicyEntry) {
-    setPolicyList((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
     startTransition(async () => {
+      updatePolicies({ type: "update", policy: updated });
       await updatePolicyAction(updated.id, { title: updated.title, content: updated.content });
     });
   }
 
   function handleDeletePolicy(id: number) {
-    setPolicyList((prev) => prev.filter((p) => p.id !== id));
     startTransition(async () => {
+      updatePolicies({ type: "delete", id });
       await deletePolicyAction(id);
     });
   }
 
   function handleCreatePolicy(title: string, content: string) {
     startTransition(async () => {
+      updatePolicies({ type: "create", policy: { id: Date.now(), title, content } });
       await createPolicyAction({ title, content });
-      setPolicyList((prev) => [...prev, { id: Date.now(), title, content }]);
     });
   }
 

@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useOptimistic, useTransition } from "react";
+import { useState, useOptimistic, useTransition, useMemo } from "react";
+import dynamic from "next/dynamic";
 import { Search, Plus } from "lucide-react";
-import { PaymentChoiceDialog } from "@/components/booking/PaymentChoiceDialog";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import {
@@ -12,158 +12,52 @@ import {
   deleteBooking,
   cancelBookingSeries,
   getBookings,
-  checkBookingWaivers,
 } from "./actions";
-import type { BookingRow, BookingInput, MissingWaiver } from "./actions";
-import { BookingDialog, type BookingFormState } from "./components/BookingDialog";
+import type { BookingRow, BookingInput } from "./actions";
+import type { BookingFormState } from "./components/BookingDialog";
 import { BookingRow as BookingRowComponent } from "./components/BookingRow";
-import { CancelDialog } from "./components/CancelDialog";
-import { DeleteDialog } from "./components/DeleteDialog";
-import { ServiceRecordDialog } from "./components/ServiceRecordDialog";
-import { WaiverGateDialog } from "./components/WaiverGateDialog";
+import {
+  statusConfig,
+  mapBookingRow,
+  STATUS_FILTERS,
+  PAGE_TABS,
+  type Booking,
+  type BookingStatus,
+  type PageTab,
+} from "./components/helpers";
 import { WaitlistTab } from "./components/WaitlistTab";
+import type { MissingWaiver } from "./waiver-actions";
+import { checkBookingWaivers } from "./waiver-actions";
+import { StaffBookingsCal } from "./components/StaffBookingsCal";
 
-/* ------------------------------------------------------------------ */
-/*  Exported types & helpers (used by child components)                */
-/* ------------------------------------------------------------------ */
+const PaymentChoiceDialog = dynamic(
+  () => import("@/components/booking/PaymentChoiceDialog").then((m) => m.PaymentChoiceDialog),
+  { ssr: false },
+);
+const BookingDialog = dynamic(
+  () => import("./components/BookingDialog").then((m) => m.BookingDialog),
+  { ssr: false },
+);
+const CancelDialog = dynamic(
+  () => import("./components/CancelDialog").then((m) => m.CancelDialog),
+  { ssr: false },
+);
+const DeleteDialog = dynamic(
+  () => import("./components/DeleteDialog").then((m) => m.DeleteDialog),
+  { ssr: false },
+);
+const ServiceRecordDialog = dynamic(
+  () => import("./components/ServiceRecordDialog").then((m) => m.ServiceRecordDialog),
+  { ssr: false },
+);
+const WaiverGateDialog = dynamic(
+  () => import("./components/WaiverGateDialog").then((m) => m.WaiverGateDialog),
+  { ssr: false },
+);
 
-export type BookingStatus =
-  | "completed"
-  | "in_progress"
-  | "confirmed"
-  | "pending"
-  | "cancelled"
-  | "no_show";
-export type ServiceCategory = "lash" | "jewelry" | "crochet" | "consulting" | "training";
-
-export interface Booking {
-  id: number;
-  date: string;
-  time: string;
-  startsAtIso: string;
-  service: string;
-  category: ServiceCategory;
-  client: string;
-  clientInitials: string;
-  clientPhone: string;
-  staff: string;
-  status: BookingStatus;
-  durationMin: number;
-  price: number;
-  location?: string;
-  notes?: string;
-  clientId: string;
-  serviceId: number;
-  staffId: string | null;
-  recurrenceRule?: string;
-}
-
-export function statusConfig(status: BookingStatus) {
-  switch (status) {
-    case "completed":
-      return {
-        label: "Completed",
-        className: "bg-[#4e6b51]/12 text-[#4e6b51] border-[#4e6b51]/20",
-      };
-    case "in_progress":
-      return { label: "In Progress", className: "bg-blush/12 text-[#96604a] border-blush/20" };
-    case "confirmed":
-      return {
-        label: "Confirmed",
-        className: "bg-foreground/8 text-foreground border-foreground/15",
-      };
-    case "pending":
-      return { label: "Pending", className: "bg-[#7a5c10]/10 text-[#7a5c10] border-[#7a5c10]/20" };
-    case "cancelled":
-      return {
-        label: "Cancelled",
-        className: "bg-destructive/10 text-destructive border-destructive/20",
-      };
-    case "no_show":
-      return {
-        label: "No Show",
-        className: "bg-destructive/10 text-destructive border-destructive/20",
-      };
-  }
-}
-
-export function categoryDot(category: ServiceCategory) {
-  switch (category) {
-    case "lash":
-      return "bg-[#c4907a]";
-    case "jewelry":
-      return "bg-[#d4a574]";
-    case "crochet":
-      return "bg-[#7ba3a3]";
-    case "consulting":
-      return "bg-[#5b8a8a]";
-    case "training":
-      return "bg-[#9b7ec8]";
-  }
-}
-
-/* ------------------------------------------------------------------ */
-/*  Internal helpers                                                   */
-/* ------------------------------------------------------------------ */
-
-function formatBookingDate(startsAt: Date): { date: string; time: string } {
-  const now = new Date();
-  const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const tomorrowMidnight = new Date(todayMidnight.getTime() + 86_400_000);
-  const bookingMidnight = new Date(startsAt.getFullYear(), startsAt.getMonth(), startsAt.getDate());
-
-  let date: string;
-  if (bookingMidnight.getTime() === todayMidnight.getTime()) {
-    date = "Today";
-  } else if (bookingMidnight.getTime() === tomorrowMidnight.getTime()) {
-    date = "Tomorrow";
-  } else {
-    date = startsAt.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-  }
-
-  const time = startsAt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-  return { date, time };
-}
-
-function mapBookingRow(row: BookingRow): Booking {
-  const startsAt = new Date(row.startsAt);
-  const { date, time } = formatBookingDate(startsAt);
-  const clientName = [row.clientFirstName, row.clientLastName].filter(Boolean).join(" ");
-  const initials = ((row.clientFirstName[0] ?? "") + (row.clientLastName?.[0] ?? "")).toUpperCase();
-
-  return {
-    id: row.id,
-    date,
-    time,
-    startsAtIso: startsAt.toISOString(),
-    service: row.serviceName,
-    category: row.serviceCategory as ServiceCategory,
-    client: clientName,
-    clientInitials: initials || "?",
-    clientPhone: row.clientPhone ?? "",
-    staff: row.staffFirstName ?? "",
-    status: row.status as BookingStatus,
-    durationMin: row.durationMinutes,
-    price: row.totalInCents / 100,
-    location: row.location ?? undefined,
-    notes: row.clientNotes ?? undefined,
-    clientId: row.clientId,
-    serviceId: row.serviceId,
-    staffId: row.staffId,
-    recurrenceRule: row.recurrenceRule ?? undefined,
-  };
-}
-
-const STATUS_FILTERS = [
-  "All",
-  "Confirmed",
-  "Completed",
-  "Pending",
-  "Cancelled",
-  "No Show",
-] as const;
-const PAGE_TABS = ["Bookings", "Waitlist"] as const;
-type PageTab = (typeof PAGE_TABS)[number];
+/* Re-export types & helpers so existing imports from this module still work */
+export { statusConfig, categoryDot } from "./components/helpers";
+export type { Booking, BookingStatus, ServiceCategory } from "./components/helpers";
 
 /* ------------------------------------------------------------------ */
 /*  Main export                                                        */
@@ -224,8 +118,19 @@ export function BookingsPage({
   const [serviceNotesTarget, setServiceNotesTarget] = useState<Booking | null>(null);
   const [waiverGateTarget, setWaiverGateTarget] = useState<Booking | null>(null);
   const [missingWaivers, setMissingWaivers] = useState<MissingWaiver[]>([]);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+
+  const calEntries = useMemo(
+    () =>
+      bookings.map((b) => ({
+        dateISO: b.startsAtIso.slice(0, 10),
+        category: b.category,
+      })),
+    [bookings],
+  );
 
   const filtered = bookings.filter((b) => {
+    if (selectedDate && b.startsAtIso.slice(0, 10) !== selectedDate) return false;
     const matchSearch =
       !search ||
       b.client.toLowerCase().includes(search.toLowerCase()) ||
@@ -446,6 +351,9 @@ export function BookingsPage({
           </CardContent>
         </Card>
       </div>
+
+      {/* Calendar */}
+      <StaffBookingsCal entries={calEntries} selected={selectedDate} onSelect={setSelectedDate} />
 
       {/* Tab bar */}
       <div className="flex border-b border-border">

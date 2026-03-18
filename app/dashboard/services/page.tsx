@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser, requireAdmin } from "@/lib/auth";
 import { getServices, getAssistantServices } from "./actions";
 import { AssistantServicesPage } from "./AssistantServicesPage";
 import { getBundles } from "./bundle-actions";
@@ -22,6 +22,7 @@ export default async function Page() {
     return <AssistantServicesPage initialServices={svcList} stats={stats} />;
   }
 
+  await requireAdmin();
   const [initialServices, initialBundles, initialForms] = await Promise.all([
     getServices(),
     getBundles(),

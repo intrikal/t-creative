@@ -110,35 +110,34 @@ export async function getProducts(): Promise<ProductRow[]> {
   try {
     await getUser();
 
-    // Batch 1: products
-    const rows = await db
-      .select({
-        id: products.id,
-        title: products.title,
-        category: products.category,
-        description: products.description,
-        pricingType: products.pricingType,
-        priceInCents: products.priceInCents,
-        priceMinInCents: products.priceMinInCents,
-        priceMaxInCents: products.priceMaxInCents,
-        stockCount: products.stockCount,
-        availability: products.availability,
-        isPublished: products.isPublished,
-        tags: products.tags,
-        serviceId: products.serviceId,
-      })
-      .from(products)
-      .orderBy(desc(products.createdAt));
-
-    // Batch 2: sales count per product (completed orders only)
-    const salesRows = await db
-      .select({
-        productId: orders.productId,
-        count: sql<number>`count(*)`,
-      })
-      .from(orders)
-      .where(eq(orders.status, "completed"))
-      .groupBy(orders.productId);
+    const [rows, salesRows] = await Promise.all([
+      db
+        .select({
+          id: products.id,
+          title: products.title,
+          category: products.category,
+          description: products.description,
+          pricingType: products.pricingType,
+          priceInCents: products.priceInCents,
+          priceMinInCents: products.priceMinInCents,
+          priceMaxInCents: products.priceMaxInCents,
+          stockCount: products.stockCount,
+          availability: products.availability,
+          isPublished: products.isPublished,
+          tags: products.tags,
+          serviceId: products.serviceId,
+        })
+        .from(products)
+        .orderBy(desc(products.createdAt)),
+      db
+        .select({
+          productId: orders.productId,
+          count: sql<number>`count(*)`,
+        })
+        .from(orders)
+        .where(eq(orders.status, "completed"))
+        .groupBy(orders.productId),
+    ]);
 
     const salesMap = new Map(
       salesRows.filter((r) => r.productId !== null).map((r) => [r.productId!, Number(r.count)]),

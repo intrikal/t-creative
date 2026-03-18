@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Search, Clock, Phone, CalendarX } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import type { AssistantBookingRow, AssistantBookingStats } from "./actions";
+import { StaffBookingsCal } from "./components/StaffBookingsCal";
 
 const STATUS_FILTERS = ["All", "Upcoming", "Completed", "Cancelled"] as const;
 type StatusFilter = (typeof STATUS_FILTERS)[number];
@@ -63,8 +64,15 @@ export function AssistantBookingsPage({
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("All");
   const [expanded, setExpanded] = useState<number | null>(null);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+
+  const calEntries = useMemo(
+    () => initialBookings.map((b) => ({ dateISO: b.date, category: b.category })),
+    [initialBookings],
+  );
 
   const filtered = initialBookings.filter((b) => {
+    if (selectedDate && b.date !== selectedDate) return false;
     const matchSearch =
       b.client.toLowerCase().includes(search.toLowerCase()) ||
       b.service.toLowerCase().includes(search.toLowerCase());
@@ -101,6 +109,9 @@ export function AssistantBookingsPage({
           </Card>
         ))}
       </div>
+
+      {/* Calendar */}
+      <StaffBookingsCal entries={calEntries} selected={selectedDate} onSelect={setSelectedDate} />
 
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-2">

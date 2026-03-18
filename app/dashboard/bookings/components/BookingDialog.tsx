@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Dialog, DialogFooter, Field, Input, Textarea, Select } from "@/components/ui/dialog";
 import { CADENCE_OPTIONS } from "@/lib/cadence";
-import type { Booking, BookingStatus } from "../BookingsPage";
+import type { Booking, BookingStatus } from "./helpers";
 
 export type BookingFormState = {
   clientId: string;
@@ -21,7 +21,6 @@ export type BookingFormState = {
   seriesMaxOccurrences: string; // numeric string — sets COUNT in the full RRULE
   subscriptionId: number | "";
 };
-
 
 /** Maps preferredRebookIntervalDays → RRULE base frequency string. */
 const INTERVAL_DAYS_TO_RRULE: Record<number, string> = {

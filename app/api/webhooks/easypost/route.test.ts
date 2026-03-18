@@ -33,12 +33,12 @@ function makeRequest(body: string, headers: Record<string, string> = {}): Reques
 
 function makeEvent(overrides: Record<string, unknown> = {}) {
   return {
-    id: "evt_ep_test_123",
+    id: "evt_123",
     description: "tracker.updated",
     result: {
-      tracking_code: "EZ1000000001",
+      tracking_code: "TRACK123",
       status: "in_transit",
-      public_url: "https://track.easypost.com/abc123",
+      public_url: "https://track.example.com/TRACK123",
     },
     ...overrides,
   };
@@ -163,7 +163,7 @@ describe("POST /api/webhooks/easypost", () => {
 
   /* ---------- Signature verification ---------- */
 
-  it("returns 403 when signature is invalid", async () => {
+  it("returns 403 for invalid HMAC signature", async () => {
     mockVerifyEasyPostWebhook.mockReturnValue(false);
 
     const body = JSON.stringify(makeEvent());
@@ -173,6 +173,14 @@ describe("POST /api/webhooks/easypost", () => {
     expect(res.status).toBe(403);
     const text = await res.text();
     expect(text).toBe("Invalid signature");
+  });
+
+  it("returns 200 for valid signature", async () => {
+    const body = JSON.stringify(makeEvent());
+    const req = makeRequest(body, { "x-hmac-signature": "valid-sig" });
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
   });
 
   /* ---------- Invalid input ---------- */
@@ -189,7 +197,7 @@ describe("POST /api/webhooks/easypost", () => {
 
   /* ---------- Idempotency ---------- */
 
-  it("returns 200 for already processed event", async () => {
+  it("returns 200 for already-processed event (idempotency)", async () => {
     vi.resetModules();
 
     vi.doMock("@/db", () => ({
@@ -233,7 +241,7 @@ describe("POST /api/webhooks/easypost", () => {
 
   /* ---------- tracker.updated → shipped ---------- */
 
-  it("processes tracker.updated and updates order to shipped", async () => {
+  it("processes tracker.updated event and updates order status", async () => {
     vi.resetModules();
 
     let selectCallCount = 0;
@@ -318,9 +326,7 @@ describe("POST /api/webhooks/easypost", () => {
     expect(res.status).toBe(200);
 
     // Verify order was updated with "shipped" status
-    expect(localMockSet).toHaveBeenCalledWith(
-      expect.objectContaining({ status: "shipped" }),
-    );
+    expect(localMockSet).toHaveBeenCalledWith(expect.objectContaining({ status: "shipped" }));
   });
 
   /* ---------- OrderShipped email ---------- */
@@ -373,7 +379,13 @@ describe("POST /api/webhooks/easypost", () => {
         completedAt: "completedAt",
       },
       profiles: { id: "id", email: "email", firstName: "firstName" },
-      webhookEvents: { id: "id", externalEventId: "externalEventId", isProcessed: "isProcessed", processedAt: "processedAt", errorMessage: "errorMessage" },
+      webhookEvents: {
+        id: "id",
+        externalEventId: "externalEventId",
+        isProcessed: "isProcessed",
+        processedAt: "processedAt",
+        errorMessage: "errorMessage",
+      },
       syncLog: {},
     }));
     vi.doMock("@/lib/easypost", () => ({ verifyEasyPostWebhook: vi.fn(() => true) }));
@@ -464,7 +476,13 @@ describe("POST /api/webhooks/easypost", () => {
         completedAt: "completedAt",
       },
       profiles: { id: "id", email: "email", firstName: "firstName" },
-      webhookEvents: { id: "id", externalEventId: "externalEventId", isProcessed: "isProcessed", processedAt: "processedAt", errorMessage: "errorMessage" },
+      webhookEvents: {
+        id: "id",
+        externalEventId: "externalEventId",
+        isProcessed: "isProcessed",
+        processedAt: "processedAt",
+        errorMessage: "errorMessage",
+      },
       syncLog: {},
     }));
     vi.doMock("@/lib/easypost", () => ({ verifyEasyPostWebhook: vi.fn(() => true) }));
@@ -498,7 +516,7 @@ describe("POST /api/webhooks/easypost", () => {
 
   /* ---------- Unknown event type ---------- */
 
-  it("returns 200 on unknown event type without crash", async () => {
+  it("returns 200 and skips processing for unknown event type", async () => {
     vi.resetModules();
 
     vi.doMock("@/db", () => ({
@@ -511,7 +529,13 @@ describe("POST /api/webhooks/easypost", () => {
     vi.doMock("@/db/schema", () => ({
       orders: {},
       profiles: {},
-      webhookEvents: { id: "id", externalEventId: "externalEventId", isProcessed: "isProcessed", processedAt: "processedAt", errorMessage: "errorMessage" },
+      webhookEvents: {
+        id: "id",
+        externalEventId: "externalEventId",
+        isProcessed: "isProcessed",
+        processedAt: "processedAt",
+        errorMessage: "errorMessage",
+      },
       syncLog: {},
     }));
     vi.doMock("@/lib/easypost", () => ({ verifyEasyPostWebhook: vi.fn(() => true) }));
@@ -582,7 +606,13 @@ describe("POST /api/webhooks/easypost", () => {
         completedAt: "completedAt",
       },
       profiles: { id: "id", email: "email", firstName: "firstName" },
-      webhookEvents: { id: "id", externalEventId: "externalEventId", isProcessed: "isProcessed", processedAt: "processedAt", errorMessage: "errorMessage" },
+      webhookEvents: {
+        id: "id",
+        externalEventId: "externalEventId",
+        isProcessed: "isProcessed",
+        processedAt: "processedAt",
+        errorMessage: "errorMessage",
+      },
       syncLog: {},
     }));
     vi.doMock("@/lib/easypost", () => ({ verifyEasyPostWebhook: vi.fn(() => true) }));
@@ -610,9 +640,7 @@ describe("POST /api/webhooks/easypost", () => {
     // The order update sets status; check localMockSet was NOT called with a status field
     const statusUpdateCall = localMockSet.mock.calls.find(
       (call: unknown[]) =>
-        call[0] &&
-        typeof call[0] === "object" &&
-        "status" in (call[0] as Record<string, unknown>),
+        call[0] && typeof call[0] === "object" && "status" in (call[0] as Record<string, unknown>),
     );
     expect(statusUpdateCall).toBeUndefined();
 

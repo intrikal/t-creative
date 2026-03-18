@@ -3,11 +3,13 @@
 /** PlansTab — membership plan cards with create/edit/toggle controls. */
 
 import { useState, useTransition } from "react";
+import dynamic from "next/dynamic";
 import { BadgeCheck, CalendarDays, Plus, Scissors, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { updateMembershipPlan, type MembershipPlan } from "../actions";
 import { formatCents } from "./membership-helpers";
-import { PlanDialog } from "./PlanDialog";
+
+const PlanDialog = dynamic(() => import("./PlanDialog").then((m) => m.PlanDialog), { ssr: false });
 
 export function PlansTab({ plans }: { plans: MembershipPlan[] }) {
   const [isPending, startTransition] = useTransition();

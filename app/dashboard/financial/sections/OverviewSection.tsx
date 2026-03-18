@@ -29,15 +29,22 @@ function OverviewSkeleton() {
 }
 
 async function OverviewData() {
-  const [stats, categoryRevenue, weeklyRevenue, profitLoss, taxEstimate] = await Promise.all([
+  const [
+    stats,
+    categoryRevenue,
+    weeklyRevenue,
+    profitLoss,
+    taxEstimate,
+    productSales,
+    depositStats,
+    tipTrends,
+    expenseCategories,
+  ] = await Promise.all([
     getRevenueStats(),
     getCategoryRevenue(),
     getWeeklyRevenue(),
     getProfitLoss(),
     getTaxEstimate(),
-  ]);
-
-  const [productSales, depositStats, tipTrends, expenseCategories] = await Promise.all([
     getProductSales(),
     getDepositStats(),
     getTipTrends(),

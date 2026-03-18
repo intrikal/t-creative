@@ -18,7 +18,13 @@ import { eq, desc, sql, and } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import { reviews, profiles, bookings } from "@/db/schema";
-import { getUser } from "@/lib/auth";
+import { getUser, getCurrentUser } from "@/lib/auth";
+
+async function getAssistantUser() {
+  const user = await getCurrentUser();
+  if (!user) throw new Error("Not authenticated");
+  return user;
+}
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -296,7 +302,7 @@ export type AssistantReviewsData = {
  */
 export async function getAssistantReviews(): Promise<AssistantReviewsData> {
   try {
-    const user = await getUser();
+    const user = await getAssistantUser();
 
     // Fetch approved + featured reviews for this assistant's bookings in one query
     const allRows = await db
@@ -401,7 +407,7 @@ export async function assistantSaveReply(reviewId: number, reply: string) {
   try {
     z.number().int().positive().parse(reviewId);
     z.string().parse(reply);
-    const user = await getUser();
+    const user = await getAssistantUser();
 
     // Verify this review is on one of the assistant's bookings
     const [review] = await db

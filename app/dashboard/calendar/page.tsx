@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
+import { getBookings } from "../bookings/actions";
 import {
-  getBookings,
   getClientsForSelect,
   getServicesForSelect,
   getStaffForSelect,
-} from "../bookings/actions";
+} from "../bookings/select-actions";
 import { getEvents } from "../events/actions";
 import { getBusinessHours, getTimeOff, getLunchBreak } from "../settings/hours-actions";
 import { CalendarPage } from "./CalendarPage";

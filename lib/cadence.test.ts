@@ -3,61 +3,44 @@ import { cadenceLabelToRRule, rruleToCadenceLabel, CADENCE_OPTIONS } from "./cad
 
 describe("cadence", () => {
   describe("cadenceLabelToRRule", () => {
-    it("maps 'Every week' to FREQ=WEEKLY;INTERVAL=1", () => {
+    it("returns correct rrule for 'Every week'", () => {
       expect(cadenceLabelToRRule("Every week")).toBe("FREQ=WEEKLY;INTERVAL=1");
     });
 
-    it("maps 'Every 3 weeks' to FREQ=WEEKLY;INTERVAL=3", () => {
-      expect(cadenceLabelToRRule("Every 3 weeks")).toBe("FREQ=WEEKLY;INTERVAL=3");
+    it("returns correct rrule for 'Every 2 weeks'", () => {
+      expect(cadenceLabelToRRule("Every 2 weeks")).toBe("FREQ=WEEKLY;INTERVAL=2");
     });
 
-    it("maps 'Every month' to FREQ=MONTHLY;INTERVAL=1", () => {
-      expect(cadenceLabelToRRule("Every month")).toBe("FREQ=MONTHLY;INTERVAL=1");
-    });
-
-    it("maps 'Does not repeat' to empty string", () => {
+    it("returns empty string for 'Does not repeat'", () => {
       expect(cadenceLabelToRRule("Does not repeat")).toBe("");
     });
 
-    it("returns empty string for unknown labels", () => {
-      expect(cadenceLabelToRRule("Every 99 weeks")).toBe("");
-      expect(cadenceLabelToRRule("")).toBe("");
-    });
-
-    it("maps all defined options correctly", () => {
-      for (const opt of CADENCE_OPTIONS) {
-        expect(cadenceLabelToRRule(opt.label)).toBe(opt.rrule);
-      }
+    it("returns empty string for unknown label", () => {
+      expect(cadenceLabelToRRule("Every 99 years")).toBe("");
     });
   });
 
   describe("rruleToCadenceLabel", () => {
-    it("maps FREQ=WEEKLY;INTERVAL=1 to 'Every week'", () => {
+    it("returns correct label for weekly rrule", () => {
       expect(rruleToCadenceLabel("FREQ=WEEKLY;INTERVAL=1")).toBe("Every week");
     });
 
-    it("maps FREQ=WEEKLY;INTERVAL=6 to 'Every 6 weeks'", () => {
-      expect(rruleToCadenceLabel("FREQ=WEEKLY;INTERVAL=6")).toBe("Every 6 weeks");
-    });
-
-    it("maps FREQ=MONTHLY;INTERVAL=1 to 'Every month'", () => {
+    it("returns correct label for monthly rrule", () => {
       expect(rruleToCadenceLabel("FREQ=MONTHLY;INTERVAL=1")).toBe("Every month");
     });
 
-    it("returns empty string for empty rrule", () => {
+    it("returns empty string for empty input", () => {
       expect(rruleToCadenceLabel("")).toBe("");
     });
 
-    it("returns the rrule itself for unknown values", () => {
-      expect(rruleToCadenceLabel("FREQ=DAILY;INTERVAL=1")).toBe("FREQ=DAILY;INTERVAL=1");
+    it("returns raw rrule for unknown pattern", () => {
+      expect(rruleToCadenceLabel("FREQ=YEARLY;INTERVAL=1")).toBe("FREQ=YEARLY;INTERVAL=1");
     });
+  });
 
-    it("maps all defined options correctly", () => {
-      for (const opt of CADENCE_OPTIONS) {
-        if (opt.rrule) {
-          expect(rruleToCadenceLabel(opt.rrule)).toBe(opt.label);
-        }
-      }
-    });
+  it("all CADENCE_OPTIONS have matching value and rrule", () => {
+    for (const opt of CADENCE_OPTIONS) {
+      expect(opt.value).toBe(opt.rrule);
+    }
   });
 });

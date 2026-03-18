@@ -89,6 +89,8 @@ export const payments = pgTable(
     index("payments_status_idx").on(t.status),
     index("payments_paid_at_idx").on(t.paidAt),
     index("payments_square_id_idx").on(t.squarePaymentId),
+    // Composite index for analytics queries filtering on both paid_at and status
+    index("payments_status_paid_at_idx").on(t.status, t.paidAt),
   ],
 );
 

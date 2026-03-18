@@ -15,6 +15,7 @@ import { RevenuePerHourSectionWrapper } from "./sections/RevenuePerHourSectionWr
 import { RevenueSectionWrapper } from "./sections/RevenueSectionWrapper";
 import { StaffSection } from "./sections/StaffSection";
 import { VisitFrequencySectionWrapper } from "./sections/VisitFrequencySectionWrapper";
+import { WaitlistConversionSectionWrapper } from "./sections/WaitlistConversionSectionWrapper";
 import type { Range } from "./actions";
 
 const VALID_RANGES: Range[] = ["7d", "30d", "90d", "12m"];
@@ -43,6 +44,7 @@ export default async function Page({
       <VisitFrequencySectionWrapper />
       <AppointmentGapSectionWrapper />
       <ClientsSection range={range} />
+      <WaitlistConversionSectionWrapper range={range} />
       <PromotionRoiSectionWrapper />
       <MembershipValueSectionWrapper />
       <GiftCardBreakageSectionWrapper />

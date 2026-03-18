@@ -39,6 +39,7 @@ import {
   membershipSubscriptions,
   membershipPlans,
   giftCards,
+  waitlist,
 } from "@/db/schema";
 import { createClient } from "@/utils/supabase/server";
 
@@ -251,6 +252,33 @@ export type GiftCardBreakageStats = {
 export type PeakTimeSlot = {
   label: string;
   load: number;
+};
+
+export type WaitlistConversionStats = {
+  totalEntries: number;
+  totalNotified: number;
+  totalBooked: number;
+  totalExpired: number;
+  totalCancelled: number;
+  totalWaiting: number;
+  conversionRate: number;
+  expiryRate: number;
+  avgWaitDays: number | null;
+  avgClaimHours: number | null;
+  byService: {
+    service: string;
+    entries: number;
+    booked: number;
+    expired: number;
+    conversionRate: number;
+    avgWaitDays: number | null;
+  }[];
+  weeklyTrend: {
+    week: string;
+    joined: number;
+    booked: number;
+    expired: number;
+  }[];
 };
 
 /* ------------------------------------------------------------------ */
@@ -1741,6 +1769,175 @@ export async function exportBookingsCsv(): Promise<BookingExportRow[]> {
       staff: [r.staffFirst, r.staffLast].filter(Boolean).join(" ") || "—",
       notes: r.notes ?? "",
     }));
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Waitlist conversion                                                */
+/* ------------------------------------------------------------------ */
+
+export async function getWaitlistConversion(
+  range: Range,
+): Promise<WaitlistConversionStats> {
+  await getUser();
+  try {
+    const interval = rangeToInterval(range);
+
+    /* ---- Status counts ---- */
+    const statusRows = await db
+      .select({
+        status: waitlist.status,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(waitlist)
+      .where(gte(waitlist.createdAt, sql`now() - ${interval}::interval`))
+      .groupBy(waitlist.status);
+
+    const statusMap: Record<string, number> = {};
+    for (const r of statusRows) statusMap[r.status] = r.count;
+    const totalEntries =
+      (statusMap.waiting ?? 0) +
+      (statusMap.notified ?? 0) +
+      (statusMap.booked ?? 0) +
+      (statusMap.expired ?? 0) +
+      (statusMap.cancelled ?? 0);
+    const totalNotified =
+      (statusMap.notified ?? 0) + (statusMap.booked ?? 0) + (statusMap.expired ?? 0);
+    const totalBooked = statusMap.booked ?? 0;
+    const totalExpired = statusMap.expired ?? 0;
+    const totalCancelled = statusMap.cancelled ?? 0;
+    const totalWaiting = statusMap.waiting ?? 0;
+
+    const conversionRate =
+      totalNotified > 0 ? Math.round((totalBooked / totalNotified) * 100) : 0;
+    const expiryRate =
+      totalNotified > 0 ? Math.round((totalExpired / totalNotified) * 100) : 0;
+
+    /* ---- Average wait time (created → notified) ---- */
+    const [waitTimeRow] = await db
+      .select({
+        avgWaitDays: sql<number | null>`
+          round(avg(extract(epoch from ${waitlist.notifiedAt} - ${waitlist.createdAt}) / 86400)::numeric, 1)
+        `,
+      })
+      .from(waitlist)
+      .where(
+        and(
+          gte(waitlist.createdAt, sql`now() - ${interval}::interval`),
+          isNotNull(waitlist.notifiedAt),
+        ),
+      );
+
+    /* ---- Average claim time (notified → booked, in hours) ---- */
+    const [claimTimeRow] = await db
+      .select({
+        avgClaimHours: sql<number | null>`
+          round(avg(extract(epoch from ${waitlist.updatedAt} - ${waitlist.notifiedAt}) / 3600)::numeric, 1)
+        `,
+      })
+      .from(waitlist)
+      .where(
+        and(
+          gte(waitlist.createdAt, sql`now() - ${interval}::interval`),
+          eq(waitlist.status, "booked"),
+          isNotNull(waitlist.notifiedAt),
+        ),
+      );
+
+    /* ---- By service ---- */
+    const byServiceRows = await db
+      .select({
+        serviceName: services.name,
+        status: waitlist.status,
+        count: sql<number>`count(*)::int`,
+        avgWaitDays: sql<number | null>`
+          round(avg(
+            case when ${waitlist.notifiedAt} is not null
+              then extract(epoch from ${waitlist.notifiedAt} - ${waitlist.createdAt}) / 86400
+              else null
+            end
+          )::numeric, 1)
+        `,
+      })
+      .from(waitlist)
+      .innerJoin(services, eq(waitlist.serviceId, services.id))
+      .where(gte(waitlist.createdAt, sql`now() - ${interval}::interval`))
+      .groupBy(services.name, waitlist.status);
+
+    const serviceAgg: Record<
+      string,
+      { entries: number; booked: number; expired: number; avgWaitDays: number | null }
+    > = {};
+    for (const r of byServiceRows) {
+      const name = r.serviceName ?? "Unknown";
+      if (!serviceAgg[name])
+        serviceAgg[name] = { entries: 0, booked: 0, expired: 0, avgWaitDays: null };
+      serviceAgg[name].entries += r.count;
+      if (r.status === "booked") serviceAgg[name].booked += r.count;
+      if (r.status === "expired") serviceAgg[name].expired += r.count;
+      if (r.avgWaitDays != null) serviceAgg[name].avgWaitDays = r.avgWaitDays;
+    }
+    const byService = Object.entries(serviceAgg)
+      .map(([service, s]) => ({
+        service,
+        entries: s.entries,
+        booked: s.booked,
+        expired: s.expired,
+        conversionRate:
+          s.booked + s.expired > 0
+            ? Math.round((s.booked / (s.booked + s.expired)) * 100)
+            : 0,
+        avgWaitDays: s.avgWaitDays,
+      }))
+      .sort((a, b) => b.entries - a.entries);
+
+    /* ---- Weekly trend ---- */
+    const weeklyRows = await db
+      .select({
+        week: sql<string>`to_char(date_trunc('week', ${waitlist.createdAt}), 'Mon DD')`,
+        status: waitlist.status,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(waitlist)
+      .where(gte(waitlist.createdAt, sql`now() - ${interval}::interval`))
+      .groupBy(
+        sql`date_trunc('week', ${waitlist.createdAt})`,
+        waitlist.status,
+      )
+      .orderBy(sql`date_trunc('week', ${waitlist.createdAt})`);
+
+    const weekAgg: Record<string, { joined: number; booked: number; expired: number }> =
+      {};
+    for (const r of weeklyRows) {
+      if (!weekAgg[r.week]) weekAgg[r.week] = { joined: 0, booked: 0, expired: 0 };
+      weekAgg[r.week].joined += r.count;
+      if (r.status === "booked") weekAgg[r.week].booked += r.count;
+      if (r.status === "expired") weekAgg[r.week].expired += r.count;
+    }
+    const weeklyTrend = Object.entries(weekAgg).map(([week, w]) => ({
+      week,
+      joined: w.joined,
+      booked: w.booked,
+      expired: w.expired,
+    }));
+
+    return {
+      totalEntries,
+      totalNotified,
+      totalBooked,
+      totalExpired,
+      totalCancelled,
+      totalWaiting,
+      conversionRate,
+      expiryRate,
+      avgWaitDays: waitTimeRow?.avgWaitDays ?? null,
+      avgClaimHours: claimTimeRow?.avgClaimHours ?? null,
+      byService,
+      weeklyTrend,
+    };
   } catch (err) {
     Sentry.captureException(err);
     throw err;

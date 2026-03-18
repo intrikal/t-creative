@@ -30,9 +30,17 @@ if (!process.env.DATABASE_URL) {
  * `prepare: false` is required when connecting through Supabase's
  * PgBouncer-based connection pooler (transaction mode doesn't
  * support prepared statements).
+ *
+ * Stored on `globalThis` in development so Next.js hot-reloads don't
+ * create a new pool on every module re-evaluation (which exhausts the
+ * Supabase pooler's 25-connection limit and causes 75s hangs).
  */
 const client = postgres(process.env.DATABASE_URL, {
   prepare: false,
+  max: 10,
+  idle_timeout: 20,
+  max_lifetime: 60 * 10,
+  connect_timeout: 10,
 });
 
 /** Drizzle ORM instance with full schema for relational queries. */

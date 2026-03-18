@@ -10,7 +10,7 @@ async function RevenueData({ range }: { range: Range }) {
   const [revenueTrend, revenueGoal, kpiStats] = await Promise.all([
     getRevenueTrend(range),
     getRevenueGoal(),
-    getKpiStats(),
+    getKpiStats(range),
   ]);
 
   return (

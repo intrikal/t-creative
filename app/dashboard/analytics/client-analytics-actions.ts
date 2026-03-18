@@ -61,29 +61,45 @@ export async function getRetentionTrend(range: Range = "30d"): Promise<Retention
   try {
     await getUser();
 
-    const rows = await db
-      .select({
-        weekStart: sql<Date>`date_trunc('week', ${bookings.startsAt})`,
-        uniqueClients: sql<number>`count(distinct ${bookings.clientId})`,
-        newClients: sql<number>`count(distinct ${bookings.clientId}) filter (
-          where ${bookings.clientId} not in (
-            select distinct b2.client_id from bookings b2
-            where b2.starts_at < date_trunc('week', ${bookings.startsAt})
-          )
-        )`,
-      })
-      .from(bookings)
-      .where(
-        gte(bookings.startsAt, sql`now() - interval ${sql.raw(`'${rangeToInterval(range)}'`)}`),
+    // Use a CTE with min(starts_at) per client to determine first-ever visit,
+    // then classify each booking week as new vs returning without a correlated subquery.
+    const result = await db.execute(sql`
+      WITH first_visits AS (
+        SELECT client_id, min(starts_at) AS first_at
+        FROM bookings
+        GROUP BY client_id
+      ),
+      weekly AS (
+        SELECT
+          date_trunc('week', b.starts_at) AS week_start,
+          b.client_id,
+          fv.first_at
+        FROM bookings b
+        JOIN first_visits fv ON fv.client_id = b.client_id
+        WHERE b.starts_at > now() - interval ${sql.raw(`'${rangeToInterval(range)}'`)}
       )
-      .groupBy(sql`date_trunc('week', ${bookings.startsAt})`)
-      .orderBy(sql`date_trunc('week', ${bookings.startsAt})`);
+      SELECT
+        week_start,
+        count(DISTINCT client_id) AS unique_clients,
+        count(DISTINCT client_id) FILTER (
+          WHERE date_trunc('week', first_at) = week_start
+        ) AS new_clients
+      FROM weekly
+      GROUP BY week_start
+      ORDER BY week_start
+    `);
+
+    const rows = result as unknown as {
+      week_start: Date;
+      unique_clients: number;
+      new_clients: number;
+    }[];
 
     return rows.map((r) => {
-      const unique = Number(r.uniqueClients);
-      const newC = Number(r.newClients);
+      const unique = Number(r.unique_clients);
+      const newC = Number(r.new_clients);
       return {
-        week: weekLabel(new Date(r.weekStart)),
+        week: weekLabel(new Date(r.week_start)),
         newClients: newC,
         returning: unique - newC,
       };

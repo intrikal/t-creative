@@ -1,0 +1,1 @@
+CREATE INDEX "profiles_role_created_at_idx" ON "profiles" USING btree ("role","created_at");

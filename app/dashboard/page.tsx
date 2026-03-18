@@ -191,8 +191,9 @@ export default async function Page() {
     fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 7);
 
     const adminStaffP = alias(profiles, "adminStaffP");
+    const invoiceClientP = alias(profiles, "invoiceClientP");
 
-    // ── Group 1: stats ──────────────────────────────────────────────
+    // ── All queries in parallel ──────────────────────────────────────
     const [
       revTodayRow,
       revYesterdayRow,
@@ -204,6 +205,15 @@ export default async function Page() {
       outstandingRow,
       openInquiriesRow,
       newInquiriesTodayRow,
+      todayBookingsRaw,
+      remainingTodayRow,
+      overdueInvoicesRaw,
+      recentInquiriesRaw,
+      weeklyRevDailyRaw,
+      lowStockProductsRow,
+      lowStockSuppliesRow,
+      recentClientsRaw,
+      teamShiftsRaw,
     ] = await Promise.all([
       db
         .select({ total: sql<number>`coalesce(sum(${payments.amountInCents}), 0)` })
@@ -276,20 +286,6 @@ export default async function Page() {
         .from(inquiries)
         .where(and(eq(inquiries.status, "new"), gte(inquiries.createdAt, todayStart)))
         .then((r) => r[0]),
-    ]);
-
-    // ── Group 2: lists ──────────────────────────────────────────────
-    const invoiceClientP = alias(profiles, "invoiceClientP");
-
-    const [
-      todayBookingsRaw,
-      remainingTodayRow,
-      overdueInvoicesRaw,
-      recentInquiriesRaw,
-      weeklyRevDailyRaw,
-      lowStockProductsRow,
-      lowStockSuppliesRow,
-    ] = await Promise.all([
       db
         .select({
           id: bookings.id,
@@ -387,10 +383,6 @@ export default async function Page() {
           ),
         )
         .then((r) => r[0]),
-    ]);
-
-    // ── Group 3: recent clients + team ──────────────────────────────
-    const [recentClientsRaw, teamShiftsRaw] = await Promise.all([
       db
         .select({
           id: profiles.id,

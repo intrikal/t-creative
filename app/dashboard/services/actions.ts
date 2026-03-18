@@ -543,23 +543,22 @@ export async function getAssistantServices(): Promise<{
   try {
     const user = await getUser();
 
-    // Get all active services
-    const allServices = await db
-      .select()
-      .from(services)
-      .where(eq(services.isActive, true))
-      .orderBy(services.category, services.sortOrder);
-
-    // Get services this assistant has completed (certification + times performed)
-    const completedServices = await db
-      .select({
-        serviceId: bookings.serviceId,
-        firstCompleted: sql<Date>`min(${bookings.startsAt})`.as("first_completed"),
-        timesPerformed: sql<number>`count(*)`.as("times_performed"),
-      })
-      .from(bookings)
-      .where(sql`${bookings.staffId} = ${user.id} AND ${bookings.status} = 'completed'`)
-      .groupBy(bookings.serviceId);
+    const [allServices, completedServices] = await Promise.all([
+      db
+        .select()
+        .from(services)
+        .where(eq(services.isActive, true))
+        .orderBy(services.category, services.sortOrder),
+      db
+        .select({
+          serviceId: bookings.serviceId,
+          firstCompleted: sql<Date>`min(${bookings.startsAt})`.as("first_completed"),
+          timesPerformed: sql<number>`count(*)`.as("times_performed"),
+        })
+        .from(bookings)
+        .where(sql`${bookings.staffId} = ${user.id} AND ${bookings.status} = 'completed'`)
+        .groupBy(bookings.serviceId),
+    ]);
 
     const certMap = new Map(
       completedServices.map((r) => [

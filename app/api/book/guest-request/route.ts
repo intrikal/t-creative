@@ -30,7 +30,11 @@ export async function POST(request: Request) {
     referencePhotoUrls,
     preferredCadence,
     turnstileToken,
-  } = body as Record<string, string> & { referencePhotoUrls?: string[] };
+    selectedAddOns,
+  } = body as Record<string, string> & {
+    referencePhotoUrls?: string[];
+    selectedAddOns?: { name: string; priceInCents: number }[];
+  };
 
   if (!name?.trim() || !email?.trim() || !serviceId || !preferredDate?.trim()) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
@@ -83,6 +87,7 @@ export async function POST(request: Request) {
             ${phone?.trim() ? `<tr><td style="padding:8px 0;color:#78716c">Phone</td><td style="padding:8px 0;color:#1c1917">${phone.trim()}</td></tr>` : ""}
             <tr><td style="padding:8px 0;color:#78716c">Preferred time</td><td style="padding:8px 0;color:#1c1917">${preferredDate.trim()}</td></tr>
             ${preferredCadence?.trim() ? `<tr><td style="padding:8px 0;color:#78716c">Repeat</td><td style="padding:8px 0;color:#1c1917">${preferredCadence.trim()}</td></tr>` : ""}
+            ${Array.isArray(selectedAddOns) && selectedAddOns.length > 0 ? `<tr><td style="padding:8px 0;color:#78716c">Add-ons</td><td style="padding:8px 0;color:#1c1917">${selectedAddOns.map((a) => `${a.name} (+$${(a.priceInCents / 100).toFixed(0)})`).join(", ")}</td></tr>` : ""}
             ${notes?.trim() ? `<tr><td style="padding:8px 0;color:#78716c;vertical-align:top">Notes</td><td style="padding:8px 0;color:#1c1917">${notes.trim()}</td></tr>` : ""}
           </table>
           ${

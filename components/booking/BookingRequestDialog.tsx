@@ -38,7 +38,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { SquarePaymentForm } from "./components/SquarePaymentForm";
 import { formatPrice } from "./helpers";
-import type { Service } from "./types";
+import type { Service, ServiceAddOn } from "./types";
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                             */
@@ -185,10 +185,12 @@ type PhotoPreview = { file: File; preview: string };
 
 export function BookingRequestDialog({
   service,
+  addOns = [],
   open,
   onClose,
 }: {
   service: Service;
+  addOns?: ServiceAddOn[];
   open: boolean;
   onClose: () => void;
 }) {
@@ -203,6 +205,7 @@ export function BookingRequestDialog({
   const [guestEmail, setGuestEmail] = useState("");
   const [guestPhone, setGuestPhone] = useState("");
   const [photos, setPhotos] = useState<PhotoPreview[]>([]);
+  const [selectedAddOnIds, setSelectedAddOnIds] = useState<Set<number>>(new Set());
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [depositPaid, setDepositPaid] = useState(false);
@@ -214,6 +217,12 @@ export function BookingRequestDialog({
 
   const hasDeposit = !!service.depositInCents && service.depositInCents > 0;
   const totalSteps = hasDeposit ? 4 : 3;
+
+  const selectedAddOns = addOns.filter((a) => selectedAddOnIds.has(a.id));
+  const addOnTotal = selectedAddOns.reduce((sum, a) => sum + a.priceInCents, 0);
+  const addOnMinutes = selectedAddOns.reduce((sum, a) => sum + a.additionalMinutes, 0);
+  const adjustedPrice = (service.priceInCents ?? 0) + addOnTotal;
+  const adjustedDuration = (service.durationMinutes ?? 0) + addOnMinutes;
 
   // Fetch availability + auth status on open
   useEffect(() => {
@@ -267,6 +276,10 @@ export function BookingRequestDialog({
 
       const preferredDates = `${fmtDateLabel(selectedDate)} at ${fmt12(selectedTime)}`;
       const idempotencyKey = crypto.randomUUID();
+      const addOnPayload = selectedAddOns.map((a) => ({
+        name: a.name,
+        priceInCents: a.priceInCents,
+      }));
 
       try {
         const res = await fetch("/api/book/pay-deposit", {
@@ -280,6 +293,7 @@ export function BookingRequestDialog({
             referencePhotoUrls: uploadedPhotosRef.current,
             preferredCadence: cadence || undefined,
             idempotencyKey,
+            selectedAddOns: addOnPayload,
             // Guest fields
             ...(isGuest
               ? {
@@ -317,6 +331,7 @@ export function BookingRequestDialog({
       guestEmail,
       guestPhone,
       turnstileToken,
+      selectedAddOns,
     ],
   );
 
@@ -380,6 +395,14 @@ export function BookingRequestDialog({
     return urls;
   }
 
+  /** Serialisable add-on payload for server actions + API routes. */
+  function getAddOnPayload() {
+    return selectedAddOns.map((a) => ({
+      name: a.name,
+      priceInCents: a.priceInCents,
+    }));
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (submitting || !selectedDate) return;
@@ -388,6 +411,8 @@ export function BookingRequestDialog({
       setError("Please enter your name and email.");
       return;
     }
+
+    const addOnPayload = getAddOnPayload();
 
     // If service has deposit, proceed to pay step instead of submitting
     if (hasDeposit) {
@@ -429,6 +454,7 @@ export function BookingRequestDialog({
             referencePhotoUrls,
             preferredCadence: cadence || undefined,
             turnstileToken,
+            selectedAddOns: addOnPayload,
           }),
         });
         if (!res.ok) throw new Error("Failed to send request");
@@ -439,6 +465,7 @@ export function BookingRequestDialog({
           preferredDates,
           referencePhotoUrls,
           preferredCadence: cadence || undefined,
+          selectedAddOns: addOnPayload,
         });
       }
       setSubmitted(true);
@@ -462,6 +489,7 @@ export function BookingRequestDialog({
     setGuestEmail("");
     setGuestPhone("");
     setPhotos([]);
+    setSelectedAddOnIds(new Set());
     setError("");
     setTurnstileToken("");
     uploadedPhotosRef.current = [];
@@ -671,22 +699,109 @@ export function BookingRequestDialog({
                     <span className="text-stone-500">Time</span>
                     <span className="font-medium text-stone-900">{fmt12(selectedTime)}</span>
                   </div>
-                  {service.durationMinutes && (
+                  {(service.durationMinutes || addOnMinutes > 0) && (
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-stone-500">Duration</span>
                       <span className="flex items-center gap-1 font-medium text-stone-900">
                         <Clock className="w-3 h-3 text-stone-400" />
-                        {service.durationMinutes} min
+                        {adjustedDuration} min
                       </span>
                     </div>
                   )}
+                  {selectedAddOns.length > 0 && (
+                    <>
+                      <div className="flex items-center justify-between text-sm pt-1 border-t border-stone-200">
+                        <span className="text-stone-500">Base price</span>
+                        <span className="font-medium text-stone-900">
+                          {formatPrice(service.priceInCents)}
+                        </span>
+                      </div>
+                      {selectedAddOns.map((a) => (
+                        <div key={a.id} className="flex items-center justify-between text-sm">
+                          <span className="text-stone-500 pl-2">+ {a.name}</span>
+                          <span className="font-medium text-stone-900">
+                            {formatPrice(a.priceInCents)}
+                          </span>
+                        </div>
+                      ))}
+                    </>
+                  )}
                   <div className="flex items-center justify-between text-sm pt-1 border-t border-stone-200">
-                    <span className="text-stone-500">Price</span>
+                    <span className="text-stone-500">
+                      {selectedAddOns.length > 0 ? "Total" : "Price"}
+                    </span>
                     <span className="font-semibold text-stone-900">
-                      {formatPrice(service.priceInCents)}
+                      {formatPrice(adjustedPrice)}
                     </span>
                   </div>
                 </div>
+
+                {/* Add-on upsells */}
+                {addOns.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium text-stone-600">
+                      Enhance your appointment
+                    </p>
+                    <div className="space-y-1.5">
+                      {addOns.map((addon) => {
+                        const isSelected = selectedAddOnIds.has(addon.id);
+                        return (
+                          <button
+                            key={addon.id}
+                            type="button"
+                            onClick={() =>
+                              setSelectedAddOnIds((prev) => {
+                                const next = new Set(prev);
+                                if (isSelected) next.delete(addon.id);
+                                else next.add(addon.id);
+                                return next;
+                              })
+                            }
+                            className={cn(
+                              "w-full flex items-center justify-between rounded-xl border px-3.5 py-2.5 text-left transition-colors",
+                              isSelected
+                                ? "border-[#96604a] bg-[#faf6f1]"
+                                : "border-stone-200 hover:border-[#e8c4b8] hover:bg-[#faf6f1]/50",
+                            )}
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <div
+                                className={cn(
+                                  "w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-colors",
+                                  isSelected
+                                    ? "border-[#96604a] bg-[#96604a]"
+                                    : "border-stone-300",
+                                )}
+                              >
+                                {isSelected && (
+                                  <CheckCircle2 className="w-3 h-3 text-white" />
+                                )}
+                              </div>
+                              <div>
+                                <span className="text-sm font-medium text-stone-900">
+                                  {addon.name}
+                                </span>
+                                {addon.description && (
+                                  <p className="text-[11px] text-stone-400 leading-tight mt-0.5">
+                                    {addon.description}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                            <span className="text-sm font-semibold text-[#96604a] shrink-0 ml-2">
+                              +{formatPrice(addon.priceInCents)}
+                              {addon.additionalMinutes > 0 && (
+                                <span className="block text-[10px] font-normal text-stone-400 text-right">
+                                  +{addon.additionalMinutes}min
+                                </span>
+                              )}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
                 {hasDeposit && (
                   <p className="text-xs text-[#96604a] bg-[#faf6f1] border border-[#e8c4b8]/50 rounded-lg px-3 py-2">
@@ -896,6 +1011,14 @@ export function BookingRequestDialog({
                     <span className="text-stone-500">Service</span>
                     <span className="font-medium text-stone-900">{service.name}</span>
                   </div>
+                  {selectedAddOns.length > 0 && (
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-stone-500">Add-ons</span>
+                      <span className="font-medium text-stone-900">
+                        {selectedAddOns.map((a) => a.name).join(", ")}
+                      </span>
+                    </div>
+                  )}
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-stone-500">Date & time</span>
                     <span className="font-medium text-stone-900">
@@ -908,11 +1031,11 @@ export function BookingRequestDialog({
                       {formatPrice(service.depositInCents)}
                     </span>
                   </div>
-                  {service.priceInCents && service.depositInCents && (
+                  {adjustedPrice > 0 && service.depositInCents && (
                     <div className="flex items-center justify-between text-xs">
                       <span className="text-stone-400">Remaining at appointment</span>
                       <span className="text-stone-500">
-                        {formatPrice(service.priceInCents - service.depositInCents)}
+                        {formatPrice(adjustedPrice - service.depositInCents)}
                       </span>
                     </div>
                   )}

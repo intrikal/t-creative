@@ -25,7 +25,7 @@ import * as Sentry from "@sentry/nextjs";
 import { eq } from "drizzle-orm";
 import { Resend } from "resend";
 import { db } from "@/db";
-import { bookings, payments, profiles, services, syncLog } from "@/db/schema";
+import { bookings, bookingAddOns, payments, profiles, services, syncLog } from "@/db/schema";
 import { logAction } from "@/lib/audit";
 import { trackEvent } from "@/lib/posthog";
 import { RESEND_FROM, isResendConfigured } from "@/lib/resend";
@@ -53,6 +53,7 @@ export async function POST(request: Request) {
     preferredCadence,
     referencePhotoUrls,
     idempotencyKey,
+    selectedAddOns,
     // Guest fields
     name: guestName,
     email: guestEmail,
@@ -70,6 +71,7 @@ export async function POST(request: Request) {
     email?: string;
     phone?: string;
     turnstileToken?: string;
+    selectedAddOns?: { name: string; priceInCents: number }[];
   };
 
   if (!sourceId || !serviceId || !preferredDate || !idempotencyKey) {
@@ -162,6 +164,17 @@ export async function POST(request: Request) {
       })
       .returning({ id: bookings.id });
     bookingId = newBooking.id;
+
+    // Store selected add-ons as snapshots on the booking
+    if (Array.isArray(selectedAddOns) && selectedAddOns.length > 0) {
+      await db.insert(bookingAddOns).values(
+        selectedAddOns.map((a: { name: string; priceInCents: number }) => ({
+          bookingId: newBooking.id,
+          addOnName: a.name,
+          priceInCents: a.priceInCents,
+        })),
+      );
+    }
   } catch (err) {
     Sentry.captureException(err);
     return NextResponse.json({ error: "Failed to create booking" }, { status: 500 });
@@ -273,6 +286,7 @@ export async function POST(request: Request) {
               ${contactInfo}
               <tr><td style="padding:8px 0;color:#78716c">Preferred time</td><td style="padding:8px 0;color:#1c1917">${preferredDate}</td></tr>
               ${preferredCadence ? `<tr><td style="padding:8px 0;color:#78716c">Repeat</td><td style="padding:8px 0;color:#1c1917">${preferredCadence}</td></tr>` : ""}
+              ${Array.isArray(selectedAddOns) && selectedAddOns.length > 0 ? `<tr><td style="padding:8px 0;color:#78716c">Add-ons</td><td style="padding:8px 0;color:#1c1917">${selectedAddOns.map((a: { name: string; priceInCents: number }) => `${a.name} (+$${(a.priceInCents / 100).toFixed(0)})`).join(", ")}</td></tr>` : ""}
               ${notes?.trim() ? `<tr><td style="padding:8px 0;color:#78716c;vertical-align:top">Notes</td><td style="padding:8px 0;color:#1c1917">${notes.trim()}</td></tr>` : ""}
             </table>
             ${

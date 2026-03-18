@@ -37,6 +37,7 @@ import { getPolicies } from "@/app/dashboard/settings/settings-actions";
 import { db } from "@/db";
 import {
   bookings,
+  bookingAddOns,
   bookingSubscriptions,
   clientPreferences,
   invoices,
@@ -1108,6 +1109,15 @@ async function trySendBookingConfirmation(bookingId: number): Promise<void> {
 
     if (!row) return;
 
+    // Fetch add-ons for this booking
+    const addOnRows = await db
+      .select({
+        name: bookingAddOns.addOnName,
+        priceInCents: bookingAddOns.priceInCents,
+      })
+      .from(bookingAddOns)
+      .where(eq(bookingAddOns.bookingId, bookingId));
+
     const startsAtFormatted = row.startsAt.toLocaleDateString("en-US", {
       weekday: "long",
       month: "long",
@@ -1127,6 +1137,7 @@ async function trySendBookingConfirmation(bookingId: number): Promise<void> {
           startsAt: startsAtFormatted,
           durationMinutes: row.durationMinutes,
           totalInCents: row.totalInCents,
+          addOns: addOnRows.length > 0 ? addOnRows : undefined,
         }),
         entityType: "booking_confirmation",
         localId: String(bookingId),

@@ -9,6 +9,7 @@ export type BookingConfirmationProps = {
   startsAt: string;
   durationMinutes: number;
   totalInCents: number;
+  addOns?: { name: string; priceInCents: number }[];
 };
 
 export function BookingConfirmation({
@@ -17,7 +18,10 @@ export function BookingConfirmation({
   startsAt,
   durationMinutes,
   totalInCents,
+  addOns,
 }: BookingConfirmationProps) {
+  const hasAddOns = addOns && addOns.length > 0;
+
   return (
     <Layout preview={`Booking confirmed — ${serviceName}`}>
       <Section style={content}>
@@ -26,6 +30,17 @@ export function BookingConfirmation({
 
         <Text style={detailLabel}>Service</Text>
         <Text style={detailValue}>{serviceName}</Text>
+
+        {hasAddOns && (
+          <>
+            <Text style={detailLabel}>Add-ons</Text>
+            {addOns.map((a, i) => (
+              <Text key={i} style={addOnItem}>
+                {a.name} — {formatCents(a.priceInCents)}
+              </Text>
+            ))}
+          </>
+        )}
 
         <Text style={detailLabel}>When</Text>
         <Text style={detailValue}>{startsAt}</Text>
@@ -77,6 +92,13 @@ const detailValue: React.CSSProperties = {
   fontSize: "14px",
   color: "#333333",
   margin: "0 0 12px",
+};
+
+const addOnItem: React.CSSProperties = {
+  fontSize: "14px",
+  color: "#333333",
+  margin: "0 0 4px",
+  paddingLeft: "8px",
 };
 
 const muted: React.CSSProperties = {

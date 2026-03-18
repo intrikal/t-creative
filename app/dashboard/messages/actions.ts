@@ -21,6 +21,7 @@ import {
   quickReplies,
   services,
   bookings,
+  bookingAddOns,
   threadParticipants,
 } from "@/db/schema";
 import { MessageNotification } from "@/emails/MessageNotification";
@@ -702,12 +703,18 @@ export async function getThreadParticipants(threadId: number): Promise<Participa
  *
  * Requires the client to be authenticated (logged in).
  */
+const addOnItemSchema = z.object({
+  name: z.string().min(1),
+  priceInCents: z.number().int().nonnegative(),
+});
+
 const createBookingRequestSchema = z.object({
   serviceId: z.number().int().positive(),
   message: z.string(),
   preferredDates: z.string().optional(),
   referencePhotoUrls: z.array(z.string()).optional(),
   preferredCadence: z.string().optional(),
+  selectedAddOns: z.array(addOnItemSchema).optional(),
 });
 
 export async function createBookingRequest(input: {
@@ -716,6 +723,7 @@ export async function createBookingRequest(input: {
   preferredDates?: string;
   referencePhotoUrls?: string[];
   preferredCadence?: string;
+  selectedAddOns?: { name: string; priceInCents: number }[];
 }): Promise<{ threadId: number; bookingId: number }> {
   createBookingRequestSchema.parse(input);
   const user = await getUser();
@@ -753,6 +761,17 @@ export async function createBookingRequest(input: {
     })
     .returning({ id: bookings.id });
 
+  // Store selected add-ons as snapshots on the booking
+  if (input.selectedAddOns && input.selectedAddOns.length > 0) {
+    await db.insert(bookingAddOns).values(
+      input.selectedAddOns.map((a) => ({
+        bookingId: booking.id,
+        addOnName: a.name,
+        priceInCents: a.priceInCents,
+      })),
+    );
+  }
+
   // Create a thread linked to the booking
   const [thread] = await db
     .insert(threads)
@@ -771,6 +790,10 @@ export async function createBookingRequest(input: {
 
   // Insert the client's initial message
   const bodyParts = [`Hi! I'd love to book a ${service.name}.`];
+  if (input.selectedAddOns && input.selectedAddOns.length > 0) {
+    const addOnList = input.selectedAddOns.map((a) => `${a.name} (+$${(a.priceInCents / 100).toFixed(0)})`).join(", ");
+    bodyParts.push(`Add-ons: ${addOnList}`);
+  }
   if (input.preferredDates) bodyParts.push(`Preferred dates: ${input.preferredDates}`);
   if (input.preferredCadence) bodyParts.push(`Repeat: ${input.preferredCadence}`);
   if (input.message) bodyParts.push(input.message);

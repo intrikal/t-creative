@@ -164,6 +164,7 @@ export function ServiceCard({
 
       <BookingRequestDialog
         service={service}
+        addOns={addOns}
         open={showRequest}
         onClose={() => setShowRequest(false)}
       />

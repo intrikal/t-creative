@@ -1,8 +1,15 @@
 import { redirect } from "next/navigation";
+import type { Metadata } from "next";
 import { getCurrentUser } from "@/lib/auth";
 import { getEvents, getClientEvents, getVenues } from "./actions";
 import { ClientEventsPage } from "./ClientEventsPage";
 import { EventsPage } from "./EventsPage";
+
+export const metadata: Metadata = {
+  title: "Events — T Creative Studio",
+  description: "Manage studio events and client event registrations.",
+  robots: { index: false, follow: false },
+};
 
 export default async function Page() {
   const user = await getCurrentUser();

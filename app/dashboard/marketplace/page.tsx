@@ -11,6 +11,13 @@
 import { getServicesForSelect } from "@/app/dashboard/bookings/actions";
 import { getProducts, getSupplies, getMarketplaceStats } from "./actions";
 import { MarketplacePage } from "./MarketplacePage";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Marketplace — T Creative Studio",
+  description: "Browse and manage studio products, supplies, and marketplace listings.",
+  robots: { index: false, follow: false },
+};
 
 export default async function Page() {
   const [products, supplies, stats, services] = await Promise.all([

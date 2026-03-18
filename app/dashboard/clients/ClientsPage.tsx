@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useOptimistic, useTransition } from "react";
+import dynamic from "next/dynamic";
 import { Search, Star, Plus, Users, TrendingUp, DollarSign } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -8,10 +9,24 @@ import type { ClientRow, LoyaltyRow, LifecycleStage } from "./actions";
 export type { LifecycleStage };
 import { createClient, updateClient, deleteClient, getClients as fetchClients } from "./actions";
 import { ClientCard } from "./components/ClientCard";
-import { ClientFormDialog, BLANK_FORM, type ClientFormState } from "./components/ClientFormDialog";
-import { ClientPreferencesDialog } from "./components/ClientPreferencesDialog";
-import { ClientWaiversDialog } from "./components/ClientWaiversDialog";
-import { DeleteDialog } from "./components/DeleteDialog";
+import { BLANK_FORM, type ClientFormState } from "./components/ClientFormDialog";
+
+const ClientFormDialog = dynamic(
+  () => import("./components/ClientFormDialog").then((m) => m.ClientFormDialog),
+  { ssr: false },
+);
+const ClientPreferencesDialog = dynamic(
+  () => import("./components/ClientPreferencesDialog").then((m) => m.ClientPreferencesDialog),
+  { ssr: false },
+);
+const ClientWaiversDialog = dynamic(
+  () => import("./components/ClientWaiversDialog").then((m) => m.ClientWaiversDialog),
+  { ssr: false },
+);
+const DeleteDialog = dynamic(
+  () => import("./components/DeleteDialog").then((m) => m.DeleteDialog),
+  { ssr: false },
+);
 import {
   type ClientSource,
   type ServiceCategory,

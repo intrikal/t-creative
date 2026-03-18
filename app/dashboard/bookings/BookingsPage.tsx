@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useOptimistic, useTransition } from "react";
+import dynamic from "next/dynamic";
 import { Search, Plus } from "lucide-react";
-import { PaymentChoiceDialog } from "@/components/booking/PaymentChoiceDialog";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import {
@@ -15,10 +15,8 @@ import {
   checkBookingWaivers,
 } from "./actions";
 import type { BookingRow, BookingInput, MissingWaiver } from "./actions";
-import { BookingDialog, type BookingFormState } from "./components/BookingDialog";
+import type { BookingFormState } from "./components/BookingDialog";
 import { BookingRow as BookingRowComponent } from "./components/BookingRow";
-import { CancelDialog } from "./components/CancelDialog";
-import { DeleteDialog } from "./components/DeleteDialog";
 import {
   statusConfig,
   mapBookingRow,
@@ -28,9 +26,32 @@ import {
   type BookingStatus,
   type PageTab,
 } from "./components/helpers";
-import { ServiceRecordDialog } from "./components/ServiceRecordDialog";
 import { WaitlistTab } from "./components/WaitlistTab";
-import { WaiverGateDialog } from "./components/WaiverGateDialog";
+
+const PaymentChoiceDialog = dynamic(
+  () => import("@/components/booking/PaymentChoiceDialog").then((m) => m.PaymentChoiceDialog),
+  { ssr: false },
+);
+const BookingDialog = dynamic(
+  () => import("./components/BookingDialog").then((m) => m.BookingDialog),
+  { ssr: false },
+);
+const CancelDialog = dynamic(
+  () => import("./components/CancelDialog").then((m) => m.CancelDialog),
+  { ssr: false },
+);
+const DeleteDialog = dynamic(
+  () => import("./components/DeleteDialog").then((m) => m.DeleteDialog),
+  { ssr: false },
+);
+const ServiceRecordDialog = dynamic(
+  () => import("./components/ServiceRecordDialog").then((m) => m.ServiceRecordDialog),
+  { ssr: false },
+);
+const WaiverGateDialog = dynamic(
+  () => import("./components/WaiverGateDialog").then((m) => m.WaiverGateDialog),
+  { ssr: false },
+);
 
 /* Re-export types & helpers so existing imports from this module still work */
 export { statusConfig, categoryDot } from "./components/helpers";

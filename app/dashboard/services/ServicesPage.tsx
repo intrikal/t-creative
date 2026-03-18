@@ -31,6 +31,7 @@
  */
 
 import { useState, useOptimistic, useTransition } from "react";
+import dynamic from "next/dynamic";
 import { Search, Plus, Tag, Package, FileText, ToggleLeft, Sparkles } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -43,11 +44,18 @@ import {
   seedServiceCatalog,
 } from "./actions";
 import type { BundleRow } from "./bundle-actions";
-import { AddOnsDialog } from "./components/AddOnsDialog";
 import { BundlesTab } from "./components/BundlesTab";
 import { FormsTab } from "./components/FormsTab";
 import { ServiceCard } from "./components/ServiceCard";
-import { ServiceFormDialog } from "./components/ServiceFormDialog";
+
+const AddOnsDialog = dynamic(
+  () => import("./components/AddOnsDialog").then((m) => m.AddOnsDialog),
+  { ssr: false },
+);
+const ServiceFormDialog = dynamic(
+  () => import("./components/ServiceFormDialog").then((m) => m.ServiceFormDialog),
+  { ssr: false },
+);
 import type { FormRow } from "./form-actions";
 import { CAT_CONFIG, dbToService, serviceToInput, serviceToFormData } from "./types";
 import type { Category, Service, ServiceFormData } from "./types";

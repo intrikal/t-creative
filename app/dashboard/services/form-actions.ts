@@ -29,6 +29,7 @@
 import * as Sentry from "@sentry/nextjs";
 import { revalidatePath } from "next/cache";
 import { eq, desc } from "drizzle-orm";
+import { z } from "zod";
 import { db } from "@/db";
 import { clientForms, formSubmissions } from "@/db/schema";
 import { requireAdmin } from "@/lib/auth";
@@ -47,6 +48,30 @@ export type FormInput = {
 
 const getUser = requireAdmin;
 
+/* ------------------------------------------------------------------ */
+/*  Schemas                                                            */
+/* ------------------------------------------------------------------ */
+
+const idSchema = z.number().int().positive();
+
+const formInputSchema = z.object({
+  name: z.string().min(1).max(200),
+  type: z.enum(["intake", "waiver", "consent", "custom"]),
+  description: z.string(),
+  appliesTo: z.array(z.string().min(1)).min(1),
+  required: z.boolean(),
+  isActive: z.boolean(),
+});
+
+const formSubmissionInputSchema = z.object({
+  clientId: z.string().min(1),
+  formId: z.number().int().positive(),
+  data: z.record(z.unknown()),
+  signatureUrl: z.string().optional(),
+  formVersion: z.string().optional(),
+  ipAddress: z.string().optional(),
+});
+
 export async function getForms(): Promise<FormRow[]> {
   try {
     await getUser();
@@ -59,6 +84,7 @@ export async function getForms(): Promise<FormRow[]> {
 
 export async function createForm(input: FormInput): Promise<FormRow> {
   try {
+    formInputSchema.parse(input);
     const user = await getUser();
     const [row] = await db
       .insert(clientForms)
@@ -82,6 +108,8 @@ export async function createForm(input: FormInput): Promise<FormRow> {
 
 export async function updateForm(id: number, input: FormInput): Promise<FormRow> {
   try {
+    idSchema.parse(id);
+    formInputSchema.parse(input);
     await getUser();
     const [row] = await db
       .update(clientForms)
@@ -105,6 +133,7 @@ export async function updateForm(id: number, input: FormInput): Promise<FormRow>
 
 export async function deleteForm(id: number): Promise<void> {
   try {
+    idSchema.parse(id);
     const user = await getUser();
     await db.delete(clientForms).where(eq(clientForms.id, id));
     trackEvent(user.id, "form_deleted", { formId: id });
@@ -117,6 +146,8 @@ export async function deleteForm(id: number): Promise<void> {
 
 export async function toggleFormActive(id: number, isActive: boolean): Promise<void> {
   try {
+    idSchema.parse(id);
+    z.boolean().parse(isActive);
     await getUser();
     await db.update(clientForms).set({ isActive }).where(eq(clientForms.id, id));
     revalidatePath("/dashboard/services");
@@ -128,6 +159,7 @@ export async function toggleFormActive(id: number, isActive: boolean): Promise<v
 
 export async function updateFormFields(id: number, fields: unknown): Promise<void> {
   try {
+    idSchema.parse(id);
     await getUser();
     await db.update(clientForms).set({ fields }).where(eq(clientForms.id, id));
     revalidatePath("/dashboard/services");
@@ -213,6 +245,7 @@ export async function getActiveForms(): Promise<FormRow[]> {
 
 export async function submitForm(input: FormSubmissionInput): Promise<void> {
   try {
+    formSubmissionInputSchema.parse(input);
     const user = await getUser();
 
     await db.insert(formSubmissions).values({

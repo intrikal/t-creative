@@ -6,6 +6,7 @@
  */
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import type { ShippingAddress } from "@/db/schema";
 
 export type CartItem = {
   productId: number;
@@ -15,11 +16,25 @@ export type CartItem = {
   imageUrl: string | null;
 };
 
+/** A selected shipping rate from EasyPost. */
+export type SelectedShippingRate = {
+  shipmentId: string;
+  rateId: string;
+  carrier: string;
+  service: string;
+  rateInCents: number;
+  estimatedDays: number | null;
+};
+
 interface CartState {
   items: CartItem[];
+  shippingAddress: ShippingAddress | null;
+  selectedRate: SelectedShippingRate | null;
   addItem: (item: Omit<CartItem, "quantity">) => void;
   removeItem: (productId: number) => void;
   updateQuantity: (productId: number, quantity: number) => void;
+  setShippingAddress: (address: ShippingAddress | null) => void;
+  setSelectedRate: (rate: SelectedShippingRate | null) => void;
   clearCart: () => void;
 }
 
@@ -27,6 +42,8 @@ export const useCartStore = create<CartState>()(
   persist(
     (set, get) => ({
       items: [],
+      shippingAddress: null,
+      selectedRate: null,
 
       addItem: (item) => {
         const existing = get().items.find((i) => i.productId === item.productId);
@@ -55,7 +72,15 @@ export const useCartStore = create<CartState>()(
         });
       },
 
-      clearCart: () => set({ items: [] }),
+      setShippingAddress: (address) => {
+        set({ shippingAddress: address, selectedRate: null });
+      },
+
+      setSelectedRate: (rate) => {
+        set({ selectedRate: rate });
+      },
+
+      clearCart: () => set({ items: [], shippingAddress: null, selectedRate: null }),
     }),
     { name: "tc-cart" },
   ),

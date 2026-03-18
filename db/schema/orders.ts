@@ -28,6 +28,18 @@ import { products } from "./products";
 import { services } from "./services";
 import { profiles } from "./users";
 
+/** Structured shipping address stored as JSONB on orders. */
+export type ShippingAddress = {
+  name: string;
+  street1: string;
+  street2?: string;
+  city: string;
+  state: string;
+  zip: string;
+  country: string;
+  phone?: string;
+};
+
 /* ------------------------------------------------------------------ */
 /*  Orders                                                             */
 /* ------------------------------------------------------------------ */
@@ -90,8 +102,28 @@ export const orders = pgTable(
      * How the client chose to pay/receive:
      * - "pickup_online" — pay now via Square, pick up at studio
      * - "pickup_cash" — pick up at studio, pay cash
+     * - "ship_standard" — ship via EasyPost (standard rate)
+     * - "ship_express" — ship via EasyPost (express rate)
      */
     fulfillmentMethod: varchar("fulfillment_method", { length: 50 }),
+
+    /** Shipping address (JSON: { name, street1, street2?, city, state, zip, country, phone? }). */
+    shippingAddress: jsonb("shipping_address").$type<ShippingAddress>(),
+
+    /** EasyPost shipment ID — used to buy labels and track shipments. */
+    easypostShipmentId: varchar("easypost_shipment_id", { length: 100 }),
+
+    /** Carrier tracking number (e.g. "9400111899223456789012"). */
+    trackingNumber: varchar("tracking_number", { length: 200 }),
+
+    /** Carrier tracking URL for the client (e.g. USPS, UPS, FedEx tracking page). */
+    trackingUrl: varchar("tracking_url", { length: 500 }),
+
+    /** URL to download the purchased shipping label PDF. */
+    shippingLabelUrl: varchar("shipping_label_url", { length: 500 }),
+
+    /** Shipping cost in cents charged to the customer. */
+    shippingCostInCents: integer("shipping_cost_in_cents"),
 
     /** Link to service for dual-listed items (training/consulting packages). */
     serviceId: integer("service_id").references(() => services.id, {

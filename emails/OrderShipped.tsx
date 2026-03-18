@@ -1,58 +1,48 @@
 import * as React from "react";
 import { Section, Text } from "@react-email/components";
+import { Button } from "./components/Button";
 import { Layout } from "./components/Layout";
 
-export type OrderStatusUpdateProps = {
+export type OrderShippedProps = {
   clientName: string;
   orderNumber: string;
   productTitle: string;
-  status: "ready_for_pickup" | "shipped" | "completed";
+  trackingNumber: string;
+  trackingUrl: string;
 };
 
-const statusConfig = {
-  ready_for_pickup: {
-    heading: "Your Order is Ready for Pickup",
-    message: "Your order is ready! Come pick it up at the studio at your earliest convenience.",
-  },
-  shipped: {
-    heading: "Your Order Has Shipped",
-    message: "Your order is on its way! Check your email for tracking details.",
-  },
-  completed: {
-    heading: "Order Complete",
-    message: "Your order has been completed. Thank you for your business!",
-  },
-};
-
-export function OrderStatusUpdate({
+export function OrderShipped({
   clientName,
   orderNumber,
   productTitle,
-  status,
-}: OrderStatusUpdateProps) {
-  const config = statusConfig[status];
-
+  trackingNumber,
+  trackingUrl,
+}: OrderShippedProps) {
   return (
-    <Layout preview={`Order ${orderNumber} — ${config.heading}`}>
+    <Layout preview={`Order ${orderNumber} has shipped`}>
       <Section style={content}>
-        <Text style={heading}>{config.heading}</Text>
+        <Text style={heading}>Your Order Has Shipped!</Text>
         <Text style={paragraph}>
-          Hey {clientName}, {config.message}
+          Hey {clientName}, your order <strong>{orderNumber}</strong> is on its way!
         </Text>
-
-        <Text style={detailLabel}>Order</Text>
-        <Text style={detailValue}>{orderNumber}</Text>
 
         <Text style={detailLabel}>Item</Text>
         <Text style={detailValue}>{productTitle}</Text>
 
-        <Text style={muted}>Questions? Reply to this email or contact us directly.</Text>
+        <Text style={detailLabel}>Tracking Number</Text>
+        <Text style={detailValue}>{trackingNumber}</Text>
+
+        {trackingUrl && <Button href={trackingUrl}>Track Your Package</Button>}
+
+        <Text style={muted}>
+          You&apos;ll receive another update when your package is delivered.
+        </Text>
       </Section>
     </Layout>
   );
 }
 
-export default OrderStatusUpdate;
+export default OrderShipped;
 
 const content: React.CSSProperties = {
   padding: "0 40px",

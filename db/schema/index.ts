@@ -95,7 +95,7 @@ export {
 } from "./products";
 
 /* Orders (marketplace + custom commissions) */
-export { orders, ordersRelations } from "./orders";
+export { orders, ordersRelations, type ShippingAddress } from "./orders";
 
 /* Product inquiries (marketplace inquiry pipeline) */
 export {

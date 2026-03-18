@@ -124,60 +124,123 @@ export async function getClientTraining(): Promise<ClientTrainingData> {
   try {
     const user = await getUser();
 
-    // 1. Active programs with next session info
-    const programRows = await db
-      .select({
-        id: trainingPrograms.id,
-        name: trainingPrograms.name,
-        description: trainingPrograms.description,
-        category: trainingPrograms.category,
-        format: trainingPrograms.format,
-        priceInCents: trainingPrograms.priceInCents,
-        maxStudents: trainingPrograms.maxStudents,
-        certificationProvided: trainingPrograms.certificationProvided,
-        kitIncluded: trainingPrograms.kitIncluded,
-      })
-      .from(trainingPrograms)
-      .where(eq(trainingPrograms.isActive, true))
-      .orderBy(asc(trainingPrograms.sortOrder));
+    const now = new Date();
 
-    // 2. Modules + lesson counts per program
-    const moduleRows = await db
-      .select({
-        programId: trainingModules.programId,
-        name: trainingModules.name,
-        description: trainingModules.description,
-        sortOrder: trainingModules.sortOrder,
-        moduleId: trainingModules.id,
-      })
-      .from(trainingModules)
-      .orderBy(asc(trainingModules.sortOrder));
-
-    const lessonCounts = await db
-      .select({
-        moduleId: trainingLessons.moduleId,
-        count: sql<number>`count(*)`,
-      })
-      .from(trainingLessons)
-      .groupBy(trainingLessons.moduleId);
+    // Phase 1: All independent queries in parallel
+    const [
+      programRows,
+      moduleRows,
+      lessonCounts,
+      upcomingSessions,
+      enrollmentCounts,
+      programEnrollCounts,
+      enrollmentRows,
+      certRows,
+    ] = await Promise.all([
+      // 1. Active programs
+      db
+        .select({
+          id: trainingPrograms.id,
+          name: trainingPrograms.name,
+          description: trainingPrograms.description,
+          category: trainingPrograms.category,
+          format: trainingPrograms.format,
+          priceInCents: trainingPrograms.priceInCents,
+          maxStudents: trainingPrograms.maxStudents,
+          certificationProvided: trainingPrograms.certificationProvided,
+          kitIncluded: trainingPrograms.kitIncluded,
+        })
+        .from(trainingPrograms)
+        .where(eq(trainingPrograms.isActive, true))
+        .orderBy(asc(trainingPrograms.sortOrder)),
+      // 2. Modules
+      db
+        .select({
+          programId: trainingModules.programId,
+          name: trainingModules.name,
+          description: trainingModules.description,
+          sortOrder: trainingModules.sortOrder,
+          moduleId: trainingModules.id,
+        })
+        .from(trainingModules)
+        .orderBy(asc(trainingModules.sortOrder)),
+      // Lesson counts per module
+      db
+        .select({
+          moduleId: trainingLessons.moduleId,
+          count: sql<number>`count(*)`,
+        })
+        .from(trainingLessons)
+        .groupBy(trainingLessons.moduleId),
+      // 3. Upcoming sessions
+      db
+        .select({
+          programId: trainingSessions.programId,
+          startsAt: trainingSessions.startsAt,
+          location: trainingSessions.location,
+          materials: trainingSessions.materials,
+          maxStudents: trainingSessions.maxStudents,
+          isWaitlistOpen: trainingSessions.isWaitlistOpen,
+          id: trainingSessions.id,
+        })
+        .from(trainingSessions)
+        .where(and(eq(trainingSessions.status, "scheduled"), gte(trainingSessions.startsAt, now)))
+        .orderBy(asc(trainingSessions.startsAt)),
+      // 4. Enrollment counts per session
+      db
+        .select({
+          sessionId: enrollments.sessionId,
+          count: sql<number>`count(*)`,
+        })
+        .from(enrollments)
+        .where(ne(enrollments.status, "withdrawn"))
+        .groupBy(enrollments.sessionId),
+      // Enrollment counts per program
+      db
+        .select({
+          programId: enrollments.programId,
+          count: sql<number>`count(*)`,
+        })
+        .from(enrollments)
+        .where(ne(enrollments.status, "withdrawn"))
+        .groupBy(enrollments.programId),
+      // 5. Client enrollments
+      db
+        .select({
+          id: enrollments.id,
+          programId: enrollments.programId,
+          status: enrollments.status,
+          progressPercent: enrollments.progressPercent,
+          sessionsCompleted: enrollments.sessionsCompleted,
+          amountPaidInCents: enrollments.amountPaidInCents,
+          programName: trainingPrograms.name,
+          programCategory: trainingPrograms.category,
+          programPrice: trainingPrograms.priceInCents,
+          sessionStartsAt: trainingSessions.startsAt,
+          sessionLocation: trainingSessions.location,
+        })
+        .from(enrollments)
+        .leftJoin(trainingPrograms, eq(enrollments.programId, trainingPrograms.id))
+        .leftJoin(trainingSessions, eq(enrollments.sessionId, trainingSessions.id))
+        .where(eq(enrollments.clientId, user.id))
+        .orderBy(desc(enrollments.enrolledAt)),
+      // 6. Client certificates
+      db
+        .select({
+          id: certificates.id,
+          certificateCode: certificates.certificateCode,
+          pdfStoragePath: certificates.pdfStoragePath,
+          issuedAt: certificates.issuedAt,
+          programName: trainingPrograms.name,
+          programCategory: trainingPrograms.category,
+        })
+        .from(certificates)
+        .leftJoin(trainingPrograms, eq(certificates.programId, trainingPrograms.id))
+        .where(eq(certificates.clientId, user.id))
+        .orderBy(desc(certificates.issuedAt)),
+    ]);
 
     const lessonCountMap = new Map(lessonCounts.map((r) => [r.moduleId, Number(r.count)]));
-
-    // 3. Next scheduled session per program
-    const now = new Date();
-    const upcomingSessions = await db
-      .select({
-        programId: trainingSessions.programId,
-        startsAt: trainingSessions.startsAt,
-        location: trainingSessions.location,
-        materials: trainingSessions.materials,
-        maxStudents: trainingSessions.maxStudents,
-        isWaitlistOpen: trainingSessions.isWaitlistOpen,
-        id: trainingSessions.id,
-      })
-      .from(trainingSessions)
-      .where(and(eq(trainingSessions.status, "scheduled"), gte(trainingSessions.startsAt, now)))
-      .orderBy(asc(trainingSessions.startsAt));
 
     // Group next session per program
     const nextSessionMap = new Map<number, (typeof upcomingSessions)[number]>();
@@ -187,31 +250,11 @@ export async function getClientTraining(): Promise<ClientTrainingData> {
       }
     }
 
-    // 4. Enrollment counts per session (for spots calculation)
-    const enrollmentCounts = await db
-      .select({
-        sessionId: enrollments.sessionId,
-        count: sql<number>`count(*)`,
-      })
-      .from(enrollments)
-      .where(ne(enrollments.status, "withdrawn"))
-      .groupBy(enrollments.sessionId);
-
     const enrollCountMap = new Map(
       enrollmentCounts
         .filter((r) => r.sessionId !== null)
         .map((r) => [r.sessionId!, Number(r.count)]),
     );
-
-    // Also count enrollments per program (for programs without sessions)
-    const programEnrollCounts = await db
-      .select({
-        programId: enrollments.programId,
-        count: sql<number>`count(*)`,
-      })
-      .from(enrollments)
-      .where(ne(enrollments.status, "withdrawn"))
-      .groupBy(enrollments.programId);
 
     const programEnrollMap = new Map(
       programEnrollCounts.map((r) => [r.programId, Number(r.count)]),
@@ -276,27 +319,6 @@ export async function getClientTraining(): Promise<ClientTrainingData> {
         nextSession: sessionInfo,
       };
     });
-
-    // 5. Client's enrollments
-    const enrollmentRows = await db
-      .select({
-        id: enrollments.id,
-        programId: enrollments.programId,
-        status: enrollments.status,
-        progressPercent: enrollments.progressPercent,
-        sessionsCompleted: enrollments.sessionsCompleted,
-        amountPaidInCents: enrollments.amountPaidInCents,
-        programName: trainingPrograms.name,
-        programCategory: trainingPrograms.category,
-        programPrice: trainingPrograms.priceInCents,
-        sessionStartsAt: trainingSessions.startsAt,
-        sessionLocation: trainingSessions.location,
-      })
-      .from(enrollments)
-      .leftJoin(trainingPrograms, eq(enrollments.programId, trainingPrograms.id))
-      .leftJoin(trainingSessions, eq(enrollments.sessionId, trainingSessions.id))
-      .where(eq(enrollments.clientId, user.id))
-      .orderBy(desc(enrollments.enrolledAt));
 
     // 5b. Fetch lesson modules + lessons for active enrollments
     const activeProgramIds = enrollmentRows
@@ -397,21 +419,6 @@ export async function getClientTraining(): Promise<ClientTrainingData> {
         sessionLocation: r.sessionLocation,
       };
     });
-
-    // 6. Client's certificates
-    const certRows = await db
-      .select({
-        id: certificates.id,
-        certificateCode: certificates.certificateCode,
-        pdfStoragePath: certificates.pdfStoragePath,
-        issuedAt: certificates.issuedAt,
-        programName: trainingPrograms.name,
-        programCategory: trainingPrograms.category,
-      })
-      .from(certificates)
-      .leftJoin(trainingPrograms, eq(certificates.programId, trainingPrograms.id))
-      .where(eq(certificates.clientId, user.id))
-      .orderBy(desc(certificates.issuedAt));
 
     const clientCertificates: ClientCertificate[] = certRows.map((r) => ({
       id: r.id,

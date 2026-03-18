@@ -29,20 +29,7 @@ import type { ShipmentResult } from "@/lib/easypost";
 import { isSquareConfigured, createSquareOrderPaymentLink } from "@/lib/square";
 import { createZohoDeal } from "@/lib/zoho";
 import { createZohoBooksInvoice } from "@/lib/zoho-books";
-import { createClient } from "@/utils/supabase/server";
-
-/* ------------------------------------------------------------------ */
-/*  Auth helper                                                        */
-/* ------------------------------------------------------------------ */
-
-async function getUser() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
-  return user;
-}
+import { getUser } from "@/lib/auth";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -106,9 +93,6 @@ export type ClientOrder = {
   quantity: number;
   finalInCents: number | null;
   fulfillmentMethod: string | null;
-  trackingNumber: string | null;
-  trackingUrl: string | null;
-  shippingCostInCents: number | null;
   createdAt: string;
 };
 
@@ -503,9 +487,6 @@ export async function getClientOrders(): Promise<ClientOrder[]> {
       quantity: orders.quantity,
       finalInCents: orders.finalInCents,
       fulfillmentMethod: orders.fulfillmentMethod,
-      trackingNumber: orders.trackingNumber,
-      trackingUrl: orders.trackingUrl,
-      shippingCostInCents: orders.shippingCostInCents,
       createdAt: orders.createdAt,
     })
     .from(orders)

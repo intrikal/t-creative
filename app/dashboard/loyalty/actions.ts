@@ -13,20 +13,7 @@ import {
   loyaltyRewards,
   loyaltyRedemptions,
 } from "@/db/schema";
-import { createClient } from "@/utils/supabase/server";
-
-/* ------------------------------------------------------------------ */
-/*  Auth guard                                                         */
-/* ------------------------------------------------------------------ */
-
-async function getUser() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
-  return user;
-}
+import { getUser } from "@/lib/auth";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -211,72 +198,102 @@ export async function getClientLoyaltyData(): Promise<LoyaltyPageData> {
   try {
     const user = await getUser();
 
-    // Profile
-    const [profileRow] = await db
-      .select({
-        firstName: profiles.firstName,
-        referralCode: profiles.referralCode,
-      })
-      .from(profiles)
-      .where(eq(profiles.id, user.id))
-      .limit(1);
-
-    // Total points
-    const [pointsRow] = await db
-      .select({ total: sum(loyaltyTransactions.points) })
-      .from(loyaltyTransactions)
-      .where(eq(loyaltyTransactions.profileId, user.id));
+    const [
+      [profileRow],
+      [pointsRow],
+      txRows,
+      referralCountRow,
+      [memRow],
+      rewardRows,
+      pendingRows,
+    ] = await Promise.all([
+      // Profile
+      db
+        .select({ firstName: profiles.firstName, referralCode: profiles.referralCode })
+        .from(profiles)
+        .where(eq(profiles.id, user.id))
+        .limit(1),
+      // Total points
+      db
+        .select({ total: sum(loyaltyTransactions.points) })
+        .from(loyaltyTransactions)
+        .where(eq(loyaltyTransactions.profileId, user.id)),
+      // Recent transactions (last 20)
+      db
+        .select({
+          id: loyaltyTransactions.id,
+          points: loyaltyTransactions.points,
+          type: loyaltyTransactions.type,
+          description: loyaltyTransactions.description,
+          createdAt: loyaltyTransactions.createdAt,
+        })
+        .from(loyaltyTransactions)
+        .where(eq(loyaltyTransactions.profileId, user.id))
+        .orderBy(desc(loyaltyTransactions.createdAt))
+        .limit(20),
+      // Referral count (always query — cheap COUNT)
+      db
+        .select({ n: count() })
+        .from(profiles)
+        .where(eq(profiles.referredBy, user.id)),
+      // Active membership
+      db
+        .select({
+          planName: membershipPlans.name,
+          priceInCents: membershipPlans.priceInCents,
+          fillsPerCycle: membershipPlans.fillsPerCycle,
+          fillsRemainingThisCycle: membershipSubscriptions.fillsRemainingThisCycle,
+          productDiscountPercent: membershipPlans.productDiscountPercent,
+          cycleEndsAt: membershipSubscriptions.cycleEndsAt,
+          status: membershipSubscriptions.status,
+          perks: membershipPlans.perks,
+        })
+        .from(membershipSubscriptions)
+        .innerJoin(membershipPlans, eq(membershipSubscriptions.planId, membershipPlans.id))
+        .where(
+          and(
+            eq(membershipSubscriptions.clientId, user.id),
+            or(
+              eq(membershipSubscriptions.status, "active"),
+              eq(membershipSubscriptions.status, "paused"),
+            ),
+          ),
+        )
+        .orderBy(desc(membershipSubscriptions.createdAt))
+        .limit(1),
+      // Active rewards catalog
+      db
+        .select({
+          id: loyaltyRewards.id,
+          label: loyaltyRewards.label,
+          pointsCost: loyaltyRewards.pointsCost,
+          discountInCents: loyaltyRewards.discountInCents,
+          category: loyaltyRewards.category,
+          description: loyaltyRewards.description,
+        })
+        .from(loyaltyRewards)
+        .where(eq(loyaltyRewards.active, true))
+        .orderBy(asc(loyaltyRewards.sortOrder), asc(loyaltyRewards.pointsCost)),
+      // Pending redemptions
+      db
+        .select({
+          id: loyaltyRedemptions.id,
+          rewardLabel: loyaltyRewards.label,
+          rewardCategory: loyaltyRewards.category,
+          pointsCost: loyaltyRewards.pointsCost,
+          discountInCents: loyaltyRewards.discountInCents,
+          createdAt: loyaltyRedemptions.createdAt,
+        })
+        .from(loyaltyRedemptions)
+        .innerJoin(loyaltyRewards, eq(loyaltyRedemptions.rewardId, loyaltyRewards.id))
+        .where(
+          and(eq(loyaltyRedemptions.profileId, user.id), eq(loyaltyRedemptions.status, "pending")),
+        )
+        .orderBy(desc(loyaltyRedemptions.createdAt)),
+    ]);
 
     const totalPoints = Number(pointsRow?.total ?? 0);
-
-    // Recent transactions (last 20)
-    const txRows = await db
-      .select({
-        id: loyaltyTransactions.id,
-        points: loyaltyTransactions.points,
-        type: loyaltyTransactions.type,
-        description: loyaltyTransactions.description,
-        createdAt: loyaltyTransactions.createdAt,
-      })
-      .from(loyaltyTransactions)
-      .where(eq(loyaltyTransactions.profileId, user.id))
-      .orderBy(desc(loyaltyTransactions.createdAt))
-      .limit(20);
-
-    // Referral count
-    const referralCount = profileRow?.referralCode
-      ? await db
-          .select({ n: count() })
-          .from(profiles)
-          .where(eq(profiles.referredBy, user.id))
-          .then((r) => Number(r[0]?.n ?? 0))
-      : 0;
-
-    // Active membership (if any)
-    const [memRow] = await db
-      .select({
-        planName: membershipPlans.name,
-        priceInCents: membershipPlans.priceInCents,
-        fillsPerCycle: membershipPlans.fillsPerCycle,
-        fillsRemainingThisCycle: membershipSubscriptions.fillsRemainingThisCycle,
-        productDiscountPercent: membershipPlans.productDiscountPercent,
-        cycleEndsAt: membershipSubscriptions.cycleEndsAt,
-        status: membershipSubscriptions.status,
-        perks: membershipPlans.perks,
-      })
-      .from(membershipSubscriptions)
-      .innerJoin(membershipPlans, eq(membershipSubscriptions.planId, membershipPlans.id))
-      .where(
-        and(
-          eq(membershipSubscriptions.clientId, user.id),
-          or(
-            eq(membershipSubscriptions.status, "active"),
-            eq(membershipSubscriptions.status, "paused"),
-          ),
-        ),
-      )
-      .orderBy(desc(membershipSubscriptions.createdAt))
-      .limit(1);
+    const referralCount = Number(referralCountRow[0]?.n ?? 0);
 
     const membership: ClientMembershipData | null = memRow
       ? {
@@ -294,37 +311,6 @@ export async function getClientLoyaltyData(): Promise<LoyaltyPageData> {
           perks: (memRow.perks as string[]) ?? [],
         }
       : null;
-
-    // Active rewards catalog
-    const rewardRows = await db
-      .select({
-        id: loyaltyRewards.id,
-        label: loyaltyRewards.label,
-        pointsCost: loyaltyRewards.pointsCost,
-        discountInCents: loyaltyRewards.discountInCents,
-        category: loyaltyRewards.category,
-        description: loyaltyRewards.description,
-      })
-      .from(loyaltyRewards)
-      .where(eq(loyaltyRewards.active, true))
-      .orderBy(asc(loyaltyRewards.sortOrder), asc(loyaltyRewards.pointsCost));
-
-    // Pending redemptions for this client
-    const pendingRows = await db
-      .select({
-        id: loyaltyRedemptions.id,
-        rewardLabel: loyaltyRewards.label,
-        rewardCategory: loyaltyRewards.category,
-        pointsCost: loyaltyRewards.pointsCost,
-        discountInCents: loyaltyRewards.discountInCents,
-        createdAt: loyaltyRedemptions.createdAt,
-      })
-      .from(loyaltyRedemptions)
-      .innerJoin(loyaltyRewards, eq(loyaltyRedemptions.rewardId, loyaltyRewards.id))
-      .where(
-        and(eq(loyaltyRedemptions.profileId, user.id), eq(loyaltyRedemptions.status, "pending")),
-      )
-      .orderBy(desc(loyaltyRedemptions.createdAt));
 
     return {
       firstName: profileRow?.firstName ?? "",

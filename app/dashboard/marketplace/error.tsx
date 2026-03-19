@@ -12,7 +12,6 @@ export default function MarketplaceError({
 }) {
   useEffect(() => {
     Sentry.captureException(error);
-    console.error("[marketplace error]", error);
   }, [error]);
 
   return (

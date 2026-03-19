@@ -13,7 +13,6 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { MOCK_REVIEWS } from "@/lib/data/reviews";
 import type { FeaturedReview } from "@/lib/public-reviews";
 
 const AUTO_ADVANCE_MS = 6000;
@@ -25,8 +24,6 @@ const serviceLabel: Record<string, string> = {
   consulting: "Consulting",
   training: "Training",
 };
-
-const mockFeatured = MOCK_REVIEWS.filter((r) => r.status === "featured");
 
 /** Split text into words, preserving spaces for natural flow */
 function WordStagger({ text }: { text: string }) {
@@ -54,20 +51,12 @@ function WordStagger({ text }: { text: string }) {
 }
 
 export function Testimonials({ reviews: dbReviews }: { reviews?: FeaturedReview[] } = {}) {
-  // Use DB reviews if available, otherwise fall back to mock data
-  const featuredReviews = dbReviews && dbReviews.length > 0
-    ? dbReviews.map((r) => ({
-        id: r.id,
-        client: r.client,
-        text: r.body ?? "",
-        service: r.serviceName ?? "general",
-      }))
-    : mockFeatured.map((r) => ({
-        id: r.id,
-        client: r.client,
-        text: r.text,
-        service: r.service,
-      }));
+  const featuredReviews = (dbReviews ?? []).map((r) => ({
+    id: r.id,
+    client: r.client,
+    text: r.body ?? "",
+    service: r.serviceName ?? "general",
+  }));
 
   const [active, setActive] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
@@ -97,7 +86,18 @@ export function Testimonials({ reviews: dbReviews }: { reviews?: FeaturedReview[
     };
   }, [active, isPaused, advance, featuredReviews.length]);
 
-  if (featuredReviews.length === 0) return null;
+  if (featuredReviews.length === 0) {
+    return (
+      <section id="testimonials" className="py-32 md:py-48 px-6 bg-background">
+        <div className="mx-auto max-w-5xl text-center">
+          <span className="text-[10px] tracking-[0.3em] uppercase text-muted block">
+            What clients say
+          </span>
+          <p className="text-sm text-muted mt-8">No testimonials yet.</p>
+        </div>
+      </section>
+    );
+  }
 
   const review = featuredReviews[active];
 

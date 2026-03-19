@@ -68,7 +68,7 @@ import { sendSms } from "@/lib/twilio";
 import { notifyWaitlistForCancelledBooking } from "@/lib/waitlist-notify";
 import { createZohoDeal, updateZohoDeal } from "@/lib/zoho";
 import { createZohoBooksInvoice } from "@/lib/zoho-books";
-import { requireAdmin } from "@/lib/auth";
+import { requireAdmin, requireStaff } from "@/lib/auth";
 
 export type BookingStatus =
   | "completed"
@@ -1457,6 +1457,8 @@ export type AssistantBookingRow = {
   date: string;
   dayLabel: string;
   time: string;
+  startTime24: string;
+  endTime: string;
   service: string;
   category: string;
   client: string;
@@ -1476,6 +1478,10 @@ export type AssistantBookingStats = {
 
 function formatTime(d: Date): string {
   return d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+}
+
+function formatTime24(d: Date): string {
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
 function formatDateKey(d: Date): string {
@@ -1503,7 +1509,7 @@ export async function getAssistantBookings(): Promise<{
   stats: AssistantBookingStats;
 }> {
   try {
-    const user = await getUser();
+    const user = await requireStaff();
 
     const clientProfile = alias(profiles, "client");
 
@@ -1531,6 +1537,7 @@ export async function getAssistantBookings(): Promise<{
 
     const mapped: AssistantBookingRow[] = rows.map((r) => {
       const start = new Date(r.startsAt);
+      const end = new Date(start.getTime() + r.durationMinutes * 60 * 1000);
       const firstName = r.clientFirstName ?? "";
       const lastName = r.clientLastName ?? "";
       return {
@@ -1538,6 +1545,8 @@ export async function getAssistantBookings(): Promise<{
         date: formatDateKey(start),
         dayLabel: formatDayLabel(start),
         time: formatTime(start),
+        startTime24: formatTime24(start),
+        endTime: formatTime(end),
         service: r.serviceName,
         category: r.serviceCategory ?? "lash",
         client: `${firstName} ${lastName.charAt(0)}.`.trim(),

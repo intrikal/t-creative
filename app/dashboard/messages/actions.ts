@@ -29,7 +29,7 @@ import { trackEvent } from "@/lib/posthog";
 import { rruleToCadenceLabel } from "@/lib/cadence";
 import { sendEmail } from "@/lib/resend";
 import { createZohoDeal } from "@/lib/zoho";
-import { createClient } from "@/utils/supabase/server";
+import { getUser } from "@/lib/auth";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -107,19 +107,6 @@ export interface QuickReplyRow {
   id: number;
   label: string;
   body: string;
-}
-
-/* ------------------------------------------------------------------ */
-/*  Auth helper                                                        */
-/* ------------------------------------------------------------------ */
-
-async function getUser() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
-  return user;
 }
 
 /* ------------------------------------------------------------------ */

@@ -15,16 +15,8 @@ import type { MediaCategory } from "@/app/dashboard/media/actions";
 import { db } from "@/db";
 import { profiles, serviceRecords, mediaItems, notifications } from "@/db/schema";
 import { trackEvent } from "@/lib/posthog";
+import { getUser } from "@/lib/auth";
 import { createClient } from "@/utils/supabase/server";
-
-async function getUser() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
-  return user;
-}
 
 export type ServiceRecordRow = {
   id: number;

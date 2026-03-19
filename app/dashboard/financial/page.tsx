@@ -1,4 +1,6 @@
+import { redirect } from "next/navigation";
 import type { Metadata } from "next";
+import { getCurrentUser } from "@/lib/auth";
 import { FinancialShell } from "./FinancialShell";
 import { ExpensesSection } from "./sections/ExpensesSection";
 import { GiftCardsSection } from "./sections/GiftCardsSection";
@@ -13,7 +15,11 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export default function Page() {
+export default async function Page() {
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+  if (user.profile?.role !== "admin") redirect("/dashboard");
+
   return (
     <FinancialShell
       overview={<OverviewSection />}

@@ -1,13 +1,6 @@
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { getCurrentUser } from "@/lib/auth";
-import { getSubscriptions } from "../subscriptions/actions";
-import { getBookings, getAssistantBookings } from "./actions";
-import { AssistantBookingsPage } from "./AssistantBookingsPage";
-import { BookingsPage } from "./BookingsPage";
-import { getClientBookings } from "./client-actions";
-import { ClientBookingsPage } from "./ClientBookingsPage";
-import { getClientsForSelect, getServicesForSelect, getStaffForSelect } from "./select-actions";
 
 export const metadata: Metadata = {
   title: "Bookings — T Creative Studio",
@@ -20,14 +13,34 @@ export default async function Page() {
   if (!user) redirect("/login");
 
   if (user.profile?.role === "client") {
+    const [{ getClientBookings }, { ClientBookingsPage }] = await Promise.all([
+      import("./client-actions"),
+      import("./ClientBookingsPage"),
+    ]);
     const data = await getClientBookings();
     return <ClientBookingsPage data={data} />;
   }
 
   if (user.profile?.role === "assistant") {
+    const [{ getAssistantBookings }, { AssistantBookingsPage }] = await Promise.all([
+      import("./actions"),
+      import("./AssistantBookingsPage"),
+    ]);
     const { bookings, stats } = await getAssistantBookings();
     return <AssistantBookingsPage initialBookings={bookings} stats={stats} />;
   }
+
+  const [
+    { getBookings },
+    { getClientsForSelect, getServicesForSelect, getStaffForSelect },
+    { getSubscriptions },
+    { BookingsPage },
+  ] = await Promise.all([
+    import("./actions"),
+    import("./select-actions"),
+    import("../subscriptions/actions"),
+    import("./BookingsPage"),
+  ]);
 
   const [bookingsResult, clients, serviceOptions, staffOptions, allSubscriptions] =
     await Promise.all([

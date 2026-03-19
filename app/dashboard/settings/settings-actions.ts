@@ -73,6 +73,8 @@ export interface BusinessProfile {
   currency: string;
   bookingLink: string;
   bio: string;
+  emailSenderName: string;
+  emailFromAddress: string;
 }
 
 export interface PolicySettings {
@@ -95,6 +97,8 @@ export interface LoyaltyConfig {
   tierPlatinum: number;
   /** Percent discount for birthday promo codes (e.g. 5 = 5% off). */
   birthdayDiscountPercent: number;
+  /** Days until birthday promo code expires (default: 7). */
+  birthdayPromoExpiryDays: number;
 }
 
 export interface NotificationPrefs {
@@ -114,6 +118,10 @@ export interface BookingRulesConfig {
   depositPct: number;
   depositRequired: boolean;
   allowOnlineBooking: boolean;
+  /** Hours a waitlist member has to claim an offered slot (default: 24). */
+  waitlistClaimWindowHours: number;
+  /** Days a waiver completion token stays valid (default: 7). */
+  waiverTokenExpiryDays: number;
 }
 
 export interface ReminderItem {
@@ -127,6 +135,12 @@ export interface ReminderItem {
 
 export interface RemindersConfig {
   items: ReminderItem[];
+  /** Days after last lash visit to send fill reminder (default: 18). */
+  fillReminderDays: number;
+  /** Hours after booking completion to send review request (default: 24). */
+  reviewRequestDelayHours: number;
+  /** Hours-before-appointment windows for booking reminders (default: [24, 48]). */
+  bookingReminderHours: number[];
 }
 
 /* ------------------------------------------------------------------ */
@@ -143,6 +157,8 @@ const DEFAULT_BUSINESS: BusinessProfile = {
   currency: "USD ($)",
   bookingLink: "tcreative.studio/book",
   bio: "T Creative Studio is a San Francisco Bay Area based beauty studio specializing in lash extensions, permanent jewelry, crochet braids, and business consulting for beauty entrepreneurs.",
+  emailSenderName: "T Creative",
+  emailFromAddress: "noreply@tcreativestudio.com",
 };
 
 const DEFAULT_POLICIES: PolicySettings = {
@@ -161,6 +177,7 @@ const DEFAULT_LOYALTY: LoyaltyConfig = {
   pointsRebook: 50,
   pointsReview: 30,
   birthdayDiscountPercent: 5,
+  birthdayPromoExpiryDays: 7,
   tierSilver: 300,
   tierGold: 700,
   tierPlatinum: 1500,
@@ -175,9 +192,14 @@ const DEFAULT_BOOKING_RULES: BookingRulesConfig = {
   depositPct: 25,
   depositRequired: true,
   allowOnlineBooking: true,
+  waitlistClaimWindowHours: 24,
+  waiverTokenExpiryDays: 7,
 };
 
 const DEFAULT_REMINDERS: RemindersConfig = {
+  fillReminderDays: 18,
+  reviewRequestDelayHours: 24,
+  bookingReminderHours: [24, 48],
   items: [
     {
       id: 1,
@@ -294,6 +316,8 @@ const businessProfileSchema = z.object({
   currency: z.string().min(1),
   bookingLink: z.string(),
   bio: z.string(),
+  emailSenderName: z.string().min(1),
+  emailFromAddress: z.string().min(1),
 });
 
 export async function saveBusinessProfile(data: BusinessProfile): Promise<void> {
@@ -369,6 +393,7 @@ const loyaltyConfigSchema = z.object({
   tierGold: z.number().int().nonnegative(),
   tierPlatinum: z.number().int().nonnegative(),
   birthdayDiscountPercent: z.number().int().min(1).max(100),
+  birthdayPromoExpiryDays: z.number().int().min(1).max(365),
 });
 
 export async function saveLoyaltyConfig(data: LoyaltyConfig): Promise<void> {
@@ -443,6 +468,8 @@ const bookingRulesSchema = z.object({
   depositPct: z.number().int().nonnegative(),
   depositRequired: z.boolean(),
   allowOnlineBooking: z.boolean(),
+  waitlistClaimWindowHours: z.number().int().min(1).max(168),
+  waiverTokenExpiryDays: z.number().int().min(1).max(30),
 });
 
 export async function saveBookingRules(data: BookingRulesConfig): Promise<void> {
@@ -473,6 +500,9 @@ export async function getReminders(): Promise<RemindersConfig> {
 }
 
 const remindersSchema = z.object({
+  fillReminderDays: z.number().int().min(1).max(60),
+  reviewRequestDelayHours: z.number().int().min(1).max(168),
+  bookingReminderHours: z.array(z.number().int().min(1).max(168)),
   items: z.array(
     z.object({
       id: z.number().int().positive(),
@@ -491,6 +521,51 @@ export async function saveReminders(data: RemindersConfig): Promise<void> {
     await getUser();
     await upsertSetting(KEY_REMINDERS, "Reminder Config", data);
     revalidatePath("/dashboard/settings");
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Inventory Config                                                   */
+/* ------------------------------------------------------------------ */
+
+export interface InventoryConfig {
+  lowStockThreshold: number;
+  giftCardCodePrefix: string;
+}
+
+const DEFAULT_INVENTORY: InventoryConfig = {
+  lowStockThreshold: 5,
+  giftCardCodePrefix: "TC-GC",
+};
+
+const KEY_INVENTORY = "inventory_config";
+
+export async function getInventoryConfig(): Promise<InventoryConfig> {
+  try {
+    await getUser();
+    return getSetting(KEY_INVENTORY, DEFAULT_INVENTORY);
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
+}
+
+const inventoryConfigSchema = z.object({
+  lowStockThreshold: z.number().int().min(1).max(100),
+  giftCardCodePrefix: z.string().min(1).max(20),
+});
+
+export async function saveInventoryConfig(data: InventoryConfig): Promise<void> {
+  try {
+    inventoryConfigSchema.parse(data);
+    const user = await getUser();
+    await upsertSetting(KEY_INVENTORY, "Inventory Config", data);
+    trackEvent(user.id, "inventory_config_updated");
+    revalidatePath("/dashboard/settings");
+    revalidatePath("/dashboard/marketplace");
   } catch (err) {
     Sentry.captureException(err);
     throw err;
@@ -813,6 +888,58 @@ export async function saveSiteContent(data: SiteContent): Promise<void> {
   } catch (err) {
     Sentry.captureException(err);
     throw err;
+  }
+}
+
+/**
+ * Get reminders config — public-safe (no auth required).
+ * Used by cron jobs for fill-reminders, review-requests, booking-reminders.
+ */
+export async function getPublicRemindersConfig(): Promise<RemindersConfig> {
+  try {
+    return getPublicSetting(KEY_REMINDERS, DEFAULT_REMINDERS);
+  } catch (err) {
+    Sentry.captureException(err);
+    return DEFAULT_REMINDERS;
+  }
+}
+
+/**
+ * Get loyalty config — public-safe (no auth required).
+ * Used by birthday cron for discount percent and promo expiry.
+ */
+export async function getPublicLoyaltyConfig(): Promise<LoyaltyConfig> {
+  try {
+    return getPublicSetting(KEY_LOYALTY, DEFAULT_LOYALTY);
+  } catch (err) {
+    Sentry.captureException(err);
+    return DEFAULT_LOYALTY;
+  }
+}
+
+/**
+ * Get booking rules — public-safe (no auth required).
+ * Used by waitlist-notify for claim window hours, waiver-token for expiry.
+ */
+export async function getPublicBookingRules(): Promise<BookingRulesConfig> {
+  try {
+    return getPublicSetting(KEY_BOOKING_RULES, DEFAULT_BOOKING_RULES);
+  } catch (err) {
+    Sentry.captureException(err);
+    return DEFAULT_BOOKING_RULES;
+  }
+}
+
+/**
+ * Get inventory config — public-safe (no auth required).
+ * Used by gift-card actions for code prefix and marketplace for stock threshold.
+ */
+export async function getPublicInventoryConfig(): Promise<InventoryConfig> {
+  try {
+    return getPublicSetting(KEY_INVENTORY, DEFAULT_INVENTORY);
+  } catch (err) {
+    Sentry.captureException(err);
+    return DEFAULT_INVENTORY;
   }
 }
 

@@ -213,7 +213,7 @@ function makeClientInput(overrides: Partial<Record<string, unknown>> = {}) {
     phone: "",
     source: "instagram" as const,
     notifications: { sms: false, email: false, marketing: false },
-    interests: ["lash"] as const,
+    interests: ["lash"] as ("lash" | "jewelry" | "crochet" | "consulting")[],
     allergies: {
       adhesive: false,
       latex: false,

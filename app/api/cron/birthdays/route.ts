@@ -14,20 +14,10 @@ import { randomBytes } from "crypto";
 import { NextResponse } from "next/server";
 import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { profiles, promotions, settings, syncLog } from "@/db/schema";
+import { profiles, promotions, syncLog } from "@/db/schema";
+import { getPublicBusinessProfile, getPublicLoyaltyConfig } from "@/app/dashboard/settings/settings-actions";
 import { BirthdayGreeting } from "@/emails/BirthdayGreeting";
 import { sendEmail } from "@/lib/resend";
-
-/** Read the birthday discount percent from loyalty_config settings. */
-async function getBirthdayDiscountPercent(): Promise<number> {
-  const [row] = await db
-    .select({ value: settings.value })
-    .from(settings)
-    .where(eq(settings.key, "loyalty_config"));
-
-  const config = row?.value as { birthdayDiscountPercent?: number } | null;
-  return config?.birthdayDiscountPercent ?? 5;
-}
 
 /** Generate a unique birthday promo code like BDAY-A3K9. */
 function generateBirthdayCode(): string {
@@ -60,11 +50,16 @@ export async function GET(request: Request) {
       ),
     );
 
-  const discountPercent = await getBirthdayDiscountPercent();
+  const [loyaltyConfig, businessProfile] = await Promise.all([
+    getPublicLoyaltyConfig(),
+    getPublicBusinessProfile(),
+  ]);
+  const discountPercent = loyaltyConfig.birthdayDiscountPercent;
+  const businessName = businessProfile.businessName;
 
-  // Promo codes expire 7 days from now
+  // Promo codes expire after configured days
   const expiresAt = new Date(now);
-  expiresAt.setDate(expiresAt.getDate() + 7);
+  expiresAt.setDate(expiresAt.getDate() + loyaltyConfig.birthdayPromoExpiryDays);
 
   let sent = 0;
   let failed = 0;
@@ -122,6 +117,7 @@ export async function GET(request: Request) {
         clientName: profile.firstName,
         promoCode,
         discountPercent,
+        businessName,
       }),
       entityType: "birthday_greeting",
       localId: profile.id,

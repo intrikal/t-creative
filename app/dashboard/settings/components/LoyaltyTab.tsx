@@ -137,6 +137,17 @@ export function LoyaltyTab({ initial }: { initial: LoyaltyConfig }) {
               <span className="text-xs text-muted">% off</span>
             </div>
           </FieldRow>
+          <FieldRow label="Promo code expiry">
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                value={data.birthdayPromoExpiryDays}
+                onChange={(e) => updateNum("birthdayPromoExpiryDays", e.target.value)}
+                className={NUM_INPUT_CLASS}
+              />
+              <span className="text-xs text-muted">days</span>
+            </div>
+          </FieldRow>
         </CardContent>
       </Card>
 

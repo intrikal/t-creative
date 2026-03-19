@@ -14,11 +14,29 @@ import { eq } from "drizzle-orm";
 import { Resend } from "resend";
 import { db } from "@/db";
 import { syncLog, profiles } from "@/db/schema";
+import { getPublicBusinessProfile } from "@/app/dashboard/settings/settings-actions";
 
 const apiKey = process.env.RESEND_API_KEY;
 
-export const RESEND_FROM =
+/** Env-level fallback; overridden at runtime by BusinessProfile settings. */
+const RESEND_FROM_FALLBACK =
   process.env.RESEND_FROM_EMAIL || "T Creative <noreply@tcreativestudio.com>";
+
+/**
+ * Build the "From" header from the configured BusinessProfile.
+ * Falls back to env variable if the DB read fails.
+ */
+async function getResendFrom(): Promise<string> {
+  try {
+    const profile = await getPublicBusinessProfile();
+    return `${profile.emailSenderName} <${profile.emailFromAddress}>`;
+  } catch {
+    return RESEND_FROM_FALLBACK;
+  }
+}
+
+/** @deprecated Use getResendFrom() instead — kept for backwards compat. */
+export const RESEND_FROM = RESEND_FROM_FALLBACK;
 
 /** Whether Resend API key is configured. */
 export function isResendConfigured(): boolean {
@@ -75,8 +93,9 @@ export async function sendEmail(params: {
   }
 
   try {
+    const from = await getResendFrom();
     const { data, error } = await getResendClient().emails.send({
-      from: RESEND_FROM,
+      from,
       to: params.to,
       subject: params.subject,
       react: params.react,

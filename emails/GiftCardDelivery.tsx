@@ -9,6 +9,7 @@ export type GiftCardDeliveryProps = {
   giftCardCode: string;
   amountInCents: number;
   expiresAt?: string;
+  businessName?: string;
 };
 
 export function GiftCardDelivery({
@@ -17,13 +18,14 @@ export function GiftCardDelivery({
   giftCardCode,
   amountInCents,
   expiresAt,
+  businessName = "T Creative Studio",
 }: GiftCardDeliveryProps) {
   return (
-    <Layout preview={`You received a ${formatCents(amountInCents)} gift card!`}>
+    <Layout preview={`You received a ${formatCents(amountInCents)} gift card!`} businessName={businessName}>
       <Section style={content}>
         <Text style={heading}>You Got a Gift Card!</Text>
         <Text style={paragraph}>
-          Hey {recipientName}, {senderName} sent you a T Creative Studio gift card!
+          Hey {recipientName}, {senderName} sent you a {businessName} gift card!
         </Text>
 
         <Text style={detailLabel}>Gift Card Code</Text>
@@ -45,7 +47,7 @@ export function GiftCardDelivery({
         </Text>
 
         <Text style={muted}>
-          Questions? Reply to this email or contact us at T Creative Studio.
+          Questions? Reply to this email or contact us at {businessName}.
         </Text>
       </Section>
     </Layout>

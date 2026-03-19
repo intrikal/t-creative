@@ -123,6 +123,32 @@ export function BookingTab({ initial }: { initial: BookingRulesConfig }) {
         </CardContent>
       </Card>
 
+      <Card className="gap-0">
+        <CardHeader className="pb-0 pt-5 px-5">
+          <CardTitle className="text-sm font-semibold text-muted uppercase tracking-wide text-[10px]">
+            Waitlist & Waivers
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="px-5 pb-5 pt-3 space-y-4">
+          <FieldRow label="Waitlist claim window (hours)">
+            <input
+              type="number"
+              value={rules.waitlistClaimWindowHours}
+              onChange={(e) => updateNum("waitlistClaimWindowHours", e.target.value)}
+              className={NUM_INPUT_CLASS}
+            />
+          </FieldRow>
+          <FieldRow label="Waiver token expiry (days)">
+            <input
+              type="number"
+              value={rules.waiverTokenExpiryDays}
+              onChange={(e) => updateNum("waiverTokenExpiryDays", e.target.value)}
+              className={NUM_INPUT_CLASS}
+            />
+          </FieldRow>
+        </CardContent>
+      </Card>
+
       <div className="flex justify-end">
         <StatefulSaveButton
           label="Save Booking Rules"

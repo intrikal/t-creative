@@ -20,6 +20,7 @@ import { CommissionQuote } from "@/emails/CommissionQuote";
 import { OrderStatusUpdate } from "@/emails/OrderStatusUpdate";
 import { sendEmail, getEmailRecipient } from "@/lib/resend";
 import { requireAdmin } from "@/lib/auth";
+import { getPublicBusinessProfile, getPublicInventoryConfig } from "@/app/dashboard/settings/settings-actions";
 
 const PATH = "/dashboard/marketplace";
 
@@ -74,7 +75,7 @@ export type MarketplaceStats = {
 /*  Mapping helpers                                                    */
 /* ------------------------------------------------------------------ */
 
-const LOW_STOCK_THRESHOLD = 5;
+let LOW_STOCK_THRESHOLD = 5;
 
 /** DB pricing enum → UI string */
 const PRICING_MAP: Record<string, PricingType> = {
@@ -221,6 +222,9 @@ export async function getSupplies(): Promise<SupplyRow[]> {
 export async function getMarketplaceStats(): Promise<MarketplaceStats> {
   try {
     await getUser();
+
+    const inventoryConfig = await getPublicInventoryConfig();
+    LOW_STOCK_THRESHOLD = inventoryConfig.lowStockThreshold;
 
     const [[productStats], [salesStats]] = await Promise.all([
       db
@@ -606,9 +610,10 @@ export async function quoteCommission(
       .where(eq(profiles.id, order.clientId));
 
     if (profile?.email) {
+      const bp = await getPublicBusinessProfile();
       await sendEmail({
         to: profile.email,
-        subject: `Your commission quote is ready — T Creative`,
+        subject: `Your commission quote is ready — ${bp.businessName}`,
         react: CommissionQuote({
           clientName: profile.firstName,
           orderNumber: order.orderNumber,
@@ -682,12 +687,15 @@ async function trySendOrderStatusEmail(
 
     if (!order) return;
 
-    const recipient = await getEmailRecipient(order.clientId);
+    const [recipient, bp] = await Promise.all([
+      getEmailRecipient(order.clientId),
+      getPublicBusinessProfile(),
+    ]);
     if (!recipient) return;
 
     const subjectMap = {
-      ready_for_pickup: `Order ${order.orderNumber} ready for pickup — T Creative`,
-      completed: `Order ${order.orderNumber} completed — T Creative`,
+      ready_for_pickup: `Order ${order.orderNumber} ready for pickup — ${bp.businessName}`,
+      completed: `Order ${order.orderNumber} completed — ${bp.businessName}`,
     };
 
     await sendEmail({

@@ -7,10 +7,12 @@ import { AssistantSettingsPage } from "./AssistantSettingsPage";
 import { getClientSettings } from "./client-settings-actions";
 import { ClientSettingsPage } from "./ClientSettingsPage";
 import { getBusinessHours, getTimeOff, getLunchBreak } from "./hours-actions";
+import { getServiceCategories } from "./service-categories-actions";
 import {
   getBookingRules,
   getBusinessProfile,
   getFinancialConfig,
+  getInventoryConfig,
   getRevenueGoals,
   getLoyaltyConfig,
   getNotificationPrefs,
@@ -54,6 +56,8 @@ export default async function Page() {
     initialBookingRules,
     initialReminders,
     initialSiteContent,
+    initialInventory,
+    initialCategories,
     squareStatus,
   ] = await Promise.all([
     getBusinessHours(),
@@ -68,6 +72,8 @@ export default async function Page() {
     getBookingRules(),
     getReminders(),
     getSiteContent(),
+    getInventoryConfig(),
+    getServiceCategories(),
     getSquareConnectionStatus(),
   ]);
 
@@ -85,6 +91,8 @@ export default async function Page() {
       initialBookingRules={initialBookingRules}
       initialReminders={initialReminders}
       initialSiteContent={initialSiteContent}
+      initialInventory={initialInventory}
+      initialCategories={initialCategories}
       squareStatus={squareStatus}
       calendarUrl={calendarUrl(user.id)}
     />

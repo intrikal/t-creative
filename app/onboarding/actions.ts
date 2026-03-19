@@ -49,6 +49,7 @@ import { assistantProfiles } from "@/db/schema/assistants";
 import { services as servicesTable } from "@/db/schema/services";
 import { LoyaltyPointsAwarded } from "@/emails/LoyaltyPointsAwarded";
 import { ReferralBonus } from "@/emails/ReferralBonus";
+import { getPublicBusinessProfile } from "@/app/dashboard/settings/settings-actions";
 import { WelcomeEmail } from "@/emails/WelcomeEmail";
 import {
   onboardingSchema,
@@ -654,12 +655,14 @@ export async function saveOnboardingData(
     // Send welcome email (non-fatal, respects notifyEmail preference)
     if (notifications.email) {
       const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+      const bp = await getPublicBusinessProfile();
       await sendEmail({
         to: email,
-        subject: "Welcome to T Creative Studio!",
+        subject: `Welcome to ${bp.businessName}!`,
         react: WelcomeEmail({
           clientName: firstName,
           dashboardUrl: `${siteUrl}/dashboard`,
+          businessName: bp.businessName,
         }),
         entityType: "welcome_email",
         localId: user.id,

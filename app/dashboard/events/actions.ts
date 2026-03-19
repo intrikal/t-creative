@@ -6,6 +6,7 @@ import { eq, desc, ne, sql, and, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import { events, eventGuests, eventStaff, eventVenues, profiles } from "@/db/schema";
+import { getPublicBusinessProfile } from "@/app/dashboard/settings/settings-actions";
 import { EventInviteEmail } from "@/emails/EventInviteEmail";
 import { trackEvent } from "@/lib/posthog";
 import { sendEmail } from "@/lib/resend";
@@ -734,15 +735,17 @@ export async function sendEventRsvpInvite(eventId: number): Promise<{ url: strin
       minute: "2-digit",
     });
 
+    const bp = await getPublicBusinessProfile();
     await sendEmail({
       to: event.contactEmail,
-      subject: `You're invited — ${event.title} — T Creative Studio`,
+      subject: `You're invited — ${event.title} — ${bp.businessName}`,
       react: EventInviteEmail({
         eventTitle: event.title,
         eventDate,
         eventLocation: event.location,
         services: event.services,
         rsvpUrl,
+        businessName: bp.businessName,
       }),
       entityType: "event_invite",
       localId: String(eventId),

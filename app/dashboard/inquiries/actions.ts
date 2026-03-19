@@ -25,6 +25,7 @@ import { eq, desc } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import { inquiries, productInquiries, products } from "@/db/schema";
+import { getPublicBusinessProfile } from "@/app/dashboard/settings/settings-actions";
 import { InquiryReply } from "@/emails/InquiryReply";
 import { ProductQuote } from "@/emails/ProductQuote";
 import { trackEvent } from "@/lib/posthog";
@@ -199,13 +200,15 @@ export async function replyToInquiry(id: number, replyText: string) {
       .where(eq(inquiries.id, id));
 
     if (inquiry?.email) {
+      const bp = await getPublicBusinessProfile();
       await sendEmail({
         to: inquiry.email,
-        subject: "Reply to your inquiry — T Creative",
+        subject: `Reply to your inquiry — ${bp.businessName}`,
         react: InquiryReply({
           clientName: inquiry.name,
           replyText,
           originalMessage: inquiry.message,
+          businessName: bp.businessName,
         }),
         entityType: "inquiry_reply",
         localId: String(id),

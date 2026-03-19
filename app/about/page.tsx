@@ -2,6 +2,7 @@
  * About — Server Component route wrapper with metadata.
  */
 import type { Metadata } from "next";
+import { getSiteData } from "@/lib/site-data";
 import { AboutPage } from "./AboutPage";
 
 export const revalidate = 86400;
@@ -51,14 +52,22 @@ export const metadata: Metadata = {
   },
 };
 
-export default function Page() {
+export default async function Page() {
+  const { business, content } = await getSiteData();
   return (
     <>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(personJsonLd) }}
       />
-      <AboutPage />
+      <AboutPage
+        ownerName={business.owner}
+        bio={content.aboutBio}
+        location={business.location}
+        email={business.email}
+        footerTagline={content.footerTagline}
+        socialLinks={content.socialLinks}
+      />
     </>
   );
 }

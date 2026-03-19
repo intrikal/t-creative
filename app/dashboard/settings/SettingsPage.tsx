@@ -27,6 +27,7 @@ import {
   Bell,
   BellRing,
   FileText,
+  Globe,
   Heart,
   Link2,
 } from "lucide-react";
@@ -40,6 +41,7 @@ import { LoyaltyTab } from "./components/LoyaltyTab";
 import { NotificationsTab } from "./components/NotificationsTab";
 import { PoliciesTab } from "./components/PoliciesTab";
 import { RemindersTab } from "./components/RemindersTab";
+import { WebsiteContentTab } from "./components/WebsiteContentTab";
 import type { BusinessHourRow, LunchBreak, TimeOffRow } from "./hours-actions";
 import type {
   BookingRulesConfig,
@@ -50,6 +52,7 @@ import type {
   RemindersConfig,
   FinancialConfig,
   RevenueGoal,
+  SiteContent,
   SquareConnectionStatus,
 } from "./settings-actions";
 
@@ -67,6 +70,7 @@ const TABS = [
   { id: "reminders", label: "Reminders", icon: BellRing },
   { id: "integrations", label: "Integrations", icon: Link2 },
   { id: "notifications", label: "Notifications", icon: Bell },
+  { id: "website", label: "Website Content", icon: Globe },
 ] as const;
 
 type Tab = (typeof TABS)[number]["id"];
@@ -87,6 +91,7 @@ export function SettingsPage({
   initialRevenueGoals,
   initialBookingRules,
   initialReminders,
+  initialSiteContent,
   squareStatus,
   calendarUrl,
 }: {
@@ -101,6 +106,7 @@ export function SettingsPage({
   initialRevenueGoals: RevenueGoal[];
   initialBookingRules: BookingRulesConfig;
   initialReminders: RemindersConfig;
+  initialSiteContent: SiteContent;
   squareStatus: SquareConnectionStatus;
   calendarUrl?: string;
 }) {
@@ -135,6 +141,7 @@ export function SettingsPage({
       />
     ),
     notifications: <NotificationsTab initial={initialNotifications} />,
+    website: <WebsiteContentTab initial={initialSiteContent} />,
   };
 
   return (

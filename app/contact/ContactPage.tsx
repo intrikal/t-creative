@@ -10,9 +10,15 @@ import { Turnstile } from "@marsidev/react-turnstile";
 import { useForm } from "@tanstack/react-form";
 import { motion } from "framer-motion";
 import { z } from "zod";
+import { FaInstagram, FaLinkedinIn } from "react-icons/fa";
 import { Footer } from "@/components/landing/Footer";
-import { socials } from "@/lib/socials";
+import { socials as defaultSocials } from "@/lib/socials";
 import { submitContactForm } from "./actions";
+
+const platformIcons: Record<string, React.ComponentType<{ size?: number }>> = {
+  Instagram: FaInstagram,
+  LinkedIn: FaLinkedinIn,
+};
 
 const contactSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
@@ -42,7 +48,25 @@ const errorInputClasses =
 const labelClasses = "text-xs tracking-wide uppercase text-muted mb-2 block";
 const errorClasses = "text-xs text-error mt-1.5";
 
-export function ContactPage() {
+export function ContactPage({
+  location,
+  email,
+  footerTagline,
+  socialLinks,
+}: {
+  location?: string;
+  email?: string;
+  footerTagline?: string;
+  socialLinks?: { platform: string; handle: string; url: string }[];
+} = {}) {
+  const socials = socialLinks
+    ? socialLinks.map((s) => ({
+        label: s.handle,
+        href: s.url,
+        icon: platformIcons[s.platform] ?? FaInstagram,
+        description: s.platform,
+      }))
+    : defaultSocials;
   const [submitted, setSubmitted] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState("");
 
@@ -323,12 +347,12 @@ export function ContactPage() {
             >
               <div>
                 <h3 className="text-xs tracking-widest uppercase text-foreground mb-3">Email</h3>
-                <p className="text-sm text-muted">hello@tcreativestudio.com</p>
+                <p className="text-sm text-muted">{email ?? "hello@tcreativestudio.com"}</p>
               </div>
 
               <div>
                 <h3 className="text-xs tracking-widest uppercase text-foreground mb-3">Location</h3>
-                <p className="text-sm text-muted">San Jose, California</p>
+                <p className="text-sm text-muted">{location ?? "San Jose, California"}</p>
                 <p className="text-xs text-muted mt-1">Serving the Bay Area</p>
               </div>
 
@@ -365,7 +389,7 @@ export function ContactPage() {
           </div>
         </section>
       </main>
-      <Footer />
+      <Footer email={email} tagline={footerTagline} socialLinks={socialLinks} />
     </>
   );
 }

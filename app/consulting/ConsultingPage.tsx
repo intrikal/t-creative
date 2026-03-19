@@ -1,5 +1,6 @@
 /**
  * ConsultingPage — HR & Beauty Business consulting with specific outcomes and credentials.
+ * Accepts configurable services and benefits from the admin dashboard.
  */
 "use client";
 
@@ -7,7 +8,7 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { Footer } from "@/components/landing/Footer";
 
-const services = [
+const defaultServices = [
   {
     title: "HR Strategy & Consulting",
     tag: "Remote · All Industries",
@@ -21,7 +22,7 @@ const services = [
       "HR compliance fundamentals for small businesses",
       "Manager coaching and team communication systems",
     ],
-    ideal:
+    idealClient:
       "Founders, operations leads, and small business owners who are scaling their team and need real HR infrastructure — not generic advice.",
   },
   {
@@ -37,19 +38,40 @@ const services = [
       "Transitioning from booth rental to studio ownership",
       "Building a referral-based clientele from scratch",
     ],
-    ideal:
+    idealClient:
       "Lash techs, permanent jewelry artists, estheticians, and salon owners who are ready to grow sustainably — not just hustle harder.",
   },
 ];
 
-const benefits = [
+const defaultBenefits = [
   "Flexible scheduling around your business hours — no commute",
   "Recorded sessions your team can reference and revisit",
   "Deliverables in writing after every session",
   "Access to templates, frameworks, and tools used in-practice",
 ];
 
-export function ConsultingPage() {
+export function ConsultingPage({
+  services: svcProp,
+  benefits: benefitsProp,
+  email,
+  footerTagline,
+  socialLinks,
+}: {
+  services?: {
+    title: string;
+    tag: string;
+    description: string;
+    outcomes: string[];
+    idealClient: string;
+  }[];
+  benefits?: string[];
+  email?: string;
+  footerTagline?: string;
+  socialLinks?: { platform: string; handle: string; url: string }[];
+} = {}) {
+  const services = svcProp ?? defaultServices;
+  const benefits = benefitsProp ?? defaultBenefits;
+
   return (
     <>
       <main id="main-content" className="pt-16">
@@ -124,7 +146,7 @@ export function ConsultingPage() {
 
                 <p className="text-xs text-muted mb-6 border-l-2 border-accent/40 pl-3 leading-relaxed">
                   <span className="font-medium text-foreground">Ideal for: </span>
-                  {service.ideal}
+                  {service.idealClient}
                 </p>
 
                 <div className="flex items-center justify-between flex-wrap gap-3">
@@ -174,7 +196,7 @@ export function ConsultingPage() {
           </div>
         </section>
       </main>
-      <Footer />
+      <Footer email={email} tagline={footerTagline} socialLinks={socialLinks} />
     </>
   );
 }

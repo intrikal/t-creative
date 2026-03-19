@@ -40,6 +40,8 @@ import { TrainingTeaser } from "@/components/landing/TrainingTeaser";
 import { TrustBar } from "@/components/landing/TrustBar";
 import { db } from "@/db";
 import { instagramPosts } from "@/db/schema";
+import { getFeaturedReviews } from "@/lib/public-reviews";
+import { getSiteData } from "@/lib/site-data";
 
 const BASE_URL = "https://tcreativestudio.com";
 
@@ -115,6 +117,11 @@ const eventServicesJsonLd = {
 };
 
 export default async function Home() {
+  const [{ business, content, policies }, featuredReviews] = await Promise.all([
+    getSiteData(),
+    getFeaturedReviews(),
+  ]);
+
   // Fetch cached Instagram posts (non-blocking — empty array if table is empty)
   const igPosts = await db
     .select({
@@ -146,21 +153,29 @@ export default async function Home() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(eventServicesJsonLd) }}
       />
       <main id="main-content">
-        <Hero />
+        <Hero
+          headline={content.heroHeadline}
+          subheadline={content.heroSubheadline}
+          ctaText={content.heroCtaText}
+        />
         <TrustBar />
         <Services />
         <HowItWorks />
         <StudioDiorama />
         <Stats />
         <EditorialPortfolio />
-        <Events />
+        <Events eventDescriptions={content.eventDescriptions} />
         <TrainingTeaser />
         <FeaturedProducts />
         <InstagramFeed posts={igPostsSerialized} />
-        <Testimonials />
-        <FAQ />
+        <Testimonials reviews={featuredReviews} />
+        <FAQ entries={content.faqEntries} policies={policies} />
         <CallToAction />
-        <Footer />
+        <Footer
+          email={business.email}
+          tagline={content.footerTagline}
+          socialLinks={content.socialLinks}
+        />
 
         {/* Sticky mobile booking CTA */}
         <StickyMobileCTA />

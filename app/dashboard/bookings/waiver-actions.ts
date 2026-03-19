@@ -14,16 +14,7 @@ import { trackEvent } from "@/lib/posthog";
 import { getEmailRecipient, sendEmail } from "@/lib/resend";
 import { getPublicBookingRules } from "@/app/dashboard/settings/settings-actions";
 import { generateWaiverToken } from "@/lib/waiver-token";
-import { createClient } from "@/utils/supabase/server";
-
-async function getUser() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
-  return user;
-}
+import { getUser } from "@/lib/auth";
 
 export type MissingWaiver = {
   formId: number;

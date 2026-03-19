@@ -16,16 +16,7 @@ import { profiles, services, waitlist } from "@/db/schema";
 import { WaitlistNotification } from "@/emails/WaitlistNotification";
 import { trackEvent } from "@/lib/posthog";
 import { sendEmail } from "@/lib/resend";
-import { createClient } from "@/utils/supabase/server";
-
-async function getUser() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
-  return user;
-}
+import { getUser } from "@/lib/auth";
 
 export type WaitlistRow = {
   id: number;

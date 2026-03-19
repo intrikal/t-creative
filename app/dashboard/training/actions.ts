@@ -27,22 +27,9 @@ import {
 } from "@/db/schema";
 import { EnrollmentConfirmation } from "@/emails/EnrollmentConfirmation";
 import { sendEmail, getEmailRecipient } from "@/lib/resend";
-import { createClient } from "@/utils/supabase/server";
+import { getUser } from "@/lib/auth";
 
 const PATH = "/dashboard/training";
-
-/* ------------------------------------------------------------------ */
-/*  Auth guard                                                         */
-/* ------------------------------------------------------------------ */
-
-async function getUser() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
-  return user;
-}
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */

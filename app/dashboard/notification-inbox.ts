@@ -3,16 +3,7 @@
 import { eq, desc, isNull, and, count } from "drizzle-orm";
 import { db } from "@/db";
 import { notifications } from "@/db/schema";
-import { createClient } from "@/utils/supabase/server";
-
-async function getUser() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
-  return user;
-}
+import { getUser } from "@/lib/auth";
 
 export type InboxItem = {
   id: number;

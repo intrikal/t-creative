@@ -6,20 +6,8 @@ import { eq, and, desc, asc, or } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import { mediaItems } from "@/db/schema";
+import { getUser } from "@/lib/auth";
 import { createClient } from "@/utils/supabase/server";
-
-/* ------------------------------------------------------------------ */
-/*  Auth guard                                                         */
-/* ------------------------------------------------------------------ */
-
-async function getUser() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
-  return user;
-}
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */

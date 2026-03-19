@@ -1,10 +1,6 @@
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { getCurrentUser } from "@/lib/auth";
-import { getClients, getClientLoyalty, getAssistantClients } from "./actions";
-import { AssistantClientsPage } from "./AssistantClientsPage";
-import { ClientsPage } from "./ClientsPage";
-import { getLoyaltyRewards } from "./loyalty-rewards-actions";
 
 export const metadata: Metadata = {
   title: "Clients — T Creative Studio",
@@ -15,11 +11,23 @@ export const metadata: Metadata = {
 export default async function Page() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
+  if (user.profile?.role === "client") redirect("/dashboard");
 
   if (user.profile?.role === "assistant") {
+    const [{ getAssistantClients }, { AssistantClientsPage }] = await Promise.all([
+      import("./actions"),
+      import("./AssistantClientsPage"),
+    ]);
     const { clients, stats } = await getAssistantClients();
     return <AssistantClientsPage initialClients={clients} stats={stats} />;
   }
+
+  const [{ getClients, getClientLoyalty }, { getLoyaltyRewards }, { ClientsPage }] =
+    await Promise.all([
+      import("./actions"),
+      import("./loyalty-rewards-actions"),
+      import("./ClientsPage"),
+    ]);
 
   const [clientsResult, initialLoyalty, initialRewards] = await Promise.all([
     getClients(),

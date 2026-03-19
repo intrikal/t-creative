@@ -22,7 +22,6 @@ import { logAction } from "@/lib/audit";
 import { trackEvent } from "@/lib/posthog";
 import { syncCampaignsSubscriber, unsubscribeFromCampaigns } from "@/lib/zoho-campaigns";
 import { getUser } from "@/lib/auth";
-import { createClient } from "@/utils/supabase/server";
 
 const PATH = "/dashboard/settings";
 
@@ -388,11 +387,7 @@ export async function saveClientPreferences(prefs: Omit<ClientPreferences, never
  */
 export async function deleteClientAccount() {
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) throw new Error("Not authenticated");
+    const user = await getUser();
 
     trackEvent(user.id, "account_deleted");
 
@@ -459,6 +454,8 @@ export async function deleteClientAccount() {
       await adminClient.auth.admin.deleteUser(user.id);
     } else {
       // Fallback: sign out only (auth user remains but profile is anonymized)
+      const { createClient } = await import("@/utils/supabase/server");
+      const supabase = await createClient();
       await supabase.auth.signOut();
     }
   } catch (err) {

@@ -277,11 +277,8 @@ export async function uploadCommissionFile(
   formData: FormData,
 ): Promise<{ url: string; filename: string; isDesignFile: boolean }> {
   try {
+    const user = await getUser();
     const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) throw new Error("Not authenticated");
 
     const file = formData.get("file") as File | null;
     if (!file) throw new Error("No file provided");

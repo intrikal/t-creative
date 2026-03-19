@@ -2,26 +2,6 @@ import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { getCurrentUser } from "@/lib/auth";
 import { calendarUrl } from "@/lib/calendar-token";
-import { getAssistantSettings } from "./assistant-settings-actions";
-import { AssistantSettingsPage } from "./AssistantSettingsPage";
-import { getClientSettings } from "./client-settings-actions";
-import { ClientSettingsPage } from "./ClientSettingsPage";
-import { getBusinessHours, getTimeOff, getLunchBreak } from "./hours-actions";
-import { getServiceCategories } from "./service-categories-actions";
-import {
-  getBookingRules,
-  getBusinessProfile,
-  getFinancialConfig,
-  getInventoryConfig,
-  getRevenueGoals,
-  getLoyaltyConfig,
-  getNotificationPrefs,
-  getPolicies,
-  getReminders,
-  getSiteContent,
-  getSquareConnectionStatus,
-} from "./settings-actions";
-import { SettingsPage } from "./SettingsPage";
 
 export const metadata: Metadata = {
   title: "Settings — T Creative Studio",
@@ -34,14 +14,46 @@ export default async function Page() {
   if (!user) redirect("/login");
 
   if (user.profile?.role === "client") {
+    const [{ getClientSettings }, { ClientSettingsPage }] = await Promise.all([
+      import("./client-settings-actions"),
+      import("./ClientSettingsPage"),
+    ]);
     const data = await getClientSettings();
     return <ClientSettingsPage data={data} />;
   }
 
   if (user.profile?.role === "assistant") {
+    const [{ getAssistantSettings }, { AssistantSettingsPage }] = await Promise.all([
+      import("./assistant-settings-actions"),
+      import("./AssistantSettingsPage"),
+    ]);
     const data = await getAssistantSettings();
     return <AssistantSettingsPage data={data} />;
   }
+
+  const [
+    { getBusinessHours, getTimeOff, getLunchBreak },
+    { getServiceCategories },
+    {
+      getBookingRules,
+      getBusinessProfile,
+      getFinancialConfig,
+      getInventoryConfig,
+      getRevenueGoals,
+      getLoyaltyConfig,
+      getNotificationPrefs,
+      getPolicies,
+      getReminders,
+      getSiteContent,
+      getSquareConnectionStatus,
+    },
+    { SettingsPage },
+  ] = await Promise.all([
+    import("./hours-actions"),
+    import("./service-categories-actions"),
+    import("./settings-actions"),
+    import("./SettingsPage"),
+  ]);
 
   const [
     initialHours,

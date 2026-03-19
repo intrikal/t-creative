@@ -13,7 +13,7 @@ import * as Sentry from "@sentry/nextjs";
 import { isNull, eq, and, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { businessHours, clientForms, formSubmissions, timeOff, settings } from "@/db/schema";
-import { createClient } from "@/utils/supabase/server";
+import { getCurrentUser } from "@/lib/auth";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                               */
@@ -85,11 +85,8 @@ export async function getStudioAvailability(): Promise<StudioAvailability> {
 /** Returns true if the current request has a valid Supabase session. */
 export async function checkIsAuthenticated(): Promise<boolean> {
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    return !!user;
+    const cu = await getCurrentUser();
+    return !!cu;
   } catch (err) {
     Sentry.captureException(err);
     throw err;
@@ -115,11 +112,9 @@ export async function checkClientWaivers(
   serviceCategory: string,
 ): Promise<PendingWaiver[]> {
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) return [];
+    const cu = await getCurrentUser();
+    if (!cu) return [];
+    const user = cu;
 
     const allForms = await db
       .select({

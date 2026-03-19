@@ -3,10 +3,6 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { profiles } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
-import { getThreads } from "./actions";
-import { AssistantMessagesPage } from "./AssistantMessagesPage";
-import { ClientMessagesPage } from "./ClientMessagesPage";
-import { MessagesPage } from "./MessagesPage";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -31,14 +27,23 @@ export default async function Page() {
   if (!user) redirect("/login");
 
   if (user.profile?.role === "client") {
+    const { ClientMessagesPage } = await import("./ClientMessagesPage");
     return <ClientMessagesPage />;
   }
 
   if (user.profile?.role === "assistant") {
+    const [{ getThreads }, { AssistantMessagesPage }] = await Promise.all([
+      import("./actions"),
+      import("./AssistantMessagesPage"),
+    ]);
     const threads = await getThreads();
     return <AssistantMessagesPage initialThreads={threads} />;
   }
 
+  const [{ getThreads }, { MessagesPage }] = await Promise.all([
+    import("./actions"),
+    import("./MessagesPage"),
+  ]);
   const [threads, clients] = await Promise.all([getThreads(), getClientList()]);
   return <MessagesPage initialThreads={threads} clients={clients} />;
 }

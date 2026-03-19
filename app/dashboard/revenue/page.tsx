@@ -1,4 +1,6 @@
+import { redirect } from "next/navigation";
 import type { Metadata } from "next";
+import { getCurrentUser } from "@/lib/auth";
 import {
   getPayments,
   getRevenueStats,
@@ -14,6 +16,10 @@ export const metadata: Metadata = {
 };
 
 export default async function Page() {
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+  if (user.profile?.role !== "admin") redirect("/dashboard");
+
   const [payments, stats, categoryRevenue, weeklyRevenue] = await Promise.all([
     getPayments(),
     getRevenueStats(),

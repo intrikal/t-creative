@@ -14,6 +14,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { MOCK_REVIEWS } from "@/lib/data/reviews";
+import type { FeaturedReview } from "@/lib/public-reviews";
 
 const AUTO_ADVANCE_MS = 6000;
 
@@ -25,7 +26,7 @@ const serviceLabel: Record<string, string> = {
   training: "Training",
 };
 
-const featuredReviews = MOCK_REVIEWS.filter((r) => r.status === "featured");
+const mockFeatured = MOCK_REVIEWS.filter((r) => r.status === "featured");
 
 /** Split text into words, preserving spaces for natural flow */
 function WordStagger({ text }: { text: string }) {
@@ -52,7 +53,22 @@ function WordStagger({ text }: { text: string }) {
   );
 }
 
-export function Testimonials() {
+export function Testimonials({ reviews: dbReviews }: { reviews?: FeaturedReview[] } = {}) {
+  // Use DB reviews if available, otherwise fall back to mock data
+  const featuredReviews = dbReviews && dbReviews.length > 0
+    ? dbReviews.map((r) => ({
+        id: r.id,
+        client: r.client,
+        text: r.body ?? "",
+        service: r.serviceName ?? "general",
+      }))
+    : mockFeatured.map((r) => ({
+        id: r.id,
+        client: r.client,
+        text: r.text,
+        service: r.service,
+      }));
+
   const [active, setActive] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -61,7 +77,7 @@ export function Testimonials() {
   const advance = useCallback(() => {
     setActive((prev) => (prev + 1) % featuredReviews.length);
     setProgress(0);
-  }, []);
+  }, [featuredReviews.length]);
 
   useEffect(() => {
     if (isPaused || featuredReviews.length <= 1) return;
@@ -79,7 +95,7 @@ export function Testimonials() {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [active, isPaused, advance]);
+  }, [active, isPaused, advance, featuredReviews.length]);
 
   if (featuredReviews.length === 0) return null;
 

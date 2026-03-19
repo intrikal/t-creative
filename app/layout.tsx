@@ -21,6 +21,7 @@ import { SmoothScroll } from "@/components/providers/SmoothScroll";
 import { GrainOverlay } from "@/components/ui/GrainOverlay";
 import { LoadingScreen } from "@/components/ui/LoadingScreen";
 import { ScrollProgress } from "@/components/ui/ScrollProgress";
+import { getSiteData } from "@/lib/site-data";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -48,66 +49,66 @@ export const viewport: Viewport = {
   initialScale: 1,
 };
 
-export const metadata: Metadata = {
-  metadataBase: new URL(BASE_URL),
-  title: "T Creative Studio — Lash Extensions, Permanent Jewelry & More in San Jose",
-  description:
-    "Premium lash extensions, permanent jewelry, custom crochet commissions, and business consulting. Crafted with intention and care, serving San Jose and the Bay Area.",
-  alternates: {
-    canonical: "/",
-  },
-  manifest: "/manifest.json",
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: "black-translucent",
-    title: "T Creative",
-  },
-  openGraph: {
-    title: "T Creative Studio",
-    description:
-      "Premium beauty and creative services in San Jose. Lash extensions, permanent jewelry, custom crochet, and business consulting.",
-    type: "website",
-    siteName: "T Creative Studio",
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "T Creative Studio",
-    description:
-      "Premium beauty and creative services in San Jose. Lash extensions, permanent jewelry, custom crochet, and business consulting.",
-  },
-};
-
-const jsonLd = {
-  "@context": "https://schema.org",
-  "@type": "LocalBusiness",
-  name: "T Creative Studio",
-  description:
-    "Premium lash extensions, permanent jewelry, custom crochet commissions, and business consulting in San Jose.",
-  url: BASE_URL,
-  email: "hello@tcreativestudio.com",
-  address: {
-    "@type": "PostalAddress",
-    addressLocality: "San Jose",
-    addressRegion: "CA",
-    addressCountry: "US",
-  },
-  areaServed: {
-    "@type": "GeoCircle",
-    geoMidpoint: {
-      "@type": "GeoCoordinates",
-      latitude: 37.3382,
-      longitude: -121.8863,
+export async function generateMetadata(): Promise<Metadata> {
+  const { business, content } = await getSiteData();
+  return {
+    metadataBase: new URL(BASE_URL),
+    title: content.seoTitle,
+    description: content.seoDescription,
+    alternates: {
+      canonical: "/",
     },
-    geoRadius: "50000",
-  },
-  sameAs: ["https://www.instagram.com/tcreativestudio", "https://www.tiktok.com/@tcreativestudio"],
-};
+    manifest: "/manifest.json",
+    appleWebApp: {
+      capable: true,
+      statusBarStyle: "black-translucent",
+      title: business.businessName,
+    },
+    openGraph: {
+      title: business.businessName,
+      description: content.seoDescription,
+      type: "website",
+      siteName: business.businessName,
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: business.businessName,
+      description: content.seoDescription,
+    },
+  };
+}
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const { business, content } = await getSiteData();
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "LocalBusiness",
+    name: business.businessName,
+    description: content.seoDescription,
+    url: BASE_URL,
+    email: business.email,
+    address: {
+      "@type": "PostalAddress",
+      addressLocality: business.location.split(",")[0]?.trim() ?? "San Jose",
+      addressRegion: business.location.split(",")[1]?.trim() ?? "CA",
+      addressCountry: "US",
+    },
+    areaServed: {
+      "@type": "GeoCircle",
+      geoMidpoint: {
+        "@type": "GeoCoordinates",
+        latitude: 37.3382,
+        longitude: -121.8863,
+      },
+      geoRadius: "50000",
+    },
+    sameAs: content.socialLinks.map((s) => s.url),
+  };
+
   return (
     <html lang="en" className={`${geistSans.variable} ${cormorant.variable}`}>
       <body className="bg-background text-foreground font-sans antialiased">

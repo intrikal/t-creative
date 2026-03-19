@@ -11,7 +11,15 @@ import { motion } from "framer-motion";
 import posthog from "posthog-js";
 import { Button } from "@/components/ui/Button";
 
-export function Hero() {
+export function Hero({
+  headline,
+  subheadline,
+  ctaText,
+}: {
+  headline?: string;
+  subheadline?: string;
+  ctaText?: string;
+}) {
   return (
     <section className="pt-28 pb-20 md:pt-32 md:pb-28 px-6 overflow-hidden">
       <div className="mx-auto max-w-6xl w-full grid grid-cols-1 md:grid-cols-2 gap-12 md:gap-16 items-center">
@@ -32,9 +40,13 @@ export function Hero() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.15 }}
           >
-            Where Artistry
-            <br />
-            Meets <span className="text-accent">Transformation</span>
+            {headline ?? (
+              <>
+                Where Artistry
+                <br />
+                Meets <span className="text-accent">Transformation</span>
+              </>
+            )}
           </motion.h1>
 
           <motion.p
@@ -43,9 +55,8 @@ export function Hero() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.3 }}
           >
-            Premium lash extensions, permanent jewelry, custom crochet commissions, and business
-            consulting. Every creation crafted with intention and care, serving San Jose and the Bay
-            Area.
+            {subheadline ??
+              "Premium lash extensions, permanent jewelry, custom crochet commissions, and business consulting. Every creation crafted with intention and care, serving San Jose and the Bay Area."}
           </motion.p>
 
           <motion.div
@@ -61,7 +72,7 @@ export function Hero() {
                   posthog.capture("cta_clicked", { cta: "book_appointment", location: "hero" })
                 }
               >
-                Book Appointment
+                {ctaText ?? "Book Appointment"}
               </Link>
             </Button>
             <Button asChild variant="secondary">

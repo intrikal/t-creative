@@ -8,38 +8,44 @@
 import Link from "next/link";
 import { motion } from "framer-motion";
 
-const EVENT_TYPES = [
+const FALLBACK_EVENTS = [
   {
     title: "Private Lash Parties",
     description:
       "Book the studio for you and your group. Everyone gets lashed while you celebrate — birthdays, bachelorettes, girls' night.",
-    detail: "Up to 6 guests",
-    color: "#C4907A",
   },
   {
     title: "Pop-Up Events",
     description:
       "Permanent jewelry welding at your venue, market, or storefront. Full setup provided — we bring the studio to you.",
-    detail: "Travel available",
-    color: "#D4A574",
   },
   {
     title: "Bridal & Wedding",
     description:
       "Day-of lash services and permanent jewelry for the bridal party. Coordinated scheduling so everyone is ready on time.",
-    detail: "Custom packages",
-    color: "#C4907A",
   },
   {
     title: "Corporate & Team Events",
     description:
       "Team bonding with permanent jewelry or beauty services. Great for offsites, retreats, and company milestones.",
-    detail: "Groups of 10+",
-    color: "#5B8A8A",
   },
 ];
 
-export function Events() {
+const EVENT_DETAILS: Record<string, { detail: string; color: string }> = {
+  "Private Lash Parties": { detail: "Up to 6 guests", color: "#C4907A" },
+  "Pop-Up Events": { detail: "Travel available", color: "#D4A574" },
+  "Bridal & Wedding": { detail: "Custom packages", color: "#C4907A" },
+  "Corporate & Team Events": { detail: "Groups of 10+", color: "#5B8A8A" },
+};
+
+const DEFAULT_DETAIL = { detail: "Available", color: "#C4907A" };
+
+export function Events({
+  eventDescriptions,
+}: {
+  eventDescriptions?: { title: string; description: string }[];
+} = {}) {
+  const events = eventDescriptions ?? FALLBACK_EVENTS;
   return (
     <section className="py-28 md:py-40 px-6 bg-surface" aria-label="Events">
       <div className="mx-auto max-w-5xl">
@@ -63,7 +69,9 @@ export function Events() {
         </motion.div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-12">
-          {EVENT_TYPES.map((event, i) => (
+          {events.map((event, i) => {
+            const meta = EVENT_DETAILS[event.title] ?? DEFAULT_DETAIL;
+            return (
             <motion.div
               key={event.title}
               className="border border-foreground/8 p-6 md:p-8 hover:border-foreground/20 transition-all duration-300 group"
@@ -73,9 +81,9 @@ export function Events() {
               transition={{ duration: 0.5, delay: i * 0.1 }}
             >
               <div className="flex items-center gap-3 mb-4">
-                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: event.color }} />
+                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: meta.color }} />
                 <span className="text-[10px] tracking-[0.2em] uppercase text-muted">
-                  {event.detail}
+                  {meta.detail}
                 </span>
               </div>
               <h3 className="text-base font-medium text-foreground mb-2 group-hover:text-accent transition-colors duration-200">
@@ -83,7 +91,8 @@ export function Events() {
               </h3>
               <p className="text-sm text-muted leading-relaxed">{event.description}</p>
             </motion.div>
-          ))}
+            );
+          })}
         </div>
 
         <motion.div

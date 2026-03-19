@@ -46,6 +46,20 @@ import { isSquareConfigured } from "@/lib/square";
 const getUser = requireAdmin;
 
 /* ------------------------------------------------------------------ */
+/*  Public-safe helpers (no auth — used by public pages)               */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Read a setting without an auth guard. Used by public pages that need
+ * site content / policies but have no logged-in user.
+ */
+async function getPublicSetting<T>(key: string, fallback: T): Promise<T> {
+  const [row] = await db.select().from(settings).where(eq(settings.key, key));
+  if (!row) return fallback;
+  return row.value as T;
+}
+
+/* ------------------------------------------------------------------ */
 /*  Types                                                              */
 /* ------------------------------------------------------------------ */
 
@@ -566,6 +580,265 @@ export async function saveRevenueGoals(data: RevenueGoal[]): Promise<void> {
   } catch (err) {
     Sentry.captureException(err);
     throw err;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Site Content                                                       */
+/* ------------------------------------------------------------------ */
+
+export interface SiteContent {
+  heroHeadline: string;
+  heroSubheadline: string;
+  heroCtaText: string;
+  aboutBio: string;
+  footerTagline: string;
+  seoTitle: string;
+  seoDescription: string;
+  socialLinks: { platform: string; handle: string; url: string }[];
+  faqEntries: { question: string; answer: string }[];
+  consultingServices: {
+    title: string;
+    tag: string;
+    description: string;
+    outcomes: string[];
+    idealClient: string;
+  }[];
+  consultingBenefits: string[];
+  eventDescriptions: {
+    title: string;
+    description: string;
+  }[];
+  showConsultingPage: boolean;
+}
+
+const DEFAULT_SITE_CONTENT: SiteContent = {
+  heroHeadline: "Where Artistry Meets Transformation",
+  heroSubheadline:
+    "Premium lash extensions, permanent jewelry, custom crochet commissions, and business consulting. Every creation crafted with intention and care, serving San Jose and the Bay Area.",
+  heroCtaText: "Book Appointment",
+  aboutBio:
+    "A creative entrepreneur passionate about helping others feel confident and beautiful. With expertise spanning lash artistry, permanent jewelry design, handcrafted crochet, and business consulting, I bring intention and care to every creation.\n\nBased in the San Francisco Bay Area, I combine artistic vision with business acumen to transform both looks and businesses. I also work as an HR professional, bringing strategic expertise to help companies build better teams and processes.",
+  footerTagline:
+    "Lash extensions, crochet hair, permanent jewelry, custom craft, 3D printing, and business consulting. Structure makes beautiful things.",
+  seoTitle: "T Creative Studio — Lash Extensions, Permanent Jewelry & More in San Jose",
+  seoDescription:
+    "Premium lash extensions, permanent jewelry, custom crochet commissions, and business consulting. Crafted with intention and care, serving San Jose and the Bay Area.",
+  socialLinks: [
+    { platform: "Instagram", handle: "@trinitlam", url: "https://www.instagram.com/trinitlam/" },
+    {
+      platform: "Instagram",
+      handle: "@lashedbytrini_",
+      url: "https://www.instagram.com/lashedbytrini_/",
+    },
+    {
+      platform: "Instagram",
+      handle: "@linkedbytrini",
+      url: "https://www.instagram.com/linkedbytrini/",
+    },
+    {
+      platform: "Instagram",
+      handle: "@knotsnstuff",
+      url: "https://www.instagram.com/knotsnstuff/",
+    },
+    {
+      platform: "LinkedIn",
+      handle: "Trini Lam",
+      url: "https://www.linkedin.com/in/trini-lam-01b729146/",
+    },
+  ],
+  faqEntries: [
+    {
+      question: "Where are you located?",
+      answer:
+        "T Creative Studio is based in San Jose, California, serving the greater Bay Area. For events and pop-ups, we travel to your location.",
+    },
+    {
+      question: "Do I need to pay a deposit?",
+      answer:
+        "Yes — a {depositPercent}% deposit is required to confirm your appointment. The remaining balance is due at the time of service. Deposits are processed securely through Square.",
+    },
+    {
+      question: "What's the cancellation policy?",
+      answer:
+        "We require at least {cancelWindowHours} hours notice for cancellations. Late cancellations are subject to a {lateCancelFeePercent}% fee, and no-shows are charged the full service amount.",
+    },
+    {
+      question: "Can I book for a group or event?",
+      answer:
+        "Absolutely. We offer private lash parties (up to 6 guests), permanent jewelry pop-ups at your venue, bridal packages, and corporate team events. Reach out through the contact form to get started.",
+    },
+    {
+      question: "Do you offer training and certifications?",
+      answer:
+        "Yes — we run certification programs for lash extensions, permanent jewelry welding, and beauty business consulting. Each program includes hands-on training, materials, and a certificate of completion.",
+    },
+    {
+      question: "How do I prepare for my appointment?",
+      answer:
+        "Come with a clean face (no eye makeup for lash services). We'll send you a confirmation email with specific prep instructions for your service. If you have allergies or sensitivities, let us know when booking.",
+    },
+  ],
+  consultingServices: [
+    {
+      title: "HR Strategy & Consulting",
+      tag: "Remote · All Industries",
+      description:
+        "Strategic HR consulting grounded in real corporate experience. Whether you're a startup building your first team or an established company refining your people processes, this engagement covers what actually moves the needle.",
+      outcomes: [
+        "Hiring process design and job description development",
+        "Onboarding workflows and 90-day frameworks",
+        "Performance review systems and feedback structures",
+        "Team structure and reporting line clarity",
+        "HR compliance fundamentals for small businesses",
+        "Manager coaching and team communication systems",
+      ],
+      idealClient:
+        "Founders, operations leads, and small business owners who are scaling their team and need real HR infrastructure — not generic advice.",
+    },
+    {
+      title: "Beauty Business Consulting",
+      tag: "Remote · Beauty & Wellness",
+      description:
+        "Built specifically for beauty professionals ready to run their business with intention. This isn't theory — it's the exact systems, pricing strategies, and client frameworks used to build T Creative Studio from the ground up.",
+      outcomes: [
+        "Service menu design and pricing strategy",
+        "Client retention and rebooking systems",
+        "Deposit and cancellation policy setup",
+        "Social media and content strategy for beauty pros",
+        "Transitioning from booth rental to studio ownership",
+        "Building a referral-based clientele from scratch",
+      ],
+      idealClient:
+        "Lash techs, permanent jewelry artists, estheticians, and salon owners who are ready to grow sustainably — not just hustle harder.",
+    },
+  ],
+  consultingBenefits: [
+    "Flexible scheduling around your business hours — no commute",
+    "Recorded sessions your team can reference and revisit",
+    "Deliverables in writing after every session",
+    "Access to templates, frameworks, and tools used in-practice",
+  ],
+  eventDescriptions: [
+    {
+      title: "Private Lash Parties",
+      description:
+        "Book the studio for you and your group. Everyone gets lashed while you celebrate — birthdays, bachelorettes, girls' night.",
+    },
+    {
+      title: "Pop-Up Events",
+      description:
+        "Permanent jewelry welding at your venue, market, or storefront. Full setup provided — we bring the studio to you.",
+    },
+    {
+      title: "Bridal & Wedding",
+      description:
+        "Day-of lash services and permanent jewelry for the bridal party. Coordinated scheduling so everyone is ready on time.",
+    },
+    {
+      title: "Corporate & Team Events",
+      description:
+        "Team bonding with permanent jewelry or beauty services. Great for offsites, retreats, and company milestones.",
+    },
+  ],
+  showConsultingPage: true,
+};
+
+const KEY_SITE_CONTENT = "site_content";
+
+/**
+ * Get site content — public-safe (no auth required).
+ * Used by public pages to render configurable content.
+ */
+export async function getSiteContent(): Promise<SiteContent> {
+  try {
+    return getPublicSetting(KEY_SITE_CONTENT, DEFAULT_SITE_CONTENT);
+  } catch (err) {
+    Sentry.captureException(err);
+    return DEFAULT_SITE_CONTENT;
+  }
+}
+
+const siteContentSchema = z.object({
+  heroHeadline: z.string().min(1),
+  heroSubheadline: z.string().min(1),
+  heroCtaText: z.string().min(1),
+  aboutBio: z.string().min(1),
+  footerTagline: z.string().min(1),
+  seoTitle: z.string().min(1),
+  seoDescription: z.string().min(1),
+  socialLinks: z.array(
+    z.object({
+      platform: z.string().min(1),
+      handle: z.string().min(1),
+      url: z.string().url(),
+    }),
+  ),
+  faqEntries: z.array(
+    z.object({
+      question: z.string().min(1),
+      answer: z.string().min(1),
+    }),
+  ),
+  consultingServices: z.array(
+    z.object({
+      title: z.string().min(1),
+      tag: z.string().min(1),
+      description: z.string().min(1),
+      outcomes: z.array(z.string().min(1)),
+      idealClient: z.string().min(1),
+    }),
+  ),
+  consultingBenefits: z.array(z.string().min(1)),
+  eventDescriptions: z.array(
+    z.object({
+      title: z.string().min(1),
+      description: z.string().min(1),
+    }),
+  ),
+  showConsultingPage: z.boolean(),
+});
+
+export async function saveSiteContent(data: SiteContent): Promise<void> {
+  try {
+    siteContentSchema.parse(data);
+    const user = await getUser();
+    await upsertSetting(KEY_SITE_CONTENT, "Site Content", data);
+    trackEvent(user.id, "site_content_updated");
+    revalidatePath("/");
+    revalidatePath("/about");
+    revalidatePath("/contact");
+    revalidatePath("/consulting");
+    revalidatePath("/dashboard/settings");
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
+}
+
+/**
+ * Get policies — public-safe (no auth required).
+ * Used by public FAQ to interpolate policy values.
+ */
+export async function getPublicPolicies(): Promise<PolicySettings> {
+  try {
+    return getPublicSetting(KEY_POLICIES, DEFAULT_POLICIES);
+  } catch (err) {
+    Sentry.captureException(err);
+    return DEFAULT_POLICIES;
+  }
+}
+
+/**
+ * Get business profile — public-safe (no auth required).
+ * Used by public pages for studio name, location, email.
+ */
+export async function getPublicBusinessProfile(): Promise<BusinessProfile> {
+  try {
+    return getPublicSetting(KEY_BUSINESS, DEFAULT_BUSINESS);
+  } catch (err) {
+    Sentry.captureException(err);
+    return DEFAULT_BUSINESS;
   }
 }
 

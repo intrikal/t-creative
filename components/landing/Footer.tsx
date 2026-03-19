@@ -7,7 +7,13 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { socials } from "@/lib/socials";
+import { FaInstagram, FaLinkedinIn } from "react-icons/fa";
+import { socials as defaultSocials } from "@/lib/socials";
+
+const platformIcons: Record<string, React.ComponentType<{ size?: number }>> = {
+  Instagram: FaInstagram,
+  LinkedIn: FaLinkedinIn,
+};
 
 const columns = [
   {
@@ -32,7 +38,23 @@ const columns = [
   },
 ];
 
-export function Footer() {
+export function Footer({
+  email,
+  tagline,
+  socialLinks,
+}: {
+  email?: string;
+  tagline?: string;
+  socialLinks?: { platform: string; handle: string; url: string }[];
+} = {}) {
+  const socials = socialLinks
+    ? socialLinks.map((s) => ({
+        label: s.handle,
+        href: s.url,
+        icon: platformIcons[s.platform] ?? FaInstagram,
+        description: s.platform,
+      }))
+    : defaultSocials;
   return (
     <motion.footer
       className="py-16 md:py-24 px-6 border-t border-foreground/5"
@@ -49,13 +71,13 @@ export function Footer() {
               T Creative Studio
             </p>
             <p className="text-sm text-muted leading-relaxed max-w-sm mb-2">
-              Lash extensions, crochet hair, permanent jewelry, custom craft, 3D printing, and
-              business consulting. Structure makes beautiful things.
+              {tagline ??
+                "Lash extensions, crochet hair, permanent jewelry, custom craft, 3D printing, and business consulting. Structure makes beautiful things."}
             </p>
             <p className="text-xs text-muted/60 mb-4">
               San Jose · Bay Area · Certifications &amp; training available.
             </p>
-            <p className="text-sm text-muted mb-6">hello@tcreativestudio.com</p>
+            <p className="text-sm text-muted mb-6">{email ?? "hello@tcreativestudio.com"}</p>
             {/* Social icons row */}
             <div className="flex gap-3">
               {socials.map((s) => {

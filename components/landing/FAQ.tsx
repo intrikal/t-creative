@@ -2,6 +2,9 @@
  * FAQ — Frequently asked questions to reduce booking friction.
  *
  * Client Component — uses React state for accordion open/close.
+ * Accepts entries + policies as props for dynamic content from the admin dashboard.
+ * Supports {depositPercent}, {cancelWindowHours}, {lateCancelFeePercent},
+ * {noShowFeePercent} tokens in answers, interpolated from policies.
  */
 "use client";
 
@@ -9,30 +12,51 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronDown } from "lucide-react";
 
-const QUESTIONS = [
+interface PolicyValues {
+  depositPercent: number;
+  cancelWindowHours: number;
+  lateCancelFeePercent: number;
+  noShowFeePercent: number;
+}
+
+function interpolatePolicies(text: string, policies: PolicyValues): string {
+  return text
+    .replace(/\{depositPercent\}/g, String(policies.depositPercent))
+    .replace(/\{cancelWindowHours\}/g, String(policies.cancelWindowHours))
+    .replace(/\{lateCancelFeePercent\}/g, String(policies.lateCancelFeePercent))
+    .replace(/\{noShowFeePercent\}/g, String(policies.noShowFeePercent));
+}
+
+const FALLBACK_QUESTIONS = [
   {
-    q: "Where are you located?",
-    a: "T Creative Studio is based in San Jose, California, serving the greater Bay Area. For events and pop-ups, we travel to your location.",
+    question: "Where are you located?",
+    answer:
+      "T Creative Studio is based in San Jose, California, serving the greater Bay Area. For events and pop-ups, we travel to your location.",
   },
   {
-    q: "Do I need to pay a deposit?",
-    a: "Yes — a 25% deposit is required to confirm your appointment. The remaining balance is due at the time of service. Deposits are processed securely through Square.",
+    question: "Do I need to pay a deposit?",
+    answer:
+      "Yes — a 25% deposit is required to confirm your appointment. The remaining balance is due at the time of service. Deposits are processed securely through Square.",
   },
   {
-    q: "What's the cancellation policy?",
-    a: "We require at least 48 hours notice for cancellations. Late cancellations are subject to a 50% fee, and no-shows are charged the full service amount.",
+    question: "What's the cancellation policy?",
+    answer:
+      "We require at least 48 hours notice for cancellations. Late cancellations are subject to a 50% fee, and no-shows are charged the full service amount.",
   },
   {
-    q: "Can I book for a group or event?",
-    a: "Absolutely. We offer private lash parties (up to 6 guests), permanent jewelry pop-ups at your venue, bridal packages, and corporate team events. Reach out through the contact form to get started.",
+    question: "Can I book for a group or event?",
+    answer:
+      "Absolutely. We offer private lash parties (up to 6 guests), permanent jewelry pop-ups at your venue, bridal packages, and corporate team events. Reach out through the contact form to get started.",
   },
   {
-    q: "Do you offer training and certifications?",
-    a: "Yes — we run certification programs for lash extensions, permanent jewelry welding, and beauty business consulting. Each program includes hands-on training, materials, and a certificate of completion.",
+    question: "Do you offer training and certifications?",
+    answer:
+      "Yes — we run certification programs for lash extensions, permanent jewelry welding, and beauty business consulting. Each program includes hands-on training, materials, and a certificate of completion.",
   },
   {
-    q: "How do I prepare for my appointment?",
-    a: "Come with a clean face (no eye makeup for lash services). We'll send you a confirmation email with specific prep instructions for your service. If you have allergies or sensitivities, let us know when booking.",
+    question: "How do I prepare for my appointment?",
+    answer:
+      "Come with a clean face (no eye makeup for lash services). We'll send you a confirmation email with specific prep instructions for your service. If you have allergies or sensitivities, let us know when booking.",
   },
 ];
 
@@ -69,7 +93,14 @@ function FAQItem({ question, answer }: { question: string; answer: string }) {
   );
 }
 
-export function FAQ() {
+export function FAQ({
+  entries,
+  policies,
+}: {
+  entries?: { question: string; answer: string }[];
+  policies?: PolicyValues;
+}) {
+  const questions = entries ?? FALLBACK_QUESTIONS;
   return (
     <section className="py-28 md:py-40 px-6 bg-background" aria-label="FAQ">
       <div className="mx-auto max-w-3xl">
@@ -92,8 +123,12 @@ export function FAQ() {
           viewport={{ once: true }}
           transition={{ duration: 0.6, delay: 0.2 }}
         >
-          {QUESTIONS.map((item) => (
-            <FAQItem key={item.q} question={item.q} answer={item.a} />
+          {questions.map((item) => (
+            <FAQItem
+              key={item.question}
+              question={item.question}
+              answer={policies ? interpolatePolicies(item.answer, policies) : item.answer}
+            />
           ))}
         </motion.div>
       </div>

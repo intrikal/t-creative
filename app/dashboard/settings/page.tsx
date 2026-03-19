@@ -16,6 +16,7 @@ import {
   getNotificationPrefs,
   getPolicies,
   getReminders,
+  getSiteContent,
   getSquareConnectionStatus,
 } from "./settings-actions";
 import { SettingsPage } from "./SettingsPage";
@@ -52,6 +53,7 @@ export default async function Page() {
     initialRevenueGoals,
     initialBookingRules,
     initialReminders,
+    initialSiteContent,
     squareStatus,
   ] = await Promise.all([
     getBusinessHours(),
@@ -65,6 +67,7 @@ export default async function Page() {
     getRevenueGoals(),
     getBookingRules(),
     getReminders(),
+    getSiteContent(),
     getSquareConnectionStatus(),
   ]);
 
@@ -81,6 +84,7 @@ export default async function Page() {
       initialRevenueGoals={initialRevenueGoals}
       initialBookingRules={initialBookingRules}
       initialReminders={initialReminders}
+      initialSiteContent={initialSiteContent}
       squareStatus={squareStatus}
       calendarUrl={calendarUrl(user.id)}
     />

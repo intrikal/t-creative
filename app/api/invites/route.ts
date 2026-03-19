@@ -5,6 +5,7 @@
  * Only users with role="admin" can call this.
  */
 import { NextResponse } from "next/server";
+import { getPublicBusinessProfile } from "@/app/dashboard/settings/settings-actions";
 import { InviteEmail } from "@/emails/InviteEmail";
 import { getCurrentUser } from "@/lib/auth";
 import { createInviteToken } from "@/lib/invite";
@@ -29,10 +30,11 @@ export async function POST(request: Request) {
   const inviteUrl = `${siteUrl}/login?invite=${token}`;
 
   // Send invite email (non-fatal — URL is still returned)
+  const bp = await getPublicBusinessProfile();
   await sendEmail({
     to: email,
-    subject: "You're invited to join T Creative Studio",
-    react: InviteEmail({ inviteUrl }),
+    subject: `You're invited to join ${bp.businessName}`,
+    react: InviteEmail({ inviteUrl, businessName: bp.businessName }),
     entityType: "invite",
     localId: email,
   });

@@ -20,6 +20,7 @@ import {
   services,
   profiles,
 } from "@/db/schema";
+import { getPublicBusinessProfile, getPublicInventoryConfig } from "@/app/dashboard/settings/settings-actions";
 import { GiftCardDelivery } from "@/emails/GiftCardDelivery";
 import { GiftCardPurchase } from "@/emails/GiftCardPurchase";
 import { logAction } from "@/lib/audit";
@@ -169,6 +170,9 @@ export async function createGiftCard(input: {
 
     const user = await getUser();
 
+    const inventoryConfig = await getPublicInventoryConfig();
+    const prefix = inventoryConfig.giftCardCodePrefix;
+
     const [lastCard] = await db
       .select({ code: giftCards.code })
       .from(giftCards)
@@ -176,13 +180,15 @@ export async function createGiftCard(input: {
       .limit(1);
 
     const nextNum = lastCard
-      ? String(parseInt(lastCard.code.replace("TC-GC-", ""), 10) + 1).padStart(3, "0")
+      ? String(parseInt(lastCard.code.replace(`${prefix}-`, ""), 10) + 1).padStart(3, "0")
       : "001";
+
+    const code = `${prefix}-${nextNum}`;
 
     const [newCard] = await db
       .insert(giftCards)
       .values({
-        code: `TC-GC-${nextNum}`,
+        code,
         purchasedByClientId: input.purchasedByClientId ?? null,
         recipientName: input.recipientName ?? null,
         originalAmountInCents: input.amountInCents,
@@ -206,12 +212,15 @@ export async function createGiftCard(input: {
       action: "create",
       entityType: "gift_card",
       entityId: String(newCard.id),
-      description: `Gift card TC-GC-${nextNum} created`,
+      description: `Gift card ${code} created`,
       metadata: { amountInCents: input.amountInCents, recipientName: input.recipientName ?? null },
     });
 
     if (input.purchasedByClientId) {
-      const buyer = await getEmailRecipient(input.purchasedByClientId);
+      const [buyer, bp] = await Promise.all([
+        getEmailRecipient(input.purchasedByClientId),
+        getPublicBusinessProfile(),
+      ]);
       if (buyer) {
         const expiresFormatted = input.expiresAt
           ? new Date(input.expiresAt).toLocaleDateString("en-US", {
@@ -223,13 +232,14 @@ export async function createGiftCard(input: {
 
         await sendEmail({
           to: buyer.email,
-          subject: `Gift card purchased — TC-GC-${nextNum} — T Creative`,
+          subject: `Gift card purchased — TC-GC-${nextNum} — ${bp.businessName}`,
           react: GiftCardPurchase({
             clientName: buyer.firstName,
-            giftCardCode: `TC-GC-${nextNum}`,
+            giftCardCode: code,
             amountInCents: input.amountInCents,
             recipientName: input.recipientName ?? undefined,
             expiresAt: expiresFormatted,
+            businessName: bp.businessName,
           }),
           entityType: "gift_card_purchase",
           localId: String(newCard.id),
@@ -238,13 +248,14 @@ export async function createGiftCard(input: {
         if (input.recipientName) {
           await sendEmail({
             to: buyer.email,
-            subject: `Gift card for ${input.recipientName} — T Creative`,
+            subject: `Gift card for ${input.recipientName} — ${bp.businessName}`,
             react: GiftCardDelivery({
               recipientName: input.recipientName,
               senderName: buyer.firstName,
-              giftCardCode: `TC-GC-${nextNum}`,
+              giftCardCode: code,
               amountInCents: input.amountInCents,
               expiresAt: expiresFormatted,
+              businessName: bp.businessName,
             }),
             entityType: "gift_card_delivery",
             localId: String(newCard.id),

@@ -138,6 +138,8 @@ export function BusinessTab({
     { label: "Location", key: "location" },
     { label: "Currency", key: "currency" },
     { label: "Booking Link", key: "bookingLink" },
+    { label: "Email Sender Name", key: "emailSenderName" },
+    { label: "Email From Address", key: "emailFromAddress" },
   ];
 
   return (

@@ -6,11 +6,12 @@ export type InquiryReplyProps = {
   clientName: string;
   replyText: string;
   originalMessage: string;
+  businessName?: string;
 };
 
-export function InquiryReply({ clientName, replyText, originalMessage }: InquiryReplyProps) {
+export function InquiryReply({ clientName, replyText, originalMessage, businessName = "T Creative" }: InquiryReplyProps) {
   return (
-    <Layout preview="Reply to your inquiry — T Creative">
+    <Layout preview={`Reply to your inquiry — ${businessName}`} businessName={businessName}>
       <Section style={content}>
         <Text style={heading}>We&apos;ve Replied to Your Inquiry</Text>
         <Text style={paragraph}>Hey {clientName},</Text>

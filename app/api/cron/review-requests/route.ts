@@ -10,6 +10,7 @@ import { NextResponse } from "next/server";
 import { and, eq, gte, lte } from "drizzle-orm";
 import { db } from "@/db";
 import { bookings, profiles, services, syncLog } from "@/db/schema";
+import { getPublicRemindersConfig } from "@/app/dashboard/settings/settings-actions";
 import { ReviewRequest } from "@/emails/ReviewRequest";
 import { sendEmail } from "@/lib/resend";
 
@@ -19,10 +20,13 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const remindersConfig = await getPublicRemindersConfig();
+  const delayHours = remindersConfig.reviewRequestDelayHours;
+
   const now = new Date();
-  // Look for bookings completed between 23–25 hours ago
-  const windowStart = new Date(now.getTime() - 25 * 60 * 60 * 1000);
-  const windowEnd = new Date(now.getTime() - 23 * 60 * 60 * 1000);
+  // Look for bookings completed in a 2-hour window around the configured delay
+  const windowStart = new Date(now.getTime() - (delayHours + 1) * 60 * 60 * 1000);
+  const windowEnd = new Date(now.getTime() - (delayHours - 1) * 60 * 60 * 1000);
 
   const completedBookings = await db
     .select({

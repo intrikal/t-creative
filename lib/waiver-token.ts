@@ -9,7 +9,6 @@
 import { createHmac } from "crypto";
 
 const SECRET = process.env.WAIVER_TOKEN_SECRET || process.env.NEXTAUTH_SECRET || "waiver-fallback-secret";
-const EXPIRY_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 interface WaiverTokenPayload {
   bookingId: number;
@@ -19,11 +18,14 @@ interface WaiverTokenPayload {
 /**
  * Generate a signed waiver token.
  * Format: base64url({ bookingId, clientId, exp }).signature
+ *
+ * @param expiryDays — token validity in days (default: 7, configurable via settings)
  */
-export function generateWaiverToken(payload: WaiverTokenPayload): string {
+export function generateWaiverToken(payload: WaiverTokenPayload, expiryDays: number = 7): string {
+  const expiryMs = expiryDays * 24 * 60 * 60 * 1000;
   const data = {
     ...payload,
-    exp: Date.now() + EXPIRY_MS,
+    exp: Date.now() + expiryMs,
   };
   const encoded = Buffer.from(JSON.stringify(data)).toString("base64url");
   const sig = createHmac("sha256", SECRET).update(encoded).digest("base64url");

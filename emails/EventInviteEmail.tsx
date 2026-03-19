@@ -8,6 +8,7 @@ export type EventInviteEmailProps = {
   eventLocation: string | null;
   services: string | null;
   rsvpUrl: string;
+  businessName?: string;
 };
 
 export function EventInviteEmail({
@@ -16,13 +17,14 @@ export function EventInviteEmail({
   eventLocation,
   services,
   rsvpUrl,
+  businessName = "T Creative Studio",
 }: EventInviteEmailProps) {
   return (
-    <Layout preview={`You're invited — ${eventTitle}`}>
+    <Layout preview={`You're invited — ${eventTitle}`} businessName={businessName}>
       <Section style={content}>
         <Text style={heading}>You&apos;re invited!</Text>
         <Text style={paragraph}>
-          T Creative Studio would love to see you at <strong>{eventTitle}</strong>.
+          {businessName} would love to see you at <strong>{eventTitle}</strong>.
         </Text>
 
         <div style={details}>
@@ -50,7 +52,7 @@ export function EventInviteEmail({
         </Button>
 
         <Text style={muted}>
-          This invitation was sent by T Creative Studio. If you have questions, reply to this email.
+          This invitation was sent by {businessName}. If you have questions, reply to this email.
         </Text>
       </Section>
     </Layout>

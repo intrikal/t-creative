@@ -166,6 +166,8 @@ describe("settings-actions", () => {
         currency: "USD",
         bookingLink: "link",
         bio: "bio",
+        emailSenderName: "T Creative",
+        emailFromAddress: "noreply@tcreativestudio.com",
       };
       await saveBusinessProfile(data);
       expect(mockInsertValues).toHaveBeenCalledWith(
@@ -187,6 +189,8 @@ describe("settings-actions", () => {
         currency: "USD",
         bookingLink: "link",
         bio: "bio",
+        emailSenderName: "T Creative",
+        emailFromAddress: "noreply@tcreativestudio.com",
       };
       await saveBusinessProfile(data);
       expect(mockTrackEvent).toHaveBeenCalledWith("user-1", "business_profile_updated");
@@ -206,6 +210,8 @@ describe("settings-actions", () => {
         currency: "USD",
         bookingLink: "link",
         bio: "bio",
+        emailSenderName: "T Creative",
+        emailFromAddress: "noreply@tcreativestudio.com",
       };
       await saveBusinessProfile(data);
       expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/settings");
@@ -350,6 +356,7 @@ describe("settings-actions", () => {
         tierGold: 700,
         tierPlatinum: 1500,
         birthdayDiscountPercent: 5,
+        birthdayPromoExpiryDays: 7,
       });
       expect(mockTrackEvent).toHaveBeenCalledWith("user-1", "loyalty_config_updated");
     });
@@ -451,6 +458,8 @@ describe("settings-actions", () => {
         depositPct: 25,
         depositRequired: true,
         allowOnlineBooking: true,
+        waitlistClaimWindowHours: 24,
+        waiverTokenExpiryDays: 7,
       });
       expect(mockTrackEvent).toHaveBeenCalledWith("user-1", "booking_rules_updated");
     });
@@ -468,6 +477,8 @@ describe("settings-actions", () => {
         depositPct: 25,
         depositRequired: true,
         allowOnlineBooking: true,
+        waitlistClaimWindowHours: 24,
+        waiverTokenExpiryDays: 7,
       });
       expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/settings");
     });
@@ -502,14 +513,14 @@ describe("settings-actions", () => {
       mockGetUser.mockResolvedValue({ data: { user: null } });
       setupMocks();
       const { saveReminders } = await import("./settings-actions");
-      await expect(saveReminders({ items: [] })).rejects.toThrow("Not authenticated");
+      await expect(saveReminders({ items: [], fillReminderDays: 18, reviewRequestDelayHours: 24, bookingReminderHours: [24, 48] })).rejects.toThrow("Not authenticated");
     });
 
     it("revalidates /dashboard/settings", async () => {
       vi.resetModules();
       setupMocks();
       const { saveReminders } = await import("./settings-actions");
-      await saveReminders({ items: [] });
+      await saveReminders({ items: [], fillReminderDays: 18, reviewRequestDelayHours: 24, bookingReminderHours: [24, 48] });
       expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/settings");
     });
   });

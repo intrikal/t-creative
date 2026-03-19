@@ -4,9 +4,10 @@ import { Body, Container, Head, Hr, Html, Preview, Section, Text } from "@react-
 type LayoutProps = {
   preview: string;
   children: React.ReactNode;
+  businessName?: string;
 };
 
-export function Layout({ preview, children }: LayoutProps) {
+export function Layout({ preview, children, businessName = "T Creative Studio" }: LayoutProps) {
   return (
     <Html>
       <Head />
@@ -14,11 +15,11 @@ export function Layout({ preview, children }: LayoutProps) {
       <Body style={body}>
         <Container style={container}>
           <Section style={header}>
-            <Text style={logo}>T Creative Studio</Text>
+            <Text style={logo}>{businessName}</Text>
           </Section>
           {children}
           <Hr style={hr} />
-          <Text style={footer}>T Creative Studio &middot; Beauty, Jewelry & Crochet</Text>
+          <Text style={footer}>{businessName}</Text>
         </Container>
       </Body>
     </Html>

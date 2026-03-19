@@ -20,11 +20,9 @@ import { format } from "date-fns";
 import { and, desc, eq, gt, gte, lte, ne, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { bookings, profiles, services, syncLog } from "@/db/schema";
+import { getPublicRemindersConfig } from "@/app/dashboard/settings/settings-actions";
 import { FillReminder } from "@/emails/FillReminder";
 import { sendEmail } from "@/lib/resend";
-
-const FILL_REMINDER_DAYS = 18; // send when last lash visit was this many days ago
-const WINDOW_HOURS = 24; // daily job — look back over a 24h window
 
 /** Day names indexed by JS Date.getDay() (0 = Sunday). */
 const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -90,11 +88,15 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const remindersConfig = await getPublicRemindersConfig();
+  const fillReminderDays = remindersConfig.fillReminderDays;
+  const windowHours = 24; // daily job — look back over a 24h window
+
   const now = new Date();
-  // Clients whose last lash visit was 18–19 days ago
-  const windowEnd = new Date(now.getTime() - FILL_REMINDER_DAYS * 24 * 60 * 60 * 1000);
+  // Clients whose last lash visit was N–(N+1) days ago
+  const windowEnd = new Date(now.getTime() - fillReminderDays * 24 * 60 * 60 * 1000);
   const windowStart = new Date(
-    now.getTime() - (FILL_REMINDER_DAYS * 24 + WINDOW_HOURS) * 60 * 60 * 1000,
+    now.getTime() - (fillReminderDays * 24 + windowHours) * 60 * 60 * 1000,
   );
 
   // Find completed lash bookings that fall in the reminder window.

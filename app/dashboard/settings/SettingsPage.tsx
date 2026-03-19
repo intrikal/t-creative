@@ -29,7 +29,9 @@ import {
   FileText,
   Globe,
   Heart,
+  Layers,
   Link2,
+  Package,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AftercareTab } from "./components/AftercareTab";
@@ -37,12 +39,15 @@ import { BookingTab } from "./components/BookingTab";
 import { BusinessTab } from "./components/BusinessTab";
 import { HoursTab } from "./components/HoursTab";
 import { IntegrationsTab } from "./components/IntegrationsTab";
+import { InventoryTab } from "./components/InventoryTab";
 import { LoyaltyTab } from "./components/LoyaltyTab";
 import { NotificationsTab } from "./components/NotificationsTab";
 import { PoliciesTab } from "./components/PoliciesTab";
 import { RemindersTab } from "./components/RemindersTab";
+import { ServiceCategoriesTab } from "./components/ServiceCategoriesTab";
 import { WebsiteContentTab } from "./components/WebsiteContentTab";
 import type { BusinessHourRow, LunchBreak, TimeOffRow } from "./hours-actions";
+import type { ServiceCategoryRow } from "./service-categories-actions";
 import type {
   BookingRulesConfig,
   BusinessProfile,
@@ -51,6 +56,7 @@ import type {
   NotificationPrefs,
   RemindersConfig,
   FinancialConfig,
+  InventoryConfig,
   RevenueGoal,
   SiteContent,
   SquareConnectionStatus,
@@ -68,6 +74,8 @@ const TABS = [
   { id: "loyalty", label: "Loyalty", icon: Award },
   { id: "aftercare", label: "Aftercare", icon: Heart },
   { id: "reminders", label: "Reminders", icon: BellRing },
+  { id: "inventory", label: "Inventory", icon: Package },
+  { id: "categories", label: "Categories", icon: Layers },
   { id: "integrations", label: "Integrations", icon: Link2 },
   { id: "notifications", label: "Notifications", icon: Bell },
   { id: "website", label: "Website Content", icon: Globe },
@@ -92,6 +100,8 @@ export function SettingsPage({
   initialBookingRules,
   initialReminders,
   initialSiteContent,
+  initialInventory,
+  initialCategories,
   squareStatus,
   calendarUrl,
 }: {
@@ -107,6 +117,8 @@ export function SettingsPage({
   initialBookingRules: BookingRulesConfig;
   initialReminders: RemindersConfig;
   initialSiteContent: SiteContent;
+  initialInventory: InventoryConfig;
+  initialCategories: ServiceCategoryRow[];
   squareStatus: SquareConnectionStatus;
   calendarUrl?: string;
 }) {
@@ -132,6 +144,8 @@ export function SettingsPage({
     loyalty: <LoyaltyTab initial={initialLoyalty} />,
     aftercare: <AftercareTab />,
     reminders: <RemindersTab initial={initialReminders} />,
+    inventory: <InventoryTab initial={initialInventory} />,
+    categories: <ServiceCategoriesTab initial={initialCategories} />,
     integrations: (
       <IntegrationsTab
         squareConnected={squareStatus.connected}

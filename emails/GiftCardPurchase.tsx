@@ -9,6 +9,7 @@ export type GiftCardPurchaseProps = {
   amountInCents: number;
   recipientName?: string;
   expiresAt?: string;
+  businessName?: string;
 };
 
 export function GiftCardPurchase({
@@ -17,13 +18,14 @@ export function GiftCardPurchase({
   amountInCents,
   recipientName,
   expiresAt,
+  businessName = "T Creative Studio",
 }: GiftCardPurchaseProps) {
   return (
-    <Layout preview={`Gift card purchased — ${giftCardCode}`}>
+    <Layout preview={`Gift card purchased — ${giftCardCode}`} businessName={businessName}>
       <Section style={content}>
         <Text style={heading}>Gift Card Purchased</Text>
         <Text style={paragraph}>
-          Hey {clientName}, thanks for purchasing a T Creative Studio gift card!
+          Hey {clientName}, thanks for purchasing a {businessName} gift card!
         </Text>
 
         <Text style={detailLabel}>Gift Card Code</Text>
@@ -47,7 +49,7 @@ export function GiftCardPurchase({
         )}
 
         <Text style={paragraph}>
-          This gift card can be redeemed toward any service or product at T Creative Studio.
+          This gift card can be redeemed toward any service or product at {businessName}.
         </Text>
 
         <Text style={muted}>

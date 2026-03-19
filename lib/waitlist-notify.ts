@@ -22,6 +22,7 @@ import { format } from "date-fns";
 import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { bookings, notifications, profiles, services, waitlist } from "@/db/schema";
+import { getPublicBookingRules, getPublicBusinessProfile } from "@/app/dashboard/settings/settings-actions";
 import { WaitlistNotification } from "@/emails/WaitlistNotification";
 import { sendEmail } from "@/lib/resend";
 
@@ -93,8 +94,14 @@ export async function notifyNextWaitlistEntry({
 
   if (!entry || !entry.clientEmail || !entry.notifyEmail) return;
 
+  const [bookingRules, bp] = await Promise.all([
+    getPublicBookingRules(),
+    getPublicBusinessProfile(),
+  ]);
+  const claimWindowMs = bookingRules.waitlistClaimWindowHours * 60 * 60 * 1000;
+
   const token = randomUUID();
-  const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 h
+  const expiresAt = new Date(Date.now() + claimWindowMs);
 
   await db
     .update(waitlist)
@@ -114,7 +121,7 @@ export async function notifyNextWaitlistEntry({
 
   await sendEmail({
     to: entry.clientEmail,
-    subject: `A spot opened up — ${entry.serviceName} — T Creative`,
+    subject: `A spot opened up — ${entry.serviceName} — ${bp.businessName}`,
     react: WaitlistNotification({
       clientName: entry.clientFirstName ?? "there",
       serviceName: entry.serviceName,

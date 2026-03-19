@@ -12,6 +12,7 @@ import { bookings, services, clientForms, formSubmissions } from "@/db/schema";
 import { WaiverRequired } from "@/emails/WaiverRequired";
 import { trackEvent } from "@/lib/posthog";
 import { getEmailRecipient, sendEmail } from "@/lib/resend";
+import { getPublicBookingRules } from "@/app/dashboard/settings/settings-actions";
 import { generateWaiverToken } from "@/lib/waiver-token";
 import { createClient } from "@/utils/supabase/server";
 
@@ -118,7 +119,8 @@ export async function sendWaiverLink(bookingId: number): Promise<boolean> {
   const recipient = await getEmailRecipient(booking.clientId);
   if (!recipient) throw new Error("Client has no email or notifications disabled");
 
-  const token = generateWaiverToken({ bookingId, clientId: booking.clientId });
+  const bookingRules = await getPublicBookingRules();
+  const token = generateWaiverToken({ bookingId, clientId: booking.clientId }, bookingRules.waiverTokenExpiryDays);
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://tcreativestudio.com";
   const waiverUrl = `${baseUrl}/waivers/${token}`;
 

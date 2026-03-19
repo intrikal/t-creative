@@ -15,6 +15,7 @@ import { giftCards, giftCardTransactions, profiles, syncLog } from "@/db/schema"
 import { GiftCardDelivery } from "@/emails/GiftCardDelivery";
 import { GiftCardPurchase } from "@/emails/GiftCardPurchase";
 import { sendEmail } from "@/lib/resend";
+import { getPublicBusinessProfile, getPublicInventoryConfig } from "@/app/dashboard/settings/settings-actions";
 import { isSquareConfigured, squareClient, SQUARE_LOCATION_ID } from "@/lib/square";
 import { createClient } from "@/utils/supabase/server";
 
@@ -71,6 +72,10 @@ export async function purchaseGiftCard(
     return { success: false, error: "Amount must be between $25 and $500" };
   }
 
+  // Read the configured gift card code prefix
+  const inventoryConfig = await getPublicInventoryConfig();
+  const prefix = inventoryConfig.giftCardCodePrefix;
+
   // Auto-generate next gift card code with retry on unique-constraint collision.
   // Two concurrent purchases can read the same lastCard and produce the same
   // code. The unique index on gift_cards.code prevents silent duplicates — we
@@ -87,10 +92,10 @@ export async function purchaseGiftCard(
       .limit(1);
 
     const nextNum = lastCard
-      ? String(parseInt(lastCard.code.replace("TC-GC-", ""), 10) + 1).padStart(3, "0")
+      ? String(parseInt(lastCard.code.replace(`${prefix}-`, ""), 10) + 1).padStart(3, "0")
       : "001";
 
-    code = `TC-GC-${nextNum}`;
+    code = `${prefix}-${nextNum}`;
 
     try {
       const [inserted] = await db
@@ -182,14 +187,16 @@ export async function purchaseGiftCard(
       .where(eq(profiles.id, user.id));
 
     if (buyer?.email) {
+      const bp = await getPublicBusinessProfile();
       await sendEmail({
         to: buyer.email,
-        subject: `Your gift card ${code} — T Creative`,
+        subject: `Your gift card ${code} — ${bp.businessName}`,
         react: GiftCardPurchase({
           clientName: buyer.firstName,
           giftCardCode: code,
           amountInCents: input.amountInCents,
           recipientName: input.recipientName ?? undefined,
+          businessName: bp.businessName,
         }),
         entityType: "gift_card_purchase",
         localId: String(newCard.id),
@@ -198,12 +205,13 @@ export async function purchaseGiftCard(
       if (input.recipientName) {
         await sendEmail({
           to: buyer.email,
-          subject: `Gift card for ${input.recipientName} — T Creative`,
+          subject: `Gift card for ${input.recipientName} — ${bp.businessName}`,
           react: GiftCardDelivery({
             recipientName: input.recipientName,
             senderName: buyer.firstName,
             giftCardCode: code,
             amountInCents: input.amountInCents,
+            businessName: bp.businessName,
           }),
           entityType: "gift_card_delivery",
           localId: String(newCard.id),

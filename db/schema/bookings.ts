@@ -165,6 +165,7 @@ export const bookings = pgTable(
     // Composite indexes for analytics queries that filter on both columns
     index("bookings_starts_at_status_idx").on(t.startsAt, t.status),
     index("bookings_client_starts_at_idx").on(t.clientId, t.startsAt),
+    index("bookings_deleted_at_idx").on(t.deletedAt),
   ],
 );
 

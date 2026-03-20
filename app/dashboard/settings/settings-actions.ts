@@ -31,7 +31,7 @@
 
 import * as Sentry from "@sentry/nextjs";
 import { revalidatePath } from "next/cache";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import { settings } from "@/db/schema";
@@ -290,6 +290,16 @@ async function upsertSetting(key: string, label: string, value: unknown): Promis
     target: settings.key,
     set: { value },
   });
+}
+
+/**
+ * Fetch multiple settings in a single query. Returns a Map keyed by
+ * setting key so callers can look up each value with its own fallback.
+ */
+async function getMultipleSettings(keys: string[]): Promise<Map<string, unknown>> {
+  if (keys.length === 0) return new Map();
+  const rows = await db.select().from(settings).where(inArray(settings.key, keys));
+  return new Map(rows.map((r) => [r.key, r.value]));
 }
 
 /* ------------------------------------------------------------------ */
@@ -966,6 +976,64 @@ export async function getPublicBusinessProfile(): Promise<BusinessProfile> {
   } catch (err) {
     Sentry.captureException(err);
     return DEFAULT_BUSINESS;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Admin Settings Bundle                                              */
+/* ------------------------------------------------------------------ */
+
+export interface AdminSettingsBundle {
+  businessProfile: BusinessProfile;
+  policies: PolicySettings;
+  loyalty: LoyaltyConfig;
+  notifications: NotificationPrefs;
+  bookingRules: BookingRulesConfig;
+  reminders: RemindersConfig;
+  siteContent: SiteContent;
+  inventory: InventoryConfig;
+  financial: FinancialConfig;
+  revenueGoals: RevenueGoal[];
+}
+
+/**
+ * Fetch all admin settings in a single query instead of 10 separate ones.
+ * Each setting falls back to its default if missing from the database.
+ */
+export async function getAdminSettingsBundle(): Promise<AdminSettingsBundle> {
+  try {
+    await getUser();
+
+    const keys = [
+      KEY_BUSINESS,
+      KEY_POLICIES,
+      KEY_LOYALTY,
+      KEY_NOTIFICATIONS,
+      KEY_BOOKING_RULES,
+      KEY_REMINDERS,
+      KEY_SITE_CONTENT,
+      KEY_INVENTORY,
+      KEY_FINANCIAL,
+      KEY_REVENUE_GOALS,
+    ];
+
+    const map = await getMultipleSettings(keys);
+
+    return {
+      businessProfile: (map.get(KEY_BUSINESS) as BusinessProfile) ?? DEFAULT_BUSINESS,
+      policies: (map.get(KEY_POLICIES) as PolicySettings) ?? DEFAULT_POLICIES,
+      loyalty: (map.get(KEY_LOYALTY) as LoyaltyConfig) ?? DEFAULT_LOYALTY,
+      notifications: (map.get(KEY_NOTIFICATIONS) as NotificationPrefs) ?? DEFAULT_NOTIFICATIONS,
+      bookingRules: (map.get(KEY_BOOKING_RULES) as BookingRulesConfig) ?? DEFAULT_BOOKING_RULES,
+      reminders: (map.get(KEY_REMINDERS) as RemindersConfig) ?? DEFAULT_REMINDERS,
+      siteContent: (map.get(KEY_SITE_CONTENT) as SiteContent) ?? DEFAULT_SITE_CONTENT,
+      inventory: (map.get(KEY_INVENTORY) as InventoryConfig) ?? DEFAULT_INVENTORY,
+      financial: (map.get(KEY_FINANCIAL) as FinancialConfig) ?? DEFAULT_FINANCIAL,
+      revenueGoals: (map.get(KEY_REVENUE_GOALS) as RevenueGoal[]) ?? [],
+    };
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
   }
 }
 

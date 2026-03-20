@@ -29,7 +29,7 @@
 
 import { revalidatePath } from "next/cache";
 import * as Sentry from "@sentry/nextjs";
-import { eq, desc, ne, and, sql, inArray, isNull } from "drizzle-orm";
+import { eq, desc, ne, and, sql, inArray, isNull, gte, lte } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { z } from "zod";
 import { getPolicies } from "@/app/dashboard/settings/settings-actions";
@@ -158,12 +158,18 @@ const DEFAULT_BOOKINGS_LIMIT = 100;
 export async function getBookings(opts?: {
   offset?: number;
   limit?: number;
+  startDate?: Date;
+  endDate?: Date;
 }): Promise<PaginatedBookings> {
   try {
     await getUser();
 
     const limit = opts?.limit ?? DEFAULT_BOOKINGS_LIMIT;
     const offset = opts?.offset ?? 0;
+
+    const conditions = [isNull(bookings.deletedAt)];
+    if (opts?.startDate) conditions.push(gte(bookings.startsAt, opts.startDate));
+    if (opts?.endDate) conditions.push(lte(bookings.startsAt, opts.endDate));
 
     const clientProfile = alias(profiles, "client");
     const staffProfile = alias(profiles, "staff");
@@ -190,7 +196,7 @@ export async function getBookings(opts?: {
         parentBookingId: bookings.parentBookingId,
       })
       .from(bookings)
-      .where(isNull(bookings.deletedAt))
+      .where(and(...conditions))
       .leftJoin(clientProfile, eq(bookings.clientId, clientProfile.id))
       .leftJoin(services, eq(bookings.serviceId, services.id))
       .leftJoin(staffProfile, eq(bookings.staffId, staffProfile.id))

@@ -22,6 +22,12 @@ export default async function Page() {
   if (!user) redirect("/login");
   if (user.profile?.role !== "admin") redirect("/dashboard");
 
+  const now = new Date();
+  const startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  startDate.setDate(startDate.getDate() - 60);
+  const endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  endDate.setDate(endDate.getDate() + 60);
+
   const [
     bookingsResult,
     clients,
@@ -34,14 +40,14 @@ export default async function Page() {
     venues,
     eventStaff,
   ] = await Promise.all([
-    getBookings({ limit: 500 }),
+    getBookings({ limit: 500, startDate, endDate }),
     getClientsForSelect(),
     getServicesForSelect(),
     getStaffForSelect(),
     getBusinessHours(),
     getTimeOff(),
     getLunchBreak(),
-    getEvents(),
+    getEvents({ startDate, endDate }),
     getVenues(),
     getStaffForEvents(),
   ]);

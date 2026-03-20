@@ -15,8 +15,8 @@ import {
 export function BookingRow({ booking }: { booking: AdminBooking }) {
   const status = bookingStatusConfig(booking.status);
   return (
-    <div className="flex items-center gap-3 py-3 border-b border-border/50 last:border-0">
-      <div className="flex flex-col items-center gap-1.5 shrink-0 w-16">
+    <div className="flex items-center gap-3 py-2.5 border-b border-border/50 last:border-0">
+      <div className="flex flex-col items-center gap-1 shrink-0 w-14">
         <span className={cn("w-1.5 h-1.5 rounded-full", categoryDot(booking.category))} />
         <span className="text-xs text-muted font-medium tabular-nums">{booking.time}</span>
       </div>
@@ -37,7 +37,7 @@ export function BookingRow({ booking }: { booking: AdminBooking }) {
           )}
         </p>
       </div>
-      <div className="hidden sm:flex flex-col items-end gap-1 shrink-0">
+      <div className="hidden sm:flex flex-col items-end gap-0.5 shrink-0">
         <span className="text-xs text-muted">{booking.staff}</span>
         <span className="text-[10px] text-muted/60 flex items-center gap-0.5">
           <Clock className="w-2.5 h-2.5" />
@@ -54,7 +54,7 @@ export function BookingRow({ booking }: { booking: AdminBooking }) {
 export function InquiryRow({ inquiry }: { inquiry: AdminInquiry }) {
   const status = inquiryStatusConfig(inquiry.status);
   return (
-    <div className="flex gap-3 py-3 border-b border-border/50 last:border-0">
+    <div className="flex gap-3 py-2.5 border-b border-border/50 last:border-0">
       <Avatar size="sm">
         <AvatarFallback className="text-[10px] bg-surface text-muted font-semibold">
           {inquiry.initials}
@@ -72,8 +72,8 @@ export function InquiryRow({ inquiry }: { inquiry: AdminInquiry }) {
             </span>
           )}
         </div>
-        <p className="text-xs text-muted mt-1 line-clamp-2 leading-relaxed">{inquiry.message}</p>
-        <p className="text-[10px] text-muted/60 mt-1">{inquiry.time}</p>
+        <p className="text-xs text-muted mt-0.5 line-clamp-2 leading-relaxed">{inquiry.message}</p>
+        <p className="text-[10px] text-muted/60 mt-0.5">{inquiry.time}</p>
       </div>
     </div>
   );
@@ -82,9 +82,9 @@ export function InquiryRow({ inquiry }: { inquiry: AdminInquiry }) {
 export function ClientRow({ client }: { client: AdminClient }) {
   const src = sourceBadge(client.source);
   return (
-    <div className="flex items-center gap-3 py-3 border-b border-border/50 last:border-0">
-      <Avatar>
-        <AvatarFallback className="bg-surface text-muted text-xs font-semibold">
+    <div className="flex items-center gap-3 py-2.5 border-b border-border/50 last:border-0">
+      <Avatar size="sm">
+        <AvatarFallback className="bg-surface text-muted text-[10px] font-semibold">
           {client.initials}
         </AvatarFallback>
       </Avatar>

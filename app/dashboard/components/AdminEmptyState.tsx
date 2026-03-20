@@ -12,7 +12,7 @@ export function EmptyState({
 }) {
   return (
     <div className="py-8 text-center">
-      <Icon className="w-8 h-8 text-foreground/15 mx-auto mb-2" />
+      <Icon className="w-7 h-7 text-foreground/15 mx-auto mb-2" />
       <p className="text-sm text-muted/60 font-medium">{message}</p>
       <p className="text-xs text-muted/40 mt-0.5">{detail}</p>
       {actionLabel && actionHref && (

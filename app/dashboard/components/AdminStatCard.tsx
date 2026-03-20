@@ -19,16 +19,16 @@ export function StatCard({
   compact?: boolean;
 }) {
   const content = (
-    <Card className={cn("gap-0", compact ? "py-3" : "py-4", href && "hover:border-foreground/20 transition-colors")}>
-      <CardContent className="px-4">
+    <Card className={cn("gap-0 py-0", href && "hover:border-foreground/20 transition-colors")}>
+      <CardContent className={cn("px-4", compact ? "py-3" : "py-4")}>
         <div className="flex items-start justify-between gap-2">
-          <div className="space-y-1">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">{label}</p>
+          <div className="space-y-0.5 min-w-0">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted truncate">{label}</p>
             <p className={cn("font-semibold text-foreground tracking-tight", compact ? "text-lg" : "text-2xl")}>{value}</p>
             <div className="flex items-center gap-1 text-xs text-muted">
-              {trend === "up" && <TrendingUp className="w-3 h-3 text-[#4e6b51]" />}
-              {trend === "down" && <TrendingDown className="w-3 h-3 text-destructive" />}
-              <span>{sub}</span>
+              {trend === "up" && <TrendingUp className="w-3 h-3 text-[#4e6b51] shrink-0" />}
+              {trend === "down" && <TrendingDown className="w-3 h-3 text-destructive shrink-0" />}
+              <span className="truncate">{sub}</span>
             </div>
           </div>
           <div className={cn("rounded-xl p-2 shrink-0", iconBg)}>

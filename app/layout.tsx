@@ -19,7 +19,7 @@ import { ServiceWorkerRegistration } from "@/components/providers/ServiceWorkerR
 import { WebVitals } from "@/components/providers/WebVitals";
 import { SmoothScroll } from "@/components/providers/SmoothScroll";
 import { GrainOverlay } from "@/components/ui/GrainOverlay";
-import { LoadingScreen } from "@/components/ui/LoadingScreen";
+
 import { ScrollProgress } from "@/components/ui/ScrollProgress";
 import { getSiteData } from "@/lib/site-data";
 import "./globals.css";
@@ -126,7 +126,7 @@ export default async function RootLayout({
         <ServiceWorkerRegistration />
         <WebVitals />
         <PostHogProvider>
-          <LoadingScreen />
+
           <GrainOverlay />
           <ScrollProgress />
           <ConditionalNavbar>

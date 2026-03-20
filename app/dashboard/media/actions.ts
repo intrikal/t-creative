@@ -180,6 +180,7 @@ export async function uploadMedia(formData: FormData) {
       });
     }
 
+    revalidatePath("/dashboard/services");
     revalidatePath("/dashboard/media");
   } catch (err) {
     Sentry.captureException(err);
@@ -205,6 +206,7 @@ export async function togglePublish(id: number, publish: boolean) {
         updatedAt: new Date(),
       })
       .where(eq(mediaItems.id, id));
+    revalidatePath("/dashboard/services");
     revalidatePath("/dashboard/media");
   } catch (err) {
     Sentry.captureException(err);
@@ -226,6 +228,7 @@ export async function toggleFeatured(id: number, feature: boolean) {
         updatedAt: new Date(),
       })
       .where(eq(mediaItems.id, id));
+    revalidatePath("/dashboard/services");
     revalidatePath("/dashboard/media");
   } catch (err) {
     Sentry.captureException(err);
@@ -256,6 +259,7 @@ export async function updateMediaItem(
         updatedAt: new Date(),
       })
       .where(eq(mediaItems.id, id));
+    revalidatePath("/dashboard/services");
     revalidatePath("/dashboard/media");
   } catch (err) {
     Sentry.captureException(err);
@@ -282,6 +286,7 @@ export async function deleteMediaItem(id: number) {
       await db.delete(mediaItems).where(eq(mediaItems.id, id));
     }
 
+    revalidatePath("/dashboard/services");
     revalidatePath("/dashboard/media");
   } catch (err) {
     Sentry.captureException(err);

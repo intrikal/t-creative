@@ -30,11 +30,10 @@ import {
   Images,
   Gift,
   Bell,
-  Menu,
+  PanelLeft,
+  PanelLeftClose,
   X,
-  PackageCheck,
   ShieldCheck,
-  Scale,
   Rocket,
 } from "lucide-react";
 import { TCLogo } from "@/components/TCLogo";
@@ -71,8 +70,6 @@ const ADMIN_NAV_GROUPS: NavGroup[] = [
       { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
       { href: "/dashboard/calendar", label: "Calendar", icon: CalendarRange },
       { href: "/dashboard/bookings", label: "Bookings", icon: CalendarCheck },
-      { href: "/dashboard/subscriptions", label: "Subscriptions", icon: PackageCheck },
-      { href: "/dashboard/memberships", label: "Memberships", icon: ShieldCheck },
       { href: "/dashboard/messages", label: "Messages", icon: MessageSquare },
       { href: "/dashboard/notifications", label: "Notifications", icon: Bell },
     ],
@@ -81,7 +78,7 @@ const ADMIN_NAV_GROUPS: NavGroup[] = [
     label: "People",
     items: [
       { href: "/dashboard/clients", label: "Clients", icon: Users },
-      { href: "/dashboard/assistants", label: "Assistants", icon: UserCheck },
+      { href: "/dashboard/team", label: "Team", icon: UserCheck },
       { href: "/dashboard/inquiries", label: "Inquiries", icon: Inbox },
     ],
   },
@@ -89,7 +86,6 @@ const ADMIN_NAV_GROUPS: NavGroup[] = [
     label: "Business",
     items: [
       { href: "/dashboard/financial", label: "Financial", icon: DollarSign },
-      { href: "/dashboard/expenses", label: "Expenses", icon: Receipt },
       { href: "/dashboard/analytics", label: "Analytics", icon: BarChart2 },
       { href: "/dashboard/reviews", label: "Reviews", icon: Star },
     ],
@@ -99,10 +95,6 @@ const ADMIN_NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/dashboard/services", label: "Services", icon: Scissors },
       { href: "/dashboard/marketplace", label: "Marketplace", icon: ShoppingBag },
-      { href: "/dashboard/events", label: "Events", icon: CalendarDays },
-      { href: "/dashboard/training", label: "Training", icon: GraduationCap },
-      { href: "/dashboard/media", label: "Media", icon: Image },
-      { href: "/dashboard/legal", label: "Legal", icon: Scale },
       { href: "/dashboard/settings", label: "Settings", icon: Settings },
     ],
   },
@@ -127,7 +119,6 @@ const ASSISTANT_NAV_GROUPS: NavGroup[] = [
       { href: "/dashboard/clients", label: "My Clients", icon: Users },
       { href: "/dashboard/services", label: "Services", icon: Scissors },
       { href: "/dashboard/events", label: "Events", icon: CalendarDays },
-      { href: "/dashboard/aftercare", label: "Aftercare", icon: HeartHandshake },
     ],
   },
   {
@@ -273,7 +264,7 @@ function MobileMenu({
       <div className="shrink-0 flex items-center justify-center gap-2 py-4">
         <TCLogo size={18} className="text-accent shrink-0" />
         <span className="text-[9px] font-semibold uppercase tracking-[0.2em] text-muted/50">
-          T Creative
+          T Creative Studio
         </span>
       </div>
     </div>
@@ -340,7 +331,7 @@ export function DashboardSidebar({
               expanded ? "px-2 py-2 gap-0.5" : "px-2 py-3 gap-1",
             )}
           >
-            {/* Hamburger toggle — always visible, toggles open/close */}
+            {/* Sidebar toggle — always visible, toggles open/close */}
             {expanded ? (
               <button
                 onClick={toggle}
@@ -348,7 +339,7 @@ export function DashboardSidebar({
                 aria-label="Collapse navigation"
                 type="button"
               >
-                <Menu className="w-5 h-5 shrink-0" />
+                <PanelLeftClose className="w-5 h-5 shrink-0" />
               </button>
             ) : (
               <Tooltip>
@@ -359,11 +350,11 @@ export function DashboardSidebar({
                     aria-label="Expand navigation"
                     type="button"
                   >
-                    <Menu className="w-5 h-5" />
+                    <PanelLeft className="w-5 h-5" />
                   </button>
                 </TooltipTrigger>
                 <TooltipContent side="right" sideOffset={8}>
-                  Menu
+                  Expand sidebar
                 </TooltipContent>
               </Tooltip>
             )}
@@ -441,13 +432,13 @@ export function DashboardSidebar({
 
         {/* Footer — brand */}
         <div className={cn(
-          "shrink-0 flex items-center justify-center py-3",
-          expanded ? "px-3 gap-2" : "px-2",
+          "shrink-0 flex items-center py-3",
+          expanded ? "px-4 gap-2" : "px-2 justify-center",
         )}>
           <TCLogo size={18} className="text-accent shrink-0" />
           {expanded && (
             <span className="text-[9px] font-semibold uppercase tracking-[0.2em] text-muted/50 whitespace-nowrap">
-              T Creative
+              T Creative Studio
             </span>
           )}
         </div>

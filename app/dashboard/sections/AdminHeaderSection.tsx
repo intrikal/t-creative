@@ -15,7 +15,7 @@ const QUICK_ACTIONS = [
   { label: "New Invoice", icon: FileText, href: "/dashboard/financial", color: "text-[#4e6b51]", bg: "bg-[#4e6b51]/10" },
   { label: "View Calendar", icon: CalendarDays, href: "/dashboard/calendar", color: "text-accent", bg: "bg-accent/10" },
   { label: "Messages", icon: MessageSquare, href: "/dashboard/messages", color: "text-[#5b8a8a]", bg: "bg-[#5b8a8a]/10" },
-  { label: "Upload Media", icon: Image, href: "/dashboard/media", color: "text-[#d4a574]", bg: "bg-[#d4a574]/10" },
+  { label: "Upload Media", icon: Image, href: "/dashboard/services", color: "text-[#d4a574]", bg: "bg-[#d4a574]/10" },
   { label: "Inventory", icon: Package, href: "/dashboard/marketplace", color: "text-[#7a5c10]", bg: "bg-[#7a5c10]/10" },
 ];
 

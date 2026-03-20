@@ -17,9 +17,11 @@ import { UploadDialog } from "./components/UploadDialog";
 export function MediaPage({
   initialItems,
   stats,
+  embedded,
 }: {
   initialItems: MediaRow[];
   stats: MediaStats;
+  embedded?: boolean;
 }) {
   const [category, setCategory] = useState<FilterCategory>("all");
   const [gridView, setGridView] = useState(true);
@@ -71,17 +73,24 @@ export function MediaPage({
   }
 
   return (
-    <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto w-full space-y-5">
+    <div className={cn("max-w-7xl mx-auto w-full space-y-5", embedded ? "" : "p-4 md:p-6 lg:p-8")}>
       {/* Header */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-xl font-semibold text-foreground tracking-tight">Media</h1>
-          <p className="text-sm text-muted mt-0.5">
+        {!embedded && (
+          <div>
+            <h1 className="text-xl font-semibold text-foreground tracking-tight">Media</h1>
+            <p className="text-sm text-muted mt-0.5">
+              {stats.total} items · {stats.published} published · {stats.featured} featured
+              {stats.totalSizeBytes > 0 && ` · ${formatBytes(stats.totalSizeBytes)}`}
+            </p>
+          </div>
+        )}
+        {embedded && (
+          <p className="text-sm text-muted">
             {stats.total} items · {stats.published} published · {stats.featured} featured
-            {stats.totalSizeBytes > 0 && ` · ${formatBytes(stats.totalSizeBytes)}`}
           </p>
-        </div>
-        <div className="flex items-center gap-2">
+        )}
+        <div className="flex items-center gap-2 ml-auto">
           <div className="flex gap-0.5 bg-surface border border-border rounded-lg p-0.5">
             <button
               onClick={() => setGridView(true)}

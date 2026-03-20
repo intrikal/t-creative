@@ -343,7 +343,7 @@ describe("subscriptions/actions", () => {
       expect(mockInsertValues).toHaveBeenCalledWith(expect.objectContaining({ notes: null }));
     });
 
-    it("revalidates /dashboard/subscriptions", async () => {
+    it("revalidates /dashboard/memberships", async () => {
       vi.resetModules();
       setupMocks({
         select: vi.fn(() => makeChain([])),
@@ -355,7 +355,8 @@ describe("subscriptions/actions", () => {
       });
       const { createSubscription } = await import("./actions");
       await createSubscription(input);
-      expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/subscriptions");
+      expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/bookings");
+      expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/memberships");
     });
   });
 
@@ -405,12 +406,13 @@ describe("subscriptions/actions", () => {
       }
     });
 
-    it("revalidates /dashboard/subscriptions", async () => {
+    it("revalidates /dashboard/memberships", async () => {
       vi.resetModules();
       setupMocks();
       const { updateSubscriptionStatus } = await import("./actions");
       await updateSubscriptionStatus(1, "completed");
-      expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/subscriptions");
+      expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/bookings");
+      expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/memberships");
     });
   });
 
@@ -459,12 +461,13 @@ describe("subscriptions/actions", () => {
       expect(mockUpdateSet).toHaveBeenCalledWith(expect.objectContaining({ notes: null }));
     });
 
-    it("revalidates /dashboard/subscriptions", async () => {
+    it("revalidates /dashboard/memberships", async () => {
       vi.resetModules();
       setupMocks();
       const { updateSubscriptionNotes } = await import("./actions");
       await updateSubscriptionNotes(1, "some notes");
-      expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/subscriptions");
+      expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/bookings");
+      expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/memberships");
     });
   });
 });

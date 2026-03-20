@@ -252,11 +252,12 @@ describe("aftercare/actions", () => {
       expect(mockInsertValues).toHaveBeenCalledWith(expect.objectContaining({ sortOrder: 0 }));
     });
 
-    it("revalidates /dashboard/aftercare", async () => {
+    it("revalidates dashboard paths", async () => {
       vi.resetModules();
       setupMocks();
       const { createAftercareSection } = await import("./actions");
       await createAftercareSection({ title: "Test", dos: [], donts: [] });
+      expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/services");
       expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/aftercare");
     });
   });
@@ -300,11 +301,12 @@ describe("aftercare/actions", () => {
       );
     });
 
-    it("revalidates /dashboard/aftercare", async () => {
+    it("revalidates dashboard paths", async () => {
       vi.resetModules();
       setupMocks();
       const { updateAftercareSection } = await import("./actions");
       await updateAftercareSection(1, { title: "T", dos: [], donts: [] });
+      expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/services");
       expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/aftercare");
     });
   });
@@ -336,11 +338,12 @@ describe("aftercare/actions", () => {
       expect(mockDeleteWhere).toHaveBeenCalled();
     });
 
-    it("revalidates /dashboard/aftercare", async () => {
+    it("revalidates dashboard paths", async () => {
       vi.resetModules();
       setupMocks();
       const { deleteAftercareSection } = await import("./actions");
       await deleteAftercareSection(1);
+      expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/services");
       expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/aftercare");
     });
   });
@@ -382,11 +385,12 @@ describe("aftercare/actions", () => {
       );
     });
 
-    it("revalidates /dashboard/aftercare", async () => {
+    it("revalidates dashboard paths", async () => {
       vi.resetModules();
       setupMocks();
       const { createPolicy } = await import("./actions");
       await createPolicy({ title: "Test", content: "Content" });
+      expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/services");
       expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/aftercare");
     });
   });
@@ -426,11 +430,12 @@ describe("aftercare/actions", () => {
       );
     });
 
-    it("revalidates /dashboard/aftercare", async () => {
+    it("revalidates dashboard paths", async () => {
       vi.resetModules();
       setupMocks();
       const { updatePolicy } = await import("./actions");
       await updatePolicy(1, { title: "T", content: "C" });
+      expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/services");
       expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/aftercare");
     });
   });
@@ -462,11 +467,12 @@ describe("aftercare/actions", () => {
       expect(mockDeleteWhere).toHaveBeenCalled();
     });
 
-    it("revalidates /dashboard/aftercare", async () => {
+    it("revalidates dashboard paths", async () => {
       vi.resetModules();
       setupMocks();
       const { deletePolicy } = await import("./actions");
       await deletePolicy(1);
+      expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/services");
       expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/aftercare");
     });
   });

@@ -23,24 +23,44 @@ export default async function Page() {
   }
 
   await requireAdmin();
-  const [{ getServices }, { getBundles }, { getForms }, { ServicesPage }] = await Promise.all([
+  const [
+    { getServices },
+    { getBundles },
+    { getForms },
+    { ServicesPage },
+    { getAftercareSections, getPolicies, seedAftercareDefaults },
+    { AftercarePage },
+    { PortfolioSection },
+  ] = await Promise.all([
     import("./actions"),
     import("./bundle-actions"),
     import("./form-actions"),
     import("./ServicesPage"),
+    import("../aftercare/actions"),
+    import("../aftercare/AftercarePage"),
+    import("./sections/PortfolioSection"),
   ]);
 
-  const [initialServices, initialBundles, initialForms] = await Promise.all([
-    getServices(),
-    getBundles(),
-    getForms(),
-  ]);
+  await seedAftercareDefaults();
+
+  const [initialServices, initialBundles, initialForms, aftercareSections, aftercarePolicies] =
+    await Promise.all([
+      getServices(),
+      getBundles(),
+      getForms(),
+      getAftercareSections(),
+      getPolicies(),
+    ]);
 
   return (
     <ServicesPage
       initialServices={initialServices}
       initialBundles={initialBundles}
       initialForms={initialForms}
+      aftercareContent={
+        <AftercarePage initialSections={aftercareSections} initialPolicies={aftercarePolicies} />
+      }
+      portfolioContent={<PortfolioSection />}
     />
   );
 }

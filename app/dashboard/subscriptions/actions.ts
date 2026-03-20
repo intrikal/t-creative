@@ -170,7 +170,8 @@ export async function createSubscription(input: CreateSubscriptionInput): Promis
       })
       .returning({ id: bookingSubscriptions.id });
 
-    revalidatePath("/dashboard/subscriptions");
+    revalidatePath("/dashboard/bookings");
+    revalidatePath("/dashboard/memberships");
     return { id: sub.id };
   } catch (err) {
     Sentry.captureException(err);
@@ -189,7 +190,8 @@ export async function updateSubscriptionStatus(
 
     await db.update(bookingSubscriptions).set({ status }).where(eq(bookingSubscriptions.id, id));
 
-    revalidatePath("/dashboard/subscriptions");
+    revalidatePath("/dashboard/bookings");
+    revalidatePath("/dashboard/memberships");
   } catch (err) {
     Sentry.captureException(err);
     throw err;
@@ -207,7 +209,8 @@ export async function updateSubscriptionNotes(id: number, notes: string): Promis
       .set({ notes: notes || null })
       .where(eq(bookingSubscriptions.id, id));
 
-    revalidatePath("/dashboard/subscriptions");
+    revalidatePath("/dashboard/bookings");
+    revalidatePath("/dashboard/memberships");
   } catch (err) {
     Sentry.captureException(err);
     throw err;

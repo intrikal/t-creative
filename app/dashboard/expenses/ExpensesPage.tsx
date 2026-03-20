@@ -37,9 +37,10 @@ interface Props {
   stats: ExpenseStats;
   monthlyExpenses: MonthlyExpense[];
   expenseCategories: ExpenseCategoryBreakdown[];
+  embedded?: boolean;
 }
 
-export function ExpensesPage({ expenses, stats, monthlyExpenses, expenseCategories }: Props) {
+export function ExpensesPage({ expenses, stats, monthlyExpenses, expenseCategories, embedded }: Props) {
   const [search, setSearch] = useState("");
   const [logOpen, setLogOpen] = useState(false);
 
@@ -61,16 +62,18 @@ export function ExpensesPage({ expenses, stats, monthlyExpenses, expenseCategori
         : `↓ ${Math.abs(stats.expenseVsPriorMonthPct)}% vs last month`;
 
   return (
-    <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
+    <div className={embedded ? "space-y-6" : "p-4 md:p-6 lg:p-8 max-w-7xl mx-auto space-y-6"}>
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
+        {!embedded && (
         <div>
           <h1 className="text-xl font-semibold text-foreground tracking-tight">Expenses</h1>
           <p className="text-sm text-muted mt-0.5">Business costs and spending overview</p>
         </div>
+        )}
         <button
           onClick={() => setLogOpen(true)}
-          className="px-3 py-1.5 rounded-lg text-xs font-medium bg-accent text-white hover:bg-accent/90 transition-colors shrink-0"
+          className={`px-3 py-1.5 rounded-lg text-xs font-medium bg-accent text-white hover:bg-accent/90 transition-colors shrink-0${embedded ? " ml-auto" : ""}`}
         >
           + Log Expense
         </button>

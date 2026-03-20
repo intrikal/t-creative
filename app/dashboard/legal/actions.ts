@@ -139,7 +139,7 @@ export async function saveLegalDoc(
       });
     }
 
-    revalidatePath("/dashboard/legal");
+    revalidatePath("/dashboard/settings");
     // Revalidate the public-facing pages
     revalidatePath(type === "privacy_policy" ? "/privacy" : "/terms");
   } catch (err) {

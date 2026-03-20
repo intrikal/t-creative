@@ -16,9 +16,10 @@ const TABS: { key: TabType; label: string }[] = [
 interface LegalDocumentsPageProps {
   initialPrivacy: LegalDocEntry | null;
   initialTerms: LegalDocEntry | null;
+  embedded?: boolean;
 }
 
-export function LegalDocumentsPage({ initialPrivacy, initialTerms }: LegalDocumentsPageProps) {
+export function LegalDocumentsPage({ initialPrivacy, initialTerms, embedded }: LegalDocumentsPageProps) {
   const [activeTab, setActiveTab] = useState<TabType>("privacy_policy");
   const [, startTransition] = useTransition();
 
@@ -57,8 +58,9 @@ export function LegalDocumentsPage({ initialPrivacy, initialTerms }: LegalDocume
   const activeDoc = activeTab === "privacy_policy" ? privacyDoc : termsDoc;
 
   return (
-    <div className="p-6 md:p-8 max-w-4xl mx-auto">
+    <div className={embedded ? "max-w-4xl" : "p-6 md:p-8 max-w-4xl mx-auto"}>
       {/* Page header */}
+      {!embedded && (
       <div className="flex items-center gap-3 mb-8">
         <div className="p-2 bg-surface rounded-xl border border-border">
           <Scale className="w-5 h-5 text-muted" />
@@ -71,6 +73,7 @@ export function LegalDocumentsPage({ initialPrivacy, initialTerms }: LegalDocume
           </p>
         </div>
       </div>
+      )}
 
       {/* Tabs */}
       <div className="flex gap-1 mb-6 bg-surface border border-border rounded-xl p-1 w-fit">

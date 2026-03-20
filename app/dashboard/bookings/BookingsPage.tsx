@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useOptimistic, useTransition, useCallback } from "react";
+import { type ReactNode, useState, useOptimistic, useTransition, useCallback } from "react";
 import dynamic from "next/dynamic";
 import { Search, Plus, CalendarDays, CalendarCheck, DollarSign, ListOrdered, CalendarX } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -69,6 +69,7 @@ export function BookingsPage({
   serviceOptions,
   staffOptions,
   activeSubscriptions = [],
+  membershipsContent,
 }: {
   initialBookings: BookingRow[];
   initialHasMore?: boolean;
@@ -88,6 +89,7 @@ export function BookingsPage({
   }[];
   staffOptions: { id: string; name: string }[];
   activeSubscriptions?: { id: number; clientId: string; name: string; sessionsRemaining: number }[];
+  membershipsContent?: ReactNode;
 }) {
   const [isPending, startTransition] = useTransition();
   const [allRows, setAllRows] = useState(initialBookings);
@@ -462,6 +464,9 @@ export function BookingsPage({
           serviceOptions={serviceOptions}
         />
       )}
+
+      {/* Memberships tab */}
+      {pageTab === "Memberships" && membershipsContent}
 
       <BookingDialog
         key={editTarget?.id ?? "new"}

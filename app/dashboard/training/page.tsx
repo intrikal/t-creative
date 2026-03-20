@@ -30,22 +30,6 @@ export default async function Page() {
     return <AssistantTrainingPage data={data} />;
   }
 
-  const [{ getPrograms, getStudents, getTrainingStats, getClients }, { TrainingPage }] =
-    await Promise.all([import("./actions"), import("./TrainingPage")]);
-
-  const [programs, students, stats, clients] = await Promise.all([
-    getPrograms(),
-    getStudents(),
-    getTrainingStats(),
-    getClients(),
-  ]);
-
-  return (
-    <TrainingPage
-      initialPrograms={programs}
-      initialStudents={students}
-      stats={stats}
-      clients={clients}
-    />
-  );
+  // Admin users see training under /dashboard/team (Training tab)
+  redirect("/dashboard/team");
 }

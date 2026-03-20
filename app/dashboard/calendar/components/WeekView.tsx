@@ -87,6 +87,7 @@ export function WeekView({
                   onSelect={onEventClick}
                   onSlotClick={(h) => onSlotClick(ds, h)}
                   availability={getDayAvailability(day, businessHours, timeOff, lunchBreak)}
+                  isToday={isToday(ds)}
                 />
               );
             })}

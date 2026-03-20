@@ -32,7 +32,7 @@ export function SetupBanner({
   }
 
   return (
-    <Card className="gap-0 border-accent/20 bg-accent/[0.03]">
+    <Card className="gap-0 py-0 border-accent/20 bg-accent/[0.03]">
       <CardContent className="px-5 py-4 space-y-4">
         {/* Header row */}
         <div className="flex items-center gap-3">

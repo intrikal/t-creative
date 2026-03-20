@@ -15,7 +15,7 @@ type Datum = { day: string; amount: number };
 export function RevenueChart({ data }: { data: Datum[] }) {
   return (
     <div className="w-full select-none">
-      <ResponsiveContainer width="100%" height={200}>
+      <ResponsiveContainer width="100%" height={160}>
         <AreaChart data={data} margin={{ top: 10, right: 10, bottom: 0, left: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.922 0 0)" vertical={false} />
           <XAxis

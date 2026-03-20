@@ -21,6 +21,7 @@ import {
   Image,
   ListOrdered,
   DollarSign,
+  ExternalLink,
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -182,13 +183,25 @@ export function DashboardPage({
       : null;
 
   return (
-    <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
+    <div className="p-4 md:p-6 lg:p-8 space-y-4">
       {/* ── Header ─────────────────────────────────────────────────── */}
-      <div>
-        <h1 className="text-xl font-semibold text-foreground tracking-tight">
-          {greeting}, {firstName}
-        </h1>
-        <p className="text-sm text-muted mt-0.5">{today}</p>
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-semibold text-foreground tracking-tight">
+            {greeting}, {firstName}
+          </h1>
+          <p className="text-sm text-muted mt-0.5">{today}</p>
+        </div>
+        {bookingSlug && (
+          <a
+            href={`https://tcreative.studio/book/${bookingSlug}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hidden sm:flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium border border-border hover:bg-surface text-foreground transition-colors shrink-0"
+          >
+            My booking site <ExternalLink className="w-3.5 h-3.5" />
+          </a>
+        )}
       </div>
 
       {/* ── Setup banner ─────────────────────────────────────────────── */}
@@ -197,19 +210,19 @@ export function DashboardPage({
       )}
 
       {/* ── Quick actions ───────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+      <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
         {QUICK_ACTIONS.map(({ label, icon: Icon, href, color, bg }) => (
           <Link
             key={label}
             href={href}
-            className="group flex flex-col items-center gap-2 px-3 py-4 rounded-xl bg-surface border border-border hover:border-foreground/20 hover:shadow-sm transition-all text-center"
+            className="relative group flex flex-col items-center gap-1.5 px-2 py-3 rounded-xl bg-surface border border-border hover:border-foreground/20 hover:shadow-sm transition-all text-center"
           >
-            <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center", bg)}>
-              <Icon className={cn("w-4.5 h-4.5", color)} />
+            <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center", bg)}>
+              <Icon className={cn("w-4 h-4", color)} />
             </div>
             <span className="text-xs font-medium text-foreground">{label}</span>
             {label === "Inventory" && lowStockCount > 0 && (
-              <span className="absolute -top-1 -right-1 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-[#7a5c10] text-white text-[10px] font-semibold leading-none">
+              <span className="absolute -top-1 -right-1 inline-flex items-center justify-center min-w-[16px] h-[16px] px-1 rounded-full bg-[#7a5c10] text-white text-[9px] font-semibold leading-none">
                 {lowStockCount}
               </span>
             )}
@@ -217,16 +230,9 @@ export function DashboardPage({
         ))}
       </div>
 
-      {/* ── Primary stats ────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        {PRIMARY_STATS.map((stat) => (
-          <StatCard key={stat.label} {...stat} />
-        ))}
-      </div>
-
-      {/* ── Secondary stats ──────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        {SECONDARY_STATS.map((stat) => (
+      {/* ── Stats ─────────────────────────────────────────────────────── */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
+        {[...PRIMARY_STATS, ...SECONDARY_STATS].map((stat) => (
           <StatCard key={stat.label} {...stat} compact />
         ))}
       </div>
@@ -265,9 +271,9 @@ export function DashboardPage({
       )}
 
       {/* ── Schedule + Inquiries ────────────────────────────────────── */}
-      <div className="grid grid-cols-1 xl:grid-cols-5 gap-4">
-        <Card className="xl:col-span-3 gap-0">
-          <CardHeader className="pb-0 pt-5">
+      <div className="grid grid-cols-1 xl:grid-cols-5 gap-3">
+        <Card className="xl:col-span-3 gap-0 py-0">
+          <CardHeader className="pb-0 pt-4 px-5">
             <div className="flex items-center justify-between">
               <CardTitle className="text-sm font-semibold">Today&apos;s Schedule</CardTitle>
               <Link href="/dashboard/bookings" className="text-xs text-accent hover:underline flex items-center gap-0.5">
@@ -290,8 +296,8 @@ export function DashboardPage({
           </CardContent>
         </Card>
 
-        <Card className="xl:col-span-2 gap-0">
-          <CardHeader className="pb-0 pt-5">
+        <Card className="xl:col-span-2 gap-0 py-0">
+          <CardHeader className="pb-0 pt-4 px-5">
             <div className="flex items-center justify-between">
               <CardTitle className="text-sm font-semibold">Inquiries</CardTitle>
               <Link href="/dashboard/inquiries" className="text-xs text-accent hover:underline flex items-center gap-0.5">
@@ -316,8 +322,8 @@ export function DashboardPage({
       </div>
 
       {/* ── Revenue chart ───────────────────────────────────────────── */}
-      <Card className="gap-0">
-        <CardHeader className="pb-0 pt-5">
+      <Card className="gap-0 py-0">
+        <CardHeader className="pb-0 pt-4 px-5">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div>
               <CardTitle className="text-sm font-semibold">Revenue — Last 7 Days</CardTitle>
@@ -347,15 +353,15 @@ export function DashboardPage({
             </div>
           </div>
         </CardHeader>
-        <CardContent className="px-5 pb-5 pt-4">
+        <CardContent className="px-5 pb-4 pt-3">
           <RevenueChart data={weeklyRevenue} />
         </CardContent>
       </Card>
 
       {/* ── Staff today + Recent clients ────────────────────────────── */}
-      <div className="grid grid-cols-1 xl:grid-cols-5 gap-4">
-        <Card className="xl:col-span-2 gap-0">
-          <CardHeader className="pb-0 pt-5">
+      <div className="grid grid-cols-1 xl:grid-cols-5 gap-3">
+        <Card className="xl:col-span-2 gap-0 py-0">
+          <CardHeader className="pb-0 pt-4 px-5">
             <div className="flex items-center justify-between">
               <CardTitle className="text-sm font-semibold">Team Today</CardTitle>
               <Link href="/dashboard/assistants" className="text-xs text-accent hover:underline flex items-center gap-0.5">
@@ -366,7 +372,7 @@ export function DashboardPage({
           <CardContent className="px-5 pb-4 pt-2">
             {teamToday.length > 0 ? (
               teamToday.map((s) => (
-                <div key={s.name} className="flex items-center gap-3 py-3 border-b border-border/50 last:border-0">
+                <div key={s.name} className="flex items-center gap-2.5 py-2.5 border-b border-border/50 last:border-0">
                   <Avatar size="sm">
                     <AvatarFallback className="text-[10px] bg-surface text-muted font-semibold">
                       {s.initials}
@@ -379,7 +385,7 @@ export function DashboardPage({
                     <p className="text-xs text-muted mt-0.5">{s.role}</p>
                   </div>
                   {s.status === "on_leave" ? (
-                    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full border bg-[#7a5c10]/10 text-[#7a5c10] border-[#7a5c10]/20 shrink-0">
+                    <span className="text-[9px] font-medium px-1.5 py-0.5 rounded-full border bg-[#7a5c10]/10 text-[#7a5c10] border-[#7a5c10]/20 shrink-0">
                       On Leave
                     </span>
                   ) : (
@@ -402,8 +408,8 @@ export function DashboardPage({
           </CardContent>
         </Card>
 
-        <Card className="xl:col-span-3 gap-0">
-          <CardHeader className="pb-0 pt-5">
+        <Card className="xl:col-span-3 gap-0 py-0">
+          <CardHeader className="pb-0 pt-4 px-5">
             <div className="flex items-center justify-between">
               <CardTitle className="text-sm font-semibold">Recent Clients</CardTitle>
               <Link href="/dashboard/clients" className="text-xs text-accent hover:underline flex items-center gap-0.5">

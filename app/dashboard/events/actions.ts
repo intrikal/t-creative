@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import * as Sentry from "@sentry/nextjs";
-import { eq, desc, sql, and, inArray } from "drizzle-orm";
+import { eq, desc, sql, and, inArray, gte, lte } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import { events, eventGuests, eventStaff, eventVenues, profiles } from "@/db/schema";
@@ -278,9 +278,16 @@ export async function updateVenue(id: number, data: Partial<VenueInput> & { isAc
 /*  Query                                                              */
 /* ------------------------------------------------------------------ */
 
-export async function getEvents(): Promise<EventRow[]> {
+export async function getEvents(opts?: {
+  startDate?: Date;
+  endDate?: Date;
+}): Promise<EventRow[]> {
   try {
     await getUser();
+
+    const conditions = [];
+    if (opts?.startDate) conditions.push(gte(events.startsAt, opts.startDate));
+    if (opts?.endDate) conditions.push(lte(events.startsAt, opts.endDate));
 
     const rows = await db
       .select({
@@ -311,32 +318,39 @@ export async function getEvents(): Promise<EventRow[]> {
       })
       .from(events)
       .leftJoin(eventVenues, eq(events.venueId, eventVenues.id))
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
       .orderBy(desc(events.startsAt));
 
-    // Fetch guests and staff assignments for all events in parallel
-    const [allGuests, allStaffRows] = await Promise.all([
-      db
-        .select({
-          id: eventGuests.id,
-          eventId: eventGuests.eventId,
-          name: eventGuests.name,
-          service: eventGuests.service,
-          paid: eventGuests.paid,
-        })
-        .from(eventGuests),
-      db
-        .select({
-          id: eventStaff.id,
-          eventId: eventStaff.eventId,
-          staffId: eventStaff.staffId,
-          firstName: profiles.firstName,
-          lastName: profiles.lastName,
-          role: eventStaff.role,
-          notes: eventStaff.notes,
-        })
-        .from(eventStaff)
-        .innerJoin(profiles, eq(eventStaff.staffId, profiles.id)),
-    ]);
+    // Fetch guests and staff assignments only for the returned events
+    const eventIds = rows.map((r) => r.id);
+    const [allGuests, allStaffRows] =
+      eventIds.length > 0
+        ? await Promise.all([
+            db
+              .select({
+                id: eventGuests.id,
+                eventId: eventGuests.eventId,
+                name: eventGuests.name,
+                service: eventGuests.service,
+                paid: eventGuests.paid,
+              })
+              .from(eventGuests)
+              .where(inArray(eventGuests.eventId, eventIds)),
+            db
+              .select({
+                id: eventStaff.id,
+                eventId: eventStaff.eventId,
+                staffId: eventStaff.staffId,
+                firstName: profiles.firstName,
+                lastName: profiles.lastName,
+                role: eventStaff.role,
+                notes: eventStaff.notes,
+              })
+              .from(eventStaff)
+              .innerJoin(profiles, eq(eventStaff.staffId, profiles.id))
+              .where(inArray(eventStaff.eventId, eventIds)),
+          ])
+        : [[], []];
 
     const guestsByEvent = new Map<number, EventGuestRow[]>();
     for (const g of allGuests) {
@@ -423,11 +437,11 @@ export async function getClientEvents(): Promise<EventRow[]> {
               paid: eventGuests.paid,
             })
             .from(eventGuests)
+            .where(inArray(eventGuests.eventId, eventIds))
         : [];
 
     const guestsByEvent = new Map<number, EventGuestRow[]>();
     for (const g of allGuests) {
-      if (!eventIds.includes(g.eventId)) continue;
       const list = guestsByEvent.get(g.eventId) ?? [];
       list.push({ id: g.id, name: g.name, service: g.service, paid: g.paid });
       guestsByEvent.set(g.eventId, list);

@@ -214,6 +214,7 @@ export const profiles = pgTable(
     index("profiles_zoho_customer_idx").on(t.zohoCustomerId),
     // Composite for "new clients this week" query: role + created_at range scan
     index("profiles_role_created_at_idx").on(t.role, t.createdAt),
+    index("profiles_role_active_idx").on(t.role, t.isActive),
   ],
 );
 

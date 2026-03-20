@@ -34,19 +34,7 @@ export default async function Page() {
   const [
     { getBusinessHours, getTimeOff, getLunchBreak },
     { getServiceCategories },
-    {
-      getBookingRules,
-      getBusinessProfile,
-      getFinancialConfig,
-      getInventoryConfig,
-      getRevenueGoals,
-      getLoyaltyConfig,
-      getNotificationPrefs,
-      getPolicies,
-      getReminders,
-      getSiteContent,
-      getSquareConnectionStatus,
-    },
+    { getAdminSettingsBundle, getSquareConnectionStatus },
     { SettingsPage },
   ] = await Promise.all([
     import("./hours-actions"),
@@ -59,32 +47,14 @@ export default async function Page() {
     initialHours,
     initialTimeOff,
     initialLunchBreak,
-    initialBusiness,
-    initialPolicies,
-    initialLoyalty,
-    initialNotifications,
-    initialFinancial,
-    initialRevenueGoals,
-    initialBookingRules,
-    initialReminders,
-    initialSiteContent,
-    initialInventory,
+    settingsBundle,
     initialCategories,
     squareStatus,
   ] = await Promise.all([
     getBusinessHours(),
     getTimeOff(),
     getLunchBreak(),
-    getBusinessProfile(),
-    getPolicies(),
-    getLoyaltyConfig(),
-    getNotificationPrefs(),
-    getFinancialConfig(),
-    getRevenueGoals(),
-    getBookingRules(),
-    getReminders(),
-    getSiteContent(),
-    getInventoryConfig(),
+    getAdminSettingsBundle(),
     getServiceCategories(),
     getSquareConnectionStatus(),
   ]);
@@ -94,16 +64,16 @@ export default async function Page() {
       initialHours={initialHours}
       initialTimeOff={initialTimeOff}
       initialLunchBreak={initialLunchBreak}
-      initialBusiness={initialBusiness}
-      initialPolicies={initialPolicies}
-      initialLoyalty={initialLoyalty}
-      initialNotifications={initialNotifications}
-      initialFinancial={initialFinancial}
-      initialRevenueGoals={initialRevenueGoals}
-      initialBookingRules={initialBookingRules}
-      initialReminders={initialReminders}
-      initialSiteContent={initialSiteContent}
-      initialInventory={initialInventory}
+      initialBusiness={settingsBundle.businessProfile}
+      initialPolicies={settingsBundle.policies}
+      initialLoyalty={settingsBundle.loyalty}
+      initialNotifications={settingsBundle.notifications}
+      initialFinancial={settingsBundle.financial}
+      initialRevenueGoals={settingsBundle.revenueGoals}
+      initialBookingRules={settingsBundle.bookingRules}
+      initialReminders={settingsBundle.reminders}
+      initialSiteContent={settingsBundle.siteContent}
+      initialInventory={settingsBundle.inventory}
       initialCategories={initialCategories}
       squareStatus={squareStatus}
       calendarUrl={calendarUrl(user.id)}

@@ -25,7 +25,7 @@ export function DashboardMain({
     <main
       id="main-content"
       className={cn(
-        "flex-1 flex flex-col min-w-0 overflow-y-auto transition-[padding-left] duration-200 ease-out",
+        "flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden transition-[padding-left] duration-200 ease-out",
         expanded ? "lg:pl-56" : "lg:pl-14",
       )}
     >
@@ -34,7 +34,9 @@ export function DashboardMain({
         userName={userName}
         userAvatarUrl={userAvatarUrl}
       />
-      {children}
+      <div className="flex-1 min-h-0 overflow-y-auto">
+        {children}
+      </div>
     </main>
   );
 }

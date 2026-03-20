@@ -33,15 +33,25 @@ if (!process.env.DATABASE_URL) {
  *
  * Stored on `globalThis` in development so Next.js hot-reloads don't
  * create a new pool on every module re-evaluation (which exhausts the
- * Supabase pooler's 25-connection limit and causes 75s hangs).
+ * Supabase pooler's 25-connection limit and causes timeout hangs).
  */
-const client = postgres(process.env.DATABASE_URL, {
-  prepare: false,
-  max: 10,
-  idle_timeout: 20,
-  max_lifetime: 60 * 10,
-  connect_timeout: 10,
-});
+const globalForDb = globalThis as unknown as {
+  __pgClient?: ReturnType<typeof postgres>;
+};
+
+const client =
+  globalForDb.__pgClient ??
+  postgres(process.env.DATABASE_URL, {
+    prepare: false,
+    max: 10,
+    idle_timeout: 20,
+    max_lifetime: 60 * 10,
+    connect_timeout: 10,
+  });
+
+if (process.env.NODE_ENV !== "production") {
+  globalForDb.__pgClient = client;
+}
 
 /** Drizzle ORM instance with full schema for relational queries. */
 export const db = drizzle(client, { schema });

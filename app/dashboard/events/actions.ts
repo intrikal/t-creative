@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import * as Sentry from "@sentry/nextjs";
-import { eq, desc, ne, sql, and, inArray } from "drizzle-orm";
+import { eq, desc, sql, and, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import { events, eventGuests, eventStaff, eventVenues, profiles } from "@/db/schema";
@@ -765,29 +765,11 @@ export async function sendEventRsvpInvite(eventId: number): Promise<{ url: strin
 
 /**
  * Returns all non-client profiles for the staff assignment selector.
- * Reuses the same pattern as bookings' getStaffForSelect.
+ * Delegates to the shared getStaffForSelect to avoid a duplicate query.
  */
 export async function getStaffForEvents(): Promise<{ id: string; name: string }[]> {
-  try {
-    await getUser();
-    const rows = await db
-      .select({
-        id: profiles.id,
-        firstName: profiles.firstName,
-        lastName: profiles.lastName,
-      })
-      .from(profiles)
-      .where(ne(profiles.role, "client"))
-      .orderBy(profiles.firstName);
-
-    return rows.map((r) => ({
-      id: r.id,
-      name: [r.firstName, r.lastName].filter(Boolean).join(" "),
-    }));
-  } catch (err) {
-    Sentry.captureException(err);
-    throw err;
-  }
+  const { getStaffForSelect } = await import("../bookings/select-actions");
+  return getStaffForSelect();
 }
 
 /* ------------------------------------------------------------------ */

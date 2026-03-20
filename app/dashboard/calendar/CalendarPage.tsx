@@ -8,7 +8,23 @@
 "use client";
 
 import { useState, useMemo, useOptimistic, useTransition } from "react";
-import { ChevronLeft, ChevronRight, Plus, CalendarDays, MapPin, Users, Trash2 } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Plus,
+  CalendarDays,
+  MapPin,
+  Users,
+  Trash2,
+  Sparkles,
+  GraduationCap,
+  PartyPopper,
+  Store,
+  Plane,
+  Briefcase,
+  Heart,
+  Clock,
+} from "lucide-react";
 import { Calendar as DatePicker } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { createBooking, updateBooking, deleteBooking } from "../bookings/actions";
@@ -43,6 +59,11 @@ import {
   fmtEventRange,
 } from "./components/helpers";
 import { MonthView } from "./components/MonthView";
+import { EventDialog } from "../events/components/EventDialog";
+import { emptyEventForm, formToInput } from "../events/components/helpers";
+import type { EventForm as EventFormType } from "../events/components/types";
+import { createEvent as createStudioEvent } from "../events/actions";
+import type { VenueRow } from "../events/actions";
 import { StaffView } from "./components/StaffView";
 import type {
   CalEvent,
@@ -220,144 +241,166 @@ function AvailabilityTab({
 
   return (
     <div className="flex-1 overflow-auto p-4 md:p-6 lg:p-8">
-      <div className="max-w-2xl mx-auto space-y-6">
+      <div className="space-y-6">
         <div>
           <h2 className="text-base font-semibold text-foreground">Studio Availability</h2>
-          <p className="text-xs text-muted mt-0.5">
-            {openDays.length} day{openDays.length !== 1 ? "s" : ""} open per week
+          <p className="text-sm text-muted mt-1">
+            Set your weekly hours, lunch break, and blocked dates. These show on your calendar and booking page.
           </p>
         </div>
 
-        {/* Weekly Schedule */}
-        <div className="bg-background border border-border rounded-2xl overflow-hidden">
-          <div className="px-5 pt-4 pb-2">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
-              Weekly Schedule
-            </p>
-          </div>
-          <div className="px-5 pb-4 space-y-0.5">
-            {days.map((row, idx) => (
-              <div
-                key={row.dayOfWeek}
-                className="flex items-center gap-3 py-2.5 px-3 rounded-xl hover:bg-surface/60 transition-colors"
-              >
-                <span
-                  className={cn(
-                    "text-sm w-24 shrink-0 font-medium",
-                    row.isOpen ? "text-foreground" : "text-muted/50",
-                  )}
-                >
-                  {AVAIL_DAY_NAMES[row.dayOfWeek]}
-                </span>
-                <div className="flex-1 flex items-center gap-2">
-                  {row.isOpen ? (
-                    <>
-                      <TimeSelect
-                        value={row.opensAt}
-                        onChange={(v) =>
-                          setDays((prev) =>
-                            prev.map((d, i) => (i === idx ? { ...d, opensAt: v } : d)),
-                          )
-                        }
-                      />
-                      <span className="text-muted text-xs shrink-0">to</span>
-                      <TimeSelect
-                        value={row.closesAt}
-                        onChange={(v) =>
-                          setDays((prev) =>
-                            prev.map((d, i) => (i === idx ? { ...d, closesAt: v } : d)),
-                          )
-                        }
-                      />
-                    </>
-                  ) : (
-                    <span className="text-sm text-muted/40 italic">Closed</span>
-                  )}
-                </div>
-                <AvailToggle
-                  on={row.isOpen}
-                  onChange={() =>
-                    setDays((prev) =>
-                      prev.map((d, i) => (i === idx ? { ...d, isOpen: !d.isOpen } : d)),
-                    )
-                  }
-                />
-              </div>
-            ))}
-            <div className="flex justify-end pt-3 border-t border-border/50 mt-2">
-              <button
-                onClick={handleSaveHours}
-                disabled={hoursSaving}
-                className="px-4 py-2 rounded-lg bg-accent text-white text-sm font-medium hover:bg-accent/90 transition-colors flex items-center gap-1.5 disabled:opacity-60"
-              >
-                {hoursSaved ? "Saved!" : hoursSaving ? "Saving…" : "Save Hours"}
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Lunch Break */}
-        <div className="bg-background border border-border rounded-2xl overflow-hidden">
-          <div className="px-5 pt-4 pb-2">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
-              Lunch Break
-            </p>
-          </div>
-          <div className="px-5 pb-4 space-y-3">
-            <div className="flex items-center justify-between gap-4 py-0.5">
-              <div className="min-w-0">
-                <p className="text-sm text-foreground">Block lunch break</p>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {/* Left column: Weekly schedule */}
+          <div className="bg-background border border-border rounded-2xl overflow-hidden">
+            <div className="px-5 pt-4 pb-3 flex items-center justify-between">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
+                  Weekly Schedule
+                </p>
                 <p className="text-xs text-muted mt-0.5">
-                  Prevent bookings during your lunch window
+                  Toggle each day open or closed, then set your hours.
                 </p>
               </div>
-              <AvailToggle
-                on={lunch.enabled}
-                onChange={(v) => setLunch((prev) => ({ ...prev, enabled: v }))}
-              />
             </div>
-            {lunch.enabled && (
-              <div className="flex items-center gap-3 pl-1">
-                <TimeSelect
-                  value={lunch.start}
-                  onChange={(v) => setLunch((prev) => ({ ...prev, start: v }))}
-                />
-                <span className="text-muted text-xs shrink-0">to</span>
-                <TimeSelect
-                  value={lunch.end}
-                  onChange={(v) => setLunch((prev) => ({ ...prev, end: v }))}
-                />
+            <div className="px-5 pb-4 space-y-0.5">
+              {/* Column header */}
+              <div className="flex items-center gap-3 px-3 pb-1">
+                <span className="text-[10px] font-medium uppercase tracking-wide text-muted/60 w-24 shrink-0">Day</span>
+                <span className="flex-1 text-[10px] font-medium uppercase tracking-wide text-muted/60">Hours</span>
+                <span className="text-[10px] font-medium uppercase tracking-wide text-muted/60 w-10 text-center">Open</span>
               </div>
-            )}
-            <div className="flex justify-end pt-2 border-t border-border/50">
-              <button
-                onClick={handleSaveLunch}
-                disabled={lunchSaving}
-                className="px-4 py-2 rounded-lg bg-accent text-white text-sm font-medium hover:bg-accent/90 transition-colors flex items-center gap-1.5 disabled:opacity-60"
-              >
-                {lunchSaved ? "Saved!" : lunchSaving ? "Saving…" : "Save Lunch Break"}
-              </button>
+              {days.map((row, idx) => (
+                <div
+                  key={row.dayOfWeek}
+                  className={cn(
+                    "flex items-center gap-3 py-2.5 px-3 rounded-xl transition-colors",
+                    row.isOpen ? "hover:bg-surface/60" : "opacity-60",
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "text-sm w-24 shrink-0 font-medium",
+                      row.isOpen ? "text-foreground" : "text-muted/50 line-through",
+                    )}
+                  >
+                    {AVAIL_DAY_NAMES[row.dayOfWeek]}
+                  </span>
+                  <div className="flex-1 flex items-center gap-2">
+                    {row.isOpen ? (
+                      <>
+                        <TimeSelect
+                          value={row.opensAt}
+                          onChange={(v) =>
+                            setDays((prev) =>
+                              prev.map((d, i) => (i === idx ? { ...d, opensAt: v } : d)),
+                            )
+                          }
+                        />
+                        <span className="text-muted text-xs shrink-0">to</span>
+                        <TimeSelect
+                          value={row.closesAt}
+                          onChange={(v) =>
+                            setDays((prev) =>
+                              prev.map((d, i) => (i === idx ? { ...d, closesAt: v } : d)),
+                            )
+                          }
+                        />
+                      </>
+                    ) : (
+                      <span className="text-sm text-muted/40 italic">Closed</span>
+                    )}
+                  </div>
+                  <AvailToggle
+                    on={row.isOpen}
+                    onChange={() =>
+                      setDays((prev) =>
+                        prev.map((d, i) => (i === idx ? { ...d, isOpen: !d.isOpen } : d)),
+                      )
+                    }
+                  />
+                </div>
+              ))}
+              <div className="flex justify-end pt-3 border-t border-border/50 mt-2">
+                <button
+                  onClick={handleSaveHours}
+                  disabled={hoursSaving}
+                  className="px-4 py-2 rounded-lg bg-accent text-white text-sm font-medium hover:bg-accent/90 transition-colors flex items-center gap-1.5 disabled:opacity-60"
+                >
+                  {hoursSaved ? "Saved!" : hoursSaving ? "Saving…" : "Save Hours"}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Blocked Dates */}
-        <div className="bg-background border border-border rounded-2xl overflow-hidden">
-          <div className="px-5 pt-4 pb-2">
-            <div className="flex items-center justify-between">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
-                Blocked Dates
-              </p>
-              <button
-                onClick={() => setShowAddForm((v) => !v)}
-                className="flex items-center gap-1 text-xs text-muted hover:text-foreground transition-colors px-2 py-1 rounded-lg hover:bg-foreground/5"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                Add
-              </button>
+          {/* Right column: Lunch + Blocked */}
+          <div className="space-y-4">
+            {/* Lunch Break */}
+            <div className="bg-background border border-border rounded-2xl overflow-hidden">
+              <div className="px-5 pt-4 pb-2">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
+                  Lunch Break
+                </p>
+              </div>
+              <div className="px-5 pb-4 space-y-3">
+                <div className="flex items-center justify-between gap-4 py-0.5">
+                  <div className="min-w-0">
+                    <p className="text-sm text-foreground">Block lunch break</p>
+                    <p className="text-xs text-muted mt-0.5">
+                      Prevent bookings during your lunch window
+                    </p>
+                  </div>
+                  <AvailToggle
+                    on={lunch.enabled}
+                    onChange={(v) => setLunch((prev) => ({ ...prev, enabled: v }))}
+                  />
+                </div>
+                {lunch.enabled && (
+                  <div className="flex items-center gap-3 pl-1">
+                    <TimeSelect
+                      value={lunch.start}
+                      onChange={(v) => setLunch((prev) => ({ ...prev, start: v }))}
+                    />
+                    <span className="text-muted text-xs shrink-0">to</span>
+                    <TimeSelect
+                      value={lunch.end}
+                      onChange={(v) => setLunch((prev) => ({ ...prev, end: v }))}
+                    />
+                  </div>
+                )}
+                <div className="flex justify-end pt-2 border-t border-border/50">
+                  <button
+                    onClick={handleSaveLunch}
+                    disabled={lunchSaving}
+                    className="px-4 py-2 rounded-lg bg-accent text-white text-sm font-medium hover:bg-accent/90 transition-colors flex items-center gap-1.5 disabled:opacity-60"
+                  >
+                    {lunchSaved ? "Saved!" : lunchSaving ? "Saving…" : "Save Lunch Break"}
+                  </button>
+                </div>
+              </div>
             </div>
-          </div>
-          <div className="px-5 pb-4 space-y-3">
+
+            {/* Blocked Dates */}
+            <div className="bg-background border border-border rounded-2xl overflow-hidden">
+              <div className="px-5 pt-4 pb-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
+                      Blocked Dates
+                    </p>
+                    <p className="text-xs text-muted mt-0.5">
+                      Days off and vacations — clients can&apos;t book these dates.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setShowAddForm((v) => !v)}
+                    className="flex items-center gap-1 text-xs text-muted hover:text-foreground transition-colors px-2 py-1 rounded-lg hover:bg-foreground/5 shrink-0"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Add
+                  </button>
+                </div>
+              </div>
+              <div className="px-5 pb-4 space-y-3">
             {showAddForm && (
               <div className="bg-surface border border-border rounded-xl p-4 space-y-4">
                 {/* Type toggle */}
@@ -515,6 +558,8 @@ function AvailabilityTab({
             })}
           </div>
         </div>
+          </div>{/* end right column */}
+        </div>{/* end grid */}
       </div>
     </div>
   );
@@ -524,7 +569,10 @@ function AvailabilityTab({
 /*  EventsTab                                                          */
 /* ------------------------------------------------------------------ */
 
-function EventsTab({ events }: { events: EventRow[] }) {
+function EventsTab({ events, venues }: { events: EventRow[]; venues: VenueRow[] }) {
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [, startEventTransition] = useTransition();
+
   const upcoming = events.filter(
     (e) => e.status === "upcoming" || e.status === "confirmed" || e.status === "draft",
   );
@@ -532,6 +580,13 @@ function EventsTab({ events }: { events: EventRow[] }) {
 
   const totalGuests = upcoming.reduce((s, e) => s + e.guests.length, 0);
   const totalRevenue = upcoming.reduce((s, e) => s + (e.expectedRevenueInCents ?? 0), 0);
+
+  async function handleCreateEvent(form: EventFormType) {
+    setDialogOpen(false);
+    startEventTransition(async () => {
+      await createStudioEvent(formToInput(form));
+    });
+  }
 
   function EventCard({ ev }: { ev: EventRow }) {
     const typeCfg = EVENT_TYPE_CFG[ev.eventType] ?? EVENT_TYPE_CFG.workshop;
@@ -622,15 +677,85 @@ function EventsTab({ events }: { events: EventRow[] }) {
     );
   }
 
+  const EVENT_IDEAS = [
+    { icon: Store, label: "Pop-Up Shop", desc: "Sell jewelry, crochet, and products at a local market or venue" },
+    { icon: GraduationCap, label: "Workshop", desc: "Teach lash application, crochet basics, or 3D printing" },
+    { icon: Heart, label: "Bridal Party", desc: "Group lash sessions for brides and bridesmaids" },
+    { icon: PartyPopper, label: "Birthday Party", desc: "Private party bookings with custom services" },
+    { icon: Briefcase, label: "Corporate Event", desc: "Team-building or employee appreciation sessions" },
+    { icon: Plane, label: "Travel Pop-Up", desc: "Take your services on the road to a new city" },
+  ];
+
+  if (events.length === 0) {
+    return (
+      <div className="p-4 md:p-6 lg:p-8 space-y-6">
+        <div>
+          <h2 className="text-base font-semibold text-foreground">Events</h2>
+          <p className="text-sm text-muted mt-1">
+            Manage pop-ups, workshops, training days, and parties alongside your regular bookings.
+          </p>
+        </div>
+
+        <div className="bg-background border border-border rounded-2xl p-6 text-center space-y-4">
+          <div className="w-12 h-12 rounded-full bg-accent/10 flex items-center justify-center mx-auto">
+            <Sparkles className="w-6 h-6 text-accent" />
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold text-foreground">No events yet</h3>
+            <p className="text-xs text-muted mt-1 max-w-md mx-auto">
+              Track pop-ups, workshops, bridal parties, and other special bookings. Manage guests, staff, venues, and revenue all in one place.
+            </p>
+          </div>
+          <button
+            onClick={() => setDialogOpen(true)}
+            className="inline-flex items-center gap-1.5 px-4 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent/90 transition-colors"
+          >
+            <Plus className="w-4 h-4" /> Create Event
+          </button>
+        </div>
+
+        <div>
+          <p className="text-xs font-semibold text-muted uppercase tracking-wide mb-3">Event ideas for your studio</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+            {EVENT_IDEAS.map(({ icon: Icon, label, desc }) => (
+              <div key={label} className="bg-background border border-border rounded-xl p-4 flex items-start gap-3">
+                <div className="w-9 h-9 rounded-lg bg-surface flex items-center justify-center shrink-0">
+                  <Icon className="w-4.5 h-4.5 text-muted" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-foreground">{label}</p>
+                  <p className="text-xs text-muted mt-0.5 leading-relaxed">{desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <EventDialog
+          open={dialogOpen}
+          onClose={() => setDialogOpen(false)}
+          initial={emptyEventForm()}
+          venues={venues}
+          onSave={handleCreateEvent}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="p-4 md:p-6 lg:p-8 space-y-6">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h2 className="text-sm font-semibold text-foreground">Events</h2>
+          <h2 className="text-base font-semibold text-foreground">Events</h2>
           <p className="text-xs text-muted mt-0.5">
             Pop-ups, workshops, training days, and parties.
           </p>
         </div>
+        <button
+          onClick={() => setDialogOpen(true)}
+          className="flex items-center gap-1.5 px-3.5 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent/90 transition-colors shrink-0"
+        >
+          <Plus className="w-3.5 h-3.5" /> New Event
+        </button>
       </div>
 
       {/* Stats */}
@@ -653,12 +778,6 @@ function EventsTab({ events }: { events: EventRow[] }) {
         </div>
       </div>
 
-      {events.length === 0 && (
-        <div className="flex items-center justify-center py-12">
-          <p className="text-sm text-muted">No events yet. Create one from the Events page.</p>
-        </div>
-      )}
-
       {upcoming.length > 0 && (
         <div>
           <p className="text-xs font-semibold text-muted uppercase tracking-wide mb-3">Upcoming</p>
@@ -680,6 +799,14 @@ function EventsTab({ events }: { events: EventRow[] }) {
           </div>
         </div>
       )}
+
+      <EventDialog
+        open={dialogOpen}
+        onClose={() => setDialogOpen(false)}
+        initial={emptyEventForm()}
+        venues={venues}
+        onSave={handleCreateEvent}
+      />
     </div>
   );
 }
@@ -699,6 +826,8 @@ export function CalendarPage({
   timeOff,
   lunchBreak,
   events: initialEventRows,
+  venues,
+  eventStaff,
 }: {
   initialBookings: BookingRow[];
   clients: { id: string; name: string; phone: string | null }[];
@@ -714,6 +843,8 @@ export function CalendarPage({
   timeOff: TimeOffRow[];
   lunchBreak: LunchBreak | null;
   events: EventRow[];
+  venues: VenueRow[];
+  eventStaff: { id: string; name: string }[];
 }) {
   const staffMembers = useMemo(() => staffOptions.map((s) => s.name), [staffOptions]);
 
@@ -865,7 +996,7 @@ export function CalendarPage({
             lunchBreak={lunchBreak}
           />
         ) : (
-          <EventsTab events={initialEventRows} />
+          <EventsTab events={initialEventRows} venues={venues} />
         )}
       </div>
     );
@@ -873,7 +1004,7 @@ export function CalendarPage({
 
   /* ---- Calendar tab ---- */
   return (
-    <div className="flex flex-col h-screen max-w-[1600px] mx-auto w-full px-4 md:px-6 lg:px-8 pt-4 md:pt-6 pb-4 gap-4">
+    <div className="flex flex-col h-full max-w-[1600px] mx-auto w-full px-4 md:px-6 lg:px-8 pt-4 md:pt-6 pb-4 gap-4">
       {/* ---- Tab bar ---- */}
       <div className="flex gap-1 border-b border-border -mx-4 md:-mx-6 lg:-mx-8 px-4 md:px-6 lg:px-8 shrink-0">
         {CAL_PAGE_TABS.map(({ id, label }) => (

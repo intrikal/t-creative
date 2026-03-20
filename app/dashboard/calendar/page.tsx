@@ -7,7 +7,7 @@ import {
   getServicesForSelect,
   getStaffForSelect,
 } from "../bookings/select-actions";
-import { getEvents } from "../events/actions";
+import { getEvents, getVenues, getStaffForEvents } from "../events/actions";
 import { getBusinessHours, getTimeOff, getLunchBreak } from "../settings/hours-actions";
 import { CalendarPage } from "./CalendarPage";
 
@@ -31,6 +31,8 @@ export default async function Page() {
     timeOffRows,
     lunchBreak,
     eventRows,
+    venues,
+    eventStaff,
   ] = await Promise.all([
     getBookings({ limit: 500 }),
     getClientsForSelect(),
@@ -40,6 +42,8 @@ export default async function Page() {
     getTimeOff(),
     getLunchBreak(),
     getEvents(),
+    getVenues(),
+    getStaffForEvents(),
   ]);
 
   return (
@@ -52,6 +56,8 @@ export default async function Page() {
       timeOff={timeOffRows}
       lunchBreak={lunchBreak}
       events={eventRows}
+      venues={venues}
+      eventStaff={eventStaff}
     />
   );
 }

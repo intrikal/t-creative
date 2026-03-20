@@ -20,7 +20,7 @@ function getProfileMenuItems(role: "admin" | "assistant" | "client") {
     { href: "/dashboard/settings", label: "Settings", icon: Settings },
   ];
   if (role === "admin") {
-    items.push({ href: "/dashboard/assistants", label: "Team", icon: UsersRound });
+    items.push({ href: "/dashboard/team", label: "Team", icon: UsersRound });
   }
   if (role === "client") {
     items.push({ href: "/dashboard/bookings", label: "My Bookings", icon: CalendarCheck });

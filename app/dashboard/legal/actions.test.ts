@@ -255,21 +255,21 @@ describe("legal/actions", () => {
       expect(mockInsertValues).toHaveBeenCalledWith(expect.objectContaining({ sortOrder: 1 }));
     });
 
-    it("revalidates /dashboard/legal and /privacy for privacy_policy", async () => {
+    it("revalidates /dashboard/settings and /privacy for privacy_policy", async () => {
       vi.resetModules();
       setupMocks();
       const { saveLegalDoc } = await import("./actions");
       await saveLegalDoc("privacy_policy", input);
-      expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/legal");
+      expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/settings");
       expect(mockRevalidatePath).toHaveBeenCalledWith("/privacy");
     });
 
-    it("revalidates /dashboard/legal and /terms for terms_of_service", async () => {
+    it("revalidates /dashboard/settings and /terms for terms_of_service", async () => {
       vi.resetModules();
       setupMocks();
       const { saveLegalDoc } = await import("./actions");
       await saveLegalDoc("terms_of_service", input);
-      expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/legal");
+      expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/settings");
       expect(mockRevalidatePath).toHaveBeenCalledWith("/terms");
     });
   });

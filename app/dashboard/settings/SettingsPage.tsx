@@ -32,6 +32,7 @@ import {
   Layers,
   Link2,
   Package,
+  Scale,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AftercareTab } from "./components/AftercareTab";
@@ -46,6 +47,8 @@ import { PoliciesTab } from "./components/PoliciesTab";
 import { RemindersTab } from "./components/RemindersTab";
 import { ServiceCategoriesTab } from "./components/ServiceCategoriesTab";
 import { WebsiteContentTab } from "./components/WebsiteContentTab";
+import type { LegalDocEntry } from "../legal/actions";
+import { LegalDocumentsPage } from "../legal/LegalDocumentsPage";
 import type { BusinessHourRow, LunchBreak, TimeOffRow } from "./hours-actions";
 import type { ServiceCategoryRow } from "./service-categories-actions";
 import type {
@@ -79,6 +82,7 @@ const TABS = [
   { id: "integrations", label: "Integrations", icon: Link2 },
   { id: "notifications", label: "Notifications", icon: Bell },
   { id: "website", label: "Website Content", icon: Globe },
+  { id: "legal", label: "Legal", icon: Scale },
 ] as const;
 
 type Tab = (typeof TABS)[number]["id"];
@@ -104,6 +108,8 @@ export function SettingsPage({
   initialCategories,
   squareStatus,
   calendarUrl,
+  initialPrivacy,
+  initialTerms,
 }: {
   initialHours: BusinessHourRow[];
   initialTimeOff: TimeOffRow[];
@@ -121,6 +127,8 @@ export function SettingsPage({
   initialCategories: ServiceCategoryRow[];
   squareStatus: SquareConnectionStatus;
   calendarUrl?: string;
+  initialPrivacy?: LegalDocEntry | null;
+  initialTerms?: LegalDocEntry | null;
 }) {
   const [tab, setTab] = useState<Tab>("business");
 
@@ -156,6 +164,13 @@ export function SettingsPage({
     ),
     notifications: <NotificationsTab initial={initialNotifications} />,
     website: <WebsiteContentTab initial={initialSiteContent} />,
+    legal: (
+      <LegalDocumentsPage
+        initialPrivacy={initialPrivacy ?? null}
+        initialTerms={initialTerms ?? null}
+        embedded
+      />
+    ),
   };
 
   return (

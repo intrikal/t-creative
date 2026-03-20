@@ -269,7 +269,7 @@ export function GettingStartedPage({
       title: "Invite your team",
       description: "Add assistants so they can manage their own schedules and clients.",
       buttonLabel: "Invite members",
-      href: "/dashboard/staff",
+      href: "/dashboard/team",
     },
     {
       icon: Image,
@@ -429,8 +429,8 @@ export function GettingStartedPage({
           <FeatureCard icon={CalendarCheck} title="Bookings" description="Clients book online through your link. Recurring appointments with iCal support." href="/dashboard/bookings" bg="bg-[#c9c0a0]/40" />
           <FeatureCard icon={ListOrdered} title="Waitlist" description="Clients join the waitlist when you're booked out. Auto-notify when a spot opens." href="/dashboard/bookings" bg="bg-[#c0bca0]/40" />
           <FeatureCard icon={Clock} title="Scheduling Rules" description="Business hours, time off, buffers, lead times, and cancellation policies." href="/dashboard/settings" bg="bg-[#b8b8a0]/40" />
-          <FeatureCard icon={PackageCheck} title="Subscriptions" description="Pre-paid session packages — clients buy a bundle and book as they go." href="/dashboard/subscriptions" bg="bg-[#b8c0a8]/40" />
-          <FeatureCard icon={ShieldCheck} title="Memberships" description="Membership tiers like Lash Club with perks, fills, and exclusive pricing." href="/dashboard/memberships" bg="bg-[#a8bca8]/40" />
+          <FeatureCard icon={PackageCheck} title="Subscriptions" description="Pre-paid session packages — clients buy a bundle and book as they go." href="/dashboard/bookings" bg="bg-[#b8c0a8]/40" />
+          <FeatureCard icon={ShieldCheck} title="Memberships" description="Membership tiers like Lash Club with perks, fills, and exclusive pricing." href="/dashboard/bookings" bg="bg-[#a8bca8]/40" />
         </div>
 
         {/* Services & Products */}
@@ -452,7 +452,7 @@ export function GettingStartedPage({
           <FeatureCard icon={Inbox} title="Inquiries" description="New leads from your website and social links land here for follow-up." href="/dashboard/inquiries" bg="bg-[#b0b4d4]/40" />
           <FeatureCard icon={Bell} title="Notifications" description="Automated booking reminders, confirmations, cancellation notices, and waitlist alerts via email and SMS." href="/dashboard/notifications" bg="bg-[#a8b0d0]/40" />
           <FeatureCard icon={Star} title="Reviews" description="Collect, moderate, and showcase client reviews from Google, Instagram, and Yelp." href="/dashboard/reviews" bg="bg-[#c0b0c8]/40" />
-          <FeatureCard icon={HeartHandshake} title="Aftercare" description="Send aftercare instructions and studio policies to clients automatically." href="/dashboard/aftercare" bg="bg-[#c8b0c0]/40" />
+          <FeatureCard icon={HeartHandshake} title="Aftercare" description="Send aftercare instructions and studio policies to clients automatically." href="/dashboard/services" bg="bg-[#c8b0c0]/40" />
           <FeatureCard icon={Share2} title="Referrals" description="Clients get referral codes — track who's bringing in new business." href="/dashboard/clients" bg="bg-[#b8a8c8]/40" />
           <FeatureCard icon={UserCog} title="Client Preferences" description="Save lash styles, curl types, lengths, skin sensitivities, and rebook intervals per client." href="/dashboard/clients" bg="bg-[#b0a8c0]/40" />
         </div>
@@ -460,19 +460,19 @@ export function GettingStartedPage({
         {/* Team & HR */}
         <p className="text-[10px] font-semibold text-muted/50 uppercase tracking-wider mb-3">Team & HR</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
-          <FeatureCard icon={UserCheck} title="Staff Management" description="Manage team members, specialties, availability, bios, and start dates." href="/dashboard/assistants" bg="bg-[#b0c8b8]/40" />
-          <FeatureCard icon={CalendarRange} title="Shift Scheduling" description="Schedule shifts, track in-progress and completed shifts, and manage locations." href="/dashboard/assistants" bg="bg-[#a8c0b0]/40" />
-          <FeatureCard icon={Percent} title="Payroll & Commissions" description="Set hourly rates, commission percentages or flat fees, and tip splits per team member." href="/dashboard/assistants" bg="bg-[#a0b8a8]/40" />
-          <FeatureCard icon={GraduationCap} title="Training & Certification" description="Run certification programs with modules, lessons, attendance tracking, and issued certificates." href="/dashboard/training" bg="bg-[#98b0a0]/40" />
+          <FeatureCard icon={UserCheck} title="Staff Management" description="Manage team members, specialties, availability, bios, and start dates." href="/dashboard/team" bg="bg-[#b0c8b8]/40" />
+          <FeatureCard icon={CalendarRange} title="Shift Scheduling" description="Schedule shifts, track in-progress and completed shifts, and manage locations." href="/dashboard/team" bg="bg-[#a8c0b0]/40" />
+          <FeatureCard icon={Percent} title="Payroll & Commissions" description="Set hourly rates, commission percentages or flat fees, and tip splits per team member." href="/dashboard/team" bg="bg-[#a0b8a8]/40" />
+          <FeatureCard icon={GraduationCap} title="Training & Certification" description="Run certification programs with modules, lessons, attendance tracking, and issued certificates." href="/dashboard/team" bg="bg-[#98b0a0]/40" />
           <FeatureCard icon={Briefcase} title="Consulting" description="Offer consulting services with flexible pricing — fixed, hourly, or contact for quote." href="/dashboard/services" bg="bg-[#90a898]/40" />
-          <FeatureCard icon={TrendingUp} title="Performance & Ratings" description="Track staff ratings from client reviews and monitor team performance." href="/dashboard/assistants" bg="bg-[#a0b0a0]/40" />
+          <FeatureCard icon={TrendingUp} title="Performance & Ratings" description="Track staff ratings from client reviews and monitor team performance." href="/dashboard/team" bg="bg-[#a0b0a0]/40" />
         </div>
 
         {/* Money & Business */}
         <p className="text-[10px] font-semibold text-muted/50 uppercase tracking-wider mb-3">Money & Business</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
           <FeatureCard icon={DollarSign} title="Payments & Invoices" description="Accept card, cash, or wallet payments. Auto-generate invoices with tax and tips." href="/dashboard/financial" bg="bg-[#b8c9a8]/40" />
-          <FeatureCard icon={Receipt} title="Expenses" description="Track business expenses by category — supplies, rent, marketing, equipment." href="/dashboard/expenses" bg="bg-[#a8c0a8]/40" />
+          <FeatureCard icon={Receipt} title="Expenses" description="Track business expenses by category — supplies, rent, marketing, equipment." href="/dashboard/financial" bg="bg-[#a8c0a8]/40" />
           <FeatureCard icon={BarChart2} title="Analytics" description="Revenue breakdowns, busiest days, top services, and growth trends." href="/dashboard/analytics" bg="bg-[#9bb4c8]/40" />
           <FeatureCard icon={Gift} title="Gift Cards" description="Sell gift cards with balance tracking — clients redeem toward services or products." href="/dashboard/financial" bg="bg-[#c8b8a0]/40" />
           <FeatureCard icon={Tag} title="Promotions" description="Create discount codes — percent off, fixed amount, BOGO, with usage caps and expiration." href="/dashboard/services" bg="bg-[#c0b0a0]/40" />
@@ -483,9 +483,9 @@ export function GettingStartedPage({
         {/* Studio & Legal */}
         <p className="text-[10px] font-semibold text-muted/50 uppercase tracking-wider mb-3">Studio & Legal</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          <FeatureCard icon={Image} title="Media & Portfolio" description="Showcase before/after photos, tag clients, and track consent for every image." href="/dashboard/media" bg="bg-[#b0a8a8]/40" />
-          <FeatureCard icon={ClipboardList} title="Forms & Waivers" description="Intake forms, liability waivers, and consent forms — digitally signed and stored." href="/dashboard/legal" bg="bg-[#a0a8b8]/40" />
-          <FeatureCard icon={Scale} title="Legal Documents" description="Privacy policy and terms of service with version history and effective dates." href="/dashboard/legal" bg="bg-[#a8a8b0]/40" />
+          <FeatureCard icon={Image} title="Media & Portfolio" description="Showcase before/after photos, tag clients, and track consent for every image." href="/dashboard/services" bg="bg-[#b0a8a8]/40" />
+          <FeatureCard icon={ClipboardList} title="Forms & Waivers" description="Intake forms, liability waivers, and consent forms — digitally signed and stored." href="/dashboard/settings" bg="bg-[#a0a8b8]/40" />
+          <FeatureCard icon={Scale} title="Legal Documents" description="Privacy policy and terms of service with version history and effective dates." href="/dashboard/settings" bg="bg-[#a8a8b0]/40" />
           <FeatureCard icon={ShieldAlert} title="Audit Trail" description="Every action is logged — who changed what, when, and from where." href="/dashboard/settings" bg="bg-[#a0a0b8]/40" />
           <FeatureCard icon={Plug} title="Integrations" description="Connect Square, Zoho CRM, Zoho Books, Twilio SMS, Resend email, EasyPost, and Instagram." href="/dashboard/settings" bg="bg-[#a0a0b0]/40" />
           <FeatureCard icon={Settings} title="Settings" description="Business info, branding, booking policies, team permissions, and feature toggles." href="/dashboard/settings" bg="bg-[#a8a0a8]/40" />

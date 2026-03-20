@@ -246,12 +246,12 @@ describe("assistants/actions", () => {
       });
     });
 
-    it("revalidates /dashboard/assistants", async () => {
+    it("revalidates /dashboard/team", async () => {
       vi.resetModules();
       setupMocks();
       const { createAssistant } = await import("./actions");
       await createAssistant({ firstName: "A", lastName: "B", email: "a@b.com" });
-      expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/assistants");
+      expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/team");
     });
 
     it("uses default commissionType=percentage when not provided", async () => {
@@ -348,7 +348,7 @@ describe("assistants/actions", () => {
       );
     });
 
-    it("revalidates /dashboard/assistants", async () => {
+    it("revalidates /dashboard/team", async () => {
       vi.resetModules();
       setupMocks({
         select: vi.fn(() => makeChain([{ profileId: "asst-1" }])),
@@ -360,7 +360,7 @@ describe("assistants/actions", () => {
       });
       const { updateAssistant } = await import("./actions");
       await updateAssistant("asst-1", { firstName: "A", lastName: "B", email: "a@b.com" });
-      expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/assistants");
+      expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/team");
     });
   });
 
@@ -428,12 +428,12 @@ describe("assistants/actions", () => {
       expect(mockUpdateSet).toHaveBeenCalledWith(expect.objectContaining({ isAvailable: true }));
     });
 
-    it("revalidates /dashboard/assistants", async () => {
+    it("revalidates /dashboard/team", async () => {
       vi.resetModules();
       setupMocks();
       const { toggleAssistantStatus } = await import("./actions");
       await toggleAssistantStatus("asst-1", "active");
-      expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/assistants");
+      expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/team");
     });
   });
 
@@ -464,12 +464,12 @@ describe("assistants/actions", () => {
       expect(mockDeleteWhere).toHaveBeenCalled();
     });
 
-    it("revalidates /dashboard/assistants", async () => {
+    it("revalidates /dashboard/team", async () => {
       vi.resetModules();
       setupMocks();
       const { deleteAssistant } = await import("./actions");
       await deleteAssistant("asst-1");
-      expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/assistants");
+      expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/team");
     });
   });
 
@@ -520,7 +520,7 @@ describe("assistants/actions", () => {
       );
     });
 
-    it("revalidates /dashboard/assistants", async () => {
+    it("revalidates /dashboard/team", async () => {
       vi.resetModules();
       setupMocks({
         select: vi.fn(() => makeChain([{ profileId: "asst-1" }])),
@@ -532,7 +532,7 @@ describe("assistants/actions", () => {
       });
       const { updateCommissionRate } = await import("./actions");
       await updateCommissionRate("asst-1", 60);
-      expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/assistants");
+      expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/team");
     });
   });
 });

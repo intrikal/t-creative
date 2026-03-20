@@ -140,5 +140,5 @@ export const STATUS_FILTERS = [
   "No Show",
 ] as const;
 
-export const PAGE_TABS = ["Bookings", "Waitlist"] as const;
+export const PAGE_TABS = ["Bookings", "Waitlist", "Memberships"] as const;
 export type PageTab = (typeof PAGE_TABS)[number];

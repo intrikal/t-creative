@@ -417,6 +417,7 @@ describe("memberships/actions", () => {
       });
       const { createMembership } = await import("./actions");
       await createMembership({ clientId: "c1", planId: 1 });
+      expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/bookings");
       expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/memberships");
     });
   });
@@ -491,6 +492,7 @@ describe("memberships/actions", () => {
       setupMocks();
       const { updateMembershipStatus } = await import("./actions");
       await updateMembershipStatus("sub-1", "active");
+      expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/bookings");
       expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/memberships");
     });
   });
@@ -562,6 +564,7 @@ describe("memberships/actions", () => {
       });
       const { useMembershipFill } = await import("./actions");
       await useMembershipFill("sub-1");
+      expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/bookings");
       expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/memberships");
     });
   });
@@ -629,6 +632,7 @@ describe("memberships/actions", () => {
       });
       const { renewMembership } = await import("./actions");
       await renewMembership("sub-1");
+      expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/bookings");
       expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/memberships");
     });
   });
@@ -681,6 +685,7 @@ describe("memberships/actions", () => {
       setupMocks();
       const { updateMembershipNotes } = await import("./actions");
       await updateMembershipNotes("sub-1", "Note");
+      expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/bookings");
       expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/memberships");
     });
   });
@@ -754,6 +759,7 @@ describe("memberships/actions", () => {
         fillsPerCycle: 1,
         productDiscountPercent: 5,
       });
+      expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/bookings");
       expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/memberships");
     });
   });
@@ -810,6 +816,7 @@ describe("memberships/actions", () => {
       setupMocks();
       const { updateMembershipPlan } = await import("./actions");
       await updateMembershipPlan(1, { name: "New Name" });
+      expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/bookings");
       expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/memberships");
     });
   });

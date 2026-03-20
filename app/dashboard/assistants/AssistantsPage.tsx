@@ -17,6 +17,7 @@ import {
   updateCommissionSettings,
   type CommissionType,
 } from "./actions";
+import { type ReactNode } from "react";
 import { AddAssistantDialog, type AssistantFormData } from "./components/AddAssistantDialog";
 import { AssistantCard } from "./components/AssistantCard";
 import { AvailabilityTab } from "./components/AvailabilityTab";
@@ -153,7 +154,7 @@ function mapAssistantRow(r: AssistantRow): Assistant {
 /*  Tabs                                                                */
 /* ------------------------------------------------------------------ */
 
-const PAGE_TABS = ["Roster", "Availability", "Commissions", "Payroll"] as const;
+const PAGE_TABS = ["Roster", "Availability", "Commissions", "Payroll", "Shifts", "Training"] as const;
 type PageTab = (typeof PAGE_TABS)[number];
 
 /* ------------------------------------------------------------------ */
@@ -166,12 +167,20 @@ export function AssistantsPage({
   commissionsData,
   payrollRows,
   payrollSummary,
+  shiftsContent,
+  trainingContent,
+  pageTitle = "Assistants",
+  pageSubtitle = "Your team overview and performance",
 }: {
   initialAssistants: AssistantRow[];
   initialAvailability: AvailabilityRow[];
   commissionsData: CommissionRow[];
   payrollRows: PayrollRow[];
   payrollSummary: PayrollSummary;
+  shiftsContent?: ReactNode;
+  trainingContent?: ReactNode;
+  pageTitle?: string;
+  pageSubtitle?: string;
 }) {
   const [isPending, startTransition] = useTransition();
 
@@ -307,8 +316,8 @@ export function AssistantsPage({
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-xl font-semibold text-foreground tracking-tight">Assistants</h1>
-          <p className="text-sm text-muted mt-0.5">Your team overview and performance</p>
+          <h1 className="text-xl font-semibold text-foreground tracking-tight">{pageTitle}</h1>
+          <p className="text-sm text-muted mt-0.5">{pageSubtitle}</p>
         </div>
         <button
           onClick={() => setDialogOpen(true)}
@@ -382,6 +391,12 @@ export function AssistantsPage({
 
       {/* Payroll */}
       {pageTab === "Payroll" && <PayrollTab rows={payrollRows} summary={payrollSummary} />}
+
+      {/* Shifts */}
+      {pageTab === "Shifts" && shiftsContent}
+
+      {/* Training */}
+      {pageTab === "Training" && trainingContent}
 
       <AddAssistantDialog
         key={`assistant-${dialogOpen}`}

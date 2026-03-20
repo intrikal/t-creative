@@ -2,11 +2,12 @@ import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { getCurrentUser } from "@/lib/auth";
 import { FinancialShell } from "./FinancialShell";
-import { ExpensesSection } from "./sections/ExpensesSection";
+import { FullExpensesSection } from "./sections/FullExpensesSection";
 import { GiftCardsSection } from "./sections/GiftCardsSection";
 import { InvoicesSection } from "./sections/InvoicesSection";
 import { OverviewSection } from "./sections/OverviewSection";
 import { PromotionsSection } from "./sections/PromotionsSection";
+import { RevenueSection } from "./sections/RevenueSection";
 import { TransactionsSection } from "./sections/TransactionsSection";
 
 export const metadata: Metadata = {
@@ -23,9 +24,10 @@ export default async function Page() {
   return (
     <FinancialShell
       overview={<OverviewSection />}
+      revenue={<RevenueSection />}
       transactions={<TransactionsSection />}
       invoices={<InvoicesSection />}
-      expenses={<ExpensesSection />}
+      expenses={<FullExpensesSection />}
       giftCards={<GiftCardsSection />}
       promotions={<PromotionsSection />}
     />

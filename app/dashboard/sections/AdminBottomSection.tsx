@@ -16,7 +16,7 @@ export async function AdminBottomSection() {
         <CardHeader className="pb-0 pt-4 px-5">
           <div className="flex items-center justify-between">
             <CardTitle className="text-sm font-semibold">Team Today</CardTitle>
-            <Link href="/dashboard/assistants" className="text-xs text-accent hover:underline flex items-center gap-0.5">
+            <Link href="/dashboard/team" className="text-xs text-accent hover:underline flex items-center gap-0.5">
               Full roster <ChevronRight className="w-3 h-3" />
             </Link>
           </div>
@@ -54,7 +54,7 @@ export async function AdminBottomSection() {
               message="No shifts scheduled today"
               detail="Team members will appear here when they have shifts."
               actionLabel="Manage roster"
-              actionHref="/dashboard/assistants"
+              actionHref="/dashboard/team"
             />
           )}
         </CardContent>

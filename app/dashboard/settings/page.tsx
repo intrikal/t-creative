@@ -36,12 +36,16 @@ export default async function Page() {
     { getServiceCategories },
     { getAdminSettingsBundle, getSquareConnectionStatus },
     { SettingsPage },
+    { getLegalDoc, seedLegalDefaults },
   ] = await Promise.all([
     import("./hours-actions"),
     import("./service-categories-actions"),
     import("./settings-actions"),
     import("./SettingsPage"),
+    import("../legal/actions"),
   ]);
+
+  await seedLegalDefaults();
 
   const [
     initialHours,
@@ -50,6 +54,8 @@ export default async function Page() {
     settingsBundle,
     initialCategories,
     squareStatus,
+    initialPrivacy,
+    initialTerms,
   ] = await Promise.all([
     getBusinessHours(),
     getTimeOff(),
@@ -57,6 +63,8 @@ export default async function Page() {
     getAdminSettingsBundle(),
     getServiceCategories(),
     getSquareConnectionStatus(),
+    getLegalDoc("privacy_policy"),
+    getLegalDoc("terms_of_service"),
   ]);
 
   return (
@@ -77,6 +85,8 @@ export default async function Page() {
       initialCategories={initialCategories}
       squareStatus={squareStatus}
       calendarUrl={calendarUrl(user.id)}
+      initialPrivacy={initialPrivacy}
+      initialTerms={initialTerms}
     />
   );
 }

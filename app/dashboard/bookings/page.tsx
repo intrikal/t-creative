@@ -35,11 +35,13 @@ export default async function Page() {
     { getClientsForSelect, getServicesForSelect, getStaffForSelect },
     { getSubscriptions },
     { BookingsPage },
+    { MembershipsSection },
   ] = await Promise.all([
     import("./actions"),
     import("./select-actions"),
     import("../subscriptions/actions"),
     import("./BookingsPage"),
+    import("./sections/MembershipsSection"),
   ]);
 
   const [bookingsResult, clients, serviceOptions, staffOptions, allSubscriptions] =
@@ -66,6 +68,7 @@ export default async function Page() {
       serviceOptions={serviceOptions}
       staffOptions={staffOptions}
       activeSubscriptions={activeSubscriptions}
+      membershipsContent={<MembershipsSection />}
     />
   );
 }

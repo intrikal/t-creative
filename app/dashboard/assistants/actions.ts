@@ -240,7 +240,7 @@ export async function createAssistant(input: AssistantInput): Promise<void> {
       startDate: new Date(),
     });
 
-    revalidatePath("/dashboard/assistants");
+    revalidatePath("/dashboard/team");
   } catch (err) {
     Sentry.captureException(err);
     throw err;
@@ -298,7 +298,7 @@ export async function updateAssistant(id: string, input: AssistantInput): Promis
       });
     }
 
-    revalidatePath("/dashboard/assistants");
+    revalidatePath("/dashboard/team");
   } catch (err) {
     Sentry.captureException(err);
     throw err;
@@ -334,7 +334,7 @@ export async function toggleAssistantStatus(
         .where(eq(assistantProfiles.profileId, id));
     }
 
-    revalidatePath("/dashboard/assistants");
+    revalidatePath("/dashboard/team");
   } catch (err) {
     Sentry.captureException(err);
     throw err;
@@ -376,7 +376,7 @@ export async function updateCommissionSettings(
       await db.insert(assistantProfiles).values({ profileId: id, ...values });
     }
 
-    revalidatePath("/dashboard/assistants");
+    revalidatePath("/dashboard/team");
   } catch (err) {
     Sentry.captureException(err);
     throw err;
@@ -407,7 +407,7 @@ export async function updateCommissionRate(id: string, rate: number): Promise<vo
       });
     }
 
-    revalidatePath("/dashboard/assistants");
+    revalidatePath("/dashboard/team");
   } catch (err) {
     Sentry.captureException(err);
     throw err;
@@ -419,7 +419,7 @@ export async function deleteAssistant(id: string): Promise<void> {
     z.string().min(1).parse(id);
     await getUser();
     await db.delete(profiles).where(eq(profiles.id, id));
-    revalidatePath("/dashboard/assistants");
+    revalidatePath("/dashboard/team");
   } catch (err) {
     Sentry.captureException(err);
     throw err;

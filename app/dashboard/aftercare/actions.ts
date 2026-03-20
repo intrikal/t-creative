@@ -146,6 +146,7 @@ export async function createAftercareSection(input: AftercareSectionInput): Prom
       sortOrder: nextSort,
     });
 
+    revalidatePath("/dashboard/services");
     revalidatePath("/dashboard/aftercare");
   } catch (err) {
     Sentry.captureException(err);
@@ -172,6 +173,7 @@ export async function updateAftercareSection(
       })
       .where(eq(policies.id, id));
 
+    revalidatePath("/dashboard/services");
     revalidatePath("/dashboard/aftercare");
   } catch (err) {
     Sentry.captureException(err);
@@ -184,6 +186,7 @@ export async function deleteAftercareSection(id: number): Promise<void> {
     z.number().int().positive().parse(id);
     await getUser();
     await db.delete(policies).where(eq(policies.id, id));
+    revalidatePath("/dashboard/services");
     revalidatePath("/dashboard/aftercare");
   } catch (err) {
     Sentry.captureException(err);
@@ -221,6 +224,7 @@ export async function createPolicy(input: PolicyInput): Promise<void> {
       sortOrder: nextSort,
     });
 
+    revalidatePath("/dashboard/services");
     revalidatePath("/dashboard/aftercare");
   } catch (err) {
     Sentry.captureException(err);
@@ -243,6 +247,7 @@ export async function updatePolicy(id: number, input: PolicyInput): Promise<void
       })
       .where(eq(policies.id, id));
 
+    revalidatePath("/dashboard/services");
     revalidatePath("/dashboard/aftercare");
   } catch (err) {
     Sentry.captureException(err);
@@ -255,6 +260,7 @@ export async function deletePolicy(id: number): Promise<void> {
     z.number().int().positive().parse(id);
     await getUser();
     await db.delete(policies).where(eq(policies.id, id));
+    revalidatePath("/dashboard/services");
     revalidatePath("/dashboard/aftercare");
   } catch (err) {
     Sentry.captureException(err);

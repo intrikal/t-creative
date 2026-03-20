@@ -296,6 +296,7 @@ export async function createMembership(input: CreateMembershipInput): Promise<{ 
       })
       .returning({ id: membershipSubscriptions.id });
 
+    revalidatePath("/dashboard/bookings");
     revalidatePath("/dashboard/memberships");
     return { id: sub.id };
   } catch (err) {
@@ -323,6 +324,7 @@ export async function updateMembershipStatus(id: string, status: MembershipStatu
 
     await db.update(membershipSubscriptions).set(updates).where(eq(membershipSubscriptions.id, id));
 
+    revalidatePath("/dashboard/bookings");
     revalidatePath("/dashboard/memberships");
   } catch (err) {
     Sentry.captureException(err);
@@ -350,6 +352,7 @@ export async function useMembershipFill(id: string): Promise<void> {
       .set({ fillsRemainingThisCycle: sub.fillsRemainingThisCycle - 1 })
       .where(eq(membershipSubscriptions.id, id));
 
+    revalidatePath("/dashboard/bookings");
     revalidatePath("/dashboard/memberships");
   } catch (err) {
     Sentry.captureException(err);
@@ -394,6 +397,7 @@ export async function renewMembership(id: string): Promise<void> {
       })
       .where(eq(membershipSubscriptions.id, id));
 
+    revalidatePath("/dashboard/bookings");
     revalidatePath("/dashboard/memberships");
   } catch (err) {
     Sentry.captureException(err);
@@ -412,6 +416,7 @@ export async function updateMembershipNotes(id: string, notes: string): Promise<
       .set({ notes: notes || null })
       .where(eq(membershipSubscriptions.id, id));
 
+    revalidatePath("/dashboard/bookings");
     revalidatePath("/dashboard/memberships");
   } catch (err) {
     Sentry.captureException(err);
@@ -443,6 +448,7 @@ export async function createMembershipPlan(input: CreatePlanInput): Promise<{ id
       })
       .returning({ id: membershipPlans.id });
 
+    revalidatePath("/dashboard/bookings");
     revalidatePath("/dashboard/memberships");
     return { id: plan.id };
   } catch (err) {
@@ -476,6 +482,7 @@ export async function updateMembershipPlan(id: number, input: UpdatePlanInput): 
       })
       .where(eq(membershipPlans.id, id));
 
+    revalidatePath("/dashboard/bookings");
     revalidatePath("/dashboard/memberships");
   } catch (err) {
     Sentry.captureException(err);

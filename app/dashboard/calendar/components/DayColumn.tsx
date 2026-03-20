@@ -79,23 +79,6 @@ export function DayColumn({
     return blocks;
   }, [availability]);
 
-  // Current time indicator — updates every 60s, only rendered for today
-  const [nowMin, setNowMin] = useState(() => {
-    const d = new Date();
-    return d.getHours() * 60 + d.getMinutes();
-  });
-  useEffect(() => {
-    if (!isToday) return;
-    const id = setInterval(() => {
-      const d = new Date();
-      setNowMin(d.getHours() * 60 + d.getMinutes());
-    }, 60_000);
-    return () => clearInterval(id);
-  }, [isToday]);
-
-  const nowInRange = isToday && nowMin >= DAY_START * 60 && nowMin < DAY_END * 60;
-  const nowTop = ((nowMin - DAY_START * 60) / 60) * HOUR_H + GRID_TOP_PAD;
-
   return (
     <div
       className="relative flex-1 min-w-0 border-r border-border/30 last:border-r-0"
@@ -147,24 +130,44 @@ export function DayColumn({
         />
       ))}
       {/* Current time indicator */}
-      {nowInRange && (
-        <div
-          className="absolute left-0 right-0 z-20 pointer-events-none"
-          style={{ top: `${nowTop}px` }}
-        >
-          <div className="absolute -left-[5px] -top-[5px] w-[10px] h-[10px] rounded-full bg-red-500" />
-          <div className="absolute left-0 right-0 h-[2px] bg-red-500" />
-          <div className="absolute -left-[58px] -top-[9px] bg-red-500 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded">
-            {(() => {
-              const h = Math.floor(nowMin / 60);
-              const m = nowMin % 60;
-              const h12 = h % 12 || 12;
-              const ampm = h < 12 ? "am" : "pm";
-              return `${h12}:${String(m).padStart(2, "0")}${ampm}`;
-            })()}
-          </div>
-        </div>
-      )}
+      {isToday && <NowLine />}
+    </div>
+  );
+}
+
+function NowLine() {
+  const [nowMin, setNowMin] = useState(() => {
+    const d = new Date();
+    return d.getHours() * 60 + d.getMinutes();
+  });
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      const d = new Date();
+      setNowMin(d.getHours() * 60 + d.getMinutes());
+    }, 60_000);
+    return () => clearInterval(id);
+  }, []);
+
+  const inRange = nowMin >= DAY_START * 60 && nowMin < DAY_END * 60;
+  if (!inRange) return null;
+
+  const nowTop = ((nowMin - DAY_START * 60) / 60) * HOUR_H + GRID_TOP_PAD;
+  const h = Math.floor(nowMin / 60);
+  const m = nowMin % 60;
+  const h12 = h % 12 || 12;
+  const ampm = h < 12 ? "am" : "pm";
+
+  return (
+    <div
+      className="absolute left-0 right-0 z-20 pointer-events-none"
+      style={{ top: `${nowTop}px` }}
+    >
+      <div className="absolute -left-[5px] -top-[5px] w-[10px] h-[10px] rounded-full bg-red-500" />
+      <div className="absolute left-0 right-0 h-[2px] bg-red-500" />
+      <div className="absolute -left-[58px] -top-[9px] bg-red-500 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded">
+        {`${h12}:${String(m).padStart(2, "0")}${ampm}`}
+      </div>
     </div>
   );
 }

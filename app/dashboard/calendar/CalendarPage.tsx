@@ -7,7 +7,7 @@
 
 "use client";
 
-import { useState, useMemo, useOptimistic, useTransition, useCallback } from "react";
+import { useState, useMemo, useOptimistic, useTransition, useCallback, useReducer } from "react";
 import {
   ChevronLeft,
   ChevronRight,
@@ -140,8 +140,75 @@ function AvailabilityTab({
   timeOff: TimeOffRow[];
   lunchBreak: LunchBreak | null;
 }) {
-  const [days, setDays] = useState(() =>
-    [...businessHours]
+  type AvailDay = { id: number; dayOfWeek: number; isOpen: boolean; opensAt: string; closesAt: string };
+  type AvailState = {
+    days: AvailDay[];
+    hoursStatus: "idle" | "saving" | "saved";
+    lunch: LunchBreak;
+    lunchStatus: "idle" | "saving" | "saved";
+    blockedForm: {
+      open: boolean;
+      type: "day_off" | "vacation";
+      startDate: string;
+      endDate: string;
+      label: string;
+      isAdding: boolean;
+    };
+  };
+  type AvailAction =
+    | { type: "UPDATE_DAY"; index: number; field: string; value: unknown }
+    | { type: "SET_HOURS_STATUS"; status: "idle" | "saving" | "saved" }
+    | { type: "UPDATE_LUNCH"; lunch: Partial<AvailState["lunch"]> }
+    | { type: "SET_LUNCH_STATUS"; status: "idle" | "saving" | "saved" }
+    | { type: "OPEN_BLOCKED_FORM" }
+    | { type: "CLOSE_BLOCKED_FORM" }
+    | { type: "UPDATE_BLOCKED_FORM"; field: string; value: unknown }
+    | { type: "SET_ADDING"; value: boolean }
+    | { type: "RESET_BLOCKED_FORM" };
+
+  function availReducer(state: AvailState, action: AvailAction): AvailState {
+    switch (action.type) {
+      case "UPDATE_DAY":
+        return {
+          ...state,
+          days: state.days.map((d, i) =>
+            i === action.index ? { ...d, [action.field]: action.value } : d,
+          ),
+        };
+      case "SET_HOURS_STATUS":
+        return { ...state, hoursStatus: action.status };
+      case "UPDATE_LUNCH":
+        return { ...state, lunch: { ...state.lunch, ...action.lunch } };
+      case "SET_LUNCH_STATUS":
+        return { ...state, lunchStatus: action.status };
+      case "OPEN_BLOCKED_FORM":
+        return { ...state, blockedForm: { ...state.blockedForm, open: !state.blockedForm.open } };
+      case "CLOSE_BLOCKED_FORM":
+        return {
+          ...state,
+          blockedForm: { ...state.blockedForm, open: false, startDate: "", endDate: "", label: "" },
+        };
+      case "UPDATE_BLOCKED_FORM":
+        return { ...state, blockedForm: { ...state.blockedForm, [action.field]: action.value } };
+      case "SET_ADDING":
+        return { ...state, blockedForm: { ...state.blockedForm, isAdding: action.value } };
+      case "RESET_BLOCKED_FORM":
+        return {
+          ...state,
+          blockedForm: {
+            open: false,
+            type: "day_off",
+            startDate: "",
+            endDate: "",
+            label: "",
+            isAdding: false,
+          },
+        };
+    }
+  }
+
+  const [state, dispatch] = useReducer(availReducer, null, () => ({
+    days: [...businessHours]
       .sort((a, b) => a.dayOfWeek - b.dayOfWeek)
       .map((h) => ({
         id: h.id,
@@ -150,39 +217,38 @@ function AvailabilityTab({
         opensAt: h.opensAt ?? "09:00",
         closesAt: h.closesAt ?? "18:00",
       })),
-  );
-  const [hoursSaving, setHoursSaving] = useState(false);
-  const [hoursSaved, setHoursSaved] = useState(false);
+    hoursStatus: "idle" as const,
+    lunch: initialLunchBreak ?? { enabled: false, start: "12:00", end: "13:00" },
+    lunchStatus: "idle" as const,
+    blockedForm: {
+      open: false,
+      type: "day_off" as const,
+      startDate: "",
+      endDate: "",
+      label: "",
+      isAdding: false,
+    },
+  }));
 
-  const [lunch, setLunch] = useState<LunchBreak>(
-    initialLunchBreak ?? { enabled: false, start: "12:00", end: "13:00" },
-  );
-  const [lunchSaving, setLunchSaving] = useState(false);
-  const [lunchSaved, setLunchSaved] = useState(false);
+  const { days, hoursStatus, lunch, lunchStatus, blockedForm } = state;
 
   const [isBlockedPending, startBlockedTransition] = useTransition();
   const [blocked, addBlockedOptimistic] = useOptimistic<
     TimeOffRow[],
     { type: "add"; row: TimeOffRow } | { type: "delete"; id: number }
-  >(initialTimeOff, (state, action) => {
+  >(initialTimeOff, (s, action) => {
     switch (action.type) {
       case "add":
-        return [...state, action.row];
+        return [...s, action.row];
       case "delete":
-        return state.filter((b) => b.id !== action.id);
+        return s.filter((b) => b.id !== action.id);
     }
   });
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [addType, setAddType] = useState<"day_off" | "vacation">("day_off");
-  const [addStart, setAddStart] = useState("");
-  const [addEnd, setAddEnd] = useState("");
-  const [addLabel, setAddLabel] = useState("");
-  const [adding, setAdding] = useState(false);
 
   const openDays = days.filter((d) => d.isOpen);
 
   async function handleSaveHours() {
-    setHoursSaving(true);
+    dispatch({ type: "SET_HOURS_STATUS", status: "saving" });
     try {
       await saveBusinessHours(
         days.map((d) => ({
@@ -192,43 +258,44 @@ function AvailabilityTab({
           closesAt: d.isOpen ? d.closesAt : null,
         })),
       );
-      setHoursSaved(true);
-      setTimeout(() => setHoursSaved(false), 2000);
+      dispatch({ type: "SET_HOURS_STATUS", status: "saved" });
+      setTimeout(() => dispatch({ type: "SET_HOURS_STATUS", status: "idle" }), 2000);
     } finally {
-      setHoursSaving(false);
+      if (state.hoursStatus === "saving") {
+        dispatch({ type: "SET_HOURS_STATUS", status: "idle" });
+      }
     }
   }
 
   async function handleSaveLunch() {
-    setLunchSaving(true);
+    dispatch({ type: "SET_LUNCH_STATUS", status: "saving" });
     try {
       await saveLunchBreak(lunch);
-      setLunchSaved(true);
-      setTimeout(() => setLunchSaved(false), 2000);
+      dispatch({ type: "SET_LUNCH_STATUS", status: "saved" });
+      setTimeout(() => dispatch({ type: "SET_LUNCH_STATUS", status: "idle" }), 2000);
     } finally {
-      setLunchSaving(false);
+      if (state.lunchStatus === "saving") {
+        dispatch({ type: "SET_LUNCH_STATUS", status: "idle" });
+      }
     }
   }
 
   async function handleAddBlocked() {
-    if (!addStart) return;
-    setAdding(true);
+    if (!blockedForm.startDate) return;
+    dispatch({ type: "SET_ADDING", value: true });
     try {
       const row = await addTimeOff({
-        type: addType,
-        startDate: addStart,
-        endDate: addType === "day_off" ? addStart : addEnd || addStart,
-        label: addLabel || undefined,
+        type: blockedForm.type,
+        startDate: blockedForm.startDate,
+        endDate: blockedForm.type === "day_off" ? blockedForm.startDate : blockedForm.endDate || blockedForm.startDate,
+        label: blockedForm.label || undefined,
       });
-      setShowAddForm(false);
-      setAddStart("");
-      setAddEnd("");
-      setAddLabel("");
+      dispatch({ type: "RESET_BLOCKED_FORM" });
       startBlockedTransition(() => {
         addBlockedOptimistic({ type: "add", row });
       });
     } finally {
-      setAdding(false);
+      dispatch({ type: "SET_ADDING", value: false });
     }
   }
 
@@ -291,18 +358,14 @@ function AvailabilityTab({
                         <TimeSelect
                           value={row.opensAt}
                           onChange={(v) =>
-                            setDays((prev) =>
-                              prev.map((d, i) => (i === idx ? { ...d, opensAt: v } : d)),
-                            )
+                            dispatch({ type: "UPDATE_DAY", index: idx, field: "opensAt", value: v })
                           }
                         />
                         <span className="text-muted text-xs shrink-0">to</span>
                         <TimeSelect
                           value={row.closesAt}
                           onChange={(v) =>
-                            setDays((prev) =>
-                              prev.map((d, i) => (i === idx ? { ...d, closesAt: v } : d)),
-                            )
+                            dispatch({ type: "UPDATE_DAY", index: idx, field: "closesAt", value: v })
                           }
                         />
                       </>
@@ -313,9 +376,7 @@ function AvailabilityTab({
                   <AvailToggle
                     on={row.isOpen}
                     onChange={() =>
-                      setDays((prev) =>
-                        prev.map((d, i) => (i === idx ? { ...d, isOpen: !d.isOpen } : d)),
-                      )
+                      dispatch({ type: "UPDATE_DAY", index: idx, field: "isOpen", value: !row.isOpen })
                     }
                   />
                 </div>
@@ -323,10 +384,10 @@ function AvailabilityTab({
               <div className="flex justify-end pt-3 border-t border-border/50 mt-2">
                 <button
                   onClick={handleSaveHours}
-                  disabled={hoursSaving}
+                  disabled={hoursStatus === "saving"}
                   className="px-4 py-2 rounded-lg bg-accent text-white text-sm font-medium hover:bg-accent/90 transition-colors flex items-center gap-1.5 disabled:opacity-60"
                 >
-                  {hoursSaved ? "Saved!" : hoursSaving ? "Saving…" : "Save Hours"}
+                  {hoursStatus === "saved" ? "Saved!" : hoursStatus === "saving" ? "Saving…" : "Save Hours"}
                 </button>
               </div>
             </div>
@@ -351,29 +412,29 @@ function AvailabilityTab({
                   </div>
                   <AvailToggle
                     on={lunch.enabled}
-                    onChange={(v) => setLunch((prev) => ({ ...prev, enabled: v }))}
+                    onChange={(v) => dispatch({ type: "UPDATE_LUNCH", lunch: { enabled: v } })}
                   />
                 </div>
                 {lunch.enabled && (
                   <div className="flex items-center gap-3 pl-1">
                     <TimeSelect
                       value={lunch.start}
-                      onChange={(v) => setLunch((prev) => ({ ...prev, start: v }))}
+                      onChange={(v) => dispatch({ type: "UPDATE_LUNCH", lunch: { start: v } })}
                     />
                     <span className="text-muted text-xs shrink-0">to</span>
                     <TimeSelect
                       value={lunch.end}
-                      onChange={(v) => setLunch((prev) => ({ ...prev, end: v }))}
+                      onChange={(v) => dispatch({ type: "UPDATE_LUNCH", lunch: { end: v } })}
                     />
                   </div>
                 )}
                 <div className="flex justify-end pt-2 border-t border-border/50">
                   <button
                     onClick={handleSaveLunch}
-                    disabled={lunchSaving}
+                    disabled={lunchStatus === "saving"}
                     className="px-4 py-2 rounded-lg bg-accent text-white text-sm font-medium hover:bg-accent/90 transition-colors flex items-center gap-1.5 disabled:opacity-60"
                   >
-                    {lunchSaved ? "Saved!" : lunchSaving ? "Saving…" : "Save Lunch Break"}
+                    {lunchStatus === "saved" ? "Saved!" : lunchStatus === "saving" ? "Saving…" : "Save Lunch Break"}
                   </button>
                 </div>
               </div>
@@ -392,7 +453,7 @@ function AvailabilityTab({
                     </p>
                   </div>
                   <button
-                    onClick={() => setShowAddForm((v) => !v)}
+                    onClick={() => dispatch({ type: "OPEN_BLOCKED_FORM" })}
                     className="flex items-center gap-1 text-xs text-muted hover:text-foreground transition-colors px-2 py-1 rounded-lg hover:bg-foreground/5 shrink-0"
                   >
                     <Plus className="w-3.5 h-3.5" />
@@ -401,7 +462,7 @@ function AvailabilityTab({
                 </div>
               </div>
               <div className="px-5 pb-4 space-y-3">
-            {showAddForm && (
+            {blockedForm.open && (
               <div className="bg-surface border border-border rounded-xl p-4 space-y-4">
                 {/* Type toggle */}
                 <div className="flex gap-2">
@@ -409,12 +470,12 @@ function AvailabilityTab({
                     <button
                       key={t}
                       onClick={() => {
-                        setAddType(t);
-                        if (t === "day_off") setAddEnd("");
+                        dispatch({ type: "UPDATE_BLOCKED_FORM", field: "type", value: t });
+                        if (t === "day_off") dispatch({ type: "UPDATE_BLOCKED_FORM", field: "endDate", value: "" });
                       }}
                       className={cn(
                         "px-3 py-1.5 text-xs font-medium rounded-lg transition-colors",
-                        addType === t
+                        blockedForm.type === t
                           ? "bg-accent text-white"
                           : "bg-foreground/5 text-muted hover:text-foreground",
                       )}
@@ -426,13 +487,13 @@ function AvailabilityTab({
 
                 {/* Calendar picker */}
                 <div className="flex justify-center">
-                  {addType === "day_off" ? (
+                  {blockedForm.type === "day_off" ? (
                     <DatePicker
                       mode="single"
-                      selected={addStart ? parseDate(addStart) : undefined}
+                      selected={blockedForm.startDate ? parseDate(blockedForm.startDate) : undefined}
                       onSelect={(day) => {
-                        setAddStart(day ? fmtDateISO(day) : "");
-                        setAddEnd("");
+                        dispatch({ type: "UPDATE_BLOCKED_FORM", field: "startDate", value: day ? fmtDateISO(day) : "" });
+                        dispatch({ type: "UPDATE_BLOCKED_FORM", field: "endDate", value: "" });
                       }}
                       disabled={{ before: new Date() }}
                       className="!bg-transparent"
@@ -441,16 +502,16 @@ function AvailabilityTab({
                     <DatePicker
                       mode="range"
                       selected={
-                        addStart
+                        blockedForm.startDate
                           ? {
-                              from: parseDate(addStart),
-                              to: addEnd ? parseDate(addEnd) : undefined,
+                              from: parseDate(blockedForm.startDate),
+                              to: blockedForm.endDate ? parseDate(blockedForm.endDate) : undefined,
                             }
                           : undefined
                       }
                       onSelect={(range) => {
-                        setAddStart(range?.from ? fmtDateISO(range.from) : "");
-                        setAddEnd(range?.to ? fmtDateISO(range.to) : "");
+                        dispatch({ type: "UPDATE_BLOCKED_FORM", field: "startDate", value: range?.from ? fmtDateISO(range.from) : "" });
+                        dispatch({ type: "UPDATE_BLOCKED_FORM", field: "endDate", value: range?.to ? fmtDateISO(range.to) : "" });
                       }}
                       disabled={{ before: new Date() }}
                       className="!bg-transparent"
@@ -459,24 +520,24 @@ function AvailabilityTab({
                 </div>
 
                 {/* Selected date display + label */}
-                {addStart && (
+                {blockedForm.startDate && (
                   <div className="space-y-3">
                     <p className="text-sm text-foreground text-center">
-                      {addType === "day_off"
-                        ? parseDate(addStart).toLocaleDateString("en-US", {
+                      {blockedForm.type === "day_off"
+                        ? parseDate(blockedForm.startDate).toLocaleDateString("en-US", {
                             weekday: "short",
                             month: "short",
                             day: "numeric",
                             year: "numeric",
                           })
-                        : addEnd
-                          ? `${parseDate(addStart).toLocaleDateString("en-US", { month: "short", day: "numeric" })} – ${parseDate(addEnd).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`
-                          : `Starting ${parseDate(addStart).toLocaleDateString("en-US", { month: "short", day: "numeric" })} — select end date`}
+                        : blockedForm.endDate
+                          ? `${parseDate(blockedForm.startDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })} – ${parseDate(blockedForm.endDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`
+                          : `Starting ${parseDate(blockedForm.startDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })} — select end date`}
                     </p>
                     <input
                       type="text"
-                      value={addLabel}
-                      onChange={(e) => setAddLabel(e.target.value)}
+                      value={blockedForm.label}
+                      onChange={(e) => dispatch({ type: "UPDATE_BLOCKED_FORM", field: "label", value: e.target.value })}
                       placeholder="Label (optional) — e.g. Hawaii trip"
                       className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-1 focus:ring-accent/30"
                     />
@@ -486,28 +547,23 @@ function AvailabilityTab({
                 {/* Actions */}
                 <div className="flex gap-2 justify-end">
                   <button
-                    onClick={() => {
-                      setShowAddForm(false);
-                      setAddStart("");
-                      setAddEnd("");
-                      setAddLabel("");
-                    }}
+                    onClick={() => dispatch({ type: "CLOSE_BLOCKED_FORM" })}
                     className="px-3 py-1.5 text-xs font-medium text-muted rounded-lg hover:bg-foreground/5 transition-colors"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={handleAddBlocked}
-                    disabled={!addStart || (addType === "vacation" && !addEnd) || adding}
+                    disabled={!blockedForm.startDate || (blockedForm.type === "vacation" && !blockedForm.endDate) || blockedForm.isAdding}
                     className="px-3 py-1.5 text-xs font-medium bg-accent text-white rounded-lg hover:bg-accent/90 transition-colors disabled:opacity-60"
                   >
-                    {adding ? "Adding…" : addType === "day_off" ? "Block Day" : "Block Dates"}
+                    {blockedForm.isAdding ? "Adding…" : blockedForm.type === "day_off" ? "Block Day" : "Block Dates"}
                   </button>
                 </div>
               </div>
             )}
 
-            {blocked.length === 0 && !showAddForm && (
+            {blocked.length === 0 && !blockedForm.open && (
               <p className="text-sm text-muted/50 italic text-center py-4">
                 No blocked dates — your schedule is fully open.
               </p>

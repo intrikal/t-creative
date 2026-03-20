@@ -114,83 +114,81 @@ export interface QuickReplyRow {
 /* ------------------------------------------------------------------ */
 
 /**
- * getThreads — Admin/assistant: all non-archived threads with latest
+ * getThreads — Admin/assistant: all threads with latest
  * message preview + client profile + unread count. Ordered by lastMessageAt desc.
+ *
+ * Uses LATERAL joins to compute latest message and unread count in a single query
+ * instead of 3 separate round-trips.
  */
 export async function getThreads(): Promise<ThreadRow[]> {
   try {
     const user = await getUser();
 
-    // Fetch threads with optional client profile (nullable for group threads)
-    const threadRows = await db
-      .select({
-        id: threads.id,
-        subject: threads.subject,
-        threadType: threads.threadType,
-        status: threads.status,
-        isStarred: threads.isStarred,
-        isArchived: threads.isArchived,
-        isClosed: threads.isClosed,
-        isGroup: threads.isGroup,
-        bookingId: threads.bookingId,
-        lastMessageAt: threads.lastMessageAt,
-        createdAt: threads.createdAt,
-        clientId: threads.clientId,
-        clientFirstName: profiles.firstName,
-        clientLastName: profiles.lastName,
-        clientEmail: profiles.email,
-        clientPhone: profiles.phone,
-        clientAvatarUrl: profiles.avatarUrl,
-        referencePhotoUrls: threads.referencePhotoUrls,
-      })
-      .from(threads)
-      .leftJoin(profiles, eq(threads.clientId, profiles.id))
-      .orderBy(desc(threads.lastMessageAt));
-
-    if (threadRows.length === 0) return [];
-
-    const threadIds = threadRows.map((t) => t.id);
-
-    // Latest message per thread (use DISTINCT ON for correct results)
-    const latestMessages = await db.execute<{
-      thread_id: number;
-      body: string;
-      sender_id: string;
+    const rows = await db.execute<{
+      id: number;
+      subject: string;
+      threadType: string;
+      status: string;
+      isStarred: boolean;
+      isArchived: boolean;
+      isClosed: boolean;
+      isGroup: boolean;
+      bookingId: number | null;
+      lastMessageAt: Date;
+      createdAt: Date;
+      clientId: string | null;
+      referencePhotoUrls: string[] | null;
+      clientFirstName: string | null;
+      clientLastName: string | null;
+      clientEmail: string | null;
+      clientPhone: string | null;
+      clientAvatarUrl: string | null;
+      lastMessageBody: string | null;
+      lastMessageSenderId: string | null;
+      unreadCount: number;
     }>(sql`
-      SELECT DISTINCT ON (thread_id) thread_id, body, sender_id
-      FROM messages
-      WHERE thread_id = ANY(ARRAY[${sql.join(
-        threadIds.map((id) => sql`${id}`),
-        sql`, `,
-      )}]::int[])
-      ORDER BY thread_id, created_at DESC
+      SELECT
+        t.id,
+        t.subject,
+        t.thread_type AS "threadType",
+        t.status,
+        t.is_starred AS "isStarred",
+        t.is_archived AS "isArchived",
+        t.is_closed AS "isClosed",
+        t.is_group AS "isGroup",
+        t.booking_id AS "bookingId",
+        t.last_message_at AS "lastMessageAt",
+        t.created_at AS "createdAt",
+        t.client_id AS "clientId",
+        t.reference_photo_urls AS "referencePhotoUrls",
+        p.first_name AS "clientFirstName",
+        p.last_name AS "clientLastName",
+        p.email AS "clientEmail",
+        p.phone AS "clientPhone",
+        p.avatar_url AS "clientAvatarUrl",
+        lm.body AS "lastMessageBody",
+        lm.sender_id AS "lastMessageSenderId",
+        COALESCE(uc.cnt, 0)::int AS "unreadCount"
+      FROM threads t
+      LEFT JOIN profiles p ON t.client_id = p.id
+      LEFT JOIN LATERAL (
+        SELECT body, sender_id
+        FROM messages
+        WHERE thread_id = t.id
+        ORDER BY created_at DESC
+        LIMIT 1
+      ) lm ON true
+      LEFT JOIN LATERAL (
+        SELECT COUNT(*)::int AS cnt
+        FROM messages
+        WHERE thread_id = t.id
+          AND is_read = false
+          AND sender_id != ${user.id}
+      ) uc ON true
+      ORDER BY t.last_message_at DESC NULLS LAST
     `);
 
-    const latestByThread = new Map(
-      [...latestMessages].map((r) => [r.thread_id, { body: r.body, senderId: r.sender_id }]),
-    );
-
-    // Unread count per thread (messages not sent by current user)
-    const unreadCounts = await db.execute<{ thread_id: number; cnt: string }>(sql`
-      SELECT thread_id, COUNT(*) as cnt
-      FROM messages
-      WHERE thread_id = ANY(ARRAY[${sql.join(
-        threadIds.map((id) => sql`${id}`),
-        sql`, `,
-      )}]::int[])
-        AND is_read = false
-        AND sender_id != ${user.id}
-      GROUP BY thread_id
-    `);
-
-    const unreadByThread = new Map([...unreadCounts].map((r) => [r.thread_id, Number(r.cnt)]));
-
-    return threadRows.map((t) => ({
-      ...t,
-      lastMessageBody: latestByThread.get(t.id)?.body ?? null,
-      lastMessageSenderId: latestByThread.get(t.id)?.senderId ?? null,
-      unreadCount: unreadByThread.get(t.id) ?? 0,
-    }));
+    return [...rows];
   } catch (err) {
     Sentry.captureException(err);
     throw err;
@@ -201,95 +199,82 @@ export async function getThreads(): Promise<ThreadRow[]> {
  * getClientThreads — Client view: returns all threads where the user is
  * a participant (via threadParticipants) or the legacy clientId owner.
  * Ordered by lastMessageAt desc.
+ *
+ * Uses LATERAL joins to compute latest message and unread count in a single query.
  */
 export async function getClientThreads(): Promise<ThreadRow[]> {
   try {
     const user = await getUser();
 
-    // Get thread IDs where user is a participant
-    const participantRows = await db
-      .select({ threadId: threadParticipants.threadId })
-      .from(threadParticipants)
-      .where(eq(threadParticipants.profileId, user.id));
-
-    const participantThreadIds = participantRows.map((r) => r.threadId);
-
-    // Fetch threads where user is clientId OR participant
-    const threadRows = await db
-      .select({
-        id: threads.id,
-        subject: threads.subject,
-        threadType: threads.threadType,
-        status: threads.status,
-        isStarred: threads.isStarred,
-        isArchived: threads.isArchived,
-        isClosed: threads.isClosed,
-        isGroup: threads.isGroup,
-        bookingId: threads.bookingId,
-        lastMessageAt: threads.lastMessageAt,
-        createdAt: threads.createdAt,
-        clientId: threads.clientId,
-        clientFirstName: profiles.firstName,
-        clientLastName: profiles.lastName,
-        clientEmail: profiles.email,
-        clientPhone: profiles.phone,
-        clientAvatarUrl: profiles.avatarUrl,
-        referencePhotoUrls: threads.referencePhotoUrls,
-      })
-      .from(threads)
-      .leftJoin(profiles, eq(threads.clientId, profiles.id))
-      .where(
-        participantThreadIds.length > 0
-          ? sql`(${threads.clientId} = ${user.id} OR ${threads.id} = ANY(ARRAY[${sql.join(
-              participantThreadIds.map((id) => sql`${id}`),
-              sql`, `,
-            )}]::int[]))`
-          : eq(threads.clientId, user.id),
-      )
-      .orderBy(desc(threads.lastMessageAt));
-
-    if (threadRows.length === 0) return [];
-
-    const threadIds = threadRows.map((t) => t.id);
-
-    const latestMessages = await db.execute<{
-      thread_id: number;
-      body: string;
-      sender_id: string;
+    const rows = await db.execute<{
+      id: number;
+      subject: string;
+      threadType: string;
+      status: string;
+      isStarred: boolean;
+      isArchived: boolean;
+      isClosed: boolean;
+      isGroup: boolean;
+      bookingId: number | null;
+      lastMessageAt: Date;
+      createdAt: Date;
+      clientId: string | null;
+      referencePhotoUrls: string[] | null;
+      clientFirstName: string | null;
+      clientLastName: string | null;
+      clientEmail: string | null;
+      clientPhone: string | null;
+      clientAvatarUrl: string | null;
+      lastMessageBody: string | null;
+      lastMessageSenderId: string | null;
+      unreadCount: number;
     }>(sql`
-      SELECT DISTINCT ON (thread_id) thread_id, body, sender_id
-      FROM messages
-      WHERE thread_id = ANY(ARRAY[${sql.join(
-        threadIds.map((id) => sql`${id}`),
-        sql`, `,
-      )}]::int[])
-      ORDER BY thread_id, created_at DESC
+      SELECT
+        t.id,
+        t.subject,
+        t.thread_type AS "threadType",
+        t.status,
+        t.is_starred AS "isStarred",
+        t.is_archived AS "isArchived",
+        t.is_closed AS "isClosed",
+        t.is_group AS "isGroup",
+        t.booking_id AS "bookingId",
+        t.last_message_at AS "lastMessageAt",
+        t.created_at AS "createdAt",
+        t.client_id AS "clientId",
+        t.reference_photo_urls AS "referencePhotoUrls",
+        p.first_name AS "clientFirstName",
+        p.last_name AS "clientLastName",
+        p.email AS "clientEmail",
+        p.phone AS "clientPhone",
+        p.avatar_url AS "clientAvatarUrl",
+        lm.body AS "lastMessageBody",
+        lm.sender_id AS "lastMessageSenderId",
+        COALESCE(uc.cnt, 0)::int AS "unreadCount"
+      FROM threads t
+      LEFT JOIN profiles p ON t.client_id = p.id
+      LEFT JOIN LATERAL (
+        SELECT body, sender_id
+        FROM messages
+        WHERE thread_id = t.id
+        ORDER BY created_at DESC
+        LIMIT 1
+      ) lm ON true
+      LEFT JOIN LATERAL (
+        SELECT COUNT(*)::int AS cnt
+        FROM messages
+        WHERE thread_id = t.id
+          AND is_read = false
+          AND sender_id != ${user.id}
+      ) uc ON true
+      WHERE t.client_id = ${user.id}
+        OR t.id IN (
+          SELECT thread_id FROM thread_participants WHERE profile_id = ${user.id}
+        )
+      ORDER BY t.last_message_at DESC NULLS LAST
     `);
 
-    const latestByThread = new Map(
-      [...latestMessages].map((r) => [r.thread_id, { body: r.body, senderId: r.sender_id }]),
-    );
-
-    const unreadCounts = await db.execute<{ thread_id: number; cnt: string }>(sql`
-      SELECT thread_id, COUNT(*) as cnt
-      FROM messages
-      WHERE thread_id = ANY(ARRAY[${sql.join(
-        threadIds.map((id) => sql`${id}`),
-        sql`, `,
-      )}]::int[])
-        AND is_read = false
-        AND sender_id != ${user.id}
-      GROUP BY thread_id
-    `);
-
-    const unreadByThread = new Map([...unreadCounts].map((r) => [r.thread_id, Number(r.cnt)]));
-
-    return threadRows.map((t) => ({
-      ...t,
-      lastMessageBody: latestByThread.get(t.id)?.body ?? null,
-      lastMessageSenderId: latestByThread.get(t.id)?.senderId ?? null,
-      unreadCount: unreadByThread.get(t.id) ?? 0,
-    }));
+    return [...rows];
   } catch (err) {
     Sentry.captureException(err);
     throw err;

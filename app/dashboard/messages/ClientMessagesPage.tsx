@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useReducer, useState, useRef, useEffect, useCallback } from "react";
 import {
   Send,
   CalendarDays,
@@ -16,18 +16,80 @@ import {
 import { ComposeDialog } from "@/components/messages/ComposeDialog";
 import { TCLogo } from "@/components/TCLogo";
 import { cn } from "@/lib/utils";
+import { createClient } from "@/utils/supabase/client";
 import type { MessageRow, ThreadRow } from "./actions";
 import { getClientThreads, getThreadMessages, sendMessage, markThreadRead } from "./actions";
 
-export function ClientMessagesPage() {
+/* ------------------------------------------------------------------ */
+/*  Reducer                                                            */
+/* ------------------------------------------------------------------ */
+
+type ClientState = {
+  selectedId: number | null;
+  msgs: MessageRow[];
+  draft: string;
+  sending: boolean;
+  composeOpen: boolean;
+};
+
+type ClientAction =
+  | { type: "SELECT_THREAD"; id: number }
+  | { type: "DESELECT_THREAD" }
+  | { type: "SET_MESSAGES"; msgs: MessageRow[] }
+  | { type: "APPEND_MESSAGE"; msg: MessageRow }
+  | { type: "SET_DRAFT"; draft: string }
+  | { type: "START_SENDING" }
+  | { type: "SEND_COMPLETE" }
+  | { type: "SEND_FAILED" }
+  | { type: "OPEN_COMPOSE" }
+  | { type: "CLOSE_COMPOSE" };
+
+function clientReducer(state: ClientState, action: ClientAction): ClientState {
+  switch (action.type) {
+    case "SELECT_THREAD":
+      return { ...state, selectedId: action.id, msgs: [], draft: "" };
+    case "DESELECT_THREAD":
+      return { ...state, selectedId: null, msgs: [] };
+    case "SET_MESSAGES":
+      return { ...state, msgs: action.msgs };
+    case "APPEND_MESSAGE":
+      if (state.msgs.some((m) => m.id === action.msg.id)) return state;
+      return { ...state, msgs: [...state.msgs, action.msg] };
+    case "SET_DRAFT":
+      return { ...state, draft: action.draft };
+    case "START_SENDING":
+      return { ...state, sending: true };
+    case "SEND_COMPLETE":
+      return { ...state, sending: false, draft: "" };
+    case "SEND_FAILED":
+      return { ...state, sending: false };
+    case "OPEN_COMPOSE":
+      return { ...state, composeOpen: true };
+    case "CLOSE_COMPOSE":
+      return { ...state, composeOpen: false };
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Component                                                          */
+/* ------------------------------------------------------------------ */
+
+export function ClientMessagesPage({ currentUserId }: { currentUserId: string }) {
   const [threads, setThreads] = useState<ThreadRow[]>([]);
-  const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [msgs, setMsgs] = useState<MessageRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [draft, setDraft] = useState("");
-  const [sending, setSending] = useState(false);
-  const [composeOpen, setComposeOpen] = useState(false);
+  const [state, dispatch] = useReducer(clientReducer, {
+    selectedId: null,
+    msgs: [],
+    draft: "",
+    sending: false,
+    composeOpen: false,
+  });
+  const { selectedId, msgs, draft, sending, composeOpen } = state;
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  // Stable ref for Realtime callback
+  const selectedIdRef = useRef(selectedId);
+  selectedIdRef.current = selectedId;
 
   // Load threads on mount
   useEffect(() => {
@@ -37,7 +99,7 @@ export function ClientMessagesPage() {
       if (cancelled) return;
       setThreads(rows);
       if (rows.length > 0) {
-        setSelectedId(rows[0].id);
+        dispatch({ type: "SELECT_THREAD", id: rows[0].id });
       }
       setLoading(false);
     })();
@@ -52,7 +114,7 @@ export function ClientMessagesPage() {
     let cancelled = false;
     (async () => {
       const rows = await getThreadMessages(selectedId);
-      if (!cancelled) setMsgs(rows);
+      if (!cancelled) dispatch({ type: "SET_MESSAGES", msgs: rows });
       await markThreadRead(selectedId);
       if (!cancelled) {
         setThreads((prev) => prev.map((t) => (t.id === selectedId ? { ...t, unreadCount: 0 } : t)));
@@ -68,6 +130,60 @@ export function ClientMessagesPage() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [msgs]);
 
+  // ---- Supabase Realtime ----
+  // NOTE: Requires Supabase Realtime enabled on `messages` and `threads` tables.
+  // Enable via Supabase Dashboard → Database → Replication → Enable for these tables.
+  useEffect(() => {
+    const supabase = createClient();
+    const channel = supabase
+      .channel("client-messages-realtime")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "messages" },
+        (payload) => {
+          const newMsg = payload.new as {
+            id: number;
+            thread_id: number;
+            sender_id: string;
+            body: string;
+            created_at: string;
+          };
+
+          if (newMsg.sender_id === currentUserId) return;
+
+          const currentSelectedId = selectedIdRef.current;
+
+          if (newMsg.thread_id === currentSelectedId) {
+            getThreadMessages(newMsg.thread_id).then((rows) => {
+              const fullMsg = rows.find((r) => r.id === newMsg.id);
+              if (fullMsg) dispatch({ type: "APPEND_MESSAGE", msg: fullMsg });
+              markThreadRead(newMsg.thread_id);
+            });
+          }
+
+          setThreads((prev) =>
+            prev.map((t) =>
+              t.id === newMsg.thread_id
+                ? {
+                    ...t,
+                    lastMessageBody: newMsg.body,
+                    lastMessageAt: new Date(newMsg.created_at),
+                    lastMessageSenderId: newMsg.sender_id,
+                    unreadCount:
+                      newMsg.thread_id === currentSelectedId ? t.unreadCount : t.unreadCount + 1,
+                  }
+                : t,
+            ),
+          );
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [currentUserId]);
+
   const QUICK_OPTIONS = [
     { label: "Book an appointment", desc: "Schedule your next visit", icon: CalendarDays },
     { label: "Rebook last service", desc: "Quick rebook in one tap", icon: RefreshCw },
@@ -82,10 +198,11 @@ export function ClientMessagesPage() {
 
   async function handleQuickReply(text: string) {
     if (!selectedId || sending) return;
-    setSending(true);
+    dispatch({ type: "START_SENDING" });
     try {
       const newMsg = await sendMessage(selectedId, text);
-      setMsgs((prev) => [...prev, newMsg]);
+      dispatch({ type: "APPEND_MESSAGE", msg: newMsg });
+      dispatch({ type: "SEND_COMPLETE" });
       setThreads((prev) =>
         prev.map((t) =>
           t.id === selectedId
@@ -98,19 +215,19 @@ export function ClientMessagesPage() {
             : t,
         ),
       );
-    } finally {
-      setSending(false);
+    } catch {
+      dispatch({ type: "SEND_FAILED" });
     }
   }
 
   async function handleSend() {
     const text = draft.trim();
     if (!text || !selectedId || sending) return;
-    setSending(true);
+    dispatch({ type: "START_SENDING" });
     try {
       const newMsg = await sendMessage(selectedId, text);
-      setMsgs((prev) => [...prev, newMsg]);
-      setDraft("");
+      dispatch({ type: "APPEND_MESSAGE", msg: newMsg });
+      dispatch({ type: "SEND_COMPLETE" });
       setThreads((prev) =>
         prev.map((t) =>
           t.id === selectedId
@@ -123,8 +240,8 @@ export function ClientMessagesPage() {
             : t,
         ),
       );
-    } finally {
-      setSending(false);
+    } catch {
+      dispatch({ type: "SEND_FAILED" });
     }
   }
 
@@ -156,11 +273,14 @@ export function ClientMessagesPage() {
     return `${days}d`;
   }
 
+  const handleComposeClose = useCallback(() => {
+    dispatch({ type: "CLOSE_COMPOSE" });
+  }, []);
+
   function handleCreated(threadId: number) {
-    // Reload threads and select the new one
     getClientThreads().then((rows) => {
       setThreads(rows);
-      setSelectedId(threadId);
+      dispatch({ type: "SELECT_THREAD", id: threadId });
     });
   }
 
@@ -179,7 +299,7 @@ export function ClientMessagesPage() {
           <div className="px-4 py-3 border-b border-border flex items-center justify-between shrink-0">
             <p className="text-sm font-semibold text-foreground">Messages</p>
             <button
-              onClick={() => setComposeOpen(true)}
+              onClick={() => dispatch({ type: "OPEN_COMPOSE" })}
               className="p-1.5 rounded-lg hover:bg-foreground/8 text-muted hover:text-foreground transition-colors"
               title="New message"
             >
@@ -190,7 +310,7 @@ export function ClientMessagesPage() {
             {threads.map((t) => (
               <button
                 key={t.id}
-                onClick={() => setSelectedId(t.id)}
+                onClick={() => dispatch({ type: "SELECT_THREAD", id: t.id })}
                 className={cn(
                   "w-full text-left px-4 py-3 border-b border-border/50 hover:bg-foreground/5 transition-colors",
                   t.id === selectedId && "bg-foreground/5",
@@ -228,7 +348,7 @@ export function ClientMessagesPage() {
           <div className="flex items-center gap-3">
             {hasMultipleThreads && (
               <button
-                onClick={() => setSelectedId(null)}
+                onClick={() => dispatch({ type: "DESELECT_THREAD" })}
                 className="lg:hidden p-1 rounded-lg hover:bg-foreground/8 text-muted"
               >
                 <ArrowLeft className="w-4 h-4" />
@@ -307,7 +427,7 @@ export function ClientMessagesPage() {
                   )}
                   <div
                     className={cn(
-                      "rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed whitespace-pre-wrap",
+                      "rounded-2xl px-4 py-3 text-[13.5px] leading-relaxed whitespace-pre-wrap",
                       isClient
                         ? "bg-accent text-white rounded-tr-sm"
                         : "bg-surface border border-border text-foreground rounded-tl-sm",
@@ -336,11 +456,11 @@ export function ClientMessagesPage() {
             <div className="flex items-end gap-2">
               <textarea
                 value={draft}
-                onChange={(e) => setDraft(e.target.value)}
+                onChange={(e) => dispatch({ type: "SET_DRAFT", draft: e.target.value })}
                 onKeyDown={handleKeyDown}
                 placeholder="Message T Creative Studio..."
                 rows={1}
-                className="flex-1 resize-none text-sm text-foreground placeholder:text-muted/50 bg-surface border border-border rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-1 focus:ring-accent/40 max-h-32"
+                className="flex-1 resize-none text-[13.5px] text-foreground placeholder:text-muted/50 bg-surface border border-border rounded-xl px-4 py-3 focus:outline-none focus:ring-1 focus:ring-accent/40 max-h-32"
                 style={{ overflow: "hidden" }}
                 onInput={(e) => {
                   const el = e.currentTarget;
@@ -371,7 +491,7 @@ export function ClientMessagesPage() {
       {/* Compose dialog */}
       <ComposeDialog
         open={composeOpen}
-        onClose={() => setComposeOpen(false)}
+        onClose={handleComposeClose}
         onCreated={handleCreated}
       />
     </div>

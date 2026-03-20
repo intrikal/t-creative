@@ -15,7 +15,8 @@ async function getClientList() {
   const rows = await db
     .select({ id: profiles.id, firstName: profiles.firstName, lastName: profiles.lastName })
     .from(profiles)
-    .where(eq(profiles.role, "client"));
+    .where(eq(profiles.role, "client"))
+    .limit(500);
   return rows.map((r) => ({
     id: r.id,
     name: `${r.firstName ?? ""} ${r.lastName ?? ""}`.trim() || "Unknown",
@@ -28,7 +29,7 @@ export default async function Page() {
 
   if (user.profile?.role === "client") {
     const { ClientMessagesPage } = await import("./ClientMessagesPage");
-    return <ClientMessagesPage />;
+    return <ClientMessagesPage currentUserId={user.id} />;
   }
 
   if (user.profile?.role === "assistant") {
@@ -37,7 +38,7 @@ export default async function Page() {
       import("./AssistantMessagesPage"),
     ]);
     const threads = await getThreads();
-    return <AssistantMessagesPage initialThreads={threads} />;
+    return <AssistantMessagesPage initialThreads={threads} currentUserId={user.id} />;
   }
 
   const [{ getThreads }, { MessagesPage }] = await Promise.all([
@@ -45,5 +46,5 @@ export default async function Page() {
     import("./MessagesPage"),
   ]);
   const [threads, clients] = await Promise.all([getThreads(), getClientList()]);
-  return <MessagesPage initialThreads={threads} clients={clients} />;
+  return <MessagesPage initialThreads={threads} clients={clients} currentUserId={user.id} />;
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useCallback } from "react";
 import { Plus } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -51,6 +51,9 @@ export function MarketplacePage({
   serviceOptions?: { id: number; name: string }[];
 }) {
   const [filter, setFilter] = useState<"all" | ProductCategory>("all");
+  const handleFilterChange = useCallback((f: "all" | ProductCategory) => {
+    setFilter(f);
+  }, []);
   const [pageTab, setPageTab] = useState<PageTab>("Products");
   const [isPending, startTransition] = useTransition();
   const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
@@ -249,7 +252,7 @@ export function MarketplacePage({
         <ProductsTab
           products={initialProducts}
           filter={filter}
-          setFilter={setFilter}
+          onFilterChange={handleFilterChange}
           pendingIds={pendingIds}
           onNew={openNewProduct}
           onEdit={openEditProduct}

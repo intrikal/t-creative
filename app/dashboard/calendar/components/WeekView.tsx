@@ -13,6 +13,7 @@ import { fmtDate, getWeekDays, isToday, getDayAvailability } from "./helpers";
 import { ScrollGrid } from "./ScrollGrid";
 import { TimeRuler, HourLines } from "./TimeRuler";
 import type { CalEvent, BusinessHourRow, TimeOffRow, LunchBreak } from "./types";
+import { groupEventsByDate } from "../utils";
 
 export function WeekView({
   cursor,
@@ -33,14 +34,7 @@ export function WeekView({
 }) {
   const days = useMemo(() => getWeekDays(cursor), [cursor]);
 
-  const byDate = useMemo(() => {
-    const map: Record<string, CalEvent[]> = {};
-    for (const ev of events) {
-      if (!map[ev.date]) map[ev.date] = [];
-      map[ev.date].push(ev);
-    }
-    return map;
-  }, [events]);
+  const byDate = useMemo(() => groupEventsByDate(events), [events]);
 
   return (
     <div className="flex flex-col flex-1 min-h-0">

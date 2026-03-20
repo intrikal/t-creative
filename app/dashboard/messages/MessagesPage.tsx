@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useOptimistic, useTransition } from "react";
+import { useState, useEffect, useRef, useOptimistic, useTransition, useCallback } from "react";
 import { MessageSquare } from "lucide-react";
 import { ComposeDialog } from "@/components/messages/ComposeDialog";
 import type { ThreadRow, MessageRow } from "./actions";
@@ -70,6 +70,18 @@ export function MessagesPage({
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [search, setSearch] = useState("");
+  const handleSelectThread = useCallback((id: number | null) => {
+    setSelectedId(id);
+  }, []);
+  const handleFilterChange = useCallback((f: "all" | "new" | "starred" | "archived") => {
+    setFilter(f);
+  }, []);
+  const handleSearchChange = useCallback((s: string) => {
+    setSearch(s);
+  }, []);
+  const handleDraftChange = useCallback((d: string) => {
+    setDraft(d);
+  }, []);
   const [composeOpen, setComposeOpen] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("inbox");
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -211,9 +223,9 @@ export function MessagesPage({
             totalUnread={totalUnread}
             filter={filter}
             search={search}
-            onSelectThread={setSelectedId}
-            onFilterChange={setFilter}
-            onSearchChange={setSearch}
+            onSelectThread={handleSelectThread}
+            onFilterChange={handleFilterChange}
+            onSearchChange={handleSearchChange}
             onComposeOpen={() => setComposeOpen(true)}
             onViewNotifications={() => setViewMode("notifications")}
             threadDisplayName={threadDisplayName}
@@ -233,7 +245,7 @@ export function MessagesPage({
               onArchive={handleArchive}
               onStatus={handleStatus}
               onSend={handleSend}
-              onDraftChange={setDraft}
+              onDraftChange={handleDraftChange}
               threadDisplayName={threadDisplayName}
             />
           ) : (

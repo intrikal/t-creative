@@ -8,7 +8,7 @@
  */
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import {
   Search,
   Clock,
@@ -132,6 +132,9 @@ export function AssistantBookingsPage({
   const [view, setView] = useState<View>("list");
   const [cursor, setCursor] = useState(() => new Date());
   const [selected, setSelected] = useState<AppointmentRow | null>(null);
+  const handleApptClick = useCallback((appt: AppointmentRow) => {
+    setSelected(appt);
+  }, []);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("All");
   const [expanded, setExpanded] = useState<number | null>(null);
@@ -372,7 +375,7 @@ export function AssistantBookingsPage({
             cursor={cursor}
             todayKey={todayKey}
             appointments={appointments}
-            onApptClick={setSelected}
+            onApptClick={handleApptClick}
           />
         )}
         {view === "month" && (
@@ -380,7 +383,7 @@ export function AssistantBookingsPage({
             cursor={cursor}
             todayKey={todayKey}
             appointments={appointments}
-            onApptClick={setSelected}
+            onApptClick={handleApptClick}
             onDayClick={handleDayClick}
           />
         )}
@@ -389,7 +392,7 @@ export function AssistantBookingsPage({
             cursor={cursor}
             todayKey={todayKey}
             appointments={appointments}
-            onApptClick={setSelected}
+            onApptClick={handleApptClick}
           />
         )}
       </div>

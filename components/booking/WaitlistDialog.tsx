@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Turnstile } from "@marsidev/react-turnstile";
 import { X, Clock, Sparkles, Send } from "lucide-react";
 import { checkIsAuthenticated } from "@/app/dashboard/book/actions";
@@ -25,6 +25,9 @@ export function WaitlistDialog({
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState("");
   const [turnstileToken, setTurnstileToken] = useState("");
+  const handleTurnstileSuccess = useCallback((token: string) => {
+    setTurnstileToken(token);
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -170,7 +173,7 @@ export function WaitlistDialog({
               {isGuest && (
                 <Turnstile
                   siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY!}
-                  onSuccess={setTurnstileToken}
+                  onSuccess={handleTurnstileSuccess}
                   onExpire={() => setTurnstileToken("")}
                   options={{ theme: "light", size: "flexible" }}
                 />

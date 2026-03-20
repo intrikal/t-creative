@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { SetupBanner } from "./AdminSetupBanner";
 import type { DashboardPageProps } from "../admin-dashboard-types";
 
@@ -11,11 +11,10 @@ export function SetupBannerWrapper({
   setup: NonNullable<DashboardPageProps["setup"]>;
   bookingSlug: string;
 }) {
-  const [dismissed, setDismissed] = useState(true); // default true to avoid flash
-
-  useEffect(() => {
-    setDismissed(localStorage.getItem("tc:setup-banner-dismissed") === "true");
-  }, []);
+  const [dismissed, setDismissed] = useState(() => {
+    if (typeof window === "undefined") return true;
+    return localStorage.getItem("tc:setup-banner-dismissed") === "true";
+  });
 
   if (dismissed) return null;
 

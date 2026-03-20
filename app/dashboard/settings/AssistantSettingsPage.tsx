@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useOptimistic, useTransition } from "react";
+import { useState, useOptimistic, useTransition, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import {
   type Section,
@@ -86,6 +86,21 @@ export function AssistantSettingsPage({ data }: { data: AssistantSettingsData })
   const [newTo, setNewTo] = useState("");
   const [newReason, setNewReason] = useState("");
   const [submitted, setSubmitted] = useState(false);
+  const handleAvailabilityChange = useCallback((a: AvailabilityMap) => {
+    setAvailability(a);
+  }, []);
+  const handleNotificationsChange = useCallback((n: NotificationPrefs) => {
+    setNotifications(n);
+  }, []);
+  const handleNewFromChange = useCallback((v: string) => {
+    setNewFrom(v);
+  }, []);
+  const handleNewToChange = useCallback((v: string) => {
+    setNewTo(v);
+  }, []);
+  const handleNewReasonChange = useCallback((v: string) => {
+    setNewReason(v);
+  }, []);
 
   function showSaved() {
     setSaved(true);
@@ -188,7 +203,7 @@ export function AssistantSettingsPage({ data }: { data: AssistantSettingsData })
       {section === "availability" && (
         <AvailabilitySection
           availability={availability}
-          onChange={setAvailability}
+          onChange={handleAvailabilityChange}
           onSave={handleSaveAvailability}
           isPending={isPending}
           saved={saved}
@@ -198,7 +213,7 @@ export function AssistantSettingsPage({ data }: { data: AssistantSettingsData })
       {section === "notifications" && (
         <NotificationsSection
           notifications={notifications}
-          onChange={setNotifications}
+          onChange={handleNotificationsChange}
           onSave={handleSaveNotifications}
           isPending={isPending}
           saved={saved}
@@ -212,9 +227,9 @@ export function AssistantSettingsPage({ data }: { data: AssistantSettingsData })
           newTo={newTo}
           newReason={newReason}
           submitted={submitted}
-          onNewFromChange={setNewFrom}
-          onNewToChange={setNewTo}
-          onNewReasonChange={setNewReason}
+          onNewFromChange={handleNewFromChange}
+          onNewToChange={handleNewToChange}
+          onNewReasonChange={handleNewReasonChange}
           onSubmit={handleSubmitTimeOff}
           isPending={isPending}
         />

@@ -206,6 +206,9 @@ export function BookingRequestDialog({
   const [depositPaid, setDepositPaid] = useState(false);
   const [error, setError] = useState("");
   const [turnstileToken, setTurnstileToken] = useState("");
+  const handleTurnstileSuccess = useCallback((token: string) => {
+    setTurnstileToken(token);
+  }, []);
   const fileInputRef = useRef<HTMLInputElement>(null);
   /** Cached photo URLs — uploaded once on confirm, reused in pay step. */
   const uploadedPhotosRef = useRef<string[]>([]);
@@ -964,7 +967,7 @@ export function BookingRequestDialog({
                 {isGuest && (
                   <Turnstile
                     siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY!}
-                    onSuccess={setTurnstileToken}
+                    onSuccess={handleTurnstileSuccess}
                     onExpire={() => setTurnstileToken("")}
                     options={{ theme: "light", size: "flexible" }}
                   />

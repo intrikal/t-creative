@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useCallback } from "react";
 import { CalendarDays, Rss, X } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { ClientBookingRow, ClientBookingsData } from "./client-actions";
@@ -28,6 +28,18 @@ export function ClientBookingsPage({ data }: { data: ClientBookingsData }) {
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [showCalSubscribe, setShowCalSubscribe] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const handleSelectDate = useCallback((date: string | null) => {
+    setSelectedDate(date);
+  }, []);
+  const handleReschedule = useCallback((booking: ClientBookingRow) => {
+    setRescheduleTarget(booking);
+  }, []);
+  const handleCancel = useCallback((booking: ClientBookingRow) => {
+    setCancelTarget(booking);
+  }, []);
+  const handleReview = useCallback((booking: ClientBookingRow) => {
+    setReviewTarget(booking);
+  }, []);
 
   const allUpcoming = bookings.filter((b) => ["confirmed", "pending"].includes(b.status));
   const allCompleted = bookings.filter((b) => b.status === "completed");
@@ -152,7 +164,7 @@ export function ClientBookingsPage({ data }: { data: ClientBookingsData }) {
       </div>
 
       {/* Calendar */}
-      <BookingsMiniCal bookings={bookings} selected={selectedDate} onSelect={setSelectedDate} />
+      <BookingsMiniCal bookings={bookings} selected={selectedDate} onSelect={handleSelectDate} />
 
       {/* Active date filter */}
       {selectedDate && (
@@ -186,9 +198,9 @@ export function ClientBookingsPage({ data }: { data: ClientBookingsData }) {
                 booking={b}
                 isExpanded={expanded === b.id}
                 onToggle={() => setExpanded(expanded === b.id ? null : b.id)}
-                onReschedule={setRescheduleTarget}
-                onCancel={setCancelTarget}
-                onReview={setReviewTarget}
+                onReschedule={handleReschedule}
+                onCancel={handleCancel}
+                onReview={handleReview}
               />
             ))}
           </CardContent>
@@ -208,9 +220,9 @@ export function ClientBookingsPage({ data }: { data: ClientBookingsData }) {
                 booking={b}
                 isExpanded={expanded === b.id}
                 onToggle={() => setExpanded(expanded === b.id ? null : b.id)}
-                onReschedule={setRescheduleTarget}
-                onCancel={setCancelTarget}
-                onReview={setReviewTarget}
+                onReschedule={handleReschedule}
+                onCancel={handleCancel}
+                onReview={handleReview}
               />
             ))}
           </CardContent>

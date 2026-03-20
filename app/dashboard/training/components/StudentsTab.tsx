@@ -8,14 +8,14 @@ import { StudentCard } from "./StudentCard";
 export function StudentsTab({
   students,
   filter,
-  setFilter,
+  onFilterChange,
   waitlistCount,
   pendingIds,
   onDelete,
 }: {
   students: StudentRow[];
   filter: "all" | StudentStatus;
-  setFilter: (f: "all" | StudentStatus) => void;
+  onFilterChange: (f: "all" | StudentStatus) => void;
   waitlistCount: number;
   pendingIds: Set<string>;
   onDelete: (id: number) => void;
@@ -28,7 +28,7 @@ export function StudentsTab({
         {(["all", "active", "waitlist", "completed", "paused"] as const).map((f) => (
           <button
             key={f}
-            onClick={() => setFilter(f)}
+            onClick={() => onFilterChange(f)}
             className={cn(
               "px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors",
               filter === f ? "bg-foreground/8 text-foreground" : "text-muted hover:text-foreground",

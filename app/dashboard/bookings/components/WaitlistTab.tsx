@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Phone, Trash2, Plus, Bell, Calendar } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -145,14 +145,12 @@ export function WaitlistTab({
   serviceOptions: { id: number; name: string; category: string }[];
 }) {
   const [waitlistEntries, setWaitlistEntries] = useState<WaitlistRow[]>([]);
-  const [loaded, setLoaded] = useState(false);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
 
-  // Load waitlist entries on first render
-  if (!loaded) {
-    setLoaded(true);
+  // Load waitlist entries on mount
+  useEffect(() => {
     getWaitlist().then(setWaitlistEntries);
-  }
+  }, []);
 
   function refreshWaitlist() {
     getWaitlist().then(setWaitlistEntries);

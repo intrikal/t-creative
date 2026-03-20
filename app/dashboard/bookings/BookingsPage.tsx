@@ -2,7 +2,7 @@
 
 import { useState, useOptimistic, useTransition } from "react";
 import dynamic from "next/dynamic";
-import { Search, Plus } from "lucide-react";
+import { Search, Plus, CalendarDays, CalendarCheck, DollarSign, ListOrdered, CalendarX } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import {
@@ -288,16 +288,16 @@ export function BookingsPage({
   /* ---- Render ---- */
 
   return (
-    <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto w-full space-y-6">
+    <div className="p-4 md:p-6 lg:p-8 space-y-4">
       {/* Header */}
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-semibold text-foreground tracking-tight">Bookings</h1>
+          <h1 className="text-2xl sm:text-3xl font-semibold text-foreground tracking-tight">Bookings</h1>
           <p className="text-sm text-muted mt-0.5">Manage appointments and scheduling</p>
         </div>
         <button
           onClick={openAdd}
-          className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-accent text-white text-sm font-medium hover:bg-accent/90 transition-colors shrink-0"
+          className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-accent text-white text-sm font-medium hover:bg-accent/90 transition-colors shrink-0"
         >
           <Plus className="w-4 h-4" />
           New Booking
@@ -305,39 +305,28 @@ export function BookingsPage({
       </div>
 
       {/* Stat cards */}
-      <div className="grid grid-cols-4 gap-3">
-        <Card className="py-4 gap-0">
-          <CardContent className="px-4">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">Today</p>
-            <p className="text-2xl font-semibold text-foreground mt-1">{todayCount}</p>
-            <p className="text-xs text-muted mt-0.5">appointments</p>
-          </CardContent>
-        </Card>
-        <Card className="py-4 gap-0">
-          <CardContent className="px-4">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">Upcoming</p>
-            <p className="text-2xl font-semibold text-foreground mt-1">{pendingCount}</p>
-            <p className="text-xs text-muted mt-0.5">confirmed + pending</p>
-          </CardContent>
-        </Card>
-        <Card className="py-4 gap-0">
-          <CardContent className="px-4">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
-              Collected
-            </p>
-            <p className="text-2xl font-semibold text-foreground mt-1">
-              ${revenue.toLocaleString()}
-            </p>
-            <p className="text-xs text-muted mt-0.5">completed this week</p>
-          </CardContent>
-        </Card>
-        <Card className="py-4 gap-0">
-          <CardContent className="px-4">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">Waitlist</p>
-            <p className="text-2xl font-semibold text-foreground mt-1">{waitingCount}</p>
-            <p className="text-xs text-muted mt-0.5">clients waiting</p>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        {[
+          { label: "Today", value: String(todayCount), sub: "appointments", icon: CalendarDays, iconColor: "text-blush", iconBg: "bg-blush/10" },
+          { label: "Upcoming", value: String(pendingCount), sub: "confirmed + pending", icon: CalendarCheck, iconColor: "text-accent", iconBg: "bg-accent/10" },
+          { label: "Collected", value: `$${revenue.toLocaleString()}`, sub: "completed this week", icon: DollarSign, iconColor: "text-[#4e6b51]", iconBg: "bg-[#4e6b51]/10" },
+          { label: "Waitlist", value: String(waitingCount), sub: "clients waiting", icon: ListOrdered, iconColor: "text-[#7a5c10]", iconBg: "bg-[#7a5c10]/10" },
+        ].map(({ label, value, sub, icon: Icon, iconColor, iconBg }) => (
+          <Card key={label} className="gap-0 py-0">
+            <CardContent className="px-4 py-3">
+              <div className="flex items-start justify-between gap-2">
+                <div className="space-y-0.5 min-w-0">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-muted truncate">{label}</p>
+                  <p className="text-lg font-semibold text-foreground tracking-tight">{value}</p>
+                  <p className="text-xs text-muted truncate">{sub}</p>
+                </div>
+                <div className={cn("rounded-xl p-2 shrink-0", iconBg)}>
+                  <Icon className={cn("w-4 h-4", iconColor)} />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
       {/* Tab bar */}
@@ -399,7 +388,25 @@ export function BookingsPage({
 
           <CardContent className="px-4 pb-4 pt-3">
             {filtered.length === 0 ? (
-              <p className="text-sm text-muted text-center py-8">No bookings found.</p>
+              <div className="py-10 text-center">
+                <CalendarX className="w-7 h-7 text-foreground/15 mx-auto mb-2" />
+                <p className="text-sm text-muted/60 font-medium">
+                  {search || statusFilter !== "All" ? "No bookings match your filters" : "No bookings yet"}
+                </p>
+                <p className="text-xs text-muted/40 mt-0.5">
+                  {search || statusFilter !== "All"
+                    ? "Try adjusting your search or filter."
+                    : "Create your first booking to get started."}
+                </p>
+                {!search && statusFilter === "All" && (
+                  <button
+                    onClick={openAdd}
+                    className="text-xs text-accent hover:underline mt-2 inline-block"
+                  >
+                    New Booking
+                  </button>
+                )}
+              </div>
             ) : (
               <>
                 <div className="space-y-0">

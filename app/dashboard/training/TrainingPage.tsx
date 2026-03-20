@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useCallback } from "react";
 import { Plus, Lock } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -43,6 +43,9 @@ export function TrainingPage({
 }) {
   const [tab, setTab] = useState<"students" | "programs">("students");
   const [filter, setFilter] = useState<"all" | StudentStatus>("all");
+  const handleFilterChange = useCallback((f: "all" | StudentStatus) => {
+    setFilter(f);
+  }, []);
   const [isPending, startTransition] = useTransition();
   const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -212,7 +215,7 @@ export function TrainingPage({
         <StudentsTab
           students={initialStudents}
           filter={filter}
-          setFilter={setFilter}
+          onFilterChange={handleFilterChange}
           waitlistCount={stats.waitlistStudents}
           pendingIds={pendingIds}
           onDelete={handleDeleteStudent}

@@ -7,7 +7,7 @@
  * Self-contained with its own QueryClientProvider so no root provider is needed.
  */
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { Turnstile } from "@marsidev/react-turnstile";
 import { useForm } from "@tanstack/react-form";
 import { QueryClient, QueryClientProvider, useMutation } from "@tanstack/react-query";
@@ -25,6 +25,9 @@ export function ContactForm() {
 
 function Form() {
   const [turnstileToken, setTurnstileToken] = useState("");
+  const handleTurnstileSuccess = useCallback((token: string) => {
+    setTurnstileToken(token);
+  }, []);
 
   const {
     mutate: send,
@@ -122,7 +125,7 @@ function Form() {
 
       <Turnstile
         siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY!}
-        onSuccess={setTurnstileToken}
+        onSuccess={handleTurnstileSuccess}
         onExpire={() => setTurnstileToken("")}
         options={{ theme: "light", size: "flexible" }}
       />

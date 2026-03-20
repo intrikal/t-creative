@@ -125,12 +125,6 @@ export function BookingDialog({
 }) {
   const [form, setForm] = useState<BookingFormState>(initial ? bookingToForm(initial) : EMPTY_FORM);
 
-  const [lastInitial, setLastInitial] = useState(initial);
-  if (initial !== lastInitial) {
-    setLastInitial(initial);
-    setForm(initial ? bookingToForm(initial) : EMPTY_FORM);
-  }
-
   function set<K extends keyof BookingFormState>(key: K, val: BookingFormState[K]) {
     setForm((prev) => ({ ...prev, [key]: val }));
   }

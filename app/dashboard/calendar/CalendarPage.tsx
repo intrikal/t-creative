@@ -7,7 +7,7 @@
 
 "use client";
 
-import { useState, useMemo, useOptimistic, useTransition } from "react";
+import { useState, useMemo, useOptimistic, useTransition, useCallback } from "react";
 import {
   ChevronLeft,
   ChevronRight,
@@ -871,6 +871,9 @@ export function CalendarPage({
   const [calPageTab, setCalPageTab] = useState<CalPageTab>("calendar");
 
   const [selectedEvent, setSelectedEvent] = useState<CalEvent | null>(null);
+  const handleEventClick = useCallback((event: CalEvent) => {
+    setSelectedEvent(event);
+  }, []);
   const [formOpen, setFormOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<CalEvent | null>(null);
   const [formInitial, setFormInitial] = useState<FormState>(BLANK_FORM);
@@ -1083,7 +1086,7 @@ export function CalendarPage({
             cursor={cursor}
             events={events}
             onDayClick={handleDayClick}
-            onEventClick={setSelectedEvent}
+            onEventClick={handleEventClick}
             businessHours={businessHours}
             timeOff={timeOff}
             lunchBreak={lunchBreak}
@@ -1093,7 +1096,7 @@ export function CalendarPage({
           <WeekView
             cursor={cursor}
             events={events}
-            onEventClick={setSelectedEvent}
+            onEventClick={handleEventClick}
             onSlotClick={handleSlotClick}
             businessHours={businessHours}
             timeOff={timeOff}
@@ -1104,7 +1107,7 @@ export function CalendarPage({
           <DayView
             cursor={cursor}
             events={events}
-            onEventClick={setSelectedEvent}
+            onEventClick={handleEventClick}
             onSlotClick={handleSlotClick}
             businessHours={businessHours}
             timeOff={timeOff}
@@ -1116,7 +1119,7 @@ export function CalendarPage({
             cursor={cursor}
             events={events}
             staffMembers={staffMembers}
-            onEventClick={setSelectedEvent}
+            onEventClick={handleEventClick}
             onSlotClick={handleSlotClick}
             businessHours={businessHours}
             timeOff={timeOff}
@@ -1124,7 +1127,7 @@ export function CalendarPage({
           />
         )}
         {view === "agenda" && (
-          <AgendaView cursor={cursor} events={events} onEventClick={setSelectedEvent} />
+          <AgendaView cursor={cursor} events={events} onEventClick={handleEventClick} />
         )}
       </div>
 

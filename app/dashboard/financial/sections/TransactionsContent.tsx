@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import type { PaymentRow } from "../actions";
 import { PaymentLinkDialog } from "../components/PaymentLinkDialog";
 import { RecordPaymentDialog } from "../components/RecordPaymentDialog";
@@ -18,6 +18,9 @@ export function TransactionsContent({
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const [paymentLinkBooking, setPaymentLinkBooking] = useState<BookingForPayment | null>(null);
   const [refundPayment, setRefundPayment] = useState<PaymentRow | null>(null);
+  const handleRefund = useCallback((payment: PaymentRow) => {
+    setRefundPayment(payment);
+  }, []);
 
   return (
     <>
@@ -37,7 +40,7 @@ export function TransactionsContent({
           Record Payment
         </button>
       </div>
-      <TransactionsTab payments={payments} onRefund={setRefundPayment} />
+      <TransactionsTab payments={payments} onRefund={handleRefund} />
       <RecordPaymentDialog
         open={paymentDialogOpen}
         onClose={() => setPaymentDialogOpen(false)}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useOptimistic, useTransition } from "react";
+import { useState, useOptimistic, useTransition, useCallback } from "react";
 import dynamic from "next/dynamic";
 import { Search, Plus, CalendarDays, CalendarCheck, DollarSign, ListOrdered, CalendarX } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -112,6 +112,9 @@ export function BookingsPage({
   const [menuOpen, setMenuOpen] = useState<number | null>(null);
   const [cancelTarget, setCancelTarget] = useState<Booking | null>(null);
   const [cancelReason, setCancelReason] = useState("");
+  const handleCancelReasonChange = useCallback((reason: string) => {
+    setCancelReason(reason);
+  }, []);
   const [deleteTarget, setDeleteTarget] = useState<Booking | null>(null);
   const [paymentTarget, setPaymentTarget] = useState<Booking | null>(null);
   const [serviceNotesTarget, setServiceNotesTarget] = useState<Booking | null>(null);
@@ -461,6 +464,7 @@ export function BookingsPage({
       )}
 
       <BookingDialog
+        key={editTarget?.id ?? "new"}
         open={dialogOpen}
         onClose={() => setDialogOpen(false)}
         onSave={handleSave}
@@ -474,7 +478,7 @@ export function BookingsPage({
       <CancelDialog
         target={cancelTarget}
         reason={cancelReason}
-        onReasonChange={setCancelReason}
+        onReasonChange={handleCancelReasonChange}
         onConfirm={handleConfirmCancel}
         onClose={() => setCancelTarget(null)}
       />

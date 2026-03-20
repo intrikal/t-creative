@@ -24,7 +24,7 @@
  * local `services` array — no re-fetch required.
  */
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { Check, ChevronsUpDown } from "lucide-react";
 import {
   Command,
@@ -68,6 +68,9 @@ export function ServiceFormDialog({
 }) {
   const [form, setForm] = useState<ServiceFormData>(initial ?? BLANK_SERVICE_FORM);
   const [catOpen, setCatOpen] = useState(false);
+  const handleCatOpenChange = useCallback((open: boolean) => {
+    setCatOpen(open);
+  }, []);
 
   // Early return keeps the component out of the DOM when closed (saves memory, resets state).
   if (!open) return null;
@@ -98,7 +101,7 @@ export function ServiceFormDialog({
             />
           </Field>
           <Field label="Category" required>
-            <Popover open={catOpen} onOpenChange={setCatOpen}>
+            <Popover open={catOpen} onOpenChange={handleCatOpenChange}>
               <PopoverTrigger asChild>
                 <button
                   type="button"

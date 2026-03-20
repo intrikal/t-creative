@@ -9,7 +9,7 @@ import { ProductCard } from "./ProductCard";
 export function ProductsTab({
   products,
   filter,
-  setFilter,
+  onFilterChange,
   pendingIds,
   onNew,
   onEdit,
@@ -18,7 +18,7 @@ export function ProductsTab({
 }: {
   products: ProductRow[];
   filter: "all" | ProductCategory;
-  setFilter: (f: "all" | ProductCategory) => void;
+  onFilterChange: (f: "all" | ProductCategory) => void;
   pendingIds: Set<string>;
   onNew: () => void;
   onEdit: (p: ProductRow) => void;
@@ -35,7 +35,7 @@ export function ProductsTab({
           (f) => (
             <button
               key={f}
-              onClick={() => setFilter(f)}
+              onClick={() => onFilterChange(f)}
               className={cn(
                 "px-3 py-1.5 rounded-lg text-xs font-medium transition-colors",
                 filter === f

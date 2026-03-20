@@ -5,7 +5,7 @@
  */
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { Turnstile } from "@marsidev/react-turnstile";
 import { useForm } from "@tanstack/react-form";
 import { motion } from "framer-motion";
@@ -69,6 +69,9 @@ export function ContactPage({
     : defaultSocials;
   const [submitted, setSubmitted] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState("");
+  const handleTurnstileSuccess = useCallback((token: string) => {
+    setTurnstileToken(token);
+  }, []);
 
   const form = useForm({
     defaultValues: {
@@ -317,7 +320,7 @@ export function ContactPage({
 
                   <Turnstile
                     siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY!}
-                    onSuccess={setTurnstileToken}
+                    onSuccess={handleTurnstileSuccess}
                     onExpire={() => setTurnstileToken("")}
                     options={{ theme: "light" }}
                   />

@@ -2,7 +2,10 @@ import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 import { PostHogIdentify } from "@/components/providers/PostHogIdentify";
 import { getCurrentUser } from "@/lib/auth";
+import { DashboardShell } from "./DashboardShell";
 import { DashboardSidebar } from "./DashboardSidebar";
+import { DashboardMain } from "./DashboardMain";
+import { getAdminSetupData } from "./admin-setup-data";
 
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
   const user = await getCurrentUser();
@@ -22,20 +25,22 @@ export default async function DashboardLayout({ children }: { children: ReactNod
       ? user.profile.displayName
       : user.email.split("@")[0];
 
+  const setupProgress = role === "admin" ? (await getAdminSetupData(user.id)).setupProgress : undefined;
+
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
+    <DashboardShell>
       <PostHogIdentify userId={user.id} email={user.email} role={role} name={userName} />
       <DashboardSidebar
         role={role}
+        setupProgress={setupProgress}
+      />
+      <DashboardMain
+        role={role}
         userName={userName}
         userAvatarUrl={user.profile?.avatarUrl ?? null}
-      />
-      <main
-        id="main-content"
-        className="flex-1 flex flex-col min-w-0 overflow-y-auto lg:pl-56 pb-16 lg:pb-0"
       >
         {children}
-      </main>
-    </div>
+      </DashboardMain>
+    </DashboardShell>
   );
 }

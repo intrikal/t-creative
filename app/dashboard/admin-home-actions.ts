@@ -10,6 +10,7 @@ import {
   gt,
   gte,
   inArray,
+  isNotNull,
   isNull,
   lt,
   lte,
@@ -39,7 +40,7 @@ import type {
   AdminClient,
   AdminInquiry,
   AdminStaff,
-} from "./DashboardPage";
+} from "./admin-dashboard-types";
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                             */
@@ -116,6 +117,8 @@ export async function getAdminHomeData() {
     recentClientsRaw,
     teamShiftsRaw,
     clientCategoriesRaw,
+    adminProfileRow,
+    servicesWithDeposit,
   ] = await Promise.all([
     db
       .select({ total: sql<number>`coalesce(sum(${payments.amountInCents}), 0)` })
@@ -325,6 +328,19 @@ export async function getAdminHomeData() {
         and(eq(bookings.status, "completed"), gte(bookings.startsAt, monthStart)),
       )
       .orderBy(desc(bookings.startsAt)),
+    // Setup: full profile row for onboardingData
+    db
+      .select()
+      .from(profiles)
+      .where(eq(profiles.id, user.id))
+      .limit(1)
+      .then((r) => r[0]),
+    // Setup: deposit existence check
+    db
+      .select({ id: services.id })
+      .from(services)
+      .where(isNotNull(services.depositInCents))
+      .limit(1),
   ]);
 
   // ── Transform data ──────────────────────────────────────────────
@@ -482,6 +498,20 @@ export async function getAdminHomeData() {
     return acc;
   }, []);
 
+  // Setup data from onboarding
+  const onboardingData = (adminProfileRow?.onboardingData ?? {}) as Record<string, unknown>;
+  const studioName = (onboardingData.studioName as string | null) ?? null;
+  const locationObj = (onboardingData.location as { area?: string } | null) ?? null;
+  const socialsObj = (onboardingData.socials as Record<string, string> | null) ?? null;
+  const policiesObj = (onboardingData.policies as {
+    cancellationFeeInCents?: number | null;
+    noShowFeeInCents?: number | null;
+  } | null) ?? null;
+
+  function toSlug(name: string) {
+    return name.trim().toLowerCase().replace(/\s+/g, "") || "tcreativestudio";
+  }
+
   return {
     firstName: user.profile?.firstName ?? "Trini",
     lowStockCount,
@@ -509,5 +539,13 @@ export async function getAdminHomeData() {
     weeklyRevenueVsPriorPct: weeklyVsPct,
     recentClients,
     teamToday,
+    setup: {
+      studioName,
+      locationArea: locationObj?.area ?? null,
+      socialCount: socialsObj ? Object.keys(socialsObj).length : 0,
+      hasPolicies: !!(policiesObj?.cancellationFeeInCents || policiesObj?.noShowFeeInCents),
+      hasDeposits: servicesWithDeposit.length > 0,
+    },
+    bookingSlug: toSlug(studioName ?? ""),
   };
 }

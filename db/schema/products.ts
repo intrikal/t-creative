@@ -137,6 +137,7 @@ export const products = pgTable(
     index("products_availability_idx").on(t.availability),
     index("products_featured_idx").on(t.isFeatured),
     index("products_published_idx").on(t.isPublished),
+    index("products_published_sort_idx").on(t.isPublished, t.sortOrder),
     index("products_square_id_idx").on(t.squareCatalogId),
   ],
 );

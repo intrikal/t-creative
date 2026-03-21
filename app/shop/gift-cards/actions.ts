@@ -9,37 +9,31 @@
  */
 "use server";
 
+import { z } from "zod";
 import { desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { giftCards, giftCardTransactions, profiles, syncLog } from "@/db/schema";
 import { GiftCardDelivery } from "@/emails/GiftCardDelivery";
 import { GiftCardPurchase } from "@/emails/GiftCardPurchase";
+import { getUser } from "@/lib/auth";
 import { sendEmail } from "@/lib/resend";
 import { getPublicBusinessProfile, getPublicInventoryConfig } from "@/app/dashboard/settings/settings-actions";
 import { isSquareConfigured, squareClient, SQUARE_LOCATION_ID } from "@/lib/square";
-import { createClient } from "@/utils/supabase/server";
 
 /* ------------------------------------------------------------------ */
-/*  Auth helper                                                        */
+/*  Validation                                                         */
 /* ------------------------------------------------------------------ */
 
-async function getUser() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
-  return user;
-}
+const purchaseGiftCardSchema = z.object({
+  amountInCents: z.number().int().min(2500).max(50000),
+  recipientName: z.string().min(1).optional(),
+});
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
 /* ------------------------------------------------------------------ */
 
-export type PurchaseGiftCardInput = {
-  amountInCents: number;
-  recipientName?: string;
-};
+export type PurchaseGiftCardInput = z.infer<typeof purchaseGiftCardSchema>;
 
 export type PurchaseGiftCardResult = {
   success: boolean;
@@ -67,10 +61,11 @@ export async function purchaseGiftCard(
   input: PurchaseGiftCardInput,
 ): Promise<PurchaseGiftCardResult> {
   const user = await getUser();
-
-  if (input.amountInCents < 2500 || input.amountInCents > 50000) {
+  const validated = purchaseGiftCardSchema.safeParse(input);
+  if (!validated.success) {
     return { success: false, error: "Amount must be between $25 and $500" };
   }
+  const { amountInCents, recipientName } = validated.data;
 
   // Read the configured gift card code prefix
   const inventoryConfig = await getPublicInventoryConfig();
@@ -103,9 +98,9 @@ export async function purchaseGiftCard(
         .values({
           code,
           purchasedByClientId: user.id,
-          recipientName: input.recipientName ?? null,
-          originalAmountInCents: input.amountInCents,
-          balanceInCents: input.amountInCents,
+          recipientName: recipientName ?? null,
+          originalAmountInCents: amountInCents,
+          balanceInCents: amountInCents,
         })
         .returning({ id: giftCards.id });
       newCard = inserted;
@@ -124,8 +119,8 @@ export async function purchaseGiftCard(
   await db.insert(giftCardTransactions).values({
     giftCardId: newCard.id,
     type: "purchase",
-    amountInCents: input.amountInCents,
-    balanceAfterInCents: input.amountInCents,
+    amountInCents: amountInCents,
+    balanceAfterInCents: amountInCents,
     performedBy: user.id,
   });
 
@@ -133,7 +128,7 @@ export async function purchaseGiftCard(
   let paymentUrl: string | undefined;
   if (isSquareConfigured()) {
     try {
-      const itemName = input.recipientName ? `Gift Card for ${input.recipientName}` : "Gift Card";
+      const itemName = recipientName ? `Gift Card for ${recipientName}` : "Gift Card";
 
       const response = await squareClient.checkout.paymentLinks.create({
         idempotencyKey: crypto.randomUUID(),
@@ -145,7 +140,7 @@ export async function purchaseGiftCard(
               name: itemName,
               quantity: "1",
               basePriceMoney: {
-                amount: BigInt(input.amountInCents),
+                amount: BigInt(amountInCents),
                 currency: "USD",
               },
             },
@@ -171,7 +166,7 @@ export async function purchaseGiftCard(
           localId: String(newCard.id),
           remoteId: link.orderId ?? null,
           message: `Created gift card payment link for ${code}`,
-          payload: { url: paymentUrl, giftCardCode: code, amountInCents: input.amountInCents },
+          payload: { url: paymentUrl, giftCardCode: code, amountInCents: amountInCents },
         });
       }
     } catch {
@@ -194,23 +189,23 @@ export async function purchaseGiftCard(
         react: GiftCardPurchase({
           clientName: buyer.firstName,
           giftCardCode: code,
-          amountInCents: input.amountInCents,
-          recipientName: input.recipientName ?? undefined,
+          amountInCents: amountInCents,
+          recipientName: recipientName ?? undefined,
           businessName: bp.businessName,
         }),
         entityType: "gift_card_purchase",
         localId: String(newCard.id),
       });
 
-      if (input.recipientName) {
+      if (recipientName) {
         await sendEmail({
           to: buyer.email,
-          subject: `Gift card for ${input.recipientName} — ${bp.businessName}`,
+          subject: `Gift card for ${recipientName} — ${bp.businessName}`,
           react: GiftCardDelivery({
-            recipientName: input.recipientName,
+            recipientName: recipientName,
             senderName: buyer.firstName,
             giftCardCode: code,
-            amountInCents: input.amountInCents,
+            amountInCents: amountInCents,
             businessName: bp.businessName,
           }),
           entityType: "gift_card_delivery",

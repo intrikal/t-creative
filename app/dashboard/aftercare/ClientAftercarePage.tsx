@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTimeoutFlag } from "@/lib/hooks/use-timeout-flag";
 import Link from "next/link";
 import {
   CheckCircle2,
@@ -29,12 +30,11 @@ const CATEGORY_ICONS: Record<string, IconComponent> = {
 };
 
 function CopyButton({ text }: { text: string }) {
-  const [copied, setCopied] = useState(false);
+  const [copied, triggerCopied] = useTimeoutFlag(2000);
 
   function handleCopy() {
     navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    triggerCopied();
   }
 
   return (

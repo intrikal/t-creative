@@ -9,7 +9,7 @@
  */
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import * as Sentry from "@sentry/nextjs";
 import { eq, sql, asc, and, desc } from "drizzle-orm";
 import { z } from "zod";
@@ -468,7 +468,7 @@ export async function createProgram(form: ProgramFormData) {
 
     revalidatePath(PATH);
     revalidatePath("/dashboard/team");
-    revalidatePath("/training");
+    updateTag("training");
   } catch (err) {
     Sentry.captureException(err);
     throw err;
@@ -502,7 +502,7 @@ export async function updateProgram(id: number, form: ProgramFormData) {
 
     revalidatePath(PATH);
     revalidatePath("/dashboard/team");
-    revalidatePath("/training");
+    updateTag("training");
   } catch (err) {
     Sentry.captureException(err);
     throw err;
@@ -535,7 +535,7 @@ export async function deleteProgram(id: number): Promise<{ error?: string }> {
 
     revalidatePath(PATH);
     revalidatePath("/dashboard/team");
-    revalidatePath("/training");
+    updateTag("training");
     return {};
   } catch (err) {
     Sentry.captureException(err);
@@ -568,7 +568,7 @@ export async function toggleWaitlist(programId: number) {
 
     revalidatePath(PATH);
     revalidatePath("/dashboard/team");
-    revalidatePath("/training");
+    updateTag("training");
   } catch (err) {
     Sentry.captureException(err);
     throw err;
@@ -644,7 +644,7 @@ export async function createEnrollment(form: EnrollmentFormData) {
 
     revalidatePath(PATH);
     revalidatePath("/dashboard/team");
-    revalidatePath("/training");
+    updateTag("training");
   } catch (err) {
     Sentry.captureException(err);
     throw err;
@@ -658,7 +658,7 @@ export async function deleteEnrollment(id: number) {
     await db.delete(enrollments).where(eq(enrollments.id, id));
     revalidatePath(PATH);
     revalidatePath("/dashboard/team");
-    revalidatePath("/training");
+    updateTag("training");
   } catch (err) {
     Sentry.captureException(err);
     throw err;
@@ -928,7 +928,7 @@ export async function toggleLessonCompletion(lessonId: number) {
 
     revalidatePath(PATH);
     revalidatePath("/dashboard/team");
-    revalidatePath("/training");
+    updateTag("training");
   } catch (err) {
     Sentry.captureException(err);
     throw err;

@@ -5,12 +5,8 @@
  * Trini can update the content from the admin dashboard without a
  * code deploy. Falls back to empty state if no published document exists.
  */
-import { eq, and } from "drizzle-orm";
 import type { Metadata } from "next";
-
-export const revalidate = 86400;
-import { db } from "@/db";
-import { legalDocuments } from "@/db/schema";
+import { getLegalDocument } from "@/lib/legal-queries";
 import { TermsPage } from "./TermsPage";
 
 const BASE_URL = "https://tcreativestudio.com";
@@ -52,13 +48,7 @@ export const metadata: Metadata = {
 };
 
 export default async function Page() {
-  const rows = await db
-    .select()
-    .from(legalDocuments)
-    .where(and(eq(legalDocuments.type, "terms_of_service"), eq(legalDocuments.isPublished, true)))
-    .limit(1);
-
-  const doc = rows[0] ?? null;
+  const doc = await getLegalDocument("terms_of_service");
 
   return (
     <>

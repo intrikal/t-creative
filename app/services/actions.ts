@@ -1,9 +1,8 @@
 /**
- * Public server actions for the /services page.
+ * Public queries for the /services page.
  * No authentication required — reads only active, published services.
  */
-"use server";
-
+import { cacheTag, cacheLife } from "next/cache";
 import { eq, asc } from "drizzle-orm";
 import { db } from "@/db";
 import { services } from "@/db/schema";
@@ -20,6 +19,10 @@ export type PublicService = {
 };
 
 export async function getPublishedServices(): Promise<PublicService[]> {
+  "use cache";
+  cacheTag("services");
+  cacheLife("hours");
+
   return db
     .select({
       id: services.id,

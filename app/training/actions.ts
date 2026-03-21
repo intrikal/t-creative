@@ -1,9 +1,8 @@
 /**
- * Public server actions for the /training page.
+ * Public cached queries for the /training page.
  * No authentication required — reads only active programs with upcoming sessions.
  */
-"use server";
-
+import { cacheTag, cacheLife } from "next/cache";
 import { eq, asc, and, gte, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { trainingPrograms, trainingSessions, trainingModules } from "@/db/schema";
@@ -32,6 +31,10 @@ export type PublicProgram = {
 };
 
 export async function getPublishedPrograms(): Promise<PublicProgram[]> {
+  "use cache";
+  cacheTag("training");
+  cacheLife("hours");
+
   const now = new Date();
 
   // Fetch active programs

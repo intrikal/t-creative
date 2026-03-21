@@ -32,7 +32,7 @@
  */
 
 import type { MetadataRoute } from "next";
-import { getPublishedProducts } from "@/app/shop/actions";
+import { getPublishedProducts } from "@/app/shop/queries";
 import { getPublishedPrograms } from "@/app/training/actions";
 
 const BASE_URL = "https://tcreativestudio.com";

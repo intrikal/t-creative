@@ -24,7 +24,7 @@
  */
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import * as Sentry from "@sentry/nextjs";
 import { eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -360,7 +360,8 @@ export async function seedServiceCatalog(): Promise<ServiceRow[]> {
     const rows = toInsert.length > 0 ? await db.insert(services).values(toInsert).returning() : [];
 
     revalidatePath("/dashboard/services");
-    revalidatePath("/services");
+    updateTag("services");
+    updateTag("booking-page");
     return rows;
   } catch (err) {
     Sentry.captureException(err);
@@ -430,7 +431,8 @@ export async function createService(input: ServiceInput): Promise<ServiceRow> {
     });
 
     revalidatePath("/dashboard/services");
-    revalidatePath("/services");
+    updateTag("services");
+    updateTag("booking-page");
     return row;
   } catch (err) {
     Sentry.captureException(err);
@@ -468,7 +470,8 @@ export async function updateService(id: number, input: ServiceInput): Promise<Se
     });
 
     revalidatePath("/dashboard/services");
-    revalidatePath("/services");
+    updateTag("services");
+    updateTag("booking-page");
     return row;
   } catch (err) {
     Sentry.captureException(err);
@@ -492,7 +495,8 @@ export async function deleteService(id: number): Promise<void> {
     });
 
     revalidatePath("/dashboard/services");
-    revalidatePath("/services");
+    updateTag("services");
+    updateTag("booking-page");
   } catch (err) {
     Sentry.captureException(err);
     throw err;
@@ -506,7 +510,8 @@ export async function toggleServiceActive(id: number, isActive: boolean): Promis
     await getUser();
     await db.update(services).set({ isActive }).where(eq(services.id, id));
     revalidatePath("/dashboard/services");
-    revalidatePath("/services");
+    updateTag("services");
+    updateTag("booking-page");
   } catch (err) {
     Sentry.captureException(err);
     throw err;

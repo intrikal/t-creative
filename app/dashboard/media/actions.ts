@@ -10,7 +10,7 @@
  */
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import * as Sentry from "@sentry/nextjs";
 import { eq, desc, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -182,6 +182,7 @@ export async function uploadMedia(formData: FormData) {
 
     revalidatePath("/dashboard/services");
     revalidatePath("/dashboard/media");
+    updateTag("portfolio");
   } catch (err) {
     Sentry.captureException(err);
     throw err;
@@ -208,6 +209,7 @@ export async function togglePublish(id: number, publish: boolean) {
       .where(eq(mediaItems.id, id));
     revalidatePath("/dashboard/services");
     revalidatePath("/dashboard/media");
+    updateTag("portfolio");
   } catch (err) {
     Sentry.captureException(err);
     throw err;
@@ -230,6 +232,7 @@ export async function toggleFeatured(id: number, feature: boolean) {
       .where(eq(mediaItems.id, id));
     revalidatePath("/dashboard/services");
     revalidatePath("/dashboard/media");
+    updateTag("portfolio");
   } catch (err) {
     Sentry.captureException(err);
     throw err;
@@ -261,6 +264,7 @@ export async function updateMediaItem(
       .where(eq(mediaItems.id, id));
     revalidatePath("/dashboard/services");
     revalidatePath("/dashboard/media");
+    updateTag("portfolio");
   } catch (err) {
     Sentry.captureException(err);
     throw err;
@@ -288,6 +292,7 @@ export async function deleteMediaItem(id: number) {
 
     revalidatePath("/dashboard/services");
     revalidatePath("/dashboard/media");
+    updateTag("portfolio");
   } catch (err) {
     Sentry.captureException(err);
     throw err;

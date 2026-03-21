@@ -4,11 +4,10 @@
  * Fetches site content, business profile, and policies in parallel.
  * No auth required — these are public settings.
  *
- * Wrapped with React `cache()` so repeated calls within the same server
- * render (e.g. layout + page both calling getSiteData) are deduplicated
- * to a single set of DB queries.
+ * Uses "use cache" with cacheTag for cross-request caching and
+ * automatic request-level deduplication.
  */
-import { cache } from "react";
+import { cacheTag, cacheLife } from "next/cache";
 import {
   getSiteContent,
   getPublicBusinessProfile,
@@ -26,11 +25,15 @@ export type SiteData = {
   policies: PolicySettings;
 };
 
-export const getSiteData = cache(async (): Promise<SiteData> => {
+export async function getSiteData(): Promise<SiteData> {
+  "use cache";
+  cacheTag("site-content");
+  cacheLife("days");
+
   const [business, content, policies] = await Promise.all([
     getPublicBusinessProfile(),
     getSiteContent(),
     getPublicPolicies(),
   ]);
   return { business, content, policies };
-});
+}

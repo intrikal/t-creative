@@ -201,7 +201,7 @@ describe("getPublishedProducts", () => {
   it("returns empty array when no products exist", async () => {
     vi.resetModules();
     setupShopMocks();
-    const { getPublishedProducts } = await import("./actions");
+    const { getPublishedProducts } = await import("./queries");
     const result = await getPublishedProducts();
     expect(result).toEqual([]);
   });
@@ -236,7 +236,7 @@ describe("getPublishedProducts", () => {
       update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn() })) })),
       delete: vi.fn(() => ({ where: vi.fn() })),
     });
-    const { getPublishedProducts } = await import("./actions");
+    const { getPublishedProducts } = await import("./queries");
     const result = await getPublishedProducts();
     expect(result[0].tags).toEqual(["serum", "lash", "aftercare"]);
   });
@@ -271,7 +271,7 @@ describe("getPublishedProducts", () => {
       update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn() })) })),
       delete: vi.fn(() => ({ where: vi.fn() })),
     });
-    const { getPublishedProducts } = await import("./actions");
+    const { getPublishedProducts } = await import("./queries");
     const result = await getPublishedProducts();
     expect(result[0].tags).toEqual([]);
   });

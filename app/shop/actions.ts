@@ -8,7 +8,7 @@
  */
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { eq, desc, asc, sql, ilike, and, isNotNull } from "drizzle-orm";
 import { db } from "@/db";
 import {
@@ -151,43 +151,7 @@ export async function lookupGiftCard(code: string): Promise<GiftCardLookupResult
 /*  Public queries                                                     */
 /* ------------------------------------------------------------------ */
 
-/**
- * Returns all published products for the shop.
- * No authentication required — this powers the public /shop page.
- */
-export async function getPublishedProducts(): Promise<ShopProduct[]> {
-  const rows = await db
-    .select({
-      id: products.id,
-      title: products.title,
-      slug: products.slug,
-      description: products.description,
-      category: products.category,
-      pricingType: products.pricingType,
-      priceInCents: products.priceInCents,
-      priceMinInCents: products.priceMinInCents,
-      priceMaxInCents: products.priceMaxInCents,
-      availability: products.availability,
-      stockCount: products.stockCount,
-      imageUrl: products.imageUrl,
-      serviceId: products.serviceId,
-      tags: products.tags,
-      isFeatured: products.isFeatured,
-    })
-    .from(products)
-    .where(eq(products.isPublished, true))
-    .orderBy(asc(products.sortOrder), desc(products.createdAt));
-
-  return rows.map((r) => ({
-    ...r,
-    tags: r.tags
-      ? r.tags
-          .split(",")
-          .map((t) => t.trim())
-          .filter(Boolean)
-      : [],
-  }));
-}
+// getPublishedProducts is now in ./queries.ts with "use cache"
 
 /* ------------------------------------------------------------------ */
 /*  Checkout                                                           */
@@ -462,7 +426,7 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
     });
   }
 
-  revalidatePath("/shop");
+  updateTag("products");
   revalidatePath("/dashboard/marketplace");
 
   return { success: true, orderNumber, paymentUrl };

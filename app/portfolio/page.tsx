@@ -7,8 +7,6 @@ import { PortfolioPage } from "./PortfolioPage";
 
 const BASE_URL = "https://tcreativestudio.com";
 
-export const revalidate = 3600;
-
 export const metadata: Metadata = {
   title: "Portfolio | T Creative Studio",
   description:

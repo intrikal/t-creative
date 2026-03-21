@@ -5,8 +5,6 @@ import type { Metadata } from "next";
 import { getSiteData } from "@/lib/site-data";
 import { AboutPage } from "./AboutPage";
 
-export const revalidate = 86400;
-
 const BASE_URL = "https://tcreativestudio.com";
 
 const personJsonLd = {

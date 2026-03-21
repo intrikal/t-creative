@@ -1,9 +1,8 @@
 /**
  * Supabase middleware — session refresh and auth redirect logic.
  *
- * NOT ACTIVE: No root middleware.ts imports this. Kept as reference
- * for when auth is wired up. The redirect-to-/login logic will need
- * updating once auth routes exist.
+ * Refreshes the Supabase auth session on each request and redirects
+ * unauthenticated users to /login for protected routes.
  */
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";

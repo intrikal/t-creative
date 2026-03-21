@@ -1,9 +1,8 @@
 /**
- * Public server actions for the /portfolio page.
+ * Public cached queries for the /portfolio page.
  * No authentication required — reads only published media items.
  */
-"use server";
-
+import { cacheTag, cacheLife } from "next/cache";
 import { eq, asc } from "drizzle-orm";
 import { db } from "@/db";
 import { mediaItems } from "@/db/schema";
@@ -20,6 +19,10 @@ export type PublicMediaItem = {
 };
 
 export async function getPublishedMedia(): Promise<PublicMediaItem[]> {
+  "use cache";
+  cacheTag("portfolio");
+  cacheLife("hours");
+
   const rows = await db
     .select({
       id: mediaItems.id,

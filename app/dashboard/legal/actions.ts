@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import * as Sentry from "@sentry/nextjs";
 import { eq, desc } from "drizzle-orm";
 import { z } from "zod";
@@ -140,8 +140,7 @@ export async function saveLegalDoc(
     }
 
     revalidatePath("/dashboard/settings");
-    // Revalidate the public-facing pages
-    revalidatePath(type === "privacy_policy" ? "/privacy" : "/terms");
+    updateTag("legal");
   } catch (err) {
     Sentry.captureException(err);
     throw err;

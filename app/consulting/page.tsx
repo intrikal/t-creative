@@ -6,8 +6,6 @@ import { notFound } from "next/navigation";
 import { getSiteData } from "@/lib/site-data";
 import { ConsultingPage } from "./ConsultingPage";
 
-export const revalidate = 86400;
-
 const BASE_URL = "https://tcreativestudio.com";
 
 const consultingJsonLd = {

@@ -12,7 +12,7 @@
  */
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import * as Sentry from "@sentry/nextjs";
 import { eq, desc, sql, and } from "drizzle-orm";
 import { z } from "zod";
@@ -192,6 +192,7 @@ export async function approveReview(reviewId: number) {
       .set({ status: "approved", updatedAt: new Date() })
       .where(eq(reviews.id, reviewId));
     revalidatePath("/dashboard/reviews");
+    updateTag("booking-page");
   } catch (err) {
     Sentry.captureException(err);
     throw err;
@@ -207,6 +208,7 @@ export async function rejectReview(reviewId: number) {
       .set({ status: "rejected", isFeatured: false, updatedAt: new Date() })
       .where(eq(reviews.id, reviewId));
     revalidatePath("/dashboard/reviews");
+    updateTag("booking-page");
   } catch (err) {
     Sentry.captureException(err);
     throw err;
@@ -222,6 +224,7 @@ export async function featureReview(reviewId: number) {
       .set({ isFeatured: true, status: "approved", updatedAt: new Date() })
       .where(eq(reviews.id, reviewId));
     revalidatePath("/dashboard/reviews");
+    updateTag("booking-page");
   } catch (err) {
     Sentry.captureException(err);
     throw err;
@@ -237,6 +240,7 @@ export async function unfeatureReview(reviewId: number) {
       .set({ isFeatured: false, updatedAt: new Date() })
       .where(eq(reviews.id, reviewId));
     revalidatePath("/dashboard/reviews");
+    updateTag("booking-page");
   } catch (err) {
     Sentry.captureException(err);
     throw err;
@@ -257,6 +261,7 @@ export async function saveReply(reviewId: number, reply: string) {
       })
       .where(eq(reviews.id, reviewId));
     revalidatePath("/dashboard/reviews");
+    updateTag("booking-page");
   } catch (err) {
     Sentry.captureException(err);
     throw err;
@@ -444,6 +449,7 @@ export async function assistantSaveReply(reviewId: number, reply: string) {
       .where(eq(reviews.id, reviewId));
 
     revalidatePath("/dashboard/reviews");
+    updateTag("booking-page");
   } catch (err) {
     Sentry.captureException(err);
     throw err;

@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { getClientCommissions } from "@/app/dashboard/commissions/actions";
-import { getPublishedProducts, getClientOrders, getWishlistProductIds } from "@/app/shop/actions";
+import { getClientOrders, getWishlistProductIds } from "@/app/shop/actions";
+import { getPublishedProducts } from "@/app/shop/queries";
 import { getCurrentUser } from "@/lib/auth";
 import { ClientShopPage } from "./ShopPage";
 

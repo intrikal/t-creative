@@ -30,7 +30,7 @@
 "use server";
 
 import * as Sentry from "@sentry/nextjs";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
@@ -890,10 +890,7 @@ export async function saveSiteContent(data: SiteContent): Promise<void> {
     const user = await getUser();
     await upsertSetting(KEY_SITE_CONTENT, "Site Content", data);
     trackEvent(user.id, "site_content_updated");
-    revalidatePath("/");
-    revalidatePath("/about");
-    revalidatePath("/contact");
-    revalidatePath("/consulting");
+    updateTag("site-content");
     revalidatePath("/dashboard/settings");
   } catch (err) {
     Sentry.captureException(err);

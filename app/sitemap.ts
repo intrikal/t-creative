@@ -95,14 +95,5 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.7,
   }));
 
-  // TODO: blog entries — add when the blog feature is built:
-  // const posts = await getPublishedPosts();
-  // const blogEntries = posts.map((post) => ({
-  //   url: `${BASE_URL}/blog/${post.slug}`,
-  //   lastModified: new Date(post.updatedAt),
-  //   changeFrequency: "monthly" as const,
-  //   priority: 0.6,
-  // }));
-
   return [...staticEntries, ...bookingEntry, ...trainingEntries, ...shopEntries];
 }

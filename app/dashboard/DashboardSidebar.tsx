@@ -1,9 +1,6 @@
 "use client";
 
-import {
-  useEffect,
-  useRef,
-} from "react";
+import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -37,12 +34,7 @@ import {
   Rocket,
 } from "lucide-react";
 import { TCLogo } from "@/components/TCLogo";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { NotificationBell } from "./components/NotificationBell";
 import { useSidebar } from "./sidebar-context";
@@ -220,7 +212,7 @@ function MobileMenu({
         <button
           onClick={onClose}
           aria-label="Close menu"
-          className="p-1.5 -ml-1 rounded-lg text-muted hover:bg-foreground/5 hover:text-foreground transition-colors"
+          className="p-2.5 -ml-1 rounded-lg text-muted hover:bg-foreground/5 hover:text-foreground transition-colors"
           type="button"
         >
           <X className="w-5 h-5" />
@@ -229,10 +221,7 @@ function MobileMenu({
       </div>
 
       {/* Nav items — flat list, large tap targets */}
-      <nav
-        aria-label="Dashboard"
-        className="flex-1 px-4 py-2 overflow-y-auto"
-      >
+      <nav aria-label="Dashboard" className="flex-1 px-4 py-2 overflow-y-auto">
         <div className="space-y-0.5">
           {allItems.map(({ href, label, icon: Icon }) => (
             <Link
@@ -431,10 +420,12 @@ export function DashboardSidebar({
         </TooltipProvider>
 
         {/* Footer — brand */}
-        <div className={cn(
-          "shrink-0 flex items-center py-3",
-          expanded ? "px-4 gap-2" : "px-2 justify-center",
-        )}>
+        <div
+          className={cn(
+            "shrink-0 flex items-center py-3",
+            expanded ? "px-4 gap-2" : "px-2 justify-center",
+          )}
+        >
           <TCLogo size={18} className="text-accent shrink-0" />
           {expanded && (
             <span className="text-[9px] font-semibold uppercase tracking-[0.2em] text-muted/50 whitespace-nowrap">

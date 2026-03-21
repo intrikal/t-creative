@@ -97,7 +97,7 @@ export function WaitlistDialog({
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={handleClose} />
 
-      <div className="relative w-full max-w-sm mx-4 bg-white rounded-2xl shadow-2xl overflow-hidden">
+      <div className="relative w-full max-w-sm mx-2 sm:mx-4 bg-white rounded-2xl shadow-2xl overflow-hidden">
         {/* Header */}
         <div className="px-6 pt-6 pb-4 border-b border-stone-100">
           <div className="flex items-start justify-between gap-3">
@@ -113,7 +113,7 @@ export function WaitlistDialog({
             <button
               onClick={handleClose}
               aria-label="Close"
-              className="p-1.5 rounded-lg hover:bg-stone-100 text-stone-400 transition-colors"
+              className="p-2.5 rounded-lg hover:bg-stone-100 text-stone-400 transition-colors"
             >
               <X className="w-4 h-4" />
             </button>
@@ -192,7 +192,13 @@ export function WaitlistDialog({
               )}
 
               {error && (
-                <p role="alert" aria-live="polite" className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>
+                <p
+                  role="alert"
+                  aria-live="polite"
+                  className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2"
+                >
+                  {error}
+                </p>
               )}
 
               <button

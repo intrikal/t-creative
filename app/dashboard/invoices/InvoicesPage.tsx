@@ -211,7 +211,7 @@ export function ClientInvoicesPage({ data }: { data: ClientInvoicesData }) {
           <button
             onClick={() => setFilterType("all")}
             className={cn(
-              "px-3 py-1.5 rounded-lg text-xs font-medium transition-colors",
+              "px-3 py-2.5 rounded-lg text-xs font-medium transition-colors",
               filterType === "all"
                 ? "bg-foreground/8 text-foreground"
                 : "text-muted hover:text-foreground",
@@ -226,7 +226,7 @@ export function ClientInvoicesPage({ data }: { data: ClientInvoicesData }) {
                 key={f}
                 onClick={() => setFilterType(f)}
                 className={cn(
-                  "px-3 py-1.5 rounded-lg text-xs font-medium transition-colors",
+                  "px-3 py-2.5 rounded-lg text-xs font-medium transition-colors",
                   filterType === f
                     ? "bg-foreground/8 text-foreground"
                     : "text-muted hover:text-foreground",
@@ -310,7 +310,7 @@ export function ClientInvoicesPage({ data }: { data: ClientInvoicesData }) {
                         href={invoice.receiptUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="p-1.5 rounded-lg text-muted hover:text-foreground hover:bg-foreground/5 transition-colors"
+                        className="p-2.5 rounded-lg text-muted hover:text-foreground hover:bg-foreground/5 transition-colors"
                         title="View receipt"
                       >
                         <ExternalLink className="w-3.5 h-3.5" />

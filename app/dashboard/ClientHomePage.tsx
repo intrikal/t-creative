@@ -320,7 +320,7 @@ export function ClientHomePage({
           <Link
             key={label}
             href={href}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-surface border border-border text-sm font-medium text-foreground hover:bg-foreground/5 hover:border-foreground/20 transition-colors"
+            className="flex items-center gap-1.5 px-3.5 py-3 rounded-lg bg-surface border border-border text-sm font-medium text-foreground hover:bg-foreground/5 hover:border-foreground/20 transition-colors"
           >
             <Icon className="w-3.5 h-3.5 text-muted" />
             {label}
@@ -444,10 +444,10 @@ export function ClientHomePage({
                             </span>
                           </div>
                           <div className="flex gap-2 mt-3">
-                            <button className="text-[11px] font-medium text-muted border border-border rounded-lg px-3 py-1.5 hover:border-foreground/20 hover:text-foreground transition-colors">
+                            <button className="text-[11px] font-medium text-muted border border-border rounded-lg px-3 py-2.5 hover:border-foreground/20 hover:text-foreground transition-colors">
                               Reschedule
                             </button>
-                            <button className="text-[11px] font-medium text-muted border border-border rounded-lg px-3 py-1.5 hover:border-destructive/30 hover:text-destructive transition-colors">
+                            <button className="text-[11px] font-medium text-muted border border-border rounded-lg px-3 py-2.5 hover:border-destructive/30 hover:text-destructive transition-colors">
                               Cancel
                             </button>
                           </div>

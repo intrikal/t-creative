@@ -534,7 +534,7 @@ export function BookingRequestDialog({
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={handleClose} />
 
       {/* Dialog */}
-      <div className="relative w-full max-w-md mx-4 bg-white rounded-2xl shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto">
+      <div className="relative w-full max-w-md mx-2 sm:mx-4 bg-white rounded-2xl shadow-2xl overflow-hidden max-h-[92vh] sm:max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="px-6 pt-6 pb-4 border-b border-stone-100">
           <div className="flex items-start justify-between gap-3">
@@ -553,7 +553,7 @@ export function BookingRequestDialog({
             <button
               onClick={handleClose}
               aria-label="Close"
-              className="p-1.5 rounded-lg hover:bg-stone-100 text-stone-400 transition-colors"
+              className="p-2.5 rounded-lg hover:bg-stone-100 text-stone-400 transition-colors"
             >
               <X className="w-4 h-4" />
             </button>
@@ -668,7 +668,7 @@ export function BookingRequestDialog({
                   <button
                     onClick={goBack}
                     aria-label="Go back"
-                    className="p-1.5 rounded-lg hover:bg-stone-100 text-stone-400 transition-colors"
+                    className="p-2.5 rounded-lg hover:bg-stone-100 text-stone-400 transition-colors"
                   >
                     <ChevronLeft className="w-4 h-4" />
                   </button>
@@ -679,13 +679,13 @@ export function BookingRequestDialog({
                 </div>
 
                 {timeSlots.length > 0 ? (
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                     {timeSlots.map((slot) => (
                       <button
                         key={slot}
                         onClick={() => handleTimeSelect(slot)}
                         className={cn(
-                          "py-2.5 rounded-xl border text-sm font-medium transition-colors",
+                          "py-3 rounded-xl border text-sm font-medium transition-colors",
                           selectedTime === slot
                             ? "border-[#96604a] bg-[#faf6f1] text-[#96604a]"
                             : "border-stone-200 text-stone-700 hover:border-[#e8c4b8] hover:bg-[#faf6f1]/50",
@@ -711,7 +711,7 @@ export function BookingRequestDialog({
                     type="button"
                     onClick={goBack}
                     aria-label="Go back"
-                    className="p-1.5 rounded-lg hover:bg-stone-100 text-stone-400 transition-colors"
+                    className="p-2.5 rounded-lg hover:bg-stone-100 text-stone-400 transition-colors"
                   >
                     <ChevronLeft className="w-4 h-4" />
                   </button>
@@ -1078,7 +1078,7 @@ export function BookingRequestDialog({
                   <button
                     onClick={goBack}
                     aria-label="Go back"
-                    className="p-1.5 rounded-lg hover:bg-stone-100 text-stone-400 transition-colors"
+                    className="p-2.5 rounded-lg hover:bg-stone-100 text-stone-400 transition-colors"
                   >
                     <ChevronLeft className="w-4 h-4" />
                   </button>

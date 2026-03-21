@@ -36,6 +36,7 @@ import { db } from "@/db";
 import { profiles } from "@/db/schema";
 import { logAction } from "@/lib/audit";
 import { createBackupManifest, isStorageConfigured, uploadBackupToStorage } from "@/lib/backup";
+import { SITE_SLUG } from "@/lib/site-config";
 import { createClient } from "@/utils/supabase/server";
 
 /* ------------------------------------------------------------------ */
@@ -90,7 +91,7 @@ export async function GET() {
     metadata: { summary: manifest.summary, createdAt: manifest.createdAt },
   });
 
-  const filename = `t-creative-backup-${manifest.createdAt.split("T")[0]}.json`;
+  const filename = `${SITE_SLUG}-backup-${manifest.createdAt.split("T")[0]}.json`;
   const json = JSON.stringify(manifest, null, 2);
 
   return new Response(json, {

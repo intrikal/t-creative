@@ -48,10 +48,11 @@ import type { Metadata } from "next";
 import { BookingPage } from "@/components/booking/BookingPage";
 import { db } from "@/db";
 import { profiles } from "@/db/schema";
+import { SITE_URL } from "@/lib/site-config";
 import { getBookingPageData } from "../queries";
 
-/** Canonical base URL used for metadata and JSON-LD. Must match production domain. */
-const BASE_URL = "https://tcreativestudio.com";
+/** Canonical base URL used for metadata and JSON-LD. */
+const BASE_URL = SITE_URL;
 
 interface Props {
   params: Promise<{ slug: string }>;

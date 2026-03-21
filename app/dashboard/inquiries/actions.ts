@@ -90,7 +90,8 @@ export async function getInquiries(): Promise<InquiryRow[]> {
         createdAt: inquiries.createdAt,
       })
       .from(inquiries)
-      .orderBy(desc(inquiries.createdAt));
+      .orderBy(desc(inquiries.createdAt))
+      .limit(500);
 
     return rows.map((r) => ({
       ...r,

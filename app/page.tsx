@@ -21,6 +21,7 @@
  */
 
 import { desc, eq } from "drizzle-orm";
+import type { Metadata } from "next";
 import { ChatWidgetLoader } from "@/components/chat/ChatWidgetLoader";
 import { CallToAction } from "@/components/landing/CallToAction";
 import { EditorialPortfolio } from "@/components/landing/EditorialPortfolio";
@@ -44,6 +45,29 @@ import { getFeaturedReviews } from "@/lib/public-reviews";
 import { getSiteData } from "@/lib/site-data";
 
 const BASE_URL = "https://tcreativestudio.com";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const { business, content } = await getSiteData();
+  return {
+    title: business.businessName,
+    description: content.seoDescription,
+    alternates: {
+      canonical: "/",
+    },
+    openGraph: {
+      title: business.businessName,
+      description: content.seoDescription,
+      url: BASE_URL,
+      siteName: business.businessName,
+      type: "website",
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: business.businessName,
+      description: content.seoDescription,
+    },
+  };
+}
 
 const eventServicesJsonLd = {
   "@context": "https://schema.org",

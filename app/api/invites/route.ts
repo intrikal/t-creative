@@ -5,11 +5,16 @@
  * Only users with role="admin" can call this.
  */
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { getPublicBusinessProfile } from "@/app/dashboard/settings/settings-actions";
 import { InviteEmail } from "@/emails/InviteEmail";
 import { getCurrentUser } from "@/lib/auth";
 import { createInviteToken } from "@/lib/invite";
 import { sendEmail } from "@/lib/resend";
+
+const schema = z.object({
+  email: z.string().email(),
+});
 
 export async function POST(request: Request) {
   const user = await getCurrentUser();
@@ -18,12 +23,22 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const body = await request.json();
-  const email = body?.email;
-
-  if (!email || typeof email !== "string") {
-    return NextResponse.json({ error: "Email is required" }, { status: 400 });
+  let raw: unknown;
+  try {
+    raw = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
+
+  const parsed = schema.safeParse(raw);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: "Invalid request", details: parsed.error.flatten() },
+      { status: 400 },
+    );
+  }
+
+  const { email } = parsed.data;
 
   const token = await createInviteToken(email);
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";

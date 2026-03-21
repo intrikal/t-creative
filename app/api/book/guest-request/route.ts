@@ -7,17 +7,39 @@
 import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { Resend } from "resend";
+import { z } from "zod";
 import { db } from "@/db";
 import { profiles, services } from "@/db/schema";
 import { RESEND_FROM, isResendConfigured } from "@/lib/resend";
 import { verifyTurnstileToken } from "@/lib/turnstile";
 
+const schema = z.object({
+  name: z.string().min(1),
+  email: z.string().email(),
+  phone: z.string().optional(),
+  serviceId: z.union([z.string().min(1), z.number()]),
+  preferredDate: z.string().min(1),
+  notes: z.string().optional(),
+  referencePhotoUrls: z.array(z.string().url()).optional(),
+  preferredCadence: z.string().optional(),
+  turnstileToken: z.string().optional(),
+  selectedAddOns: z.array(z.object({ name: z.string(), priceInCents: z.number() })).optional(),
+});
+
 export async function POST(request: Request) {
-  let body: unknown;
+  let raw: unknown;
   try {
-    body = await request.json();
+    raw = await request.json();
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+
+  const parsed = schema.safeParse(raw);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: "Invalid request", details: parsed.error.flatten() },
+      { status: 400 },
+    );
   }
 
   const {
@@ -31,23 +53,11 @@ export async function POST(request: Request) {
     preferredCadence,
     turnstileToken,
     selectedAddOns,
-  } = body as Record<string, string> & {
-    referencePhotoUrls?: string[];
-    selectedAddOns?: { name: string; priceInCents: number }[];
-  };
-
-  if (!name?.trim() || !email?.trim() || !serviceId || !preferredDate?.trim()) {
-    return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
-  }
+  } = parsed.data;
 
   const validToken = await verifyTurnstileToken(turnstileToken ?? "");
   if (!validToken) {
     return NextResponse.json({ error: "Bot check failed. Please try again." }, { status: 403 });
-  }
-
-  // Validate email format minimally
-  if (!email.includes("@")) {
-    return NextResponse.json({ error: "Invalid email" }, { status: 400 });
   }
 
   const [service] = await db

@@ -16,6 +16,7 @@ import { NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { and, asc, eq, gte, lt } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
+import { z } from "zod";
 import { db } from "@/db";
 import { bookings, expenses, invoices, orders, payments, profiles, services } from "@/db/schema";
 import { logAction } from "@/lib/audit";
@@ -58,6 +59,16 @@ function isoDate(d: Date | string | null | undefined): string {
 const EXPORT_TYPES = ["clients", "bookings", "payments", "expenses", "invoices", "orders"] as const;
 type ExportType = (typeof EXPORT_TYPES)[number];
 
+const querySchema = z.object({
+  type: z.enum(["clients", "bookings", "payments", "expenses", "invoices", "orders"], {
+    errorMap: () => ({
+      message: `Invalid type. Must be one of: ${EXPORT_TYPES.join(", ")}`,
+    }),
+  }),
+  from: z.string().date().optional(),
+  to: z.string().date().optional(),
+});
+
 export async function GET(request: Request) {
   /* -- Auth: admin only -- */
   const supabase = await createClient();
@@ -79,18 +90,22 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  /* -- Parse params -- */
+  /* -- Validate query params -- */
   const { searchParams } = new URL(request.url);
-  const type = (searchParams.get("type") ?? "") as ExportType;
-  const fromParam = searchParams.get("from");
-  const toParam = searchParams.get("to");
+  const parsed = querySchema.safeParse({
+    type: searchParams.get("type") ?? undefined,
+    from: searchParams.get("from") ?? undefined,
+    to: searchParams.get("to") ?? undefined,
+  });
 
-  if (!EXPORT_TYPES.includes(type)) {
+  if (!parsed.success) {
     return NextResponse.json(
-      { error: `Invalid type. Must be one of: ${EXPORT_TYPES.join(", ")}` },
+      { error: "Invalid query parameters", details: parsed.error.flatten() },
       { status: 400 },
     );
   }
+
+  const { type, from: fromParam, to: toParam } = parsed.data;
 
   const now = new Date();
   const from = fromParam
@@ -100,10 +115,6 @@ export async function GET(request: Request) {
   const toExclusive = toParam
     ? new Date(new Date(toParam).getTime() + 24 * 60 * 60 * 1000)
     : new Date(now.getTime() + 24 * 60 * 60 * 1000);
-
-  if (isNaN(from.getTime()) || isNaN(toExclusive.getTime())) {
-    return NextResponse.json({ error: "Invalid date range" }, { status: 400 });
-  }
 
   /* -- Build CSV -- */
   let csv = "";

@@ -90,7 +90,7 @@ export async function getClients(opts?: {
 
     const referrer = alias(profiles, "referrer");
 
-    // Subquery: aggregate booking stats per client
+    // Subquery: aggregate all-time booking stats per client (intentionally unscoped by date)
     const bookingStats = db
       .select({
         clientId: bookings.clientId,
@@ -189,7 +189,8 @@ export async function getClientLoyalty(): Promise<LoyaltyRow[]> {
       .where(and(eq(profiles.role, "client"), eq(profiles.isActive, true)))
       .leftJoin(loyaltyTransactions, eq(profiles.id, loyaltyTransactions.profileId))
       .groupBy(profiles.id, profiles.firstName, profiles.lastName)
-      .orderBy(sql`coalesce(sum(${loyaltyTransactions.points}), 0) desc`);
+      .orderBy(sql`coalesce(sum(${loyaltyTransactions.points}), 0) desc`)
+      .limit(500);
 
     return rows.map((r) => ({
       ...r,

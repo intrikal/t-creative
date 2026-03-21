@@ -132,6 +132,16 @@ const bookingClient = alias(profiles, "bookingClient");
 export async function getBookingsForPayment(): Promise<BookingForPayment[]> {
   await getUser();
 
+  const paidSums = db
+    .select({
+      bookingId: payments.bookingId,
+      totalPaid: sql<number>`coalesce(sum(${payments.amountInCents}), 0)`.as("total_paid"),
+    })
+    .from(payments)
+    .where(inArray(payments.status, ["paid", "partially_refunded"]))
+    .groupBy(payments.bookingId)
+    .as("paid_sums");
+
   const rows = await db
     .select({
       id: bookings.id,
@@ -143,16 +153,12 @@ export async function getBookingsForPayment(): Promise<BookingForPayment[]> {
       startsAt: bookings.startsAt,
       totalInCents: bookings.totalInCents,
       discountInCents: bookings.discountInCents,
-      paidSum: sql<number>`coalesce((
-        select sum(p.amount_in_cents)
-        from payments p
-        where p.booking_id = ${bookings.id}
-          and p.status in ('paid', 'partially_refunded')
-      ), 0)`,
+      paidSum: sql<number>`coalesce(${paidSums.totalPaid}, 0)`,
     })
     .from(bookings)
     .innerJoin(bookingClient, eq(bookings.clientId, bookingClient.id))
     .innerJoin(services, eq(bookings.serviceId, services.id))
+    .leftJoin(paidSums, eq(bookings.id, paidSums.bookingId))
     .where(inArray(bookings.status, ["confirmed", "in_progress", "completed"]))
     .orderBy(bookings.startsAt);
 

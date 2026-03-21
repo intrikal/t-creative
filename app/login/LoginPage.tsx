@@ -216,6 +216,16 @@ function LoginContent() {
           </form>
         )}
 
+        {/* Forgot password */}
+        <p className="text-xs text-muted/60 text-center">
+          <a
+            href="/auth/forgot-password"
+            className="text-muted hover:text-foreground underline underline-offset-2 transition-colors duration-200"
+          >
+            Forgot password?
+          </a>
+        </p>
+
         {/* Footer */}
         <p className="text-xs text-muted/60 text-center">
           By signing in you agree to our terms and privacy policy.

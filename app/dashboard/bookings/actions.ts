@@ -92,6 +92,7 @@ import { sendSms } from "@/lib/twilio";
 import { notifyWaitlistForCancelledBooking } from "@/lib/waitlist-notify";
 import { createZohoDeal, updateZohoDeal } from "@/lib/zoho";
 import { createZohoBooksInvoice } from "@/lib/zoho-books";
+import { createAdminClient } from "@/utils/supabase/admin";
 
 /* ------------------------------------------------------------------ */
 /*  Type exports                                                       */
@@ -1522,6 +1523,25 @@ async function trySendBookingConfirmation(bookingId: number): Promise<void> {
 
     if (row.clientEmail && row.notifyEmail) {
       const bp = await getPublicBusinessProfile();
+
+      // Generate a magic link so the client can access their portal with one click.
+      // Requires SUPABASE_SERVICE_ROLE_KEY — silently omitted if not configured.
+      let portalUrl: string | undefined;
+      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL;
+      if (siteUrl && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+        try {
+          const adminClient = createAdminClient();
+          const { data: linkData } = await adminClient.auth.admin.generateLink({
+            type: "magiclink",
+            email: row.clientEmail,
+            options: { redirectTo: `${siteUrl}/dashboard` },
+          });
+          portalUrl = linkData?.properties?.action_link ?? undefined;
+        } catch {
+          // Non-fatal — booking confirmation still sends without portal link
+        }
+      }
+
       await sendEmail({
         to: row.clientEmail,
         subject: `Booking confirmed — ${row.serviceName} — ${bp.businessName}`,
@@ -1533,6 +1553,7 @@ async function trySendBookingConfirmation(bookingId: number): Promise<void> {
           totalInCents: row.totalInCents,
           addOns: addOnRows.length > 0 ? addOnRows : undefined,
           businessName: bp.businessName,
+          portalUrl,
         }),
         entityType: "booking_confirmation",
         localId: String(bookingId),

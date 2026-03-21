@@ -6,6 +6,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { Footer } from "@/components/landing/Footer";
@@ -81,11 +82,15 @@ function CartDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
                       className="flex gap-4 py-3 border-b border-foreground/5"
                     >
                       {item.imageUrl ? (
-                        <img
-                          src={item.imageUrl}
-                          alt={item.title}
-                          className="w-16 h-16 object-cover bg-surface"
-                        />
+                        <div className="relative w-16 h-16 bg-surface">
+                          <Image
+                            src={item.imageUrl}
+                            alt={item.title}
+                            fill
+                            sizes="64px"
+                            className="object-cover"
+                          />
+                        </div>
                       ) : (
                         <div className="w-16 h-16 bg-surface flex items-center justify-center">
                           <div className="w-3 h-3 rounded-full bg-muted/30" />
@@ -218,11 +223,13 @@ export function PublicShopPage({ products }: { products: ShopProduct[] }) {
                   >
                     {/* Product image */}
                     {product.imageUrl ? (
-                      <div className="w-full aspect-[4/3] overflow-hidden bg-surface">
-                        <img
+                      <div className="relative w-full aspect-[4/3] overflow-hidden bg-surface">
+                        <Image
                           src={product.imageUrl}
                           alt={product.title}
-                          className="w-full h-full object-cover"
+                          fill
+                          sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                          className="object-cover"
                         />
                       </div>
                     ) : (

@@ -86,7 +86,8 @@ export async function getReviews(): Promise<ReviewRow[]> {
       })
       .from(reviews)
       .leftJoin(profiles, eq(reviews.clientId, profiles.id))
-      .orderBy(desc(reviews.createdAt));
+      .orderBy(desc(reviews.createdAt))
+      .limit(500);
 
     return rows.map((r) => {
       const first = r.firstName ?? "";

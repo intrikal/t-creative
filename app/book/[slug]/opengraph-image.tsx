@@ -62,7 +62,7 @@ import { db } from "@/db";
 import { profiles } from "@/db/schema";
 
 export const runtime = "nodejs";
-export const alt = "Book a session — T Creative Studio";
+export const alt = "Book a session";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 

@@ -14,9 +14,11 @@
 import { NextResponse } from "next/server";
 import { eq, gte, and, or } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
+import { getPublicBusinessProfile } from "@/app/dashboard/settings/settings-actions";
 import { db } from "@/db";
 import { bookings, profiles, services } from "@/db/schema";
 import { verifyCalendarToken } from "@/lib/calendar-token";
+import { SITE_DOMAIN, SITE_SLUG } from "@/lib/site-config";
 
 /* ------------------------------------------------------------------ */
 /*  ICS helpers                                                         */
@@ -30,11 +32,11 @@ function escapeIcs(s: string): string {
   return s.replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\n/g, "\\n");
 }
 
-function buildIcs(events: IcsEvent[], calName: string): string {
+function buildIcs(events: IcsEvent[], calName: string, prodName: string): string {
   const lines = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
-    "PRODID:-//T Creative Studio//Bookings//EN",
+    `PRODID:-//${prodName}//Bookings//EN`,
     "CALSCALE:GREGORIAN",
     "METHOD:PUBLISH",
     `X-WR-CALNAME:${escapeIcs(calName)}`,
@@ -133,6 +135,8 @@ export async function GET(
       ),
     );
 
+  const bp = await getPublicBusinessProfile();
+
   const events: IcsEvent[] = rows.map((r) => {
     const start = new Date(r.startsAt);
     const end = new Date(start.getTime() + r.durationMinutes * 60 * 1000);
@@ -149,7 +153,7 @@ export async function GET(
     ].filter(Boolean) as string[];
 
     return {
-      uid: `booking-${r.id}@tcreativestudio.com`,
+      uid: `booking-${r.id}@${SITE_DOMAIN}`,
       start,
       end,
       summary: isOwner
@@ -158,21 +162,21 @@ export async function GET(
           ? `${r.serviceName} with ${staffName}`
           : `${r.serviceName} — ${clientName}`,
       description: descParts.join("\n"),
-      location: r.location ?? "T Creative Studio",
+      location: r.location ?? bp.businessName,
     };
   });
 
   const calName = isOwner
-    ? "T Creative — All Bookings"
+    ? `${bp.businessName} — All Bookings`
     : isClient
-      ? "T Creative — My Appointments"
-      : "T Creative — My Bookings";
-  const ics = buildIcs(events, calName);
+      ? `${bp.businessName} — My Appointments`
+      : `${bp.businessName} — My Bookings`;
+  const ics = buildIcs(events, calName, bp.businessName);
 
   return new Response(ics, {
     headers: {
       "Content-Type": "text/calendar; charset=utf-8",
-      "Content-Disposition": 'attachment; filename="tcreative-bookings.ics"',
+      "Content-Disposition": `attachment; filename="${SITE_SLUG}-bookings.ics"`,
       "Cache-Control": "no-store",
     },
   });

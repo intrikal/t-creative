@@ -9,12 +9,14 @@ import {
   messages,
   profiles,
   services,
+  timeOff,
   trainingPrograms,
 } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
 import type {
   AssistantEnrollment,
   RecentMessage,
+  TimeOffEntry,
   TodayBooking,
 } from "./AssistantHomePage";
 
@@ -36,6 +38,9 @@ export async function getAssistantHomeData() {
 
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
+  // Today's date string for upcoming time-off filter
+  const todayStr = now.toISOString().split("T")[0];
+
   const [
     profileRow,
     assistantProfile,
@@ -44,6 +49,7 @@ export async function getAssistantHomeData() {
     clientsRow,
     recentMessagesRaw,
     enrollmentsRaw,
+    timeOffRaw,
   ] = await Promise.all([
     db
       .select({ firstName: profiles.firstName, avatarUrl: profiles.avatarUrl })
@@ -130,6 +136,19 @@ export async function getAssistantHomeData() {
       .where(eq(enrollments.clientId, userId))
       .orderBy(asc(enrollments.enrolledAt))
       .limit(6),
+    db
+      .select({
+        id: timeOff.id,
+        startDate: timeOff.startDate,
+        endDate: timeOff.endDate,
+        label: timeOff.label,
+        notes: timeOff.notes,
+        createdAt: timeOff.createdAt,
+      })
+      .from(timeOff)
+      .where(and(eq(timeOff.staffId, userId), gte(timeOff.endDate, todayStr)))
+      .orderBy(asc(timeOff.startDate))
+      .limit(10),
   ]);
 
   const todayBookings: TodayBooking[] = todayBookingsRaw.map((b) => ({
@@ -144,6 +163,49 @@ export async function getAssistantHomeData() {
     category: e.category as AssistantEnrollment["category"],
   }));
 
+  const myTimeOff: TimeOffEntry[] = timeOffRaw.map((r) => {
+    let status: "pending" | "approved" | "denied" = "pending";
+    let reason = r.label ?? "";
+    let isPartial = false;
+    let partialStartTime: string | undefined;
+    let partialEndTime: string | undefined;
+
+    if (r.notes) {
+      try {
+        const meta = JSON.parse(r.notes) as {
+          status?: string;
+          reason?: string;
+          partial?: { startTime: string; endTime: string } | false;
+        };
+        if (meta.status === "approved") status = "approved";
+        else if (meta.status === "denied") status = "denied";
+        if (meta.reason) reason = meta.reason;
+        if (meta.partial) {
+          isPartial = true;
+          partialStartTime = (meta.partial as { startTime: string }).startTime;
+          partialEndTime = (meta.partial as { endTime: string }).endTime;
+        }
+      } catch {
+        // plain text notes
+      }
+    }
+
+    return {
+      id: r.id,
+      startDate: r.startDate,
+      endDate: r.endDate,
+      reason,
+      status,
+      isPartial,
+      partialStartTime,
+      partialEndTime,
+      submittedOn: new Date(r.createdAt).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+      }),
+    };
+  });
+
   return {
     firstName: profileRow?.firstName ?? user.email?.split("@")[0] ?? "there",
     avatarUrl: profileRow?.avatarUrl ?? null,
@@ -156,5 +218,6 @@ export async function getAssistantHomeData() {
     },
     recentMessages,
     enrollments: myEnrollments,
+    timeOffEntries: myTimeOff,
   };
 }

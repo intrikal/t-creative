@@ -66,6 +66,7 @@ import {
   profiles,
   services,
   syncLog,
+  timeOff,
 } from "@/db/schema";
 import { BookingCancellation } from "@/emails/BookingCancellation";
 import { BookingCompleted } from "@/emails/BookingCompleted";
@@ -206,6 +207,89 @@ async function hasOverlappingBooking(
     .limit(1);
 
   return conflicts.length > 0;
+}
+
+/**
+ * Checks whether a staff member has approved time-off that overlaps the
+ * proposed booking window.
+ *
+ * Full-day entries block any booking whose date overlaps the time-off range.
+ * Partial-day entries (stored in notes.partial) additionally check that the
+ * time ranges overlap on the same date.
+ */
+async function hasApprovedTimeOffConflict(
+  staffId: string,
+  startsAt: Date,
+  durationMinutes: number,
+): Promise<boolean> {
+  const endsAt = new Date(startsAt.getTime() + durationMinutes * 60_000);
+
+  // Represent the booking span as date strings for comparison with date columns.
+  // Using UTC split is consistent with how dates are stored (YYYY-MM-DD).
+  const bookingStartDate = startsAt.toISOString().split("T")[0];
+  const bookingEndDate = endsAt.toISOString().split("T")[0];
+
+  // Fetch approved time-off entries whose date range overlaps the booking dates.
+  // Two ranges [A,B] and [C,D] overlap iff A <= D and C <= B.
+  const entries = await db
+    .select({
+      id: timeOff.id,
+      startDate: timeOff.startDate,
+      endDate: timeOff.endDate,
+      notes: timeOff.notes,
+    })
+    .from(timeOff)
+    .where(
+      and(
+        eq(timeOff.staffId, staffId),
+        lte(timeOff.startDate, bookingEndDate),
+        gte(timeOff.endDate, bookingStartDate),
+      ),
+    );
+
+  for (const entry of entries) {
+    let status = "pending";
+    let partial: { startTime: string; endTime: string } | false = false;
+
+    if (entry.notes) {
+      try {
+        const meta = JSON.parse(entry.notes) as {
+          status?: string;
+          partial?: { startTime: string; endTime: string } | false;
+        };
+        status = meta.status ?? "pending";
+        partial = meta.partial ?? false;
+      } catch {
+        // plain text notes — treat as pending
+      }
+    }
+
+    if (status !== "approved") continue;
+
+    if (!partial) {
+      // Full-day time-off: date range overlap is sufficient to block
+      return true;
+    }
+
+    // Partial-day: verify the time ranges also overlap
+    const [startHour, startMin] = partial.startTime.split(":").map(Number);
+    const [endHour, endMin] = partial.endTime.split(":").map(Number);
+
+    const bookingDateOnly = new Date(startsAt);
+    bookingDateOnly.setHours(0, 0, 0, 0);
+
+    const timeOffStart = new Date(bookingDateOnly);
+    timeOffStart.setHours(startHour, startMin, 0, 0);
+
+    const timeOffEnd = new Date(bookingDateOnly);
+    timeOffEnd.setHours(endHour, endMin, 0, 0);
+
+    if (startsAt < timeOffEnd && endsAt > timeOffStart) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 /* ------------------------------------------------------------------ */
@@ -515,6 +599,15 @@ export async function createBooking(input: BookingInput): Promise<void> {
       if (conflict) {
         throw new Error("This staff member already has a booking during that time slot");
       }
+
+      const timeOffConflict = await hasApprovedTimeOffConflict(
+        input.staffId,
+        input.startsAt,
+        input.durationMinutes,
+      );
+      if (timeOffConflict) {
+        throw new Error("This staff member has approved time off during that time slot");
+      }
     }
 
     const [newBooking] = await db
@@ -661,6 +754,15 @@ export async function updateBooking(
       );
       if (conflict) {
         throw new Error("This staff member already has a booking during that time slot");
+      }
+
+      const timeOffConflict = await hasApprovedTimeOffConflict(
+        input.staffId,
+        input.startsAt,
+        input.durationMinutes,
+      );
+      if (timeOffConflict) {
+        throw new Error("This staff member has approved time off during that time slot");
       }
     }
 

@@ -243,7 +243,7 @@ export function BookingPage({
           </div>
           <button
             onClick={scrollToServices}
-            className="rounded-full bg-[#96604a] px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#7a4e3a] active:scale-95"
+            className="rounded-full bg-[#96604a] px-4 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#7a4e3a] active:scale-95"
           >
             Book a session
           </button>
@@ -477,7 +477,9 @@ export function BookingPage({
                   Book your appointment
                 </h2>
               </div>
-              <p className="shrink-0 text-[11px] text-stone-400 pb-1">Book 1–2 weeks ahead</p>
+              <p className="hidden sm:block shrink-0 text-[11px] text-stone-400 pb-1">
+                Book 1–2 weeks ahead
+              </p>
             </div>
 
             {activeCategories.length > 0 ? (
@@ -515,7 +517,7 @@ export function BookingPage({
                       {meta.note && (
                         <p className="mb-4 text-xs text-stone-400 italic">{meta.note}</p>
                       )}
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         {catServices.map((service, index) => (
                           <ServiceCard
                             key={service.id}

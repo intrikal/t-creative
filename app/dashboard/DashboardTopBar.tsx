@@ -2,23 +2,14 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import {
-  Settings,
-  UsersRound,
-  CalendarCheck,
-  LogOut,
-  ChevronDown,
-  Menu,
-} from "lucide-react";
+import { Settings, UsersRound, CalendarCheck, LogOut, ChevronDown, Menu } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { NotificationBell } from "./components/NotificationBell";
 import { useSidebar } from "./sidebar-context";
 
 function getProfileMenuItems(role: "admin" | "assistant" | "client") {
-  const items = [
-    { href: "/dashboard/settings", label: "Settings", icon: Settings },
-  ];
+  const items = [{ href: "/dashboard/settings", label: "Settings", icon: Settings }];
   if (role === "admin") {
     items.push({ href: "/dashboard/team", label: "Team", icon: UsersRound });
   }
@@ -66,7 +57,7 @@ export function DashboardTopBar({
       <button
         onClick={openDrawer}
         aria-label="Open navigation menu"
-        className="lg:hidden p-1.5 -ml-1 rounded-lg text-muted hover:bg-foreground/5 hover:text-foreground transition-colors"
+        className="lg:hidden p-2.5 -ml-1 rounded-lg text-muted hover:bg-foreground/5 hover:text-foreground transition-colors"
         type="button"
       >
         <Menu className="w-5 h-5" />
@@ -102,10 +93,7 @@ export function DashboardTopBar({
               )}
             </Avatar>
             <ChevronDown
-              className={cn(
-                "w-3.5 h-3.5 text-muted transition-transform",
-                open && "rotate-180",
-              )}
+              className={cn("w-3.5 h-3.5 text-muted transition-transform", open && "rotate-180")}
             />
           </button>
 

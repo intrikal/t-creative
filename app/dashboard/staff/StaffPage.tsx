@@ -4,7 +4,7 @@
  * StaffPage — Assistant profiles and upcoming shifts.
  *
  * Backed by `assistantProfiles` + `shifts` tables.
- * All data is hardcoded for now.
+ * Data is fetched via server actions and passed as props.
  */
 
 import { useState } from "react";
@@ -13,217 +13,13 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-
-/* ------------------------------------------------------------------ */
-/*  Types & mock data                                                  */
-/* ------------------------------------------------------------------ */
-
-type ShiftStatus = "scheduled" | "confirmed" | "completed" | "cancelled" | "no_show";
-type ServiceCategory = "lash" | "jewelry" | "crochet" | "consulting";
-
-interface StaffMember {
-  id: number;
-  name: string;
-  initials: string;
-  role: string;
-  email: string;
-  phone: string;
-  specialties: ServiceCategory[];
-  activeBookingsToday: number;
-  totalShiftsMonth: number;
-  status: "active" | "off_today" | "inactive";
-  joinedDate: string;
-  bio?: string;
-}
-
-interface Shift {
-  id: number;
-  staffId: number;
-  staffName: string;
-  staffInitials: string;
-  date: string;
-  startTime: string;
-  endTime: string;
-  status: ShiftStatus;
-  bookedSlots: number;
-  totalSlots: number;
-  notes?: string;
-}
-
-const MOCK_STAFF: StaffMember[] = [
-  {
-    id: 1,
-    name: "Trini (Owner)",
-    initials: "TR",
-    role: "Owner & Lead Artist",
-    email: "trini@tcreative.com",
-    phone: "(404) 555-0001",
-    specialties: ["lash", "jewelry", "consulting", "crochet"],
-    activeBookingsToday: 4,
-    totalShiftsMonth: 22,
-    status: "active",
-    joinedDate: "Founder",
-    bio: "Founder of T Creative Studio. Specializes in volume lashes and permanent jewelry.",
-  },
-  {
-    id: 2,
-    name: "Jasmine Carter",
-    initials: "JC",
-    role: "Lash Artist",
-    email: "jasmine@tcreative.com",
-    phone: "(404) 555-0002",
-    specialties: ["lash", "jewelry"],
-    activeBookingsToday: 2,
-    totalShiftsMonth: 18,
-    status: "active",
-    joinedDate: "Aug 2024",
-    bio: "3 years experience in lash extensions. Certified in classic, hybrid, and volume techniques.",
-  },
-  {
-    id: 3,
-    name: "Brianna Moses",
-    initials: "BM",
-    role: "Crochet Specialist",
-    email: "brianna@tcreative.com",
-    phone: "(404) 555-0003",
-    specialties: ["crochet"],
-    activeBookingsToday: 0,
-    totalShiftsMonth: 12,
-    status: "off_today",
-    joinedDate: "Oct 2024",
-    bio: "Expert in crochet braids and custom hair installs.",
-  },
-  {
-    id: 4,
-    name: "Tasha Reid",
-    initials: "TR2",
-    role: "Junior Lash Artist",
-    email: "tasha@tcreative.com",
-    phone: "(404) 555-0004",
-    specialties: ["lash"],
-    activeBookingsToday: 0,
-    totalShiftsMonth: 8,
-    status: "off_today",
-    joinedDate: "Jan 2025",
-  },
-];
-
-const MOCK_SHIFTS: Shift[] = [
-  {
-    id: 1,
-    staffId: 1,
-    staffName: "Trini",
-    staffInitials: "TR",
-    date: "Today",
-    startTime: "9:00 AM",
-    endTime: "6:00 PM",
-    status: "confirmed",
-    bookedSlots: 4,
-    totalSlots: 6,
-  },
-  {
-    id: 2,
-    staffId: 2,
-    staffName: "Jasmine",
-    staffInitials: "JC",
-    date: "Today",
-    startTime: "10:00 AM",
-    endTime: "5:00 PM",
-    status: "confirmed",
-    bookedSlots: 2,
-    totalSlots: 4,
-  },
-  {
-    id: 3,
-    staffId: 1,
-    staffName: "Trini",
-    staffInitials: "TR",
-    date: "Tomorrow",
-    startTime: "9:00 AM",
-    endTime: "6:00 PM",
-    status: "scheduled",
-    bookedSlots: 3,
-    totalSlots: 6,
-  },
-  {
-    id: 4,
-    staffId: 2,
-    staffName: "Jasmine",
-    staffInitials: "JC",
-    date: "Tomorrow",
-    startTime: "11:00 AM",
-    endTime: "5:00 PM",
-    status: "scheduled",
-    bookedSlots: 2,
-    totalSlots: 4,
-  },
-  {
-    id: 5,
-    staffId: 3,
-    staffName: "Brianna",
-    staffInitials: "BM",
-    date: "Tomorrow",
-    startTime: "10:00 AM",
-    endTime: "4:00 PM",
-    status: "scheduled",
-    bookedSlots: 1,
-    totalSlots: 3,
-  },
-  {
-    id: 6,
-    staffId: 1,
-    staffName: "Trini",
-    staffInitials: "TR",
-    date: "Feb 22",
-    startTime: "9:00 AM",
-    endTime: "6:00 PM",
-    status: "scheduled",
-    bookedSlots: 2,
-    totalSlots: 6,
-  },
-  {
-    id: 7,
-    staffId: 4,
-    staffName: "Tasha",
-    staffInitials: "TR2",
-    date: "Feb 22",
-    startTime: "12:00 PM",
-    endTime: "5:00 PM",
-    status: "scheduled",
-    bookedSlots: 1,
-    totalSlots: 3,
-    notes: "Shadowing Trini for first 2 appointments",
-  },
-  {
-    id: 8,
-    staffId: 2,
-    staffName: "Jasmine",
-    staffInitials: "JC",
-    date: "Feb 19",
-    startTime: "10:00 AM",
-    endTime: "5:00 PM",
-    status: "completed",
-    bookedSlots: 4,
-    totalSlots: 4,
-  },
-  {
-    id: 9,
-    staffId: 3,
-    staffName: "Brianna",
-    staffInitials: "BM",
-    date: "Feb 18",
-    startTime: "9:00 AM",
-    endTime: "3:00 PM",
-    status: "cancelled",
-    bookedSlots: 0,
-    totalSlots: 3,
-    notes: "Called out sick",
-  },
-];
+import type { StaffRow, ShiftRow } from "./actions";
 
 /* ------------------------------------------------------------------ */
 /*  Display helpers                                                    */
 /* ------------------------------------------------------------------ */
+
+type ShiftStatus = ShiftRow["status"];
 
 function shiftStatusConfig(status: ShiftStatus) {
   switch (status) {
@@ -233,9 +29,9 @@ function shiftStatusConfig(status: ShiftStatus) {
         className: "bg-foreground/8 text-foreground border-foreground/15",
         icon: CalendarDays,
       };
-    case "confirmed":
+    case "in_progress":
       return {
-        label: "Confirmed",
+        label: "In Progress",
         className: "bg-[#4e6b51]/12 text-[#4e6b51] border-[#4e6b51]/20",
         icon: CheckCircle2,
       };
@@ -251,25 +47,24 @@ function shiftStatusConfig(status: ShiftStatus) {
         className: "bg-destructive/10 text-destructive border-destructive/20",
         icon: XCircle,
       };
-    case "no_show":
-      return {
-        label: "No Show",
-        className: "bg-destructive/10 text-destructive border-destructive/20",
-        icon: AlertCircle,
-      };
   }
 }
 
-function specialtyDot(category: ServiceCategory) {
+function specialtyDot(category: string) {
   switch (category) {
     case "lash":
+    case "lash extensions":
       return { dot: "bg-[#c4907a]", label: "Lash" };
     case "jewelry":
+    case "permanent jewelry":
       return { dot: "bg-[#d4a574]", label: "Jewelry" };
     case "crochet":
+    case "crochet braids":
       return { dot: "bg-[#7ba3a3]", label: "Crochet" };
     case "consulting":
       return { dot: "bg-[#5b8a8a]", label: "Consulting" };
+    default:
+      return { dot: "bg-muted", label: category };
   }
 }
 
@@ -277,11 +72,16 @@ function specialtyDot(category: ServiceCategory) {
 /*  Main export                                                        */
 /* ------------------------------------------------------------------ */
 
-export function StaffPage() {
+interface StaffPageProps {
+  staff: StaffRow[];
+  shifts: ShiftRow[];
+}
+
+export function StaffPage({ staff, shifts }: StaffPageProps) {
   const [tab, setTab] = useState<"team" | "shifts">("team");
 
-  const activeCount = MOCK_STAFF.filter((s) => s.status === "active").length;
-  const totalShiftsToday = MOCK_SHIFTS.filter((s) => s.date === "Today").length;
+  const activeCount = staff.filter((s) => s.status === "active").length;
+  const totalShiftsToday = shifts.filter((s) => s.date === "Today").length;
 
   return (
     <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
@@ -325,7 +125,7 @@ export function StaffPage() {
       {tab === "team" ? (
         /* ── Team view ─────────────────────────────────────────────── */
         <div className="grid gap-4 sm:grid-cols-2">
-          {MOCK_STAFF.map((member) => (
+          {staff.map((member) => (
             <Card key={member.id} className="gap-0">
               <CardContent className="p-5">
                 <div className="flex items-start gap-3">
@@ -399,9 +199,8 @@ export function StaffPage() {
             <CardTitle className="text-sm font-semibold">Upcoming & Recent Shifts</CardTitle>
           </CardHeader>
           <CardContent className="px-4 pb-4 pt-3">
-            {MOCK_SHIFTS.map((shift) => {
+            {shifts.map((shift) => {
               const status = shiftStatusConfig(shift.status);
-              const fillPct = Math.round((shift.bookedSlots / shift.totalSlots) * 100);
               return (
                 <div
                   key={shift.id}
@@ -424,17 +223,9 @@ export function StaffPage() {
                     )}
                   </div>
 
-                  {/* Booking fill */}
+                  {/* Booking count */}
                   <div className="hidden sm:flex flex-col items-end gap-1 shrink-0">
-                    <span className="text-xs text-foreground">
-                      {shift.bookedSlots}/{shift.totalSlots} booked
-                    </span>
-                    <div className="w-20 h-1.5 bg-border rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-[#c4907a] rounded-full"
-                        style={{ width: `${fillPct}%` }}
-                      />
-                    </div>
+                    <span className="text-xs text-foreground">{shift.bookedSlots} booked</span>
                   </div>
 
                   <Badge

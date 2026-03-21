@@ -1,5 +1,6 @@
 import * as React from "react";
 import { Section, Text } from "@react-email/components";
+import { Button } from "./components/Button";
 import { formatCents } from "./components/format";
 import { Layout } from "./components/Layout";
 
@@ -11,6 +12,8 @@ export type BookingConfirmationProps = {
   totalInCents: number;
   addOns?: { name: string; priceInCents: number }[];
   businessName?: string;
+  /** Magic link URL for one-click portal access. Generated server-side via Supabase admin API. */
+  portalUrl?: string;
 };
 
 export function BookingConfirmation({
@@ -21,6 +24,7 @@ export function BookingConfirmation({
   totalInCents,
   addOns,
   businessName = "T Creative Studio",
+  portalUrl,
 }: BookingConfirmationProps) {
   const hasAddOns = addOns && addOns.length > 0;
 
@@ -52,6 +56,13 @@ export function BookingConfirmation({
 
         <Text style={detailLabel}>Total</Text>
         <Text style={detailValue}>{formatCents(totalInCents)}</Text>
+
+        {portalUrl && (
+          <>
+            <Text style={portalLabel}>Client Portal</Text>
+            <Button href={portalUrl}>View Your Booking</Button>
+          </>
+        )}
 
         <Text style={muted}>
           Need to reschedule or cancel? Reply to this email or contact us directly.
@@ -101,6 +112,15 @@ const addOnItem: React.CSSProperties = {
   color: "#333333",
   margin: "0 0 4px",
   paddingLeft: "8px",
+};
+
+const portalLabel: React.CSSProperties = {
+  fontSize: "12px",
+  fontWeight: "600",
+  color: "#888888",
+  textTransform: "uppercase" as const,
+  letterSpacing: "0.5px",
+  margin: "20px 0 8px",
 };
 
 const muted: React.CSSProperties = {

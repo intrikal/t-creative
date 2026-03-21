@@ -9,6 +9,28 @@
  * - `getClientsForSelect`    — Client dropdown options for the create-booking dialog.
  * - `getServicesForSelect`   — Service dropdown options (active services only).
  * - `getStaffForSelect`      — Staff dropdown options (any non-client profile).
+ * - `updateBooking`          — Full update (reschedule detection + email).
+ * - `deleteBooking`          — Soft-delete (sets `deletedAt`, never hard-deletes).
+ * - `cancelBookingSeries`    — Cancels all future bookings in a recurring series.
+ * - `getAssistantBookings`   — Staff-scoped view for the assistant dashboard.
+ *
+ * ## Side-effects on status change
+ * Each status transition triggers a cascade of non-fatal side-effects:
+ *   confirmed  → Square order, confirmation email/SMS, deposit link, Zoho deal + invoice
+ *   completed  → thank-you email, next recurring booking generation, Zoho "Closed Won"
+ *   cancelled  → late-cancel fee, cancellation email, waitlist notification, Zoho "Closed Lost"
+ *   no_show    → no-show fee (card charge or invoice), no-show email
+ *
+ * All side-effects are wrapped in try/catch so they never block the status write.
+ *
+ * ## Integration summary
+ * - **Square**: Order creation for POS payment matching, payment links for deposits,
+ *   card-on-file charges for no-show/late-cancel fees. Webhooks (separate file) handle
+ *   inbound payment confirmations — this file only does outbound calls.
+ * - **Zoho CRM**: Deal creation/stage updates mirror the booking lifecycle.
+ * - **Zoho Books**: Invoice creation on confirmation for accounting reconciliation.
+ * - **Resend**: Transactional emails (confirmation, reschedule, cancellation, etc.).
+ * - **Twilio**: SMS confirmation when client has `notifySms` enabled.
  *
  * ## Join pattern (alias)
  * `getBookings` joins the `profiles` table twice — once for the client and once
@@ -70,6 +92,11 @@ import { createZohoDeal, updateZohoDeal } from "@/lib/zoho";
 import { createZohoBooksInvoice } from "@/lib/zoho-books";
 import { requireAdmin, requireStaff } from "@/lib/auth";
 
+/* ------------------------------------------------------------------ */
+/*  Type exports                                                       */
+/* ------------------------------------------------------------------ */
+
+/** Union of valid booking lifecycle states. Mirrors bookingStatusEnum in db/schema/enums. */
 export type BookingStatus =
   | "completed"
   | "in_progress"
@@ -78,6 +105,11 @@ export type BookingStatus =
   | "cancelled"
   | "no_show";
 
+/**
+ * Flat joined row returned by `getBookings`. Consumed by `BookingsPage` and
+ * its sub-components (table, calendar, detail drawer). Intentionally flat
+ * (no nested objects) so it serializes cleanly across the server-action boundary.
+ */
 export type BookingRow = {
   id: number;
   status: string;
@@ -99,6 +131,11 @@ export type BookingRow = {
   parentBookingId: number | null;
 };
 
+/**
+ * Input shape for `createBooking` / `updateBooking`. The admin create-booking
+ * dialog and edit-booking form both produce this shape. Fields map 1:1 to
+ * the bookings table columns (no transforms needed).
+ */
 export type BookingInput = {
   clientId: string;
   serviceId: number;
@@ -112,6 +149,7 @@ export type BookingInput = {
   subscriptionId?: number;
 };
 
+/** Alias for readability — all mutations in this file require admin access. */
 const getUser = requireAdmin;
 
 /**
@@ -126,6 +164,9 @@ async function hasOverlappingBooking(
 ): Promise<boolean> {
   const endsAt = new Date(startsAt.getTime() + durationMinutes * 60_000);
 
+  // Standard interval-overlap test: two time ranges [A, B) and [C, D) overlap
+  // iff A < D AND C < B. Here A=existing.startsAt, B=existing end (computed
+  // via interval arithmetic), C=proposed startsAt, D=proposed endsAt.
   const conditions = [
     eq(bookings.staffId, staffId),
     inArray(bookings.status, ["confirmed", "in_progress"]),
@@ -139,6 +180,25 @@ async function hasOverlappingBooking(
 
   conditions.push(isNull(bookings.deletedAt));
 
+  // ─── Query: check for overlapping bookings ───────────────────────
+  // SELECT: fetches only the "id" column from the "bookings" table — we don't
+  //   need any other data, just proof that at least one conflicting row exists.
+  // FROM: the "bookings" table (all appointments in the system).
+  // WHERE (all conditions must be true simultaneously):
+  //   - staffId = the staff member we're checking — only their bookings matter.
+  //   - status IN ('confirmed', 'in_progress') — only active bookings can conflict;
+  //     cancelled/completed/no_show bookings don't occupy a time slot.
+  //   - sql`startsAt < endsAt` — the existing booking must start before the
+  //     proposed booking ends (first half of the overlap test).
+  //   - sql`startsAt + durationMinutes::interval > startsAt` — the existing
+  //     booking must end after the proposed booking starts (second half). The
+  //     sql`` template literal computes the existing booking's end time by adding
+  //     its durationMinutes as a Postgres interval to its startsAt.
+  //   - ne(id, excludeBookingId) — when editing, exclude the booking being edited
+  //     so it doesn't conflict with itself.
+  //   - isNull(deletedAt) — ignore soft-deleted bookings.
+  // LIMIT 1: we only need to know if ANY conflict exists, so stop after the
+  //   first match for efficiency.
   const conflicts = await db
     .select({ id: bookings.id })
     .from(bookings)
@@ -148,6 +208,10 @@ async function hasOverlappingBooking(
   return conflicts.length > 0;
 }
 
+/* ------------------------------------------------------------------ */
+/*  Queries                                                            */
+/* ------------------------------------------------------------------ */
+
 export type PaginatedBookings = {
   rows: BookingRow[];
   hasMore: boolean;
@@ -155,6 +219,15 @@ export type PaginatedBookings = {
 
 const DEFAULT_BOOKINGS_LIMIT = 100;
 
+/**
+ * Fetches paginated bookings for the admin BookingsPage.
+ *
+ * Uses limit+1 pattern: fetches one extra row to determine `hasMore`
+ * without a separate COUNT query, then slices it off before returning.
+ *
+ * Joins profiles twice (client + staff) via alias() — see file-level doc.
+ * Soft-deleted bookings (deletedAt != null) are always excluded.
+ */
 export async function getBookings(opts?: {
   offset?: number;
   limit?: number;
@@ -171,9 +244,43 @@ export async function getBookings(opts?: {
     if (opts?.startDate) conditions.push(gte(bookings.startsAt, opts.startDate));
     if (opts?.endDate) conditions.push(lte(bookings.startsAt, opts.endDate));
 
+    // alias() creates a second reference to the same "profiles" table under a
+    // different name. We need two aliases because a booking references profiles
+    // twice: once for the client and once for the staff member. Without aliases,
+    // Postgres wouldn't know which profiles row to use for each join.
+    // In SQL this generates: "profiles AS client" and "profiles AS staff".
     const clientProfile = alias(profiles, "client");
     const staffProfile = alias(profiles, "staff");
 
+    // ─── Query: fetch paginated bookings with client, service, and staff ───
+    // SELECT: fetches booking fields (id, status, startsAt, durationMinutes,
+    //   totalInCents, location, clientNotes, clientId, serviceId, staffId,
+    //   recurrenceRule, parentBookingId) from the "bookings" table, plus the
+    //   client's name and phone from the client alias of "profiles", the
+    //   service name and category from the "services" table, and the staff
+    //   member's first name from the staff alias of "profiles".
+    // FROM: the "bookings" table (all appointments).
+    // LEFT JOIN clientProfile: connects each booking to the client's profile
+    //   row by matching bookings.clientId → profiles.id. LEFT JOIN (not INNER)
+    //   because we still want to show the booking even if the client profile
+    //   was deleted or is missing.
+    // LEFT JOIN services: connects each booking to its service row by matching
+    //   bookings.serviceId → services.id. LEFT JOIN so bookings still appear
+    //   even if a service was deactivated/deleted.
+    // LEFT JOIN staffProfile: connects each booking to the assigned staff
+    //   member's profile by matching bookings.staffId → profiles.id. LEFT JOIN
+    //   because staffId is nullable (some bookings have no assigned staff).
+    // WHERE:
+    //   - isNull(deletedAt) — excludes soft-deleted bookings.
+    //   - gte(startsAt, startDate) — if provided, only bookings on or after
+    //     this date (for date-range filtering).
+    //   - lte(startsAt, endDate) — if provided, only bookings on or before
+    //     this date (for date-range filtering).
+    // ORDER BY startsAt DESC: newest bookings appear first.
+    // LIMIT (limit + 1): fetches one extra row beyond the requested page size.
+    //   If we get that extra row back, we know there are more pages. The extra
+    //   row is sliced off before returning to the caller.
+    // OFFSET: skips rows for pagination (e.g. offset=100 skips the first 100).
     const rows = await db
       .select({
         id: bookings.id,
@@ -208,6 +315,10 @@ export async function getBookings(opts?: {
     const page = hasMore ? rows.slice(0, limit) : rows;
 
     return {
+      // Spread each row and override nullable join fields with fallback defaults.
+      // Spread is preferred over manual field listing because the row has 15+
+      // fields — spread copies them all, then the 3 overrides replace just the
+      // nullable ones. This avoids a fragile, long-form object literal.
       rows: page.map((r) => ({
         ...r,
         clientFirstName: r.clientFirstName ?? "",
@@ -224,6 +335,22 @@ export async function getBookings(opts?: {
 
 import { checkBookingWaivers } from "./waiver-actions";
 
+/* ------------------------------------------------------------------ */
+/*  Mutations                                                          */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Transitions a booking to a new status and fires all associated side-effects.
+ *
+ * Status-specific side-effects (all non-fatal):
+ *   confirmed  → waiver gate, Square order, email/SMS, deposit link, Zoho sync
+ *   completed  → email, recurring-booking generation, Zoho "Closed Won"
+ *   cancelled  → late-cancel fee, email, waitlist notify, Zoho "Closed Lost"
+ *   no_show    → no-show fee (card or invoice), email
+ *
+ * Called by the status dropdown in the BookingsPage detail drawer.
+ * `revalidatePath` at the end tells Next.js to re-fetch the bookings list.
+ */
 export async function updateBookingStatus(
   id: number,
   status: BookingStatus,
@@ -237,17 +364,25 @@ export async function updateBookingStatus(
     );
     const user = await getUser();
 
-    // Enforce waiver completion before confirming a booking
+    // Gate: waivers must be signed before moving to "confirmed".
+    // skipWaiverCheck is true when the waiver dialog already confirmed completion.
     if (status === "confirmed" && !skipWaiverCheck) {
       const waiverResult = await checkBookingWaivers(id);
       if (!waiverResult.passed) {
+        // Extract just the form names from the missing-waiver objects for display.
+        // .map() → .join() is the standard pattern for building a comma-separated
+        // label from an array of objects.
         const names = waiverResult.missing.map((w) => w.formName).join(", ");
+        // Structured error string: the UI parses the WAIVER_REQUIRED prefix
+        // to show the waiver completion dialog instead of a generic error toast.
         throw new Error(
           `WAIVER_REQUIRED:${JSON.stringify(waiverResult.missing)}:Client must complete required waivers before confirmation: ${names}`,
         );
       }
     }
 
+    // Stamp lifecycle timestamps alongside the status change so the
+    // timeline view can show exactly when each transition occurred.
     const updates: Record<string, unknown> = { status };
 
     if (status === "confirmed") updates.confirmedAt = new Date();
@@ -257,10 +392,22 @@ export async function updateBookingStatus(
       if (cancellationReason) updates.cancellationReason = cancellationReason;
     }
 
+    // ─── Mutation: update the booking's status (and lifecycle timestamp) ───
+    // UPDATE: writes the new status and any associated timestamp (confirmedAt,
+    //   completedAt, or cancelledAt) to the "bookings" table.
+    // WHERE: id = the booking being transitioned — targets this exact row.
     await db.update(bookings).set(updates).where(eq(bookings.id, id));
 
     // Create Square order when confirming (if not already created)
     if (status === "confirmed") {
+      // ─── Query: fetch booking details needed for Square order creation ───
+      // SELECT: fetches squareOrderId (to check if an order already exists),
+      //   serviceId (to look up the service name for the order line item),
+      //   and totalInCents (the charge amount) from the "bookings" table.
+      // FROM: the "bookings" table.
+      // WHERE:
+      //   - id = the booking being confirmed — targets this exact booking.
+      //   - isNull(deletedAt) — ensures we don't process soft-deleted bookings.
       const [booking] = await db
         .select({
           squareOrderId: bookings.squareOrderId,
@@ -312,17 +459,20 @@ export async function updateBookingStatus(
       metadata: { newStatus: status, ...(cancellationReason ? { cancellationReason } : {}) },
     });
 
-    // Zoho CRM: update deal stage
+    // Zoho CRM: mirror booking lifecycle as deal stages.
+    // These calls are fire-and-forget (not awaited) — Zoho sync failures
+    // are logged in syncLog but never block the user-facing status change.
     if (status === "completed") {
       updateZohoDeal(id, "Closed Won");
     } else if (status === "cancelled") {
       updateZohoDeal(id, "Closed Lost");
     } else if (status === "confirmed") {
       updateZohoDeal(id, "Confirmed");
-      // Zoho Books: create invoice for newly confirmed booking
+      // Zoho Books: create invoice so accounting has the line item immediately
       tryCreateZohoBooksInvoice(id);
     }
 
+    // Bust the Next.js cache so the bookings list reflects the new status
     revalidatePath("/dashboard/bookings");
   } catch (err) {
     Sentry.captureException(err);
@@ -330,6 +480,7 @@ export async function updateBookingStatus(
   }
 }
 
+/** Zod schema for createBooking input — validates before any DB writes. */
 const bookingInputSchema = z.object({
   clientId: z.string().min(1),
   serviceId: z.number().int().positive(),
@@ -343,6 +494,13 @@ const bookingInputSchema = z.object({
   subscriptionId: z.number().int().positive().optional(),
 });
 
+/**
+ * Creates a new booking as "confirmed" (admin-created bookings skip "pending").
+ *
+ * After insert: creates Square order, sends confirmation email, auto-sends
+ * deposit link if the service requires one, and creates a Zoho deal + invoice.
+ * Called by the "New Booking" dialog on BookingsPage.
+ */
 export async function createBooking(input: BookingInput): Promise<void> {
   try {
     bookingInputSchema.parse(input);
@@ -372,6 +530,8 @@ export async function createBooking(input: BookingInput): Promise<void> {
         clientNotes: input.clientNotes ?? undefined,
         recurrenceRule: input.recurrenceRule ?? undefined,
         subscriptionId: input.subscriptionId ?? undefined,
+        // Admin-created bookings start as "confirmed" — the pending→confirmed
+        // flow only applies to client self-booking (handled by a separate action).
         status: "confirmed",
         confirmedAt: new Date(),
       })
@@ -406,13 +566,29 @@ export async function createBooking(input: BookingInput): Promise<void> {
       },
     });
 
-    // Zoho CRM: create deal for admin-created booking
+    // Zoho CRM: create a deal so the sales pipeline reflects this booking.
+    // Requires a separate client + service lookup because createZohoDeal needs
+    // the contact email and a human-readable deal name.
+
+    // ─── Query: fetch client email and name for the Zoho deal ───────────
+    // SELECT: fetches "email" (for the Zoho contact lookup) and "firstName"
+    //   (for building the deal name like "Lash Fill — Sarah") from "profiles".
+    // FROM: the "profiles" table (all user accounts — clients, staff, admins).
+    // WHERE: id = the client who booked — targets this specific client's row.
+    // LIMIT 1: only one profile can match this id (it's a primary key), but
+    //   limit 1 makes the intent explicit and helps Postgres optimize.
     const [clientForZoho] = await db
       .select({ email: profiles.email, firstName: profiles.firstName })
       .from(profiles)
       .where(eq(profiles.id, input.clientId))
       .limit(1);
 
+    // ─── Query: fetch service name for the Zoho deal title ──────────────
+    // SELECT: fetches only the "name" column (e.g. "Classic Full Set") from
+    //   the "services" table, used to build the Zoho deal name.
+    // FROM: the "services" table (the catalog of offered services).
+    // WHERE: id = the service booked — targets this specific service.
+    // LIMIT 1: same rationale as above — primary key lookup.
     const [serviceForZoho] = await db
       .select({ name: services.name })
       .from(services)
@@ -452,10 +628,19 @@ export async function createBooking(input: BookingInput): Promise<void> {
   }
 }
 
+/** Extends the create schema with status — updateBooking can also change status. */
 const updateBookingInputSchema = bookingInputSchema.extend({
   status: z.enum(["completed", "in_progress", "confirmed", "pending", "cancelled", "no_show"]),
 });
 
+/**
+ * Full update of a booking's fields (reschedule, reassign staff, change price, etc.).
+ *
+ * Detects reschedules by comparing old vs new startsAt and sends a reschedule
+ * email when the time changes. Called by the edit-booking form in the detail drawer.
+ * Overlap checking is skipped for cancelled/no_show bookings since those don't
+ * occupy a time slot.
+ */
 export async function updateBooking(
   id: number,
   input: BookingInput & { status: BookingStatus },
@@ -465,6 +650,8 @@ export async function updateBooking(
     updateBookingInputSchema.parse(input);
     const user = await getUser();
 
+    // Skip overlap check for terminal statuses — cancelled/no_show bookings
+    // don't occupy a time slot and shouldn't block scheduling.
     if (input.staffId && input.status !== "cancelled" && input.status !== "no_show") {
       const conflict = await hasOverlappingBooking(
         input.staffId,
@@ -477,7 +664,14 @@ export async function updateBooking(
       }
     }
 
-    // Fetch old booking time to detect reschedule
+    // ─── Query: fetch the booking's current start time to detect reschedule ───
+    // SELECT: fetches only "startsAt" from the "bookings" table — the current
+    //   appointment time, so we can compare it to the new time and know whether
+    //   to send a reschedule notification email.
+    // FROM: the "bookings" table.
+    // WHERE:
+    //   - id = the booking being updated — targets this exact row.
+    //   - isNull(deletedAt) — ensures we don't update a soft-deleted booking.
     const [oldBooking] = await db
       .select({ startsAt: bookings.startsAt })
       .from(bookings)
@@ -535,6 +729,12 @@ export async function updateBooking(
   }
 }
 
+/**
+ * Soft-deletes a booking by setting `deletedAt`. All queries in this file
+ * filter on `isNull(bookings.deletedAt)`, so the row becomes invisible
+ * without losing data for audit/reporting. Called by the delete action in
+ * the booking detail drawer.
+ */
 export async function deleteBooking(id: number): Promise<void> {
   try {
     z.number().int().positive().parse(id);
@@ -569,6 +769,10 @@ function parseRRule(rule: string): {
   until?: Date;
   count?: number;
 } | null {
+  // Parse the iCal RRULE string into a key-value record.
+  // Object.fromEntries converts [key, value] tuples into an object — cleaner
+  // than a reduce for building a simple string→string lookup. The split→map→split
+  // chain handles "FREQ=WEEKLY;INTERVAL=2;UNTIL=20261231T000000Z" in one expression.
   const parts = Object.fromEntries(rule.split(";").map((p) => p.split("=")));
   const freq = parts.FREQ;
   const interval = Number(parts.INTERVAL ?? 1);
@@ -600,6 +804,19 @@ function parseRRule(rule: string): {
  */
 async function generateNextRecurringBooking(bookingId: number): Promise<void> {
   try {
+    // ─── Query: fetch the just-completed booking to clone it for the next occurrence ───
+    // SELECT: fetches all fields needed to create a copy of this booking —
+    //   clientId (who the appointment is for), serviceId (what service),
+    //   staffId (which staff member), startsAt (current time, to calculate
+    //   the next date), durationMinutes and totalInCents (copied as-is),
+    //   location (where the appointment happens), recurrenceRule (the iCal
+    //   RRULE string that defines the repeat pattern), parentBookingId (the
+    //   series root, so the new booking links to the same series), and
+    //   subscriptionId (if this is part of a pre-paid session package).
+    // FROM: the "bookings" table.
+    // WHERE:
+    //   - id = the booking that was just completed — we clone its details.
+    //   - isNull(deletedAt) — skip if the booking was soft-deleted.
     const [booking] = await db
       .select({
         clientId: bookings.clientId,
@@ -621,7 +838,19 @@ async function generateNextRecurringBooking(bookingId: number): Promise<void> {
     const nextStart = new Date(booking.startsAt);
 
     // ── Subscription path ───────────────────────────────────────────
+    // Pre-paid session packages (e.g. "6-pack lash fills") track sessionsUsed.
+    // When all sessions are consumed, the subscription is marked "completed"
+    // and no further bookings are generated.
     if (booking.subscriptionId) {
+      // ─── Query: fetch the subscription to check remaining sessions ────
+      // SELECT *: fetches all columns from "bookingSubscriptions" — we need
+      //   sessionsUsed, totalSessions (to check if the package is exhausted),
+      //   intervalDays (to calculate the next booking date), status (to verify
+      //   the subscription is still active), and id (to update it).
+      // FROM: the "bookingSubscriptions" table (pre-paid session packages).
+      // WHERE: id = the subscription linked to this booking — targets this
+      //   specific package.
+      // LIMIT 1: primary key lookup, but makes intent explicit.
       const [sub] = await db
         .select()
         .from(bookingSubscriptions)
@@ -649,6 +878,8 @@ async function generateNextRecurringBooking(bookingId: number): Promise<void> {
 
       nextStart.setDate(nextStart.getDate() + sub.intervalDays);
 
+      // parentBookingId always points at the first booking in the series,
+      // creating a flat fan-out (root → child, root → child) rather than a chain.
       const seriesRoot = booking.parentBookingId ?? bookingId;
       const [newBooking] = await db
         .insert(bookings)
@@ -670,7 +901,26 @@ async function generateNextRecurringBooking(bookingId: number): Promise<void> {
 
       // Send confirmation email for the subscription's next booking
       try {
+        // alias() creates a reference to the "profiles" table under the name
+        // "recurClient" so it doesn't collide with any other profiles reference
+        // in the same scope. In SQL: "profiles AS recurClient".
         const recurClient = alias(profiles, "recurClient");
+
+        // ─── Query: fetch client email + service name for the confirmation email ───
+        // SELECT: fetches the client's email (where to send), firstName (for
+        //   the greeting), notifyEmail (whether they opted in to emails), and
+        //   the service name (for the email subject line and body).
+        // FROM: the "bookings" table (starting point for the joins).
+        // INNER JOIN recurClient (profiles AS recurClient): connects the booking
+        //   to the client's profile by matching bookings.clientId → profiles.id.
+        //   INNER JOIN (not LEFT) because we need the email — if the profile
+        //   doesn't exist, there's nobody to email, so we skip the row entirely.
+        // INNER JOIN services: connects the booking to its service by matching
+        //   bookings.serviceId → services.id. INNER because we need the service
+        //   name for the email — missing service means we can't send a useful email.
+        // WHERE:
+        //   - id = the newly created booking — targets the just-inserted row.
+        //   - isNull(deletedAt) — safety check against soft-deleted rows.
         const [row] = await db
           .select({
             clientEmail: recurClient.email,
@@ -683,6 +933,7 @@ async function generateNextRecurringBooking(bookingId: number): Promise<void> {
           .innerJoin(services, eq(bookings.serviceId, services.id))
           .where(and(eq(bookings.id, newBooking.id), isNull(bookings.deletedAt)));
 
+        // Only email clients who have notifications enabled — respect opt-out.
         if (row?.clientEmail && row.notifyEmail) {
           const dateFormatted = nextStart.toLocaleDateString("en-US", {
             weekday: "long",
@@ -707,12 +958,15 @@ async function generateNextRecurringBooking(bookingId: number): Promise<void> {
           });
         }
       } catch {
-        // Non-fatal
+        // Non-fatal — email failure shouldn't prevent the next booking from being created
       }
       return;
     }
 
     // ── RRULE path (no subscription) ────────────────────────────────
+    // For non-subscription recurring bookings, the recurrenceRule is an iCal
+    // RRULE string stored on every booking in the series. Each completion
+    // generates exactly one next booking (lazy generation, not batch).
     if (!booking.recurrenceRule) return;
 
     const interval = parseRRule(booking.recurrenceRule);
@@ -730,6 +984,18 @@ async function generateNextRecurringBooking(bookingId: number): Promise<void> {
     // Respect COUNT — don't create beyond the max number of occurrences
     if (interval.count) {
       const seriesRoot = booking.parentBookingId ?? bookingId;
+
+      // ─── Query: count how many bookings already exist in this recurring series ───
+      // SELECT: sql`count(*)` is an aggregate function that counts every row
+      //   that matches the WHERE clause. Returns a single number: the total
+      //   number of child bookings in this series.
+      // FROM: the "bookings" table.
+      // WHERE:
+      //   - parentBookingId = seriesRoot — only bookings that belong to this
+      //     recurring series (all children point to the same root).
+      //   - isNull(deletedAt) — excludes soft-deleted bookings from the count.
+      // Note: the root booking itself is not counted here (it has no
+      //   parentBookingId pointing to itself), so we add +1 below.
       const [{ total }] = await db
         .select({ total: sql<number>`count(*)` })
         .from(bookings)
@@ -760,7 +1026,24 @@ async function generateNextRecurringBooking(bookingId: number): Promise<void> {
 
     // Send confirmation email for the new recurring booking
     try {
+      // alias() creates a reference to "profiles" under the name "recurClient"
+      // to avoid collisions. In SQL: "profiles AS recurClient".
       const recurClient = alias(profiles, "recurClient");
+
+      // ─── Query: fetch client contact info + service name for the confirmation email ───
+      // SELECT: fetches the client's email, firstName, notifyEmail preference,
+      //   and the service name — everything needed to compose and send the
+      //   recurring booking confirmation email.
+      // FROM: the "bookings" table.
+      // INNER JOIN recurClient (profiles AS recurClient): connects the booking
+      //   to the client's profile by matching bookings.clientId → profiles.id.
+      //   INNER JOIN because we need the email — no profile means no email to send.
+      // INNER JOIN services: connects the booking to its service by matching
+      //   bookings.serviceId → services.id. INNER because we need the service
+      //   name for the email content.
+      // WHERE:
+      //   - id = the newly created recurring booking.
+      //   - isNull(deletedAt) — safety check for soft-deleted rows.
       const [row] = await db
         .select({
           clientEmail: recurClient.email,
@@ -801,7 +1084,8 @@ async function generateNextRecurringBooking(bookingId: number): Promise<void> {
       // Non-fatal — email failure shouldn't break recurrence
     }
   } catch {
-    // Non-fatal — don't break the completion flow
+    // Non-fatal — recurrence generation failure must never block the
+    // completion status write that already happened in the caller.
   }
 }
 
@@ -822,6 +1106,11 @@ async function tryCreateSquareOrder(
   if (!isSquareConfigured()) return;
 
   try {
+    // ─── Query: fetch the service name for the Square order line item ───
+    // SELECT: fetches only "name" (e.g. "Lash Fill") from the "services" table,
+    //   used as the line item description in the Square order.
+    // FROM: the "services" table.
+    // WHERE: id = the service associated with this booking.
     const [service] = await db
       .select({ name: services.name })
       .from(services)
@@ -857,7 +1146,28 @@ async function tryCreateSquareOrder(
  */
 async function tryCreateZohoBooksInvoice(bookingId: number): Promise<void> {
   try {
+    // alias() creates a reference to "profiles" under the name "invoiceClient"
+    // to avoid table name collisions. In SQL: "profiles AS invoiceClient".
     const invoiceClient = alias(profiles, "invoiceClient");
+
+    // ─── Query: fetch booking, client, and service data for the Zoho invoice ───
+    // SELECT: fetches the client's id, email, first name, last name, and phone
+    //   (all needed by the Zoho Books API to create/match a contact), the
+    //   service name (for the invoice line item description), totalInCents (the
+    //   invoice amount), depositPaidInCents (to subtract any deposit already
+    //   collected), and zohoInvoiceId (to check if an invoice was already created
+    //   for this booking — idempotency guard).
+    // FROM: the "bookings" table.
+    // INNER JOIN invoiceClient (profiles AS invoiceClient): connects the booking
+    //   to the client's profile by matching bookings.clientId → profiles.id.
+    //   INNER JOIN because the Zoho invoice requires client contact info — if
+    //   the profile is missing, we can't create the invoice.
+    // INNER JOIN services: connects the booking to its service by matching
+    //   bookings.serviceId → services.id. INNER because we need the service
+    //   name for the invoice line item.
+    // WHERE:
+    //   - id = the booking being invoiced.
+    //   - isNull(deletedAt) — skip soft-deleted bookings.
     const [row] = await db
       .select({
         clientId: bookings.clientId,
@@ -875,7 +1185,8 @@ async function tryCreateZohoBooksInvoice(bookingId: number): Promise<void> {
       .innerJoin(services, eq(bookings.serviceId, services.id))
       .where(and(eq(bookings.id, bookingId), isNull(bookings.deletedAt)));
 
-    if (!row || row.zohoInvoiceId) return; // Already has invoice or not found
+    // Guard: skip if the booking already has an invoice (idempotency) or not found
+    if (!row || row.zohoInvoiceId) return;
 
     createZohoBooksInvoice({
       entityType: "booking",
@@ -909,7 +1220,28 @@ async function tryAutoSendDepositLink(bookingId: number): Promise<void> {
   if (!isSquareConfigured()) return;
 
   try {
+    // alias() creates a reference to "profiles" under the name "depositClient".
+    // In SQL: "profiles AS depositClient".
     const depositClient = alias(profiles, "depositClient");
+
+    // ─── Query: fetch booking, client, and service data for the deposit link ───
+    // SELECT: fetches the client's email and firstName (for the payment link
+    //   email), notifyEmail (to check if the client opted in to emails), the
+    //   service name (for the email subject), depositInCents from the services
+    //   table (how much deposit this service requires — null/0 means no deposit),
+    //   depositPaidInCents from bookings (how much deposit was already paid —
+    //   if > 0, we skip sending another link), and squareOrderId (to avoid
+    //   creating a duplicate Square order).
+    // FROM: the "bookings" table.
+    // INNER JOIN depositClient (profiles AS depositClient): connects the booking
+    //   to the client's profile by matching bookings.clientId → profiles.id.
+    //   INNER JOIN because we need the client's email to send the payment link.
+    // INNER JOIN services: connects the booking to its service by matching
+    //   bookings.serviceId → services.id. INNER because we need to check the
+    //   service's depositInCents to know if a deposit is required at all.
+    // WHERE:
+    //   - id = the booking being confirmed.
+    //   - isNull(deletedAt) — skip soft-deleted bookings.
     const [row] = await db
       .select({
         clientEmail: depositClient.email,
@@ -975,9 +1307,14 @@ async function tryAutoSendDepositLink(bookingId: number): Promise<void> {
   }
 }
 
-/*  Booking confirmation email (non-fatal)                             */
+/* ------------------------------------------------------------------ */
+/*  Booking notification emails & in-app alerts (all non-fatal)        */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Inserts an in-app notification row (the bell icon in the client portal).
+ * Separate from email/SMS — this is the internal channel only.
+ */
 async function tryFireInternalNotification(params: {
   profileId: string;
   type: string;
@@ -1001,9 +1338,35 @@ async function tryFireInternalNotification(params: {
   }
 }
 
+/**
+ * Sends booking confirmation via email + SMS + in-app notification.
+ *
+ * Each channel is gated on the client's notification preferences
+ * (notifyEmail / notifySms). Uses alias() for the profiles join because
+ * other queries in the same scope may already reference profiles.
+ */
 async function trySendBookingConfirmation(bookingId: number): Promise<void> {
   try {
+    // alias() creates a reference to "profiles" under the name "confirmClient".
+    // In SQL: "profiles AS confirmClient".
     const confirmClient = alias(profiles, "confirmClient");
+
+    // ─── Query: fetch all data needed for the confirmation email, SMS, and notification ───
+    // SELECT: fetches the client's id (for the in-app notification), email
+    //   (email recipient), phone (SMS recipient), firstName (greeting),
+    //   notifyEmail and notifySms (opt-in flags — we only send if true),
+    //   the service name (for email subject/body), and booking details
+    //   (startsAt, durationMinutes, totalInCents) for the email template.
+    // FROM: the "bookings" table.
+    // INNER JOIN confirmClient (profiles AS confirmClient): connects the booking
+    //   to the client's profile by matching bookings.clientId → profiles.id.
+    //   INNER JOIN because without a client profile, there's no one to notify.
+    // INNER JOIN services: connects the booking to its service by matching
+    //   bookings.serviceId → services.id. INNER because the service name is
+    //   required for the email content.
+    // WHERE:
+    //   - id = the booking being confirmed.
+    //   - isNull(deletedAt) — skip soft-deleted bookings.
     const [row] = await db
       .select({
         clientId: bookings.clientId,
@@ -1024,7 +1387,14 @@ async function trySendBookingConfirmation(bookingId: number): Promise<void> {
 
     if (!row) return;
 
-    // Fetch add-ons for this booking
+    // ─── Query: fetch any add-on extras attached to this booking ────────
+    // SELECT: fetches the add-on name (e.g. "Bottom lashes") and priceInCents
+    //   (e.g. 1500 = $15.00) from the "bookingAddOns" table, so they can be
+    //   listed in the confirmation email.
+    // FROM: the "bookingAddOns" table (extra services added to a booking).
+    // WHERE: bookingId = the booking being confirmed — gets only this booking's
+    //   add-ons. Returns multiple rows if there are multiple add-ons, or an
+    //   empty array if none.
     const addOnRows = await db
       .select({
         name: bookingAddOns.addOnName,
@@ -1090,7 +1460,25 @@ async function trySendBookingStatusEmail(
   cancellationReason?: string,
 ): Promise<void> {
   try {
+    // alias() creates a reference to "profiles" under the name "statusClient".
+    // In SQL: "profiles AS statusClient".
     const statusClient = alias(profiles, "statusClient");
+
+    // ─── Query: fetch client + service data for the status-change email ──
+    // SELECT: fetches the client's id (for in-app notifications), email (where
+    //   to send), firstName (for the greeting), notifyEmail (opt-in check),
+    //   the service name (for the email subject/body), and startsAt (the
+    //   appointment date, shown in cancellation/no-show emails).
+    // FROM: the "bookings" table.
+    // INNER JOIN statusClient (profiles AS statusClient): connects the booking
+    //   to the client's profile by matching bookings.clientId → profiles.id.
+    //   INNER JOIN because we need the email address — no profile means no email.
+    // INNER JOIN services: connects the booking to its service by matching
+    //   bookings.serviceId → services.id. INNER because the service name goes
+    //   in the email.
+    // WHERE:
+    //   - id = the booking whose status changed.
+    //   - isNull(deletedAt) — skip soft-deleted bookings.
     const [row] = await db
       .select({
         clientId: bookings.clientId,
@@ -1200,7 +1588,28 @@ async function tryEnforceFee(
 
     if (feePercent <= 0) return;
 
+    // alias() creates a reference to "profiles" under the name "feeClient".
+    // In SQL: "profiles AS feeClient".
     const feeClient = alias(profiles, "feeClient");
+
+    // ─── Query: fetch booking, client, and service data for fee enforcement ───
+    // SELECT: fetches the client's id (for the invoice/payment record), email
+    //   and firstName (for the fee notification email), notifyEmail (opt-in
+    //   check), squareCustomerId (to look up their card on file for auto-charge),
+    //   the service name (for email/invoice descriptions), totalInCents (the
+    //   booking price — the fee is a percentage of this), and startsAt (the
+    //   appointment date, shown in fee notification emails).
+    // FROM: the "bookings" table.
+    // INNER JOIN feeClient (profiles AS feeClient): connects the booking to the
+    //   client's profile by matching bookings.clientId → profiles.id. INNER JOIN
+    //   because we need the client's Square customer ID to attempt a card charge,
+    //   and their email for the fee notification.
+    // INNER JOIN services: connects the booking to its service by matching
+    //   bookings.serviceId → services.id. INNER because the service name
+    //   appears in the fee invoice/email.
+    // WHERE:
+    //   - id = the booking that was no-showed or late-cancelled.
+    //   - isNull(deletedAt) — skip soft-deleted bookings.
     const [row] = await db
       .select({
         clientId: bookings.clientId,
@@ -1299,8 +1708,18 @@ async function tryEnforceFee(
       }
     }
 
-    // Fallback: create an invoice if card charge failed or no card on file
+    // Fallback: create an invoice if card charge failed or no card on file.
+    // The invoice uses a sequential INV-XXX numbering scheme derived from
+    // the highest existing invoice number.
     if (!charged) {
+      // ─── Query: fetch the most recent invoice number for sequential numbering ───
+      // SELECT: fetches only the "number" column (e.g. "INV-042") from the
+      //   "invoices" table — we parse the numeric part and increment it.
+      // FROM: the "invoices" table.
+      // ORDER BY id DESC: sorts by the auto-incrementing primary key in
+      //   descending order, so the most recently created invoice is first.
+      // LIMIT 1: we only need the latest invoice's number to calculate the next
+      //   sequential number (e.g. INV-042 → INV-043).
       const [lastInvoice] = await db
         .select({ number: invoices.number })
         .from(invoices)
@@ -1379,6 +1798,14 @@ async function tryEnforceLateCancelFee(bookingId: number): Promise<void> {
     const policies = await getPolicies();
     if (policies.lateCancelFeePercent <= 0 || policies.cancelWindowHours <= 0) return;
 
+    // ─── Query: fetch the booking's start time to check the cancellation window ───
+    // SELECT: fetches only "startsAt" from the "bookings" table — the
+    //   appointment time, so we can calculate how many hours away it is and
+    //   decide whether this counts as a "late" cancellation.
+    // FROM: the "bookings" table.
+    // WHERE:
+    //   - id = the booking being cancelled.
+    //   - isNull(deletedAt) — skip soft-deleted bookings.
     const [booking] = await db
       .select({ startsAt: bookings.startsAt })
       .from(bookings)
@@ -1388,7 +1815,8 @@ async function tryEnforceLateCancelFee(bookingId: number): Promise<void> {
 
     const hoursUntilStart = (booking.startsAt.getTime() - Date.now()) / (1000 * 60 * 60);
 
-    // Only charge if cancelled within the cancellation window
+    // Only charge if cancelled within the policy-configured window (e.g. 24h).
+    // Cancellations with enough notice are free — no fee assessed.
     if (hoursUntilStart > policies.cancelWindowHours) return;
 
     await tryEnforceFee(bookingId, "late_cancellation");
@@ -1411,7 +1839,25 @@ async function tryNotifyWaitlist(cancelledBookingId: number): Promise<void> {
  */
 async function trySendBookingReschedule(bookingId: number, oldStartsAt: Date): Promise<void> {
   try {
+    // alias() creates a reference to "profiles" under the name "reschedClient".
+    // In SQL: "profiles AS reschedClient".
     const reschedClient = alias(profiles, "reschedClient");
+
+    // ─── Query: fetch client + service data for the reschedule email ─────
+    // SELECT: fetches the client's email (recipient), firstName (greeting),
+    //   notifyEmail (opt-in check), the service name (for the email subject),
+    //   and startsAt (the NEW appointment time — the old time is passed in as
+    //   a parameter to this function).
+    // FROM: the "bookings" table.
+    // INNER JOIN reschedClient (profiles AS reschedClient): connects the booking
+    //   to the client's profile by matching bookings.clientId → profiles.id.
+    //   INNER JOIN because we need the email — no profile means no one to notify.
+    // INNER JOIN services: connects the booking to its service by matching
+    //   bookings.serviceId → services.id. INNER because the service name goes
+    //   in the reschedule email.
+    // WHERE:
+    //   - id = the rescheduled booking.
+    //   - isNull(deletedAt) — skip soft-deleted bookings.
     const [row] = await db
       .select({
         clientEmail: reschedClient.email,
@@ -1458,6 +1904,11 @@ async function trySendBookingReschedule(bookingId: number, oldStartsAt: Date): P
 /*  Assistant-scoped bookings                                          */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Presentation-ready booking row for the assistant dashboard.
+ * Pre-formats dates, times, initials, and price (dollars not cents)
+ * so the React component can render without transforms.
+ */
 export type AssistantBookingRow = {
   id: number;
   date: string;
@@ -1476,11 +1927,14 @@ export type AssistantBookingRow = {
   notes: string | null;
 };
 
+/** Summary metrics shown in the assistant dashboard header cards. */
 export type AssistantBookingStats = {
   upcomingCount: number;
   completedCount: number;
   completedRevenue: number;
 };
+
+/* ---- Date/time formatting helpers for AssistantBookingRow ---- */
 
 function formatTime(d: Date): string {
   return d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
@@ -1507,9 +1961,18 @@ function formatDayLabel(d: Date): string {
 }
 
 function getInitials(first: string, last: string): string {
+  // Build a 2-element array of first chars, filter(Boolean) removes undefined/empty
+  // entries, then join. Falls back to "?" if both names are empty.
   return [first?.[0], last?.[0]].filter(Boolean).join("").toUpperCase() || "?";
 }
 
+/**
+ * Fetches all bookings assigned to the logged-in staff member.
+ *
+ * Uses `requireStaff` (not `requireAdmin`) because assistants need access.
+ * Only joins profiles once (client) — staff is implicit from the auth context.
+ * Returns pre-formatted rows + aggregate stats for the dashboard header.
+ */
 export async function getAssistantBookings(): Promise<{
   bookings: AssistantBookingRow[];
   stats: AssistantBookingStats;
@@ -1517,8 +1980,33 @@ export async function getAssistantBookings(): Promise<{
   try {
     const user = await requireStaff();
 
+    // alias() creates a reference to "profiles" under the name "client". Only
+    // one alias is needed here (unlike getBookings which needs two) because the
+    // staff member is identified from the auth session, not from a join.
+    // In SQL: "profiles AS client".
     const clientProfile = alias(profiles, "client");
 
+    // ─── Query: fetch all bookings assigned to this staff member ─────────
+    // SELECT: fetches booking fields (id, status, startsAt, durationMinutes,
+    //   totalInCents, location, clientNotes, staffNotes) from the "bookings"
+    //   table, plus the client's firstName, lastName, and phone from the
+    //   "client" alias of "profiles", and the service name and category from
+    //   the "services" table. All of these are needed to populate the
+    //   assistant dashboard cards.
+    // FROM: the "bookings" table.
+    // INNER JOIN clientProfile (profiles AS client): connects each booking to
+    //   the client's profile by matching bookings.clientId → profiles.id.
+    //   INNER JOIN (not LEFT) because the assistant dashboard always shows the
+    //   client name — bookings with missing clients should not appear.
+    // INNER JOIN services: connects each booking to its service by matching
+    //   bookings.serviceId → services.id. INNER because the service name and
+    //   category are required for display.
+    // WHERE:
+    //   - staffId = user.id — only bookings assigned to the logged-in staff
+    //     member. This is the security boundary that scopes the assistant view.
+    //   - isNull(deletedAt) — excludes soft-deleted bookings.
+    // ORDER BY startsAt DESC: newest bookings first, so the assistant sees
+    //   their most recent/upcoming appointments at the top.
     const rows = await db
       .select({
         id: bookings.id,
@@ -1541,6 +2029,10 @@ export async function getAssistantBookings(): Promise<{
       .where(and(eq(bookings.staffId, user.id), isNull(bookings.deletedAt)))
       .orderBy(desc(bookings.startsAt));
 
+    // Transform each raw DB row into a presentation-ready AssistantBookingRow.
+    // .map() gives a 1:1 conversion: every booking becomes one row with
+    // pre-computed display fields (formatted times, privacy-truncated client
+    // name, cents→dollars) so the React component renders without transforms.
     const mapped: AssistantBookingRow[] = rows.map((r) => {
       const start = new Date(r.startsAt);
       const end = new Date(start.getTime() + r.durationMinutes * 60 * 1000);
@@ -1561,10 +2053,14 @@ export async function getAssistantBookings(): Promise<{
         status: r.status,
         durationMin: r.durationMinutes,
         price: r.totalInCents / 100,
+        // Prefer staff notes (internal) over client notes for the assistant view
         notes: r.staffNotes ?? r.clientNotes ?? null,
       };
     });
 
+    // Filter into status subsets for the dashboard stat cards.
+    // Two .filter() calls are clearer than a single-pass reduce with multiple
+    // accumulators, and the dataset is small (one assistant's bookings).
     const upcomingCount = mapped.filter((b) =>
       ["confirmed", "pending", "in_progress"].includes(b.status),
     ).length;
@@ -1575,6 +2071,7 @@ export async function getAssistantBookings(): Promise<{
       stats: {
         upcomingCount,
         completedCount: completedBookings.length,
+        // Sum completed booking prices via reduce — accumulates a running total.
         completedRevenue: completedBookings.reduce((s, b) => s + b.price, 0),
       },
     };
@@ -1598,6 +2095,14 @@ export async function cancelBookingSeries(bookingId: number): Promise<void> {
     z.number().int().positive().parse(bookingId);
     const user = await getUser();
 
+    // ─── Query: fetch the booking's series root to identify the full series ───
+    // SELECT: fetches only "parentBookingId" from the "bookings" table — this
+    //   tells us which booking is the root of the recurring series. If null,
+    //   this booking IS the root.
+    // FROM: the "bookings" table.
+    // WHERE:
+    //   - id = the booking the user clicked "cancel series" on.
+    //   - isNull(deletedAt) — skip soft-deleted bookings.
     const [booking] = await db
       .select({ parentBookingId: bookings.parentBookingId })
       .from(bookings)
@@ -1608,7 +2113,23 @@ export async function cancelBookingSeries(bookingId: number): Promise<void> {
     const seriesRoot = booking.parentBookingId ?? bookingId;
     const now = new Date();
 
-    // Find all future non-completed bookings in the series (root + children)
+    // ─── Query: find all future cancellable bookings in the recurring series ───
+    // SELECT: fetches "id" and "status" from the "bookings" table for each
+    //   booking that will be cancelled. We need the IDs for the bulk UPDATE
+    //   and the count for the audit log.
+    // FROM: the "bookings" table.
+    // WHERE (all conditions combined with AND):
+    //   - sql`(id = seriesRoot OR parentBookingId = seriesRoot)` — matches both
+    //     the root booking and all its children. The sql`` template literal is
+    //     used here because Drizzle's or() helper doesn't compose cleanly with
+    //     other raw SQL fragments in the same and() call.
+    //   - sql`startsAt >= now` — only future bookings (past ones are already done).
+    //   - sql`status NOT IN ('cancelled', 'completed', 'no_show')` — only
+    //     bookings that are still active (pending, confirmed, in_progress).
+    //     Already-terminal bookings should not be re-cancelled.
+    //   - isNull(deletedAt) — skip soft-deleted bookings.
+    // Raw SQL for the OR because Drizzle's `or()` doesn't compose well inside
+    // `and()` with other raw SQL fragments.
     const seriesBookings = await db
       .select({ id: bookings.id, status: bookings.status })
       .from(bookings)
@@ -1623,10 +2144,20 @@ export async function cancelBookingSeries(bookingId: number): Promise<void> {
 
     if (seriesBookings.length === 0) return;
 
+    // ─── Mutation: bulk-cancel all identified series bookings at once ────
+    // UPDATE: sets status to "cancelled" and stamps cancelledAt with the
+    //   current timestamp on every matching row.
+    // WHERE: id IN (...) — targets only the specific booking IDs found by the
+    //   query above. sql.join() builds a comma-separated list of IDs from the
+    //   array (e.g. "1, 5, 12"). This is more efficient than running N
+    //   individual UPDATE statements.
     await db
       .update(bookings)
       .set({ status: "cancelled", cancelledAt: new Date() })
       .where(
+        // Map booking objects to SQL-safe id literals for the IN clause.
+        // sql.join() concatenates them with commas to build the IN(...) list.
+        // This is more efficient than N individual UPDATE statements.
         sql`${bookings.id} IN (${sql.join(
           seriesBookings.map((b) => sql`${b.id}`),
           sql`, `,

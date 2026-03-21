@@ -1,3 +1,11 @@
+/**
+ * WaitlistDialog — Public-facing modal for joining a service waitlist.
+ *
+ * Checks authentication status on open: if the visitor is a logged-in
+ * client, name/email fields are hidden (the backend uses their profile).
+ * Guest visitors must provide name + email and pass a Cloudflare Turnstile
+ * challenge before submitting. After success, shows a confirmation screen.
+ */
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
@@ -16,14 +24,18 @@ export function WaitlistDialog({
   open: boolean;
   onClose: () => void;
 }) {
+  /** isGuest: null until auth check completes, true for anonymous visitors */
   const [isGuest, setIsGuest] = useState<boolean | null>(null);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [datePreference, setDatePreference] = useState("");
   const [notes, setNotes] = useState("");
+  /** submitting: true while the POST is in-flight — disables the button */
   const [submitting, setSubmitting] = useState(false);
+  /** submitted: flips to the success confirmation screen */
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState("");
+  /** turnstileToken: Cloudflare challenge token, required for guest submissions */
   const [turnstileToken, setTurnstileToken] = useState("");
   const handleTurnstileSuccess = useCallback((token: string) => {
     setTurnstileToken(token);

@@ -1,3 +1,26 @@
+/**
+ * Tests for POST /api/book/pay-deposit — inline deposit payment during booking.
+ *
+ * Covers:
+ *  - Input validation: invalid JSON (400), missing required fields (400),
+ *    invalid guest email (400)
+ *  - Turnstile bot-check failure for guests (403)
+ *  - Square not configured → 503
+ *  - Service not found → 404
+ *  - Service has no deposit (depositInCents=0) → 400
+ *  - Happy path (authenticated user): creates pending booking, charges
+ *    deposit via Square, records payment row, fires audit log and
+ *    PostHog analytics event, returns { success: true, bookingId }
+ *
+ * Mocks: db (select/insert/update chains), Square (isSquareConfigured,
+ * createSquarePayment), Turnstile verifier, Supabase auth (getUser),
+ * logAction, trackEvent, Resend, Sentry, cadence label helper.
+ */
+// describe: groups related tests into a labeled block (like a folder for tests)
+// it/test: defines a single test case with a description and assertion function
+// expect: creates an assertion — checks that a value matches an expected condition
+// vi: Vitest's mock utility — creates fake functions, spies on calls, and controls return values
+// beforeEach: runs a setup function before every test in the current describe block
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 /* ------------------------------------------------------------------ */

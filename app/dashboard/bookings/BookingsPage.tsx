@@ -1,3 +1,42 @@
+/**
+ * Admin bookings page — full booking management with tabbed layout
+ * (Bookings / Waitlist / Memberships), stat cards, search + status filters,
+ * and lazy-loaded dialogs for create/edit, cancel, delete, service records,
+ * waiver gating, and payment links.
+ *
+ * Parent: app/dashboard/bookings/page.tsx (admin role)
+ *
+ * State:
+ *   allRows/hasMore   — raw booking rows from server, supports "load more" pagination
+ *   bookings          — useOptimistic over allRows.map(mapBookingRow) for instant UI updates
+ *   pageTab           — which tab is active (Bookings / Waitlist / Memberships)
+ *   search            — free-text filter matching client name or service name
+ *   statusFilter      — chip filter matching status label
+ *   dialogOpen        — controls the create/edit BookingDialog
+ *   editTarget        — the booking being edited (null = create mode)
+ *   menuOpen          — which booking's overflow menu is open (by id)
+ *   cancelTarget/Reason  — booking + reason for the cancel dialog
+ *   deleteTarget      — booking for the delete confirmation dialog
+ *   paymentTarget     — booking for the payment link dialog
+ *   serviceNotesTarget — booking for the service record dialog
+ *   waiverGateTarget/missingWaivers — booking blocked by unsigned waivers
+ *
+ * Key operations:
+ *   filtered = bookings.filter(...)
+ *     — applies search (case-insensitive .includes on client/service)
+ *       and status filter (compares statusConfig label to filter string)
+ *   todayCount/pendingCount/revenue/waitingCount
+ *     — derived stats computed from bookings array using .filter() and .reduce()
+ *   handleQuickStatus — checks waivers before confirming, uses optimistic update
+ *   buildFullRRule    — assembles RRULE from base frequency + UNTIL date or COUNT
+ *   handleSave        — branches on editTarget to call updateBooking or createBooking
+ *   loadMore          — fetches next page of bookings, appends to allRows
+ *
+ * Dynamic imports:
+ *   BookingDialog, CancelDialog, DeleteDialog, ServiceRecordDialog,
+ *   WaiverGateDialog, PaymentChoiceDialog — all lazy-loaded to reduce
+ *   initial bundle size since they're only needed on interaction.
+ */
 "use client";
 
 import { type ReactNode, useState, useOptimistic, useTransition, useCallback } from "react";

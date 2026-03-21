@@ -1,9 +1,16 @@
+// describe: groups related tests into a labeled block
+// it: defines a single test case
+// expect: creates an assertion to check a value matches expected condition
+// vi: Vitest's mock utility for creating fake functions and spying on calls
+// beforeEach: runs setup before every test (typically resets mocks)
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 /* ------------------------------------------------------------------ */
 /*  Chainable DB mock helper                                           */
 /* ------------------------------------------------------------------ */
 
+// Returns an awaitable, chainable object that mimics Drizzle ORM's query builder.
+// Every builder method (from, where, join, etc.) returns itself so any chain resolves to `rows`.
 function makeChain(rows: unknown[] = []) {
   const resolved = Promise.resolve(rows);
   const chain: any = {
@@ -24,11 +31,17 @@ function makeChain(rows: unknown[] = []) {
 /*  Shared mock refs                                                   */
 /* ------------------------------------------------------------------ */
 
+// vi.fn(): creates a mock function that records how it was called.
+// mockGetUser simulates Supabase auth -- tests set its return value to control authentication state.
 const mockGetUser = vi.fn();
+// Captures PostHog analytics events so tests verify correct tracking without hitting the real API.
 const mockTrackEvent = vi.fn();
+// Controls whether Square integration is considered "connected" in the test environment.
 const mockIsSquareConfigured = vi.fn(() => false);
 const mockRevalidatePath = vi.fn();
 
+// Registers vi.doMock() calls for all external dependencies (DB, auth, PostHog, Square, etc.)
+// so the imported server actions run against fakes instead of real services.
 function setupMocks(db: Record<string, unknown> | null = null) {
   const defaultDb = {
     select: vi.fn(() => makeChain([])),

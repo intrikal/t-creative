@@ -46,6 +46,10 @@ export function isResendConfigured(): boolean {
 /**
  * Fetch a profile's email + notifyEmail preference.
  * Returns null if profile not found or email notifications disabled.
+ *
+ * Callers should check the return value before calling `sendEmail()` —
+ * this enforces the user's notification opt-out preference at the
+ * data layer so individual send sites don't need to check it.
  */
 export async function getEmailRecipient(
   profileId: string,
@@ -63,7 +67,14 @@ export async function getEmailRecipient(
   return { email: row.email, firstName: row.firstName };
 }
 
-/** Lazy-initialized Resend client (avoids constructor throw when key is missing). */
+/**
+ * Lazy-initialized Resend client.
+ *
+ * Unlike the Square SDK (which tolerates an empty token at construction),
+ * the Resend constructor throws if the API key is missing. Lazy init
+ * ensures the module can be imported without env vars set — the throw
+ * only happens at send time, guarded by `isResendConfigured()`.
+ */
 let _resend: Resend | null = null;
 function getResendClient(): Resend {
   if (!_resend) {

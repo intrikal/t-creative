@@ -1,3 +1,23 @@
+/**
+ * Tests for GET /api/cron/review-requests — post-booking review email sender.
+ *
+ * Covers:
+ *  - Auth: missing or wrong x-cron-secret returns 401
+ *  - No-op: no completed bookings in the window → zero counts
+ *  - Happy path: eligible booking → sends review request email with correct
+ *    entityType and localId for dedup
+ *  - Failure counting: sendEmail returns false → increments failed counter
+ *  - Deduplication: existing sync_log entry → skips sending
+ *  - Preference checks: notifyEmail=false or null clientEmail → skips silently
+ *
+ * Mocks: db (select chain), sendEmail, ReviewRequest component,
+ * settings-actions (remindersConfig for delay hours).
+ */
+// describe: groups related tests into a labeled block (like a folder for tests)
+// it/test: defines a single test case with a description and assertion function
+// expect: creates an assertion — checks that a value matches an expected condition
+// vi: Vitest's mock utility — creates fake functions, spies on calls, and controls return values
+// beforeEach: runs a setup function before every test in the current describe block
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 /* ------------------------------------------------------------------ */

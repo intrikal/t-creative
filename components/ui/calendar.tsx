@@ -1,3 +1,11 @@
+/**
+ * calendar.tsx — Styled date picker wrapping react-day-picker (DayPicker).
+ *
+ * Applies the project's design tokens (accent colours, surface/border)
+ * to DayPicker's default class names. Supports single, range, and multi
+ * selection modes. Used by the booking request dialog and schedule views
+ * for date selection.
+ */
 "use client";
 
 import * as React from "react";

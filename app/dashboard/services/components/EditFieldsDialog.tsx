@@ -31,20 +31,31 @@ export function EditFieldsDialog({
   onSaved: (fields: FormField[]) => void;
   onClose: () => void;
 }) {
-  // Seed from saved fields if they exist, otherwise use type-appropriate defaults.
+  /**
+   * Field list for the form being edited. Seeded from saved fields if they
+   * exist, otherwise from type-appropriate defaults so admins don't start
+   * from scratch.
+   */
   const [fields, setFields] = useState<FormField[]>(form.fields ?? DEFAULT_FIELDS[form.type] ?? []);
+  /** Whether the save action is in flight. */
   const [saving, setSaving] = useState(false);
 
+  /** toggleRequired — flips the required flag on a field using .map() to find it by ID. */
   function toggleRequired(id: number) {
     setFields((prev) => prev.map((f) => (f.id === id ? { ...f, required: !f.required } : f)));
   }
 
+  /** removeField — filters out a field by ID from the local array. */
   function removeField(id: number) {
     setFields((prev) => prev.filter((f) => f.id !== id));
   }
 
+  /**
+   * addField — appends a new blank field with a Date.now() ID.
+   * Date.now() is sufficient as a client-side ID because fields are only
+   * identified by array position in the JSONB column, not by a DB PK.
+   */
   function addField() {
-    // Use Date.now() as a stable-enough client-side ID for new fields.
     setFields((prev) => [
       ...prev,
       { id: Date.now(), label: "New Field", type: "text", required: false },

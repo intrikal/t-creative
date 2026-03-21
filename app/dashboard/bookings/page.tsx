@@ -1,3 +1,19 @@
+/**
+ * app/dashboard/bookings/page.tsx — Route entry point for /dashboard/bookings.
+ *
+ * Role-based rendering:
+ *   client    → ClientBookingsPage (read-only view of own bookings)
+ *   assistant → AssistantBookingsPage (read-only with calendar views)
+ *   admin+    → BookingsPage (full CRUD with waitlist + memberships tabs)
+ *
+ * Data loading uses parallel Promise.all() for each role to minimize
+ * waterfall latency. Admin loads bookings, clients, services, staff,
+ * and subscriptions concurrently. Dynamic imports are also parallelized
+ * with the data fetches so code and data arrive together.
+ *
+ * activeSubscriptions.map() — strips subscription rows down to the
+ * minimal shape needed by BookingDialog (id, clientId, name, sessionsRemaining).
+ */
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { getCurrentUser } from "@/lib/auth";

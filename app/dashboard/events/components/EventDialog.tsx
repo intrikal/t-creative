@@ -26,22 +26,32 @@ export function EventDialog({
   venues: VenueRow[];
   onSave: (form: EventForm) => void;
 }) {
+  /** Full event form state, reset from `initial` each time the dialog opens. */
   const [form, setForm] = useState<EventForm>(initial);
 
+  // Reset form to initial values on open so edits don't persist across opens.
   useEffect(() => {
     if (open) setForm(initial);
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  /** Curried setter — returns an onChange handler for any form field. */
   const set =
     (field: keyof EventForm) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
       setForm((f) => ({ ...f, [field]: e.target.value }));
 
+  /** Only show active venues in the picker to prevent selecting deactivated ones. */
   const activeVenues = venues.filter((v) => v.isActive);
+  /** The currently selected venue object (null if custom/no venue). */
   const selectedVenue = form.venueId
     ? activeVenues.find((v) => String(v.id) === form.venueId)
     : null;
 
+  /**
+   * handleVenueChange — updates venue selection and auto-fills travel fee.
+   * When a saved venue with a default travel fee is selected and the form's
+   * travel fee is empty/zero, pre-populate it to save the user a step.
+   */
   function handleVenueChange(e: React.ChangeEvent<HTMLSelectElement>) {
     const vid = e.target.value;
     if (vid) {

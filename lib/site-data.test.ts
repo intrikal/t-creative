@@ -1,17 +1,40 @@
+// describe: groups related tests into a labeled block (like a folder for tests)
+// it/test: defines a single test case with a description and assertion function
+// expect: creates an assertion — checks that a value matches an expected condition
+// vi: Vitest's mock utility — creates fake functions, spies on calls, and controls return values
+// beforeEach: runs a setup function before every test in the current describe block
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
+/**
+ * Tests for getSiteData — aggregates business profile, content, and policies
+ * into a single object for the public site.
+ *
+ * Covers:
+ *  - Returns all three data sources combined
+ *  - Returns defaults when no settings are configured
+ *  - Propagates database errors (not swallowed)
+ *
+ * Mocks: settings-actions (getPublicBusinessProfile, getSiteContent, getPublicPolicies).
+ */
+
+// mockGetPublicBusinessProfile: controls the business profile data returned
 const mockGetPublicBusinessProfile = vi.fn();
+// mockGetSiteContent: controls the CMS content (hero, about, CTA) returned
 const mockGetSiteContent = vi.fn();
+// mockGetPublicPolicies: controls the cancellation/deposit policy data returned
 const mockGetPublicPolicies = vi.fn();
 
+// Mock the settings-actions module so tests don't hit the real database
 vi.mock("@/app/dashboard/settings/settings-actions", () => ({
   getPublicBusinessProfile: (...args: unknown[]) => mockGetPublicBusinessProfile(...args),
   getSiteContent: (...args: unknown[]) => mockGetSiteContent(...args),
   getPublicPolicies: (...args: unknown[]) => mockGetPublicPolicies(...args),
 }));
 
+// getSiteData: the function under test — fetches all 3 data sources in parallel
 import { getSiteData } from "./site-data";
 
+// Default business profile — represents an unconfigured studio (fresh install)
 const DEFAULT_BUSINESS = {
   businessName: "T Creative Studio",
   owner: "Trini",
@@ -26,6 +49,7 @@ const DEFAULT_BUSINESS = {
   emailFromAddress: "noreply@tcreativestudio.com",
 };
 
+// Default CMS content — all empty strings until the admin configures the site
 const DEFAULT_CONTENT = {
   heroHeadline: "",
   heroSubheadline: "",
@@ -34,6 +58,7 @@ const DEFAULT_CONTENT = {
   ctaUrl: "",
 };
 
+// Default policy settings — standard 24h cancel window, no deposit required
 const DEFAULT_POLICIES = {
   cancelWindowHours: 24,
   lateCancelFeePercent: 50,

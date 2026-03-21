@@ -1,3 +1,16 @@
+/**
+ * ProgramDialog — modal for creating or editing a training program.
+ *
+ * Used by the admin Training dashboard. Each field maps to useState so the
+ * form is fully controlled. The dialog key includes `String(open)` so React
+ * re-mounts the form inputs when the dialog re-opens, resetting to `initial`.
+ *
+ * ## Validation
+ * Name must be non-empty and price must be provided. Defaults: 1 session,
+ * 6 max spots, waitlist open.
+ *
+ * @module training/components/ProgramDialog
+ */
 "use client";
 
 import { useState } from "react";
@@ -17,13 +30,21 @@ export function ProgramDialog({
   onSave: (p: ProgramFormData) => void;
   saving: boolean;
 }) {
+  /** Program name (required). */
   const [name, setName] = useState(initial?.name ?? "");
+  /** Program type (lash, jewelry, business, crochet). */
   const [type, setType] = useState<ProgramType>(initial?.type ?? "lash");
+  /** Program price in dollars (stored as string for input binding). */
   const [price, setPrice] = useState(String(initial?.price ?? ""));
+  /** Number of sessions included (stored as string for input binding). */
   const [sessions, setSessions] = useState(String(initial?.sessions ?? ""));
+  /** Free-text program description. */
   const [description, setDescription] = useState(initial?.description ?? "");
+  /** Whether the program is active (visible to clients). */
   const [active, setActive] = useState(initial?.active ?? true);
+  /** Maximum enrollment capacity. */
   const [maxSpots, setMaxSpots] = useState(String(initial?.maxSpots ?? "6"));
+  /** Whether the waitlist is accepting new sign-ups. */
   const [waitlistOpen, setWaitlistOpen] = useState(initial?.waitlistOpen ?? true);
 
   return (

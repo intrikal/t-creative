@@ -1,9 +1,29 @@
+// describe: groups related tests into a labeled block (like a folder for tests)
+// it/test: defines a single test case with a description and assertion function
+// expect: creates an assertion — checks that a value matches an expected condition
+// vi: Vitest's mock utility — creates fake functions, spies on calls, and controls return values
+// beforeEach: runs a setup function before every test in the current describe block
 import { describe, it, expect, vi, beforeEach } from "vitest";
+
+/**
+ * Tests for the backup module — manifest creation, S3 storage configuration,
+ * and upload functionality.
+ *
+ * Covers:
+ *  - isStorageConfigured: all 3 S3 env vars required
+ *  - createBackupManifest: correct structure, all 17 domain groups, zero-row counts,
+ *    source env var handling, row counting from DB queries
+ *  - uploadBackupToStorage: throws when S3 vars are missing
+ *
+ * Mocks: db (select for all table counts), db/schema (all 40+ tables),
+ * @aws-sdk/client-s3 (S3Client + PutObjectCommand).
+ */
 
 /* ------------------------------------------------------------------ */
 /*  Shared mock state                                                   */
 /* ------------------------------------------------------------------ */
 
+// mockDbSelect: controls what rows each db.select().from() call returns
 const mockDbSelect = vi.fn();
 
 /** Returns a thenable chain where from() resolves to `result`. */
@@ -18,13 +38,15 @@ function makeSelectChain(result: unknown[] = []) {
   return chain;
 }
 
+// Mock the database so tests don't need a real Postgres connection
 vi.mock("@/db", () => ({
   db: {
     select: (...args: unknown[]) => mockDbSelect(...args),
   },
 }));
 
-// All tables referenced via `import * as schema` in backup.ts
+// Mock every table referenced by the backup module — it iterates all schema exports
+// to build the manifest. Using empty objects satisfies the import without real definitions.
 vi.mock("@/db/schema", () => ({
   profiles: {},
   services: {},
@@ -84,6 +106,7 @@ vi.mock("@/db/schema", () => ({
   auditLog: {},
 }));
 
+// Mock the AWS SDK so tests don't need real S3 credentials
 vi.mock("@aws-sdk/client-s3", () => ({
   S3Client: vi.fn().mockImplementation(() => ({ send: vi.fn().mockResolvedValue({}) })),
   PutObjectCommand: vi.fn(),

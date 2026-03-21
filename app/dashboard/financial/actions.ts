@@ -2,7 +2,15 @@
  * app/dashboard/financial/actions.ts — Barrel re-export for financial actions.
  *
  * All financial functions have been split into domain-specific modules.
- * This file re-exports everything for backward compatibility.
+ * This file re-exports everything for backward compatibility so that
+ * existing imports like `import { getPayments } from "./actions"` still work.
+ *
+ * No queries live here — see the individual sub-modules for SQL-level docs:
+ *   - payment-queries.ts          — payments list, revenue stats, category revenue,
+ *                                    weekly revenue, deposits, tips, product sales,
+ *                                    tax estimates, P&L, expense breakdowns
+ *   - invoice-expense-actions.ts  — invoice CRUD, expense CRUD
+ *   - promo-gift-actions.ts       — gift card CRUD, promotion CRUD, redemption, validation
  *
  * @module financial/actions
  * @see {@link ./FinancialPage.tsx} — client component consuming this data

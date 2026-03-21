@@ -1,5 +1,30 @@
 "use client";
 
+/**
+ * PanelAssistantPortfolio — right-side preview panel for StepAssistantPortfolio (step 5).
+ *
+ * What: Shows a live card preview of the assistant's portfolio links (Instagram,
+ *       TikTok, website) as they type them into the form. Each link row displays
+ *       the platform icon, label, and value (or a greyed-out placeholder if empty).
+ *       A small accent dot appears next to filled-in links.
+ *
+ * Why: Gives immediate visual feedback — the assistant can see exactly how their
+ *      links will appear on their public profile card as they enter them. The
+ *      contextual footer message changes between "skip if you'd rather not" and
+ *      "clients will see these" based on whether any link has been entered.
+ *
+ * How: Receives the three handle/URL props from `form.Subscribe` in OnboardingFlow.
+ *      The `links` array maps each platform to its icon, display value, and
+ *      placeholder. The `hasAny` boolean drives the footer message text.
+ *
+ * @prop portfolioInstagram — portfolio-specific Instagram handle (may differ from personal)
+ * @prop tiktokHandle — TikTok handle
+ * @prop portfolioWebsite — personal or business website URL
+ *
+ * Related files:
+ * - components/onboarding/steps/StepAssistantPortfolio.tsx — paired left-side step
+ * - components/onboarding/OnboardingFlow.tsx — passes props via form.Subscribe
+ */
 import { motion } from "framer-motion";
 import { LuInstagram, LuLink, LuSparkles } from "react-icons/lu";
 import { SiTiktok } from "react-icons/si";
@@ -16,8 +41,14 @@ export function PanelAssistantPortfolio({
   tiktokHandle,
   portfolioWebsite,
 }: PanelAssistantPortfolioProps) {
+  // `?.trim()` uses optional chaining — if the value is undefined, it short-circuits
+  // to undefined instead of crashing. `||` treats empty strings as falsy, so hasAny
+  // is truthy only when at least one link has non-whitespace content.
   const hasAny = portfolioInstagram?.trim() || tiktokHandle?.trim() || portfolioWebsite?.trim();
 
+  // Each entry maps a platform to its display config. `value` is null when the
+  // handle is empty/whitespace, which triggers the greyed-out placeholder rendering.
+  // The `??` (nullish coalescing) in the JSX picks placeholder when value is null.
   const links = [
     {
       icon: LuInstagram,

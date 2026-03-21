@@ -132,6 +132,12 @@ export const onboardingSchema = z.object({
 
 export type OnboardingData = z.infer<typeof onboardingSchema>;
 
+/**
+ * Ordered step definitions for the client onboarding wizard.
+ * Each step maps to a page in the multi-step OnboardingFlow component.
+ * The `id` is used as a URL hash and for progress tracking; `title` is
+ * the heading shown at the top of each step.
+ */
 export const STEPS = [
   { id: "name", title: "What should we call you?" },
   { id: "interests", title: "What brings you to T Creative?" },
@@ -147,6 +153,17 @@ export type StepId = (typeof STEPS)[number]["id"];
 /*  Assistant onboarding schema                                        */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Zod validation schema for the assistant (staff) onboarding flow.
+ *
+ * Validates fields collected when a new assistant joins the studio:
+ * personal info, skills/certifications, shift availability (with per-date
+ * overrides stored as JSON strings), emergency contact, portfolio links,
+ * notification preferences, and studio policy acknowledgments.
+ *
+ * Used by: components/onboarding/AssistantOnboardingFlow.tsx (form),
+ *          app/onboarding/actions.ts (server-side .parse() before DB write).
+ */
 export const assistantOnboardingSchema = z.object({
   firstName: z.string().min(1, "Please enter your name"),
   preferredTitle: z.string().optional().or(z.literal("")),
@@ -208,6 +225,11 @@ export const assistantOnboardingSchema = z.object({
 
 export type AssistantOnboardingData = z.infer<typeof assistantOnboardingSchema>;
 
+/**
+ * Ordered step definitions for the assistant onboarding wizard.
+ * Mirrors STEPS but with assistant-specific pages (role/skills,
+ * shift availability, emergency contact, portfolio, policies).
+ */
 export const ASSISTANT_STEPS = [
   { id: "name", title: "What should we call you?" },
   { id: "role_skills", title: "Your role & skills" },
@@ -224,6 +246,13 @@ export type AssistantStepId = (typeof ASSISTANT_STEPS)[number]["id"];
 /*  Admin onboarding schema                                            */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Sub-schema for a single service configuration slot in admin onboarding.
+ * Each service vertical (lash, jewelry, crochet, consulting) has an
+ * enabled toggle, price, duration, and deposit amount. Values are strings
+ * because TanStack Form inputs produce strings — the server action
+ * parses them to numbers before writing to the DB.
+ */
 const serviceSlotSchema = z.object({
   enabled: z.boolean(),
   price: z.string(),
@@ -231,6 +260,22 @@ const serviceSlotSchema = z.object({
   deposit: z.string(),
 });
 
+/**
+ * Zod validation schema for the admin / studio-owner onboarding flow.
+ *
+ * This is the largest schema — it captures the full studio configuration
+ * in a single pass: personal info, social links, service pricing, waitlist
+ * settings, intake form toggles, working hours with date overrides,
+ * booking/cancellation policies, and the loyalty rewards program setup.
+ *
+ * Design note: The `rewards` object uses flat string fields (tier1Name,
+ * tier2Threshold, etc.) instead of a nested tiers array because TanStack
+ * Form handles flat fields more reliably. The server action reconstructs
+ * the nested structure before writing to the `settings` table.
+ *
+ * Used by: components/onboarding/AdminOnboardingFlow.tsx (form),
+ *          app/onboarding/actions.ts (server-side .parse() before DB write).
+ */
 export const adminOnboardingSchema = z.object({
   firstName: z.string().min(1, "Please enter your name"),
   lastName: z.string(),

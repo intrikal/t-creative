@@ -1,3 +1,24 @@
+/**
+ * earnings/actions — Server actions for the Assistant Earnings page.
+ *
+ * Calculates an assistant's take-home pay from completed bookings.
+ * Supports two commission models:
+ * - **percentage** (default 60%) — assistant gets `commissionRate%` of the booking total
+ * - **flat_fee** — assistant gets a fixed dollar amount per completed session
+ *
+ * Tips are split separately via `tipSplitPercent` (default 100% = assistant keeps all).
+ *
+ * The query uses `alias()` to self-join the `profiles` table — once for the
+ * assistant (via auth) and once for the client name. It LEFT JOINs `payments`
+ * and aggregates tips via `sum(payments.tipInCents)`, with GROUP BY on all
+ * non-aggregate columns so Postgres knows how to collapse the rows.
+ *
+ * "Paid" vs "pending" is a heuristic: bookings completed >7 days ago are
+ * considered paid. This will be replaced by actual payout tracking later.
+ *
+ * @see {@link ./EarningsPage.tsx} — assistant dashboard view
+ * @see {@link db/schema/assistants.ts} — commission fields on assistant_profiles
+ */
 "use server";
 
 import { eq, sql, desc, and, gte, lte } from "drizzle-orm";
@@ -10,6 +31,7 @@ import { getUser } from "@/lib/auth";
 /*  Types                                                              */
 /* ------------------------------------------------------------------ */
 
+/** One completed booking with commission and tip calculations applied. */
 export type EarningEntry = {
   id: number;
   date: string;
@@ -57,6 +79,8 @@ export type EarningsData = {
 const DEFAULT_COMMISSION = 60;
 
 function getInitials(first: string, last: string): string {
+  // .filter(Boolean) drops undefined from optional-chained empty names so
+  // initials degrade gracefully ("?" fallback for fully anonymous clients).
   return [first?.[0], last?.[0]].filter(Boolean).join("").toUpperCase() || "?";
 }
 
@@ -138,9 +162,22 @@ export async function getAssistantEarnings(): Promise<EarningsData> {
     // Column may not exist yet — use defaults
   }
 
-  // Get all completed bookings for this assistant, with tips aggregated per booking
+  // `alias(profiles, "client")` creates a second reference to the profiles table
+  // so we can join it as the client without conflicting with the assistant's profile.
+  // This generates SQL: `profiles AS "client"` in the FROM clause.
   const clientProfile = alias(profiles, "client");
 
+  // Query: all completed bookings for this assistant, with tip totals.
+  //
+  // LEFT JOIN payments (not INNER) because a booking can be completed without
+  // a recorded payment row (e.g. cash, or Square webhook hasn't arrived yet).
+  //
+  // `coalesce(sum(payments.tipInCents), 0)` sums all tip amounts across
+  // multiple payment records for a booking, defaulting to 0 if no payments.
+  //
+  // GROUP BY lists every non-aggregate column — required by Postgres when
+  // using aggregate functions like sum(). This collapses multiple payment
+  // rows per booking into a single row with the aggregated tip total.
   const rows = await db
     .select({
       id: bookings.id,
@@ -168,7 +205,10 @@ export async function getAssistantEarnings(): Promise<EarningsData> {
     )
     .orderBy(desc(bookings.startsAt));
 
-  // Map to earning entries
+  // Transform each completed booking row into an EarningEntry by applying the
+  // assistant's commission model (percentage or flat_fee) and tip split percentage.
+  // Cents are converted to dollars. "Paid" vs "pending" is a 7-day heuristic
+  // based on completion date — bookings older than 7 days are assumed paid out.
   const entries: EarningEntry[] = rows.map((r) => {
     const d = new Date(r.startsAt);
     const gross = r.totalInCents / 100;
@@ -211,7 +251,9 @@ export async function getAssistantEarnings(): Promise<EarningsData> {
     };
   });
 
-  // Compute stats
+  // .filter() partitions entries by time window and status for stat aggregation.
+  // Three separate .filter() calls are clearer than one .reduce() with 3 accumulators,
+  // and the entry array is small (one assistant's bookings).
   const weekEntries = entries.filter((e) => {
     const d = new Date(e.date);
     return d >= weekStart && d <= weekEnd;
@@ -222,6 +264,9 @@ export async function getAssistantEarnings(): Promise<EarningsData> {
   });
   const pendingEntries = entries.filter((e) => e.status === "pending");
 
+  // .reduce() sums earnings across each partition for the stats cards.
+  // Separate reduces per stat is simpler to read and maintain than a single
+  // combined reduce with a multi-field accumulator.
   const weekNet = weekEntries.reduce((s, e) => s + e.totalNet, 0);
   const weekGross = weekEntries.reduce((s, e) => s + e.gross, 0);
   const weekTips = weekEntries.reduce((s, e) => s + e.tip, 0);
@@ -234,6 +279,8 @@ export async function getAssistantEarnings(): Promise<EarningsData> {
     const day = new Date(weekStart);
     day.setDate(weekStart.getDate() + i);
     const key = formatDateKey(day);
+    // Chain .filter() → .reduce() to sum earnings for this specific day.
+    // Filter first narrows to matching entries, then reduce sums them.
     const dayTotal = weekEntries.filter((e) => e.date === key).reduce((s, e) => s + e.totalNet, 0);
     weeklyBars.push({
       label: formatShortDay(day),

@@ -1,3 +1,23 @@
+/**
+ * Unit tests for the Zustand studio store — a finite state machine that
+ * drives the 3D studio experience camera transitions.
+ *
+ * Tests the full state machine lifecycle: landing → entering → exploring
+ * → focused (on a zone) → unfocused → exiting → landing. Also covers
+ * zone cycling (nextZone/prevZone with wrapping) and transition guards
+ * (actions blocked while isTransitioning is true).
+ *
+ * No mocking needed — Zustand stores can be tested directly via
+ * getState()/setState() without rendering React components.
+ *
+ * Related files:
+ *   - stores/useStudioStore.ts — the Zustand store under test
+ */
+
+// describe: groups related tests into a labeled block
+// it: defines a single test case
+// expect: creates an assertion to check a value matches expected condition
+// beforeEach: runs setup before every test (resets store to initial state)
 import { describe, it, expect, beforeEach } from "vitest";
 import { useStudioStore } from "@/stores/useStudioStore";
 
@@ -15,6 +35,8 @@ beforeEach(() => {
   });
 });
 
+// Tests the studio store state machine: mode transitions, zone focus/unfocus,
+// zone cycling (next/prev with wrap-around), transition guards, and exit flow
 describe("useStudioStore", () => {
   it("has initial state of landing mode with no active zone", () => {
     const state = useStudioStore.getState();

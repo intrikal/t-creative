@@ -31,8 +31,10 @@ export function MonthView({
 }) {
   const year = cursor.getFullYear();
   const month = cursor.getMonth();
+  /** 35 or 42 day cells covering the full month grid (including leading/trailing days). */
   const grid = useMemo(() => getMonthGrid(year, month), [year, month]);
 
+  /** Events indexed by "YYYY-MM-DD" for O(1) lookup per day cell. */
   const byDate = useMemo(() => groupEventsByDate(events), [events]);
 
   return (

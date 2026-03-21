@@ -1,3 +1,10 @@
+/**
+ * ApptDetailDialog — Read-only appointment detail overlay.
+ *
+ * Shows the service name, date, time range, client or guest count,
+ * company name (for events), location, price, and notes. Used across
+ * all schedule views when an appointment chip/row is clicked.
+ */
 "use client";
 
 import { Building2, Clock, MapPin, Users } from "lucide-react";
@@ -16,6 +23,8 @@ export function ApptDetailDialog({ appt, onClose }: { appt: AppointmentRow; onCl
   const c = CATEGORY_COLORS[appt.category];
   const d = parseDate(appt.date);
 
+  // Compute end time by converting start HH:MM to total minutes,
+  // adding the duration, then converting back to HH:MM format
   const endMin =
     parseInt(appt.startTime24.split(":")[0]) * 60 +
     parseInt(appt.startTime24.split(":")[1]) +

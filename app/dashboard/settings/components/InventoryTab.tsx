@@ -14,8 +14,11 @@ import { saveInventoryConfig } from "../settings-actions";
 import { FieldRow, StatefulSaveButton, NUM_INPUT_CLASS, INPUT_CLASS } from "./shared";
 
 export function InventoryTab({ initial }: { initial: InventoryConfig }) {
+  /** Inventory config fields (low stock threshold, gift card prefix). */
   const [data, setData] = useState(initial);
+  /** Whether the save action is in flight. */
   const [saving, setSaving] = useState(false);
+  /** Briefly true after a successful save to show "Saved!" feedback. */
   const [saved, setSaved] = useState(false);
 
   async function handleSave() {

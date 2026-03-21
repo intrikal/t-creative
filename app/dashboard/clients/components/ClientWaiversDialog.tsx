@@ -1,3 +1,41 @@
+/**
+ * Client waivers & forms dialog — shows all form submissions for a client
+ * with expandable detail accordions, plus a "New Submission" sub-dialog
+ * to record a form completion on the client's behalf.
+ *
+ * Fetches submissions + active forms in parallel via Promise.all on open.
+ * Uses the "loadedClientId !== clientId" render-time pattern to detect
+ * when a new client is opened.
+ *
+ * Parent: app/dashboard/clients/ClientsPage.tsx (via ClientCard waivers action)
+ *
+ * State:
+ *   submissions    — FormSubmissionRow[] for this client
+ *   activeForms    — all active form definitions (for the New Submission dropdown)
+ *   loading        — true while fetching
+ *   loadedClientId — prevents re-fetch on re-render
+ *   showNew        — controls the NewSubmissionDialog
+ *
+ * Key operations:
+ *   Promise.all([getFormSubmissions, getActiveForms]) — parallel fetch on open
+ *   handleSubmitted — re-fetches submissions after a new one is recorded
+ *   submissions.map() — renders a SubmissionCard per form submission
+ *
+ * Sub-component: SubmissionCard
+ *   Expandable accordion showing form name, date, type badge, and field values.
+ *   Object.entries(sub.data).map() — iterates form response key/value pairs,
+ *   rendering booleans as "Yes"/"No" and everything else as String().
+ *
+ * Sub-component: NewSubmissionDialog
+ *   Form selector + dynamic field rendering based on the selected form's
+ *   field definitions. Falls back to DEFAULT_FIELDS[type] when the form
+ *   has no custom fields array.
+ *
+ *   State: selectedFormId, formData (Record<string, unknown>), saving
+ *   requiredMissing — .filter(f => f.required).some(...) validates all required fields
+ *   setField()      — spreads a single field into formData using label as key
+ *   handleFormSelect — resets formData when switching forms
+ */
 "use client";
 
 import { useState } from "react";

@@ -1,3 +1,27 @@
+/**
+ * Tests for GET /api/cron/instagram-sync — Instagram post sync cron.
+ *
+ * Covers:
+ *  - Auth: missing or wrong x-cron-secret returns 401
+ *  - Not configured: Instagram env vars missing → 200 with skipped=true
+ *  - Happy path: fetchRecentMedia returns 2 posts → upserts each into
+ *    instagram_posts table (onConflictDoUpdate), hides old posts by
+ *    setting isVisible=false, writes success sync_log entry, returns synced=2
+ *  - Zero posts: empty media array → synced=0, no hide-old-posts update,
+ *    sync_log still written
+ *  - API failure: fetchRecentMedia throws → 500, writes failed sync_log
+ *    with error message
+ *  - Per-post failure: one post insert throws, second succeeds →
+ *    synced=1, failed=1, sync_log status="failed"
+ *
+ * Mocks: fetchRecentMedia, isInstagramConfigured, db (insert/update chains
+ * with onConflictDoUpdate), drizzle-orm operators, Sentry.
+ */
+// describe: groups related tests into a labeled block (like a folder for tests)
+// it/test: defines a single test case with a description and assertion function
+// expect: creates an assertion — checks that a value matches an expected condition
+// vi: Vitest's mock utility — creates fake functions, spies on calls, and controls return values
+// beforeEach: runs a setup function before every test in the current describe block
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 /* ------------------------------------------------------------------ */

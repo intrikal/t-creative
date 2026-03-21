@@ -30,7 +30,13 @@ export function isEasyPostConfigured(): boolean {
   return !!apiKey;
 }
 
-/** Shared EasyPost client instance. */
+/**
+ * Shared EasyPost client instance.
+ *
+ * Conditionally instantiated (unlike Square which always constructs) because
+ * the EasyPost SDK validates the API key at construction time. When null,
+ * all public functions throw "EasyPost is not configured".
+ */
 export const easypostClient = apiKey ? new EasyPostClient(apiKey) : null;
 
 /* ------------------------------------------------------------------ */
@@ -80,13 +86,16 @@ export type LabelResult = {
 
 /**
  * Default parcel dimensions for shop products.
- * Adjust per-product later if needed via order metadata.
+ *
+ * Sized for the most common product (crochet bags / accessories).
+ * EasyPost uses inches for dimensions and ounces for weight.
+ * Callers can override per-product via the `parcel` parameter.
  */
 const DEFAULT_PARCEL = {
-  length: 12,
+  length: 12, // inches
   width: 10,
   height: 4,
-  weight: 16, // oz
+  weight: 16, // ounces (1 lb)
 };
 
 /* ------------------------------------------------------------------ */
@@ -96,6 +105,13 @@ const DEFAULT_PARCEL = {
 /**
  * Creates an EasyPost shipment and returns available carrier rates.
  * Call this at checkout to show the customer shipping options.
+ *
+ * The shipment is created in "rate" mode (no label purchased yet).
+ * The returned `shipmentId` must be passed to `buyShippingLabel()`
+ * after the customer selects a rate and payment is confirmed.
+ *
+ * EasyPost rate-fetches are not cached — each call creates a new
+ * shipment object. Rates are valid for ~15 minutes per EasyPost docs.
  */
 export async function getShippingRates(
   toAddress: ShippingAddress,
@@ -118,6 +134,8 @@ export async function getShippingRates(
     parcel: parcel ?? DEFAULT_PARCEL,
   });
 
+  // EasyPost returns rates as dollar strings — convert to cents for
+  // consistency with our internal pricing model.
   const rates: ShippingRate[] = (shipment.rates ?? []).map((r) => ({
     rateId: r.id,
     carrier: r.carrier,
@@ -142,6 +160,9 @@ export async function getShippingRates(
 /**
  * Purchases a shipping label for an existing shipment.
  * Call this after payment is confirmed to generate the label.
+ *
+ * This is a billable action — EasyPost charges your account immediately.
+ * The returned `labelUrl` is a PNG/PDF hosted by EasyPost (valid for 1 year).
  */
 export async function buyShippingLabel(
   shipmentId: string,
@@ -170,6 +191,10 @@ export async function buyShippingLabel(
 /**
  * Verifies an EasyPost webhook signature.
  * EasyPost uses HMAC-SHA256 with the webhook secret.
+ *
+ * Called from the `/api/webhooks/easypost` route handler to reject
+ * tampered or forged webhook payloads. Returns false (rather than
+ * throwing) so the route can return a 401 with a clear message.
  */
 export function verifyEasyPostWebhook(
   body: string,

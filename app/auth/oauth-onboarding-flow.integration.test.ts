@@ -1,3 +1,8 @@
+// describe: groups related tests into a labeled block
+// it: defines a single test case
+// expect: creates an assertion to check a value matches expected condition
+// vi: Vitest's mock utility for creating fake functions
+// beforeEach: runs setup before every test (typically resets mocks)
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 /**
@@ -14,10 +19,11 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 /*  Shared mock handles                                                */
 /* ------------------------------------------------------------------ */
 
-const mockExchangeCode = vi.fn();
-const mockGetUser = vi.fn();
-const mockSignOut = vi.fn();
-const mockVerifyInviteToken = vi.fn();
+// Shared mock handles for the Supabase auth methods used in the callback route
+const mockExchangeCode = vi.fn();     // Supabase auth.exchangeCodeForSession
+const mockGetUser = vi.fn();           // Supabase auth.getUser
+const mockSignOut = vi.fn();           // Supabase auth.signOut
+const mockVerifyInviteToken = vi.fn(); // JWT invite token verification
 
 /* ------------------------------------------------------------------ */
 /*  Stateful mock DB                                                   */
@@ -25,6 +31,9 @@ const mockVerifyInviteToken = vi.fn();
 
 type MockRow = Record<string, unknown>;
 
+// createStatefulDb builds an in-memory DB tracking profile rows with
+// update support — when role is updated (e.g., client → admin), the
+// change is applied to the in-memory row for assertion.
 function createStatefulDb() {
   const _profiles: MockRow[] = [];
 
@@ -107,6 +116,10 @@ function createStatefulDb() {
 /*  Mock setup helper                                                  */
 /* ------------------------------------------------------------------ */
 
+// setupMocks registers all vi.doMock() replacements: Supabase auth (code
+// exchange, getUser, signOut), DB, schema, Drizzle operators, invite token
+// verification, PostHog, Zoho CRM, and the auth helper (isOnboardingComplete).
+// The `isOnboardingComplete` override controls the onboarding redirect logic.
 function setupMocks(
   db: ReturnType<typeof createStatefulDb>,
   overrides: {
@@ -176,6 +189,8 @@ function setupMocks(
 /*  Request factory                                                    */
 /* ------------------------------------------------------------------ */
 
+// Factory to create a GET Request for the /auth/callback route with
+// optional code and invite query parameters
 function makeCallbackRequest(params: Record<string, string> = {}) {
   const url = new URL("https://example.com/auth/callback");
   url.searchParams.set("code", params.code ?? "test-code-123");
@@ -187,6 +202,11 @@ function makeCallbackRequest(params: Record<string, string> = {}) {
 /*  Tests                                                              */
 /* ------------------------------------------------------------------ */
 
+// End-to-end integration tests for the OAuth callback route. Tests the full
+// flow: code exchange → profile lookup → role promotion (admin email match
+// or invite token) → deactivation check → onboarding redirect.
+// Each test seeds a profile with specific role/isActive state and asserts
+// on the redirect Location header or final profile role in the stateful DB.
 describe("GET /auth/callback — OAuth onboarding flow integration", () => {
   beforeEach(() => {
     vi.clearAllMocks();

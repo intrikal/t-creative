@@ -1,3 +1,35 @@
+/**
+ * actions.ts — Server actions for the admin Clients list view.
+ *
+ * ## Responsibility
+ * Provides paginated client queries, loyalty leaderboard data, CRM mutations
+ * (create / update / soft-delete), loyalty reward issuance, client preference
+ * management, and an assistant-scoped "my clients" view.
+ *
+ * ## Consumers
+ * - `app/dashboard/clients/page.tsx`       — admin clients table (getClients, getClientLoyalty)
+ * - `app/dashboard/clients/client-*.tsx`    — modal forms (createClient, updateClient, deleteClient)
+ * - `app/dashboard/clients/loyalty-*.tsx`   — loyalty tab (getClientLoyalty, issueLoyaltyReward)
+ * - `app/dashboard/clients/preferences-*.tsx` — preferences drawer (getClientPreferences, upsertClientPreferences)
+ * - `app/dashboard/assistant/clients/page.tsx` — assistant "my clients" view (getAssistantClients)
+ *
+ * ## Query strategy
+ * `getClients` uses three LEFT JOIN subqueries (booking stats, loyalty stats,
+ * referral stats) rather than raw joins to avoid row multiplication — a single
+ * client with 20 bookings and 5 loyalty transactions would otherwise produce
+ * 100 rows before aggregation.
+ *
+ * ## External integrations
+ * Mutations do not sync to Square or Zoho directly. Profile fields like
+ * `squareCustomerId` and `zohoContactId` are managed by background sync jobs
+ * (see `lib/square/sync.ts` and `lib/zoho/sync.ts`). Mutations here only
+ * update the local `profiles` table and fire PostHog + audit-log side-effects.
+ *
+ * ## Soft-delete pattern
+ * `deleteClient` sets `isActive = false` rather than deleting the row, so
+ * historical bookings, payments, and loyalty data remain intact for reporting.
+ * All list queries filter on `isActive = true`.
+ */
 "use server";
 
 import { revalidatePath } from "next/cache";
@@ -12,7 +44,7 @@ import { trackEvent } from "@/lib/posthog";
 import { getUser } from "@/lib/auth";
 
 /* ------------------------------------------------------------------ */
-/*  Types                                                              */
+/*  Types — shared by admin client list and modal forms                */
 /* ------------------------------------------------------------------ */
 
 export type ClientSource =
@@ -27,6 +59,11 @@ export type ClientSource =
 
 export type LifecycleStage = "prospect" | "active" | "at_risk" | "lapsed" | "churned";
 
+/**
+ * Composite row returned by `getClients` — combines profile columns with
+ * aggregated booking stats, loyalty points, and referral counts so the
+ * clients table can render everything without secondary fetches.
+ */
 export type ClientRow = {
   id: string;
   firstName: string;
@@ -47,6 +84,7 @@ export type ClientRow = {
   loyaltyPoints: number;
 };
 
+/** Fields accepted by createClient / updateClient — mirrors the client modal form. */
 export type ClientInput = {
   firstName: string;
   lastName: string;
@@ -59,6 +97,7 @@ export type ClientInput = {
   tags?: string;
 };
 
+/** Row shape for the Loyalty leaderboard tab — aggregated per client. */
 export type LoyaltyRow = {
   id: string;
   firstName: string;
@@ -68,7 +107,7 @@ export type LoyaltyRow = {
 };
 
 /* ------------------------------------------------------------------ */
-/*  Queries                                                            */
+/*  Queries — admin client list + loyalty leaderboard                  */
 /* ------------------------------------------------------------------ */
 
 export type PaginatedClients = {
@@ -76,8 +115,16 @@ export type PaginatedClients = {
   hasMore: boolean;
 };
 
+/** Page size for the clients table. 100 keeps the initial payload under ~50 KB. */
 const DEFAULT_CLIENTS_LIMIT = 100;
 
+/**
+ * Fetch a paginated list of active clients with booking stats, loyalty points,
+ * and referral metadata. Called by the admin Clients table on mount and on
+ * scroll (infinite pagination via offset).
+ *
+ * Uses limit + 1 to detect whether a next page exists without a separate COUNT.
+ */
 export async function getClients(opts?: {
   offset?: number;
   limit?: number;
@@ -157,6 +204,9 @@ export async function getClients(opts?: {
     const page = hasMore ? rows.slice(0, limit) : rows;
 
     return {
+      // Spread each row and coerce SQL aggregate values (returned as strings
+      // by Postgres) to Numbers. Spread is preferred over manual field listing
+      // since the row has 17+ fields — only the 4 aggregates need coercion.
       rows: page.map((r) => ({
         ...r,
         lifecycleStage: (r.lifecycleStage as LifecycleStage | null) ?? null,
@@ -173,6 +223,11 @@ export async function getClients(opts?: {
   }
 }
 
+/**
+ * Fetch loyalty point totals per active client for the Loyalty leaderboard tab.
+ * Sorted by points descending so highest-value clients appear first.
+ * Capped at 500 rows — enough for any realistic client base.
+ */
 export async function getClientLoyalty(): Promise<LoyaltyRow[]> {
   try {
     await getUser();
@@ -192,6 +247,8 @@ export async function getClientLoyalty(): Promise<LoyaltyRow[]> {
       .orderBy(sql`coalesce(sum(${loyaltyTransactions.points}), 0) desc`)
       .limit(500);
 
+    // Spread each row and coerce the Postgres sum() result (string) to Number.
+    // .map() gives a 1:1 conversion — every profile becomes one leaderboard entry.
     return rows.map((r) => ({
       ...r,
       points: Number(r.points ?? 0),
@@ -203,9 +260,10 @@ export async function getClientLoyalty(): Promise<LoyaltyRow[]> {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Zod schemas                                                        */
+/*  Zod schemas — runtime validation for all mutation inputs           */
 /* ------------------------------------------------------------------ */
 
+/** Validates admin client create/update form payload before DB write. */
 const clientInputSchema = z.object({
   firstName: z.string().min(1),
   lastName: z.string().min(1),
@@ -232,6 +290,11 @@ const clientInputSchema = z.object({
   tags: z.string().optional(),
 });
 
+/**
+ * Validates the beauty/health preferences form. All fields optional because
+ * preferences are filled incrementally across visits — the first visit may
+ * only capture lash style, with retention and adhesive notes added later.
+ */
 const clientPreferencesInputSchema = z.object({
   profileId: z.string().min(1),
   preferredLashStyle: z.string().optional(),
@@ -252,9 +315,19 @@ const clientPreferencesInputSchema = z.object({
 });
 
 /* ------------------------------------------------------------------ */
-/*  Mutations                                                          */
+/*  Mutations — CRM write operations (admin only)                      */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Create a new client profile from the admin "Add Client" modal.
+ *
+ * Admin-created clients get a `profiles` row directly (bypassing Supabase Auth
+ * signup) because they may never log in — they're CRM-only contacts. If they
+ * later sign up via the public onboarding flow, the existing row is linked by
+ * email match in `saveOnboardingData`.
+ *
+ * Side-effects: PostHog event, audit log entry, Next.js cache revalidation.
+ */
 export async function createClient(input: ClientInput): Promise<void> {
   try {
     clientInputSchema.parse(input);
@@ -296,6 +369,11 @@ export async function createClient(input: ClientInput): Promise<void> {
   }
 }
 
+/**
+ * Update an existing client profile from the admin "Edit Client" modal.
+ * Only CRM-relevant fields are writable here — auth fields (password, role)
+ * are managed separately.
+ */
 export async function updateClient(id: string, input: ClientInput): Promise<void> {
   try {
     z.string().min(1).parse(id);
@@ -335,6 +413,11 @@ export async function updateClient(id: string, input: ClientInput): Promise<void
   }
 }
 
+/**
+ * Soft-delete a client by setting `isActive = false`.
+ * Hard deletes are intentionally avoided so historical booking/payment data
+ * remains intact for financial reporting and audit trails.
+ */
 export async function deleteClient(id: string): Promise<void> {
   try {
     z.string().min(1).parse(id);
@@ -357,6 +440,11 @@ export async function deleteClient(id: string): Promise<void> {
   }
 }
 
+/**
+ * Manually credit loyalty points to a client (admin "Issue Reward" action).
+ * Inserts a `manual_credit` transaction — distinct from booking-driven credits
+ * so the loyalty ledger audit trail shows the admin origin.
+ */
 export async function issueLoyaltyReward(
   profileId: string,
   points: number,
@@ -385,9 +473,14 @@ export async function issueLoyaltyReward(
 }
 
 /* ------------------------------------------------------------------ */
-/*  Client Preferences                                                 */
+/*  Client Preferences — beauty/health profile per client              */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Lash-tech-specific preferences stored in `client_preferences`.
+ * Separated from the main profile because these are service-domain data
+ * (curl types, adhesive sensitivity) rather than CRM contact data.
+ */
 export type ClientPreferencesRow = {
   profileId: string;
   preferredLashStyle: string | null;
@@ -426,6 +519,11 @@ export type ClientPreferencesInput = {
   preferredRebookIntervalDays?: number;
 };
 
+/**
+ * Fetch the beauty/health preferences for a single client.
+ * Returns null when no row exists yet (new client, preferences not yet captured).
+ * Called by the preferences drawer on the client detail page.
+ */
 export async function getClientPreferences(
   profileId: string,
 ): Promise<ClientPreferencesRow | null> {
@@ -461,6 +559,12 @@ export async function getClientPreferences(
   }
 }
 
+/**
+ * Create or update beauty/health preferences for a client.
+ * Uses INSERT ... ON CONFLICT DO UPDATE keyed on `profileId` so the first save
+ * creates the row and subsequent saves overwrite it without requiring the caller
+ * to know whether a row already exists.
+ */
 export async function upsertClientPreferences(input: ClientPreferencesInput): Promise<void> {
   try {
     clientPreferencesInputSchema.parse(input);
@@ -490,6 +594,10 @@ export async function upsertClientPreferences(input: ClientPreferencesInput): Pr
       .values(values)
       .onConflictDoUpdate({
         target: clientPreferences.profileId,
+        // Spread the full values object then override profileId to undefined,
+        // which Drizzle interprets as "do not update this column". This reuses
+        // the same values object for both insert and update without duplicating
+        // the 15 field assignments.
         set: {
           ...values,
           profileId: undefined,
@@ -504,9 +612,15 @@ export async function upsertClientPreferences(input: ClientPreferencesInput): Pr
 }
 
 /* ------------------------------------------------------------------ */
-/*  Assistant-scoped clients                                           */
+/*  Assistant-scoped clients — "My Clients" view for staff members     */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Row shape for the assistant's "My Clients" view. Unlike admin `ClientRow`,
+ * this is scoped to clients the logged-in assistant has served — derived
+ * from bookings rather than the full profiles table.
+ * Name is privacy-truncated ("Sarah L.") since assistants don't need full names.
+ */
 export type AssistantClientRow = {
   id: string;
   name: string;
@@ -529,10 +643,12 @@ export type AssistantClientStats = {
   totalRevenue: number;
 };
 
+/** Avatar fallback — "SL" for "Sarah Lee", "?" if both names are empty. */
 function getInitials(first: string, last: string): string {
   return [first?.[0], last?.[0]].filter(Boolean).join("").toUpperCase() || "?";
 }
 
+/** Relative date for the "last service" column — shows "Today" or "Mar 15". */
 function formatShortDate(d: Date): string {
   const now = new Date();
   const todayKey = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}`;
@@ -541,6 +657,7 @@ function formatShortDate(d: Date): string {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
+/** Human-friendly appointment label — "Today 2:30 PM" or "Mar 15 2:30 PM". */
 function formatApptLabel(d: Date): string {
   const now = new Date();
   const todayKey = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}`;
@@ -550,6 +667,22 @@ function formatApptLabel(d: Date): string {
   return `${d.toLocaleDateString("en-US", { month: "short", day: "numeric" })} ${time}`;
 }
 
+/**
+ * Fetch the logged-in assistant's client list, derived from their bookings.
+ *
+ * Unlike `getClients` (which queries profiles directly), this starts from
+ * the `bookings` table filtered by `staffId = currentUser` and groups by
+ * client. This means an assistant only sees clients they've personally served,
+ * providing a privacy boundary between staff members.
+ *
+ * The in-memory grouping approach (vs. SQL GROUP BY) is used because we need
+ * to track both the latest completed booking AND the next upcoming booking
+ * per client — two different aggregation passes that would require complex
+ * window functions in SQL.
+ *
+ * Sort order: clients with upcoming appointments first (actionable), then
+ * by last-visit date descending (recently seen clients stay near the top).
+ */
 export async function getAssistantClients(): Promise<{
   clients: AssistantClientRow[];
   stats: AssistantClientStats;
@@ -645,6 +778,11 @@ export async function getAssistantClients(): Promise<{
       }
     }
 
+    // Array.from converts the Map's values iterator into a sortable array.
+    // Map preserves insertion order but we need a custom sort: clients with
+    // upcoming appointments first (actionable), then by last visit descending.
+    // .sort() mutates the array in place — acceptable here since Array.from
+    // already created a new array.
     const clients: AssistantClientRow[] = Array.from(clientMap.values())
       .sort((a, b) => {
         // Sort: clients with upcoming appointments first, then by last visit desc
@@ -654,6 +792,9 @@ export async function getAssistantClients(): Promise<{
         const bLast = b.lastCompletedAt?.getTime() ?? 0;
         return bLast - aLast;
       })
+      // Transform each grouped client entry into the presentation-ready
+      // AssistantClientRow shape: privacy-truncate names, convert cents→dollars,
+      // convert Set→Array for categories, and format dates.
       .map((c) => ({
         id: c.id,
         name: `${c.firstName} ${c.lastName.charAt(0)}.`.trim(),
@@ -662,6 +803,8 @@ export async function getAssistantClients(): Promise<{
         email: c.email,
         lastService: c.lastCompletedService,
         lastServiceDate: c.lastCompletedAt ? formatShortDate(c.lastCompletedAt) : null,
+        // Array.from converts the Set<string> to a plain array for serialization
+        // across the server-action boundary (Sets aren't JSON-serializable).
         categories: Array.from(c.categories),
         totalVisits: c.completedVisits,
         totalSpent: c.completedSpent / 100,
@@ -670,7 +813,11 @@ export async function getAssistantClients(): Promise<{
         nextAppointment: c.nextUpcomingAt ? formatApptLabel(c.nextUpcomingAt) : null,
       }));
 
+    // Count VIP clients via filter — cleaner than a reduce counter for
+    // a simple boolean predicate.
     const vipClients = clients.filter((c) => c.vip).length;
+    // Sum total revenue across all clients. reduce accumulates a running
+    // total in a single pass — the standard pattern for scalar aggregation.
     const totalRevenue = clients.reduce((s, c) => s + c.totalSpent, 0);
 
     return {

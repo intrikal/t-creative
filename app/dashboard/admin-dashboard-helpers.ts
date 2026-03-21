@@ -1,3 +1,11 @@
+/**
+ * admin-dashboard-helpers.ts — Display config functions for the admin dashboard.
+ *
+ * Maps booking statuses, inquiry statuses, service categories, and client
+ * acquisition sources to their visual treatment (label, colours, badge styles).
+ * Used by the dashboard cards to keep styling logic out of JSX.
+ */
+
 import type { BookingStatus, InquiryStatus } from "./admin-dashboard-types";
 
 export function bookingStatusConfig(status: BookingStatus) {

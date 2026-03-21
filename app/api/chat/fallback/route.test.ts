@@ -1,12 +1,34 @@
+/**
+ * Tests for POST /api/chat/fallback — chatbot "Something else?" handler.
+ *
+ * Covers:
+ *  - Input validation: invalid JSON, missing name/email/question,
+ *    invalid email format
+ *  - Turnstile bot-check failure (403)
+ *  - Happy path: admin found → sends email with question, replyTo set
+ *    to the visitor's address so admin can reply directly
+ *  - Graceful degradation: no admin profile → 200 without sending email
+ *
+ * Mocks: db (select chain), Resend email sender, Turnstile verifier.
+ * No auth — endpoint is fully public.
+ */
+// describe: groups related tests into a labeled block (like a folder for tests)
+// it/test: defines a single test case with a description and assertion function
+// expect: creates an assertion — checks that a value matches an expected condition
+// vi: Vitest's mock utility — creates fake functions, spies on calls, and controls return values
+// beforeEach: runs a setup function before every test in the current describe block
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 /* ------------------------------------------------------------------ */
 /*  Shared mock state                                                   */
 /* ------------------------------------------------------------------ */
 
+// selectIdx / selectData: stateful counter routing sequential db.select() calls to mock data
 let selectIdx = 0;
 let selectData: unknown[][] = [];
+// mockResendSend: captures Resend SDK emails.send() calls
 const mockResendSend = vi.fn();
+// mockVerifyTurnstile: controls the Turnstile bot-check result
 const mockVerifyTurnstile = vi.fn();
 
 function buildDb() {

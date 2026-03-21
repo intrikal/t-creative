@@ -26,9 +26,14 @@ export function DayColumn({
   availability?: DayAvailability;
   isToday?: boolean;
 }) {
+  /** Events positioned with overlap layout (column index + total columns). */
   const laid = useMemo(() => layoutDay(events), [events]);
 
-  // Compute overlay blocks for unavailable time
+  /**
+   * Compute overlay blocks for unavailable time ranges (closed hours, lunch).
+   * Returns pixel-positioned rectangles that render as semi-transparent overlays
+   * on top of the time grid. Each block has a type (closed/lunch) for styling.
+   */
   const overlays = useMemo(() => {
     if (!availability) return [];
     const blocks: { top: number; height: number; label?: string; type: "closed" | "lunch" }[] = [];
@@ -135,7 +140,13 @@ export function DayColumn({
   );
 }
 
+/**
+ * NowLine — horizontal red line + time badge indicating the current time.
+ * Only renders when the current time falls within the visible grid range
+ * (DAY_START to DAY_END). Updates every 60 seconds via setInterval.
+ */
 function NowLine() {
+  /** Current time as minutes-since-midnight, updated every 60s. */
   const [nowMin, setNowMin] = useState(() => {
     const d = new Date();
     return d.getHours() * 60 + d.getMinutes();

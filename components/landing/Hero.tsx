@@ -1,7 +1,14 @@
 /**
  * Hero — Full-width hero section with headline, tagline, CTAs, and founder photo.
  *
+ * Used at the top of the landing page as the primary above-the-fold content.
  * Client Component — uses Framer Motion for staggered entrance animations.
+ * Fires PostHog analytics events on CTA clicks.
+ *
+ * Props (all optional):
+ * - headline: override the default headline JSX
+ * - subheadline: override the default description text
+ * - ctaText: override the primary CTA button label
  */
 "use client";
 
@@ -40,6 +47,8 @@ export function Hero({
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.15 }}
           >
+            {/* Nullish coalescing: if headline prop is provided, render it directly;
+                otherwise render the default JSX with the accent-colored "Transformation" word. */}
             {headline ?? (
               <>
                 Where Artistry
@@ -94,6 +103,8 @@ export function Hero({
             animate={{ opacity: 1 }}
             transition={{ duration: 0.8, delay: 0.6 }}
           >
+            {/* .map() over inline service link array for quick-access pills.
+                Inline array chosen because these are simple label+href pairs used only here. */}
             {[
               { label: "Lash Extensions", href: "/services" },
               { label: "Permanent Jewelry", href: "/services" },

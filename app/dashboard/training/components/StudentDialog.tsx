@@ -1,3 +1,16 @@
+/**
+ * StudentDialog — modal for enrolling a new student in a training program.
+ *
+ * Used by the admin Training dashboard. Form fields: client selector,
+ * program selector, enrollment status, and amount paid.
+ *
+ * ## Reset-on-open strategy
+ * The useEffect watches `open` and resets all form fields to defaults
+ * when the dialog opens. This ensures stale data from a previous open
+ * does not persist.
+ *
+ * @module training/components/StudentDialog
+ */
 "use client";
 
 import { useState, useEffect } from "react";
@@ -19,11 +32,16 @@ export function StudentDialog({
   clients: ClientOption[];
   saving: boolean;
 }) {
+  /** Selected client UUID for the enrollment. */
   const [clientId, setClientId] = useState(clients[0]?.id ?? "");
+  /** Selected program ID. */
   const [programId, setProgramId] = useState<number>(programs[0]?.id ?? 0);
+  /** Enrollment status — defaults to "active" (immediately enrolled). */
   const [status, setStatus] = useState<StudentStatus>("active");
+  /** Dollar amount already paid by the student. */
   const [amountPaid, setAmountPaid] = useState("0");
 
+  // Reset form fields when dialog opens so previous entries don't persist.
   useEffect(() => {
     if (open) {
       setClientId(clients[0]?.id ?? "");

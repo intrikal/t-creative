@@ -1,3 +1,19 @@
+/**
+ * memberships/actions — Server actions for the Lash Club membership system.
+ *
+ * Powers `/dashboard/memberships`. The membership model:
+ * - **Plans** define the tier (e.g. "Lash Club Gold"): price, fills per cycle,
+ *   product discount, perks. Admin CRUD.
+ * - **Subscriptions** link a client to a plan with cycle tracking. Each cycle
+ *   grants N fills (lash appointments). `fillsRemainingThisCycle` decrements
+ *   as qualifying bookings complete. `renewMembership()` resets the cycle.
+ *
+ * Cycle management is manual (admin clicks renew after collecting payment)
+ * rather than auto-billing — Trini prefers hands-on management for now.
+ *
+ * @see {@link ./MembershipsPage.tsx} — admin dashboard view
+ * @see {@link db/schema/memberships.ts} — table definitions
+ */
 "use server";
 
 import { revalidatePath } from "next/cache";
@@ -20,6 +36,7 @@ import { requireAdmin } from "@/lib/auth";
 
 export type MembershipStatus = (typeof membershipStatusEnum.enumValues)[number];
 
+/** Plan tier definition — consumed by the plan management UI and subscription creation. */
 export type MembershipPlan = {
   id: number;
   name: string;
@@ -34,6 +51,7 @@ export type MembershipPlan = {
   perks: string[];
 };
 
+/** Flat joined row for the memberships table — subscription + client name + plan details. */
 export type MembershipRow = {
   id: string;
   clientId: string;
@@ -55,6 +73,7 @@ export type MembershipRow = {
   createdAt: Date;
 };
 
+/** Subset returned for the client's own loyalty/membership page — no admin-only fields. */
 export type ClientMembership = {
   id: string;
   planName: string;
@@ -92,6 +111,7 @@ export type UpdatePlanInput = Partial<Omit<CreatePlanInput, "slug"> & { isActive
 /*  Plan queries                                                       */
 /* ------------------------------------------------------------------ */
 
+/** Fetch all plans. Pass `includeInactive=true` for the plan management UI. */
 export async function getMembershipPlans(includeInactive = false): Promise<MembershipPlan[]> {
   try {
     await requireAdmin();
@@ -102,6 +122,9 @@ export async function getMembershipPlans(includeInactive = false): Promise<Membe
       .where(includeInactive ? undefined : eq(membershipPlans.isActive, true))
       .orderBy(membershipPlans.displayOrder, membershipPlans.id);
 
+    // Reshape each plan row, defaulting the perks JSON column to an empty array
+    // when null. This guarantees the UI can always iterate over perks without a
+    // null check. The spread keeps all other columns intact.
     return rows.map((r) => ({
       ...r,
       description: r.description,
@@ -117,6 +140,7 @@ export async function getMembershipPlans(includeInactive = false): Promise<Membe
 /*  Subscription queries                                               */
 /* ------------------------------------------------------------------ */
 
+/** Fetch all subscriptions joined with client + plan. Optional status filter for tab views. */
 export async function getMemberships(statusFilter?: MembershipStatus): Promise<MembershipRow[]> {
   try {
     await requireAdmin();
@@ -149,6 +173,10 @@ export async function getMemberships(statusFilter?: MembershipStatus): Promise<M
       .where(statusFilter ? eq(membershipSubscriptions.status, statusFilter) : undefined)
       .orderBy(desc(membershipSubscriptions.createdAt));
 
+    // Reshape each joined row into the MembershipRow type the admin table expects.
+    // Combines first/last name via .filter(Boolean).join(" ") to gracefully handle
+    // null names (e.g. "Trini" when lastName is null). This keeps the name-join
+    // logic in one place rather than repeating it across UI components.
     return rows.map((r) => ({
       id: r.id,
       clientId: r.clientId,
@@ -314,6 +342,8 @@ export async function updateMembershipStatus(id: string, status: MembershipStatu
 
     const updates: Partial<typeof membershipSubscriptions.$inferInsert> = { status };
 
+    // Track lifecycle timestamps for reporting. Reactivating clears pausedAt
+    // so the "paused since" display resets.
     if (status === "cancelled") {
       updates.cancelledAt = new Date();
     } else if (status === "paused") {
@@ -383,6 +413,8 @@ export async function renewMembership(id: string): Promise<void> {
 
     if (!row) throw new Error("Membership not found");
 
+    // New cycle starts where the old one ended (no gap), not from "now",
+    // so clients who renew a day late don't lose coverage days.
     const newCycleStart = row.cycleEndsAt;
     const newCycleEnd = addDays(newCycleStart, row.cycleIntervalDays);
 

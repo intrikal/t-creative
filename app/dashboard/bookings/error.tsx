@@ -1,3 +1,11 @@
+/**
+ * Next.js error boundary for /dashboard/bookings.
+ * Reports the error to Sentry on mount, then shows a retry button
+ * and a link back to the dashboard overview.
+ *
+ * The useEffect fires once per error instance (keyed by [error]) to
+ * avoid duplicate Sentry reports on re-renders.
+ */
 "use client";
 
 import { useEffect } from "react";

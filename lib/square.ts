@@ -20,6 +20,8 @@
 import * as Sentry from "@sentry/nextjs";
 import { SquareClient, SquareEnvironment } from "square";
 
+// Module-scoped env reads — evaluated once at import time.
+// Defaults to Sandbox so a missing env var never accidentally hits production.
 const accessToken = process.env.SQUARE_ACCESS_TOKEN;
 const locationId = process.env.SQUARE_LOCATION_ID;
 const environment =
@@ -38,7 +40,13 @@ export function isSquareConfigured(): boolean {
   return !!(accessToken && locationId);
 }
 
-/** Shared Square SDK client instance. */
+/**
+ * Shared Square SDK client instance.
+ *
+ * Instantiated eagerly (not lazy) because the SquareClient constructor
+ * does not throw when the token is empty — it only fails on actual API
+ * calls, which are always guarded by `isSquareConfigured()`.
+ */
 export const squareClient = new SquareClient({
   token: accessToken ?? "",
   environment,
@@ -83,6 +91,9 @@ export async function createSquareOrder(params: {
           ...(params.clientName ? { clientName: params.clientName } : {}),
         },
       },
+      // Random UUID is safe here — orders are not retried, so each call
+      // should create a distinct order. For retryable paths see createSquarePayment
+      // which accepts an idempotency key from the caller.
       idempotencyKey: crypto.randomUUID(),
     });
 
@@ -90,6 +101,8 @@ export async function createSquareOrder(params: {
     if (!orderId) throw new Error("Square order creation failed — no order ID returned");
     return orderId;
   } catch (err) {
+    // All Square functions report to Sentry then re-throw so the caller
+    // (typically a server action) can surface a user-facing error message.
     Sentry.captureException(err);
     throw err;
   }
@@ -176,7 +189,9 @@ export async function createSquarePayment(params: {
   if (!isSquareConfigured()) throw new Error("Square not configured");
 
   try {
-    // 1. Create an order so the payment is linkable via webhook / POS
+    // Two-step flow: order first, then payment against the order.
+    // This ensures the payment shows up on the POS linked to the order,
+    // and the webhook handler can match payments to bookings via referenceId.
     const orderResponse = await squareClient.orders.create({
       order: {
         locationId: SQUARE_LOCATION_ID,
@@ -196,6 +211,8 @@ export async function createSquarePayment(params: {
           paymentType: "deposit",
         },
       },
+      // Suffix the caller's key with "-order" so the order and payment
+      // get distinct idempotency keys from a single caller-provided value.
       idempotencyKey: `${params.idempotencyKey}-order`,
     });
 
@@ -213,6 +230,8 @@ export async function createSquarePayment(params: {
       locationId: SQUARE_LOCATION_ID,
       idempotencyKey: params.idempotencyKey,
       note: params.note ?? `Booking #${params.bookingId} (deposit)`,
+      // autocomplete: true captures the payment immediately instead of
+      // creating a hold that requires a separate capture step.
       autocomplete: true,
     });
 
@@ -254,6 +273,8 @@ export async function createSquareOrderPaymentLink(params: {
       order: {
         locationId: SQUARE_LOCATION_ID,
         referenceId: String(params.orderId),
+        // Square expects per-unit price, but callers pass total per line item.
+        // Divide by quantity to get the unit price Square expects.
         lineItems: params.lineItems.map((item) => ({
           name: item.name,
           quantity: String(item.quantity),
@@ -289,6 +310,9 @@ export async function createSquareOrderPaymentLink(params: {
 /**
  * Retrieves the first stored card ID for a Square customer. Returns null
  * if no cards are on file or Square is not configured.
+ *
+ * Returns null (rather than throwing) on failure so callers can fall back
+ * to invoice-based collection for no-show / cancellation fees.
  */
 export async function getSquareCardOnFile(squareCustomerId: string): Promise<string | null> {
   if (!isSquareConfigured()) return null;
@@ -296,6 +320,8 @@ export async function getSquareCardOnFile(squareCustomerId: string): Promise<str
   try {
     const response = await squareClient.cards.list({ customerId: squareCustomerId });
     const cards = response.data ?? [];
+    // Only return cards that are still active — Square keeps disabled/expired
+    // cards in the list.
     const enabledCard = cards.find((c) => c.enabled);
     return enabledCard?.id ?? null;
   } catch (err) {

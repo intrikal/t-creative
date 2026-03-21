@@ -132,14 +132,27 @@ export function getDayAvailability(
 /*  Overlap layout for time-grid views                                 */
 /* ------------------------------------------------------------------ */
 
+/**
+ * layoutDay — computes overlap columns for same-day events in a time grid.
+ *
+ * Uses a greedy column-packing algorithm:
+ * 1. Sort events by start time.
+ * 2. For each event, find the first column whose last event has ended.
+ * 3. If no column fits, allocate a new one.
+ * 4. After packing, stamp every event with totalCols so each knows its width fraction.
+ *
+ * This produces Google Calendar-style side-by-side overlapping blocks.
+ */
 export function layoutDay(events: CalEvent[]): Placed[] {
   if (!events.length) return [];
   const sorted = [...events].sort((a, b) => timeToMin(a.startTime) - timeToMin(b.startTime));
+  // Track the end-minute of the last event in each column
   const colEnds: number[] = [];
   const placed: (CalEvent & { colIndex: number })[] = [];
   for (const ev of sorted) {
     const start = timeToMin(ev.startTime);
     const end = start + ev.durationMin;
+    // Find first column where the previous event has ended before this one starts
     let col = colEnds.findIndex((e) => e <= start);
     if (col === -1) {
       col = colEnds.length;

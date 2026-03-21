@@ -1,3 +1,26 @@
+/**
+ * Tests for GET /api/cron/recurring-bookings — safety-net generator for
+ * missed recurring booking occurrences.
+ *
+ * Covers:
+ *  - Auth: missing or wrong x-cron-secret returns 401
+ *  - No-op: no completed recurring bookings → zero counts
+ *  - RRULE path: completed booking with "FREQ=WEEKLY;INTERVAL=2" and no
+ *    successor → inserts next booking, sends confirmation email, returns
+ *    created=1
+ *  - Dedup (successor exists): booking already has a later sibling in the
+ *    same series → skipped=1, no new booking created
+ *  - Dedup (sync_log): booking already processed by this cron (sync_log
+ *    entry with status="success") → skipped=1
+ *
+ * Mocks: db (select/insert/update chains), sendEmail,
+ * RecurringBookingConfirmation component, drizzle-orm operators.
+ */
+// describe: groups related tests into a labeled block (like a folder for tests)
+// it/test: defines a single test case with a description and assertion function
+// expect: creates an assertion — checks that a value matches an expected condition
+// vi: Vitest's mock utility — creates fake functions, spies on calls, and controls return values
+// beforeEach: runs a setup function before every test in the current describe block
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 /* ------------------------------------------------------------------ */

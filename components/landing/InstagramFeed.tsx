@@ -27,7 +27,17 @@ export interface InstagramPost {
   postedAt: string;
 }
 
+/**
+ * PostTile — Single Instagram post thumbnail with hover overlay and video indicator.
+ *
+ * Props:
+ * - post: InstagramPost data (media URL, caption, permalink, type)
+ * - index: position for stagger delay in the entrance animation
+ */
 function PostTile({ post, index }: { post: InstagramPost; index: number }) {
+  // Ternary: VIDEO posts use thumbnailUrl for the static preview image; if no thumbnail
+  // is available (null), falls back to mediaUrl. Image posts use mediaUrl directly.
+  // Nullish coalescing (??) handles the case where thumbnailUrl is null.
   const imgSrc = post.mediaType === "VIDEO" ? post.thumbnailUrl ?? post.mediaUrl : post.mediaUrl;
 
   return (
@@ -53,7 +63,8 @@ function PostTile({ post, index }: { post: InstagramPost; index: number }) {
         <FaInstagram className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
       </div>
 
-      {/* Video indicator */}
+      {/* Conditional render: play button indicator only shows on VIDEO posts.
+          Positioned top-right to not obscure the main image content. */}
       {post.mediaType === "VIDEO" && (
         <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-white/80 flex items-center justify-center">
           <div className="w-0 h-0 border-l-[5px] border-l-foreground border-y-[3px] border-y-transparent ml-0.5" />
@@ -63,10 +74,21 @@ function PostTile({ post, index }: { post: InstagramPost; index: number }) {
   );
 }
 
+/**
+ * InstagramFeed — Renders cached Instagram posts.
+ *
+ * Props:
+ * - posts: array of InstagramPost objects fetched from the instagram_posts table by the server component
+ *
+ * Graceful degradation: returns null if no posts, hiding the section entirely.
+ */
 export function InstagramFeed({ posts }: { posts: InstagramPost[] }) {
+  // Early return: if no posts are cached (first deploy or IG not configured),
+  // hide the entire section rather than showing an empty grid.
   if (posts.length === 0) return null;
 
-  // Take the primary account username for the header
+  // Optional chaining + nullish coalescing: safely extract username from first post.
+  // posts[0] is guaranteed to exist after the length check, but ?. is defensive.
   const username = posts[0]?.igUsername ?? "";
 
   return (
@@ -88,6 +110,7 @@ export function InstagramFeed({ posts }: { posts: InstagramPost[] }) {
               Fresh from the studio
             </h2>
           </div>
+          {/* Conditional render: profile link only shows when username is available (truthy string). */}
           {username && (
             <a
               href={`https://www.instagram.com/${username}/`}
@@ -101,7 +124,8 @@ export function InstagramFeed({ posts }: { posts: InstagramPost[] }) {
           )}
         </motion.div>
 
-        {/* Mobile: horizontal scroll strip */}
+        {/* Mobile: horizontal scroll strip — md:hidden hides on desktop.
+            posts.map() renders all posts as horizontally scrollable tiles with snap points. */}
         <div className="md:hidden flex gap-3 overflow-x-auto pb-4 -mx-6 px-6 snap-x snap-mandatory scrollbar-hide">
           {posts.map((post, i) => (
             <div key={post.igMediaId} className="snap-start">
@@ -110,7 +134,9 @@ export function InstagramFeed({ posts }: { posts: InstagramPost[] }) {
           ))}
         </div>
 
-        {/* Desktop: 2-row grid (up to 8 posts) */}
+        {/* Desktop: 4-column grid. posts.slice(0, 8) limits to 8 posts (2 rows of 4).
+            .slice() over CSS overflow-hidden because we want to avoid rendering off-screen
+            elements that would still load images. */}
         <div className="hidden md:grid grid-cols-4 gap-3">
           {posts.slice(0, 8).map((post, i) => (
             <PostTile key={post.igMediaId} post={post} index={i} />

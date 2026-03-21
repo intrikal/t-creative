@@ -1,3 +1,24 @@
+/**
+ * Tests for GET /api/export — admin CSV data export endpoint.
+ *
+ * Covers:
+ *  - Auth: unauthenticated (401), non-admin role (403), missing profile (403)
+ *  - Validation: invalid export type (400), missing type param (400)
+ *  - CSV output: correct column headers for each of the 6 export types
+ *    (clients, bookings, payments, expenses, invoices, orders)
+ *  - Response headers: Content-Type text/csv, Content-Disposition with
+ *    type-specific filename, Cache-Control: no-store
+ *  - Audit logging: logAction called with actorId, action="export",
+ *    and the export type as entityType
+ *
+ * Mocks: Supabase auth (getUser), db.select (thenable chain),
+ * logAction (audit), drizzle-orm operators, drizzle alias.
+ */
+// describe: groups related tests into a labeled block (like a folder for tests)
+// it/test: defines a single test case with a description and assertion function
+// expect: creates an assertion — checks that a value matches an expected condition
+// vi: Vitest's mock utility — creates fake functions, spies on calls, and controls return values
+// beforeEach: runs a setup function before every test in the current describe block
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 /* ------------------------------------------------------------------ */

@@ -1,3 +1,25 @@
+/**
+ * Tests for GET /api/cron/membership-reminders — membership cycle renewal
+ * reminder email sender.
+ *
+ * Covers:
+ *  - Auth: missing or wrong CRON_SECRET returns 401
+ *  - Happy path: active membership renewing in 3 days with unused fills →
+ *    sends reminder email with fill count and cycle end date, returns
+ *    matched=1, sent=1
+ *  - Deduplication: existing sync_log entry for this subscription+cycle →
+ *    skipped=1, no email sent
+ *  - No upcoming renewals: candidates query returns empty → zero counts
+ *  - Preference check: notifyEmail=false → skipped=1, no email sent
+ *
+ * Mocks: db (select chain), sendEmail, MembershipReminder component,
+ * drizzle-orm operators, date-fns format.
+ */
+// describe: groups related tests into a labeled block (like a folder for tests)
+// it/test: defines a single test case with a description and assertion function
+// expect: creates an assertion — checks that a value matches an expected condition
+// vi: Vitest's mock utility — creates fake functions, spies on calls, and controls return values
+// beforeEach: runs a setup function before every test in the current describe block
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 /* ------------------------------------------------------------------ */

@@ -1,6 +1,11 @@
 /**
- * Public cached queries for the /portfolio page.
- * No authentication required — reads only published media items.
+ * app/portfolio/actions.ts — Public cached queries for the /portfolio page.
+ *
+ * Fetches all published media items for the public-facing portfolio/lookbook.
+ * No authentication required. Results are cached with a "portfolio" tag and
+ * revalidated when media is published/unpublished from the admin dashboard.
+ *
+ * @module portfolio/actions
  */
 import { cacheTag, cacheLife } from "next/cache";
 import { eq, asc } from "drizzle-orm";
@@ -18,6 +23,19 @@ export type PublicMediaItem = {
   isFeatured: boolean;
 };
 
+/**
+ * Returns all published media items for the public portfolio page.
+ *
+ * SELECT  id, type, category, title, caption, publicUrl, beforeStoragePath, isFeatured
+ * FROM    media_items
+ * WHERE   isPublished = true        ← only items the admin has marked as visible
+ * ORDER BY sortOrder ASC            ← admin-defined display order
+ *
+ * No JOINs — all data lives in media_items.
+ *
+ * For before/after items, the "before" image URL is constructed from the
+ * Supabase Storage base URL + beforeStoragePath.
+ */
 export async function getPublishedMedia(): Promise<PublicMediaItem[]> {
   "use cache";
   cacheTag("portfolio");

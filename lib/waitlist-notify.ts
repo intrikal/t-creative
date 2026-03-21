@@ -39,6 +39,9 @@ import { sendEmail } from "@/lib/resend";
  */
 export async function notifyWaitlistForCancelledBooking(cancelledBookingId: number): Promise<void> {
   try {
+    // Query: SELECT serviceId, startsAt, staffId FROM bookings WHERE id = cancelledBookingId
+    // Fetches the cancelled booking's slot details so we can offer the same
+    // service + time + staff to the next person on the waitlist.
     const [cancelled] = await db
       .select({
         serviceId: bookings.serviceId,
@@ -76,6 +79,17 @@ export async function notifyNextWaitlistEntry({
   offeredSlotStartsAt: Date;
   offeredStaffId: string | null;
 }): Promise<void> {
+  // Query: SELECT waitlist.id, clientId, profiles.email, profiles.firstName,
+  //        profiles.notifyEmail, services.name
+  //   FROM waitlist
+  //   INNER JOIN profiles ON waitlist.clientId = profiles.id
+  //   INNER JOIN services ON waitlist.serviceId = services.id
+  //   WHERE waitlist.serviceId = ? AND waitlist.status = 'waiting'
+  //   ORDER BY waitlist.createdAt ASC  -- FIFO: earliest joiner first
+  //   LIMIT 1
+  //
+  // INNER JOINs are used (not LEFT) because a waitlist entry without a
+  // valid profile or service is orphaned and should be skipped.
   const [entry] = await db
     .select({
       id: waitlist.id,
@@ -89,6 +103,8 @@ export async function notifyNextWaitlistEntry({
     .innerJoin(profiles, eq(waitlist.clientId, profiles.id))
     .innerJoin(services, eq(waitlist.serviceId, services.id))
     .where(and(eq(waitlist.serviceId, serviceId), eq(waitlist.status, "waiting")))
+    // FIFO — earliest joiner gets first offer. If they don't claim within
+    // the window, the expiry cron calls this function again for the next entry.
     .orderBy(asc(waitlist.createdAt))
     .limit(1);
 
@@ -100,9 +116,19 @@ export async function notifyNextWaitlistEntry({
   ]);
   const claimWindowMs = bookingRules.waitlistClaimWindowHours * 60 * 60 * 1000;
 
+  // UUID claim token is single-use — validated by the /book/claim/[token] route.
+  // Expiry is configurable via admin settings (default 24h).
   const token = randomUUID();
   const expiresAt = new Date(Date.now() + claimWindowMs);
 
+  // UPDATE waitlist SET status='notified', notifiedAt=now(), claimToken=<uuid>,
+  //   claimTokenExpiresAt=<now + claimWindow>, offeredSlotStartsAt=<slot>,
+  //   offeredStaffId=<staffId>
+  // WHERE id = entry.id
+  //
+  // Transitions the waitlist entry from "waiting" to "notified" and stores
+  // the claim token + expiry. The /book/claim/[token] route validates the
+  // token and converts the waitlist entry into a confirmed booking.
   await db
     .update(waitlist)
     .set({
@@ -132,6 +158,8 @@ export async function notifyNextWaitlistEntry({
     localId: String(entry.id),
   });
 
+  // Also create an in-app notification so the client sees it in their
+  // dashboard even if the email is missed. Non-fatal — email is primary.
   try {
     await db.insert(notifications).values({
       profileId: entry.clientId,

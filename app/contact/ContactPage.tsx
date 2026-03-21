@@ -1,7 +1,18 @@
 /**
- * ContactPage — Client Component rendering the Contact page with form.
+ * ContactPage — Client Component rendering the public /contact page.
  *
- * Uses @tanstack/react-form for state and Zod for validation.
+ * Displays a hero section, a validated contact form (name, email, interest
+ * dropdown, message), a Cloudflare Turnstile captcha, and an info sidebar
+ * with email/location/social links. On successful submission, the form is
+ * replaced with a confirmation message.
+ *
+ * Uses @tanstack/react-form for field-level state and Zod for per-field
+ * validation triggered onBlur. The server action `submitContactForm` is
+ * called only after full Zod validation + a valid Turnstile token.
+ *
+ * This is a Client Component ("use client") because it manages form input
+ * state, runs client-side Zod validation, and integrates the Turnstile
+ * captcha widget which requires browser APIs.
  */
 "use client";
 
@@ -20,6 +31,8 @@ const platformIcons: Record<string, React.ComponentType<{ size?: number }>> = {
   LinkedIn: FaLinkedinIn,
 };
 
+// Zod schema shared between per-field onBlur validators and the final
+// onSubmit guard. Each field has its own human-readable error message.
 const contactSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
   email: z.string().email("Please enter a valid email address"),
@@ -59,6 +72,10 @@ export function ContactPage({
   footerTagline?: string;
   socialLinks?: { platform: string; handle: string; url: string }[];
 } = {}) {
+  // Transform CMS-sourced social links into the internal {label, href, icon,
+  // description} shape the sidebar renders. Resolves platform name to an icon
+  // component via the platformIcons lookup, falling back to FaInstagram for
+  // unrecognised platforms. Uses hardcoded defaultSocials when no CMS data exists.
   const socials = socialLinks
     ? socialLinks.map((s) => ({
         label: s.handle,
@@ -67,12 +84,26 @@ export function ContactPage({
         description: s.platform,
       }))
     : defaultSocials;
+  // Tracks whether the form was successfully submitted so we can swap the
+  // form for a "message sent" confirmation view.
   const [submitted, setSubmitted] = useState(false);
+  // Cloudflare Turnstile captcha token. Empty string means unverified —
+  // the submit button is disabled until a valid token arrives.
   const [turnstileToken, setTurnstileToken] = useState("");
+  // Memoised callback for the Turnstile widget so it doesn't re-mount on
+  // every render (the widget treats a new callback ref as a reset signal).
   const handleTurnstileSuccess = useCallback((token: string) => {
     setTurnstileToken(token);
   }, []);
 
+  // @tanstack/react-form instance — manages per-field values, touched/dirty
+  // state, and submission. Individual fields register onBlur validators
+  // (see the <form.Field> blocks below) that run the matching Zod shape
+  // check, giving instant feedback without a full-form submit.
+  //
+  // onSubmit performs a final full-schema safeParse, then calls the
+  // `submitContactForm` server action with the validated data + Turnstile
+  // token for bot verification.
   const form = useForm({
     defaultValues: {
       name: "",
@@ -264,6 +295,8 @@ export function ContactPage({
                           <option value="" disabled>
                             Select an option
                           </option>
+                          {/* Render each interest as a <select> option. The interest
+                              string serves as both the display label and the form value. */}
                           {interests.map((interest) => (
                             <option key={interest} value={interest}>
                               {interest}
@@ -371,6 +404,8 @@ export function ContactPage({
                   Follow Along
                 </h3>
                 <div className="flex flex-col gap-2.5">
+                  {/* Render each social link with its platform icon and handle text.
+                      Opens in a new tab with noopener for security. */}
                   {socials.map((s) => {
                     const Icon = s.icon;
                     return (

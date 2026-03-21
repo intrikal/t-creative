@@ -1,3 +1,27 @@
+/**
+ * app/dashboard/bookings/client-actions.ts — Server actions for the client-facing bookings page.
+ *
+ * Provides the data loader (getClientBookings) and mutation actions
+ * (submitClientReview, rescheduleClientBooking, cancelClientBooking)
+ * used by ClientBookingsPage. All actions are scoped to the authenticated
+ * client — they verify booking ownership before mutating.
+ *
+ * Key operations:
+ *   getClientBookings()
+ *     — Fetches all bookings for the current client with staff + service info.
+ *       Uses a Drizzle alias for the staff profile join.
+ *     — Batch-fetches add-ons for all booking IDs in a single query using
+ *       SQL ANY(), then groups them into a Map keyed by bookingId.
+ *     — Batch-checks which bookings already have a client review using a Set.
+ *     — rows.map() transforms each DB row into a ClientBookingRow:
+ *       date formatting, cents→dollars, status normalization (no_show→cancelled).
+ *
+ *   cancelClientBooking()
+ *     — Enforces 24-hour cancellation window by computing hoursUntilAppointment.
+ *     — After cancelling, fires notifyWaitlistForCancelledBooking() in a
+ *       fire-and-forget pattern (.catch(() => {})) so the client doesn't wait.
+ *     — Marks the Zoho CRM deal as "Closed Lost".
+ */
 "use server";
 
 import { revalidatePath } from "next/cache";

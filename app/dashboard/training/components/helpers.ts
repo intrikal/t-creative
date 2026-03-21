@@ -1,3 +1,15 @@
+/**
+ * helpers.ts — shared style maps and status config for the admin Training page.
+ *
+ * `PROGRAM_STYLE` maps each program type to Tailwind classes for badge
+ * rendering. `studentStatusConfig` returns label text and color classes
+ * for each enrollment status.
+ *
+ * Kept separate from `client-helpers.ts` which serves the client-facing
+ * training page (different color palette for client vs admin).
+ *
+ * @module training/components/helpers
+ */
 import type { ProgramType, StudentStatus } from "../actions";
 
 export const PROGRAM_STYLE: Record<

@@ -1,3 +1,25 @@
+/**
+ * Client preferences dialog — form for lash preferences (style, curl, diameter,
+ * lengths, retention), health/sensitivities (allergies, skin type, adhesive),
+ * and general preferences (birthday, contact method, rebook cadence, service types).
+ *
+ * Fetches existing preferences on open via getClientPreferences(); upserts on save.
+ * Uses the "loadedClientId !== clientId" pattern to detect when a new client is
+ * opened and trigger a fresh fetch without useEffect.
+ *
+ * Parent: app/dashboard/clients/ClientsPage.tsx (via ClientCard preferences action)
+ *
+ * State:
+ *   form            — PreferencesFormState with all field values (strings + boolean)
+ *   loading/saving  — async operation spinners
+ *   loadedClientId  — tracks which client's prefs are loaded to avoid re-fetching
+ *
+ * Key operations:
+ *   set()       — generic updater spreading a single key into form state
+ *   handleSave  — converts empty strings to undefined (so Drizzle stores NULLs),
+ *                 parses preferredRebookIntervalDays from string to number
+ *   REBOOK_CADENCE_OPTIONS — dropdown values mapping days to labels (e.g. 14 → "Every 2 weeks")
+ */
 "use client";
 
 import { useState } from "react";

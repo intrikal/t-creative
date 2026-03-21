@@ -1,3 +1,30 @@
+/**
+ * Tests for POST /api/webhooks/easypost — EasyPost tracking webhook handler.
+ *
+ * Covers:
+ *  - Signature verification: invalid HMAC (403), valid sig (200)
+ *  - Invalid input: malformed JSON body (400)
+ *  - Idempotency: already-processed event → 200 "Already processed"
+ *  - tracker.updated → shipped: order found with status "in_progress",
+ *    tracking status "in_transit" → updates order to "shipped", sends
+ *    OrderShipped email to client
+ *  - tracker.updated → completed: tracking "delivered" → updates order
+ *    to "completed" with completedAt timestamp
+ *  - Status unchanged: order already "shipped" + tracking "in_transit" →
+ *    no DB update, no email sent
+ *  - OrderShipped email: verifies sendEmail and OrderShipped component
+ *    called with correct client name, order number, tracking info
+ *  - Unknown event type: non-tracker event → 200 OK, skipped processing
+ *
+ * Mocks: db (select/insert/update chains), verifyEasyPostWebhook,
+ * sendEmail, logAction, OrderShipped component, Sentry.
+ * Uses per-test vi.resetModules + vi.doMock to swap DB behaviour.
+ */
+// describe: groups related tests into a labeled block (like a folder for tests)
+// it/test: defines a single test case with a description and assertion function
+// expect: creates an assertion — checks that a value matches an expected condition
+// vi: Vitest's mock utility — creates fake functions, spies on calls, and controls return values
+// beforeEach: runs a setup function before every test in the current describe block
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 /* ------------------------------------------------------------------ */

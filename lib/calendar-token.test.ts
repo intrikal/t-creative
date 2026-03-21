@@ -1,16 +1,40 @@
+// describe: groups related tests into a labeled block (like a folder for tests)
+// it/test: defines a single test case with a description and assertion function
+// expect: creates an assertion — checks that a value matches an expected condition
+// vi: Vitest's mock utility — creates fake functions, spies on calls, and controls return values
+// afterEach: runs a cleanup function after every test in the current describe block
 import { describe, it, expect, vi, afterEach } from "vitest";
+// generateCalendarToken: creates an HMAC-SHA256 token for a given profileId using CRON_SECRET
+// verifyCalendarToken: checks whether a token matches the expected HMAC for a profileId
+// calendarUrl: builds a full iCal subscription URL embedding the profileId and its HMAC token
 import { generateCalendarToken, verifyCalendarToken, calendarUrl } from "./calendar-token";
 
+/**
+ * Tests for the calendar token module — HMAC-based authentication for iCal feeds.
+ *
+ * Covers:
+ *  - Token generation: deterministic, profile-specific, secret-dependent
+ *  - Token verification: valid, wrong profileId, tampered, malformed, wrong length
+ *  - URL building: uses NEXT_PUBLIC_SITE_URL or falls back to localhost,
+ *    embeds profileId in path, embeds a verifiable token in query string
+ *
+ * No mocks needed — these are pure crypto functions using env vars only.
+ */
+
+// Restore all env stubs after each test to prevent cross-test leakage
 afterEach(() => {
   vi.unstubAllEnvs();
 });
 
+// Tests for the HMAC token generator that secures iCal feed URLs
 describe("generateCalendarToken", () => {
+  // Basic format check — HMAC-SHA256 output is always hexadecimal
   it("returns a hex string", () => {
     const token = generateCalendarToken("profile-123");
     expect(token).toMatch(/^[0-9a-f]+$/);
   });
 
+  // HMACs must be deterministic — same input always yields the same token
   it("is deterministic for the same profileId and secret", () => {
     vi.stubEnv("CRON_SECRET", "stable-secret");
     const a = generateCalendarToken("profile-abc");
@@ -18,6 +42,7 @@ describe("generateCalendarToken", () => {
     expect(a).toBe(b);
   });
 
+  // Each profile gets a unique token — prevents one user from accessing another's feed
   it("produces different tokens for different profileIds", () => {
     vi.stubEnv("CRON_SECRET", "same-secret");
     const a = generateCalendarToken("profile-1");
@@ -25,6 +50,7 @@ describe("generateCalendarToken", () => {
     expect(a).not.toBe(b);
   });
 
+  // Rotating the secret invalidates all existing tokens — important for security
   it("produces different tokens when CRON_SECRET changes", () => {
     vi.stubEnv("CRON_SECRET", "secret-X");
     const tokenX = generateCalendarToken("profile-1");
@@ -46,6 +72,7 @@ describe("generateCalendarToken", () => {
   });
 });
 
+// Tests for HMAC verification — the gatekeeper for the iCal API endpoint
 describe("verifyCalendarToken", () => {
   it("returns true for a valid token", () => {
     vi.stubEnv("CRON_SECRET", "verify-secret");
@@ -77,6 +104,7 @@ describe("verifyCalendarToken", () => {
   });
 });
 
+// Tests for the full URL builder — used in settings UI and email links
 describe("calendarUrl", () => {
   it("builds a URL using NEXT_PUBLIC_SITE_URL when set", () => {
     vi.stubEnv("NEXT_PUBLIC_SITE_URL", "https://tcreativestudio.com");

@@ -1,7 +1,10 @@
 /**
  * Services — Lists core service offerings with zone colors, pricing, and CTAs.
  *
+ * Used on the landing page to present the four service verticals with pricing and booking links.
  * Client Component — uses Framer Motion for staggered scroll-reveal animations.
+ *
+ * No props — service data is static. Zone colors and CTA hrefs are pulled from the ZONES config.
  */
 "use client";
 
@@ -10,6 +13,8 @@ import { motion } from "framer-motion";
 import { SectionWrapper } from "@/components/ui/SectionWrapper";
 import { ZONES, type ZoneId } from "@/lib/zones";
 
+// Service definitions — each entry ties to a ZoneId from the shared zones config.
+// Typed inline to enforce the shape without a separate interface, since this array is only used here.
 const services: {
   zoneId: ZoneId;
   title: string;
@@ -72,6 +77,10 @@ export function Services() {
         </motion.div>
 
         <div className="flex flex-col gap-0">
+          {/* .map() over services to render each as a horizontal row with zone dot, text, and CTA.
+              Array-driven to keep stagger delay (i * 0.1) uniform. Each iteration looks up the
+              zone config via ZONES[service.zoneId] to get the brand color and CTA href — this
+              avoids duplicating zone data and ensures consistency with the rest of the site. */}
           {services.map((service, i) => {
             const zone = ZONES[service.zoneId];
             return (

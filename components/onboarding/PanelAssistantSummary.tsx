@@ -1,5 +1,52 @@
 "use client";
 
+/**
+ * PanelAssistantSummary.tsx — Completion summary card for the assistant onboarding flow.
+ *
+ * What: Displays a read-only profile card in the right panel after the assistant
+ *       completes onboarding. Shows: name, preferred title, selected skills
+ *       (badge list), certifications, work style, schedule (selected dates count
+ *       + default hours), emergency contact info, contact details (email, phone,
+ *       Instagram), and notification preferences.
+ *
+ * Why: Gives the assistant a final visual confirmation that all their data was
+ *      captured correctly before navigating to their dashboard. Mirrors
+ *      PanelSummary.tsx (client flow) but with staff-specific sections instead
+ *      of client preferences (e.g. schedule replaces availability, emergency
+ *      contact replaces allergies).
+ *
+ * How: Reads all values directly from the TanStack Form instance via
+ *      `form.getFieldValue()`. No network call — the form is fully populated
+ *      by the time this component renders.
+ *
+ * Label dictionaries (CERT_LABELS, WORK_STYLE_LABELS, SKILL_LABELS):
+ *      Map internal enum IDs to human-readable display strings. Kept as
+ *      Record<string, string> objects at module level so they're created once
+ *      and shared across renders.
+ *
+ * formatTime():
+ *      Converts 24-hour "HH:MM" strings from the form into "h am/pm" display
+ *      format. Only the hour matters for the summary — minutes are always ":00"
+ *      in the time picker options.
+ *
+ * selectedDateCount — IIFE pattern:
+ *      `availableDates` is stored as a JSON string in the form (see
+ *      StepShiftAvailability). The IIFE parses it and returns .length, wrapped
+ *      in try/catch so malformed JSON defaults to 0 instead of crashing.
+ *
+ * activeNotifications:
+ *      Object.entries() converts { sms: true, email: true, marketing: false }
+ *      into [["sms", true], ["email", true], ["marketing", false]].
+ *      .filter(([, v]) => v) keeps only truthy entries.
+ *      .map(([k]) => ...) maps keys to display labels via a ternary chain.
+ *
+ * @prop form — the TanStack Form instance (AssistantOnboardingForm)
+ *
+ * Related files:
+ * - components/onboarding/OnboardingFlow.tsx — passes the form instance here
+ * - components/onboarding/steps/StepComplete.tsx — the left-side completion content
+ * - components/onboarding/OnboardingShell.tsx — renders both panels side-by-side
+ */
 import { motion } from "framer-motion";
 import {
   LuMail,
@@ -64,14 +111,24 @@ export function PanelAssistantSummary({ form }: Props) {
   const workStyle = form.getFieldValue("workStyle");
   const notifications = form.getFieldValue("notifications");
 
+  // IIFE (Immediately Invoked Function Expression): (() => { ... })() defines and
+  // calls a function in one expression. Used here to safely parse JSON with try/catch
+  // and return the count — avoids polluting the component scope with temporary variables.
   const selectedDateCount = (() => {
     try {
+      // availableDates is stored as a JSON-encoded string[] (e.g. '["2025-04-01","2025-04-02"]')
+      // because TanStack Form stores flat strings, not arrays, for complex fields.
       return (JSON.parse(availableDatesRaw || "[]") as string[]).length;
     } catch {
       return 0;
     }
   })();
 
+  // Object.entries(notifications) converts { sms: true, email: true, marketing: false }
+  // into [["sms", true], ["email", true], ["marketing", false]].
+  // .filter(([, v]) => v): destructuring in filter — the comma skips the key, `v` is the value.
+  // Only keeps entries where the value is truthy (i.e., the notification channel is enabled).
+  // .map(([k]) => ...): maps each remaining key to a human-readable label via a ternary chain.
   const activeNotifications = Object.entries(notifications)
     .filter(([, v]) => v)
     .map(([k]) => (k === "sms" ? "SMS" : k === "email" ? "Email" : "Promos"));

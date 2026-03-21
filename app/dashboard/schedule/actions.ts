@@ -89,7 +89,10 @@ function formatDateKey(date: Date): string {
   return `${y}-${m}-${d}`;
 }
 
+/** Avatar fallback — "SL" for "Sarah Lee", "?" if both names are empty. */
 function getInitials(first: string, last: string): string {
+  // Build a 2-element array of first chars, filter(Boolean) removes undefined
+  // entries (e.g. empty strings produce undefined at [0]), then join into "SL".
   return [first?.[0], last?.[0]].filter(Boolean).join("").toUpperCase() || "?";
 }
 
@@ -131,6 +134,9 @@ export async function getScheduleData(): Promise<{
     rangeEnd.setDate(rangeEnd.getDate() + 7);
     rangeEnd.setHours(23, 59, 59, 999);
 
+    // Join bookings → services (for name/category) → profiles (for client name).
+    // INNER JOINs are safe here — every booking must have a service and client.
+    // Filter: only bookings assigned to this assistant within the date window.
     const rows = await db
       .select({
         id: bookings.id,
@@ -158,6 +164,10 @@ export async function getScheduleData(): Promise<{
       )
       .orderBy(asc(bookings.startsAt));
 
+    // Transform raw DB rows into the presentation-ready AppointmentRow shape.
+    // .map() gives a 1:1 conversion — every booking becomes one appointment.
+    // Computing derived fields (end time, initials, formatted dates) here keeps
+    // the React component free of date math.
     const bookingAppointments: AppointmentRow[] = rows.map((r) => {
       const start = new Date(r.startsAt);
       const end = new Date(start.getTime() + r.durationMinutes * 60 * 1000);
@@ -184,8 +194,11 @@ export async function getScheduleData(): Promise<{
       };
     });
 
-    // Also fetch events that this assistant is staffed for in the same date window.
-    // Use negative IDs to avoid key collisions with booking IDs in the UI.
+    // Also fetch events assigned to this assistant in the same date range.
+    // LEFT JOIN to event_guests + GROUP BY events.id + count(eventGuests.id)
+    // produces a single row per event with the guest count as an aggregate column.
+    // LEFT JOIN (not INNER) because events with zero guests should still appear.
+    // Negative IDs (id: -r.id) prevent React key collisions with booking rows.
     const assignedEvents = await db
       .select({
         id: events.id,
@@ -213,6 +226,8 @@ export async function getScheduleData(): Promise<{
       .groupBy(events.id)
       .orderBy(asc(events.startsAt));
 
+    // Map event statuses → booking statuses so the calendar can use one
+    // unified status enum for color-coding dots/badges.
     const eventStatusMap: Record<string, BookingStatus> = {
       upcoming: "pending",
       confirmed: "confirmed",
@@ -220,11 +235,20 @@ export async function getScheduleData(): Promise<{
       completed: "completed",
     };
 
+    // Map event rows into the same AppointmentRow shape as bookings so the
+    // calendar can render both uniformly. .map() is correct because every
+    // assigned event produces exactly one calendar entry.
     const eventAppointments: AppointmentRow[] = assignedEvents.map((r) => {
       const start = new Date(r.startsAt);
+      // Ternary: use the event's explicit end time if available, otherwise
+      // default to 1 hour — events without an end time still need a duration
+      // for the calendar block height calculation.
       const end = r.endsAt ? new Date(r.endsAt) : new Date(start.getTime() + 60 * 60 * 1000); // default 1h if no end time
       const contactName = r.contactName ?? "Group Event";
       const parts = contactName.trim().split(" ");
+      // Extract first-letter initials from the contact name parts, filtering
+      // out undefined entries (e.g. single-word names). filter(Boolean) removes
+      // falsy values (undefined/null/"") cleanly without explicit null checks.
       const initials =
         [parts[0]?.[0], parts[1]?.[0]].filter(Boolean).join("").toUpperCase() || "GE";
 
@@ -249,6 +273,11 @@ export async function getScheduleData(): Promise<{
       };
     });
 
+    // Merge bookings + events into one list, sorted chronologically.
+    // Spread operator merges both arrays into a new combined array — simpler
+    // and more readable than .concat(), and avoids mutating either source array.
+    // String concatenation of date + 24h time ("2026-03-20" + "09:00") gives
+    // correct lexicographic ordering without parsing back to Date objects.
     const appointments: AppointmentRow[] = [...bookingAppointments, ...eventAppointments].sort(
       (a, b) => (a.date + a.startTime24).localeCompare(b.date + b.startTime24),
     );
@@ -258,9 +287,16 @@ export async function getScheduleData(): Promise<{
     const weekStartKey = formatDateKey(weekStart);
     const weekEndKey = formatDateKey(weekEnd);
 
+    // Filter appointments into today/week subsets for stat computation.
+    // Two separate .filter() calls are clearer than a single pass with
+    // conditional accumulators, and the array is small enough (~30-50 items)
+    // that two passes have negligible cost.
     const todayAppts = appointments.filter((a) => a.date === todayKey);
     const weekAppts = appointments.filter((a) => a.date >= weekStartKey && a.date <= weekEndKey);
 
+    // Aggregate revenue using .reduce() — sums a single numeric field across
+    // an array. reduce is the idiomatic choice for accumulating a scalar from
+    // an array; a for-loop would work but adds mutable state.
     const stats: ScheduleStats = {
       todayCount: todayAppts.length,
       todayRevenue: todayAppts.reduce((s, a) => s + a.price, 0),

@@ -1,8 +1,20 @@
 /**
- * AboutPage — Client Component rendering the About page content.
+ * AboutPage — Client Component rendering the public /about page.
  *
- * Displays founder bio, four service pillars, social links, and location CTA.
- * Accepts props from the server component for configurable content.
+ * Composed of four sections:
+ *   1. Hero — Dark-background split layout with the founder's photo and bio.
+ *   2. Service pillars — 2x2 grid of the four core offerings.
+ *   3. Social links — Grid of external profile cards.
+ *   4. Location CTA — "Get in Touch" call-to-action with the studio's city.
+ *
+ * All text content (owner name, bio, location, email, social links) is
+ * passed in via props from the Server Component so the data can come from
+ * the CMS / site-settings table without this file importing server-only
+ * modules.
+ *
+ * This is a Client Component ("use client") because it uses Framer Motion
+ * for scroll-triggered entry animations (whileInView) which rely on
+ * browser Intersection Observer APIs unavailable during SSR.
  */
 "use client";
 
@@ -32,6 +44,10 @@ export function AboutPage({
   footerTagline?: string;
   socialLinks?: { platform: string; handle: string; url: string }[];
 }) {
+  // Transform CMS-sourced social links into the internal {label, href, icon,
+  // description} shape used by the social cards grid. Resolves platform name
+  // to a React icon component, falling back to FaInstagram for unknown platforms.
+  // Falls back to hardcoded defaultSocials when no CMS data is provided.
   const socials = socialLinks
     ? socialLinks.map((s) => ({
         label: s.handle,
@@ -44,6 +60,9 @@ export function AboutPage({
   const bioParagraphs = (
     bio ??
     "A creative entrepreneur passionate about helping others feel confident and beautiful. With expertise spanning lash artistry, permanent jewelry design, handcrafted crochet, and business consulting, I bring intention and care to every creation.\n\nBased in the San Francisco Bay Area, I combine artistic vision with business acumen to transform both looks and businesses. I also work as an HR professional, bringing strategic expertise to help companies build better teams and processes."
+  // Split the bio text on double-newlines to produce one string per paragraph.
+  // This lets us wrap each paragraph in its own <p> tag with independent spacing,
+  // rather than using a single block with CSS white-space or dangerouslySetInnerHTML.
   ).split("\n\n");
 
   return (
@@ -111,6 +130,10 @@ export function AboutPage({
             </motion.div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              {/* Render the four service pillar cards from a literal array. Using
+                  an inline array + .map() keeps the data co-located with the JSX
+                  rather than extracting a separate constant, since these values are
+                  static and only used here. The index drives staggered animation delay. */}
               {[
                 {
                   title: "Lash Extensions",
@@ -178,6 +201,8 @@ export function AboutPage({
             </motion.div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+              {/* Render each social link as an animated card with icon, handle, and
+                  platform description. Staggered animation via index-based delay. */}
               {socials.map((s, i) => {
                 const Icon = s.icon;
                 return (

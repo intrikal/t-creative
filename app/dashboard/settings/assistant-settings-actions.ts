@@ -1,3 +1,27 @@
+/**
+ * Server actions for the Assistant Settings page.
+ *
+ * Assistants (staff members, not the studio admin) manage their own
+ * profile, weekly availability, notification preferences, and time-off
+ * requests through this module.
+ *
+ * ## Auth model
+ * Uses `getUser()` (not `requireAdmin()`) so each assistant can only
+ * read/write their own data. The user ID from the session gates every query.
+ *
+ * ## Data layout
+ * - Profile fields → `profiles` + `assistant_profiles` tables
+ * - Weekly availability → `business_hours` rows keyed by `staff_id`
+ * - Notification prefs → `settings` table under key `assistant_notif:{userId}`
+ * - Time-off requests → `time_off` rows keyed by `staff_id`, with JSON metadata
+ *   in the `notes` column for status tracking (pending/approved/denied)
+ *
+ * ## Availability save strategy
+ * Same delete-and-reinsert pattern as `hours-actions.ts`, scoped to the
+ * staff member's own rows.
+ *
+ * @module settings/assistant-settings-actions
+ */
 "use server";
 
 import { revalidatePath } from "next/cache";

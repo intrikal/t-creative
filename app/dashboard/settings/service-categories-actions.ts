@@ -1,3 +1,16 @@
+/**
+ * Server actions for the Service Categories settings tab.
+ *
+ * CRUD operations on the `service_categories` lookup table. Categories
+ * are used to group services across the booking page and admin dashboard
+ * (e.g. "Lash Extensions", "Permanent Jewelry", "Crochet & Braids").
+ *
+ * Each category has a name, URL slug, display order (for sorting), and
+ * an active flag. All mutations are admin-gated via `requireAdmin()`.
+ *
+ * @module settings/service-categories-actions
+ * @see {@link ./components/ServiceCategoriesTab.tsx} — UI consuming these actions
+ */
 "use server";
 
 import { revalidatePath } from "next/cache";

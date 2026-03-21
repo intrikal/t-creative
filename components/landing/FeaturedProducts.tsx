@@ -1,8 +1,11 @@
 /**
  * FeaturedProducts — Bestseller product strip on the landing page.
  *
- * Browse without an account. Order CTA links to the public /shop page.
- * Cards feature a hover-lift effect with subtle shadow for premium feel.
+ * Used on the landing page to let visitors browse top products without an account.
+ * Cards feature a hover-lift effect (whileHover y:-6) with subtle shadow for premium feel.
+ * Client Component — uses Framer Motion for staggered card entrance and hover interactions.
+ *
+ * No props — product data is static. All CTAs link to the public /shop page.
  */
 "use client";
 
@@ -10,6 +13,8 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { SectionWrapper } from "@/components/ui/SectionWrapper";
 
+// Static product catalog — each entry includes name, description, price, a Tailwind bg class
+// for the placeholder swatch, and a hex dot color. Array structure enables .map() with stagger.
 const FEATURED = [
   {
     name: "Lash Aftercare Kit",
@@ -78,6 +83,9 @@ export function FeaturedProducts() {
         </motion.div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+          {/* .map() over FEATURED to render product cards in a responsive grid (1→2→5 columns).
+              Each card gets stagger delay (i * 0.08) and a whileHover y:-6 lift for tactile feel.
+              Array approach keeps the animation timing DRY across all products. */}
           {FEATURED.map((product, i) => (
             <motion.div
               key={product.name}

@@ -14,6 +14,8 @@
 import { useRef } from "react";
 import { motion, useInView } from "framer-motion";
 
+// Three booking steps — simple funnel: Choose → Book → Arrive.
+// Array structure enables .map() with per-step stagger and connector lines between items.
 const STEPS = [
   {
     number: "01",
@@ -33,8 +35,16 @@ const STEPS = [
   },
 ];
 
+/**
+ * ConnectorLine — Horizontal SVG line that draws itself when scrolled into view.
+ * Props: className for sizing/positioning from the parent layout.
+ * Uses useInView (not whileInView) because the animation is imperative strokeDashoffset,
+ * not a declarative Framer Motion prop — useInView gives a boolean to drive the condition.
+ */
 function ConnectorLine({ className }: { className?: string }) {
+  // useRef tracks the SVG element for intersection observation.
   const ref = useRef<SVGSVGElement>(null);
+  // useInView returns true once the element enters the viewport (once: true = no re-trigger).
   const isInView = useInView(ref, { once: true, margin: "-40px" });
 
   return (
@@ -55,6 +65,10 @@ function ConnectorLine({ className }: { className?: string }) {
   );
 }
 
+/**
+ * ConnectorLineVertical — Vertical variant of the connector line for mobile layout.
+ * Same useInView pattern as ConnectorLine but draws top-to-bottom instead of left-to-right.
+ */
 function ConnectorLineVertical({ className }: { className?: string }) {
   const ref = useRef<SVGSVGElement>(null);
   const isInView = useInView(ref, { once: true, margin: "-20px" });
@@ -102,6 +116,10 @@ export function HowItWorks() {
 
         {/* Steps — horizontal on desktop, vertical on mobile */}
         <div className="flex flex-col md:flex-row items-start md:items-center gap-0">
+          {/* .map() over STEPS to render step cards with connector lines between them.
+              Each step uses "contents" display to participate in the parent flex layout
+              while rendering both the card and the conditional connector as siblings.
+              The conditional (i < STEPS.length - 1) avoids a trailing connector after the last step. */}
           {STEPS.map((step, i) => (
             <div key={step.number} className="contents">
               {/* Step card */}

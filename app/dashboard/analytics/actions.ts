@@ -2,7 +2,14 @@
  * app/dashboard/analytics/actions.ts — Barrel re-export for analytics actions.
  *
  * All analytics functions have been split into domain-specific modules.
- * This file re-exports everything for backward compatibility.
+ * This file re-exports everything for backward compatibility so that
+ * existing imports like `import { getKpiStats } from "./actions"` still work.
+ *
+ * No queries live here — see the individual sub-modules for SQL-level docs:
+ *   - revenue-actions.ts           — KPIs, revenue trends, service revenue, per-hour heatmap
+ *   - booking-analytics-actions.ts — booking trends, service mix, attendance, peak times
+ *   - client-analytics-actions.ts  — retention, at-risk, sources, lifetime value, visit freq
+ *   - business-analytics-actions.ts — staff perf, promo ROI, membership value, gift card breakage
  *
  * @module analytics/actions
  * @see {@link ./AnalyticsPage.tsx} — client component consuming this data

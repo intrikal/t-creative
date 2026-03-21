@@ -1,3 +1,13 @@
+/**
+ * app/rsvp/actions.ts — Public server actions for the RSVP page.
+ *
+ * Handles event lookup by RSVP token and guest registration.
+ * No authentication required — the RSVP token in the URL is the access control.
+ *
+ * Tables touched: events (read), event_guests (read + insert).
+ *
+ * @module rsvp/actions
+ */
 "use server";
 
 import { sql } from "drizzle-orm";
@@ -14,7 +24,21 @@ export type RsvpEventInfo = {
   currentCount: number;
 };
 
-/** Looks up an event by its RSVP token (stored in events.metadata.rsvpToken). */
+/**
+ * Looks up an event by its RSVP token (stored in events.metadata.rsvpToken).
+ *
+ * Query 1 — Find the event:
+ *   SELECT id, title, startsAt, location, services, maxAttendees, metadata
+ *   FROM   events
+ *   WHERE  metadata->>'rsvpToken' = <token>
+ *   LIMIT 1
+ *   → uses a JSON path expression to match the token stored inside the
+ *     metadata JSONB column. Returns null if no event has this token.
+ *
+ * Query 2 — Count current RSVPs:
+ *   SELECT count(*) FROM event_guests WHERE eventId = <event.id>
+ *   → used to check if the event is full (currentCount vs maxAttendees).
+ */
 export async function getEventByRsvpToken(token: string): Promise<RsvpEventInfo | null> {
   const [row] = await db
     .select({
@@ -62,7 +86,17 @@ export type RsvpInput = {
 
 export type RsvpResult = { success: true } | { success: false; error: string };
 
-/** Public (no auth) — submits an RSVP, creating an event guest record. */
+/**
+ * Public (no auth) — submits an RSVP, creating an event guest record.
+ *
+ * 1. Validates input (name required).
+ * 2. Looks up the event via getEventByRsvpToken (see above).
+ * 3. Checks capacity: if maxAttendees is set and currentCount >= max, rejects.
+ * 4. Inserts a guest:
+ *    INSERT INTO event_guests (eventId, name, service, paid)
+ *    VALUES (<event.id>, <name>, <service or null>, false)
+ *    → paid defaults to false; the admin marks it paid after collecting payment.
+ */
 export async function submitRsvp(token: string, input: RsvpInput): Promise<RsvpResult> {
   if (!input.name.trim()) return { success: false, error: "Name is required." };
 

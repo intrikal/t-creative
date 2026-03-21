@@ -1,3 +1,9 @@
+/**
+ * Destructive confirmation dialog for permanently deleting a booking record.
+ * Only shown from the admin overflow menu — cannot be undone.
+ *
+ * Parent: app/dashboard/bookings/BookingsPage.tsx
+ */
 "use client";
 
 import { Dialog, DialogFooter } from "@/components/ui/dialog";

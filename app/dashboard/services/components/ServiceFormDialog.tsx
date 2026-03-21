@@ -66,8 +66,11 @@ export function ServiceFormDialog({
   initial: ServiceFormData | null;
   onSave: (data: ServiceFormData) => void;
 }) {
+  /** Controlled form state for all service fields (name, category, price, etc.). */
   const [form, setForm] = useState<ServiceFormData>(initial ?? BLANK_SERVICE_FORM);
+  /** Whether the category combobox popover is open. */
   const [catOpen, setCatOpen] = useState(false);
+  /** Memoized handler to avoid re-creating the popover's onOpenChange callback. */
   const handleCatOpenChange = useCallback((open: boolean) => {
     setCatOpen(open);
   }, []);

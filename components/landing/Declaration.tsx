@@ -19,6 +19,12 @@ interface WordRevealProps {
   lineWidth: MotionValue<string>;
 }
 
+/**
+ * WordReveal — Absolutely positioned word + underline rule, driven by scroll MotionValues.
+ * Props received from parent Declaration: word text, opacity/y/lineWidth as MotionValues.
+ * All three words share the same viewport space (absolute positioning) and only one is
+ * visible at a time, controlled by their respective opacity MotionValues.
+ */
 function WordReveal({ word, opacity, y, lineWidth }: WordRevealProps) {
   return (
     <motion.div
@@ -49,6 +55,11 @@ function TypewriterText({
 }) {
   return (
     <span className={className} aria-label={text}>
+      {/* .split("") breaks the string into individual characters, then .map() renders each
+          as a TypewriterChar with its own opacity derived from the parent progress MotionValue.
+          charStart/charEnd divide the 0→1 progress range evenly so each character's opacity
+          threshold is slightly later than the previous one — creating the typewriter effect.
+          String splitting chosen over a clip-path approach for per-character control. */}
       {text.split("").map((char, i) => {
         const charStart = i / text.length;
         const charEnd = (i + 0.5) / text.length;
@@ -60,6 +71,11 @@ function TypewriterText({
   );
 }
 
+/**
+ * TypewriterChar — A single character whose opacity fades in at a specific scroll progress window.
+ * Props: char to display, progress MotionValue from parent, start/end thresholds.
+ * useTransform maps the parent progress into this character's individual opacity (0→1).
+ */
 function TypewriterChar({
   char,
   progress,
@@ -71,6 +87,8 @@ function TypewriterChar({
   start: number;
   end: number;
 }) {
+  // useTransform derives per-character opacity from the shared scroll progress.
+  // Each character has a unique [start, end] window so they appear sequentially.
   const opacity = useTransform(progress, [start, end], [0, 1]);
   return (
     <motion.span style={{ opacity }} className="inline" aria-hidden>
@@ -80,8 +98,12 @@ function TypewriterChar({
 }
 
 export function Declaration() {
+  // useRef tracks the section element (200vh tall) for scroll progress measurement.
   const ref = useRef<HTMLElement>(null);
 
+  // useScroll provides 0→1 progress over the section's scroll range.
+  // offset: ["start start", "end start"] pins the animation from when the section
+  // enters the viewport to when it exits — matching the sticky container behavior.
   const { scrollYProgress } = useScroll({
     target: ref,
     offset: ["start start", "end start"],

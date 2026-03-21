@@ -1,3 +1,14 @@
+/**
+ * WeekGridView — Time-based weekly schedule grid.
+ *
+ * Renders a vertical time ruler (8am–8pm) on the left with 7 day columns.
+ * Appointments are positioned absolutely based on their start time and
+ * duration, colour-coded by service category. The grid height is fixed
+ * (TOTAL_HOURS * HOUR_H) with horizontal hour-lines for visual reference.
+ *
+ * Appointment block positioning uses minutes-from-day-start to calculate
+ * the CSS `top` value, and duration-in-minutes to calculate `height`.
+ */
 "use client";
 
 import { useMemo } from "react";
@@ -97,10 +108,16 @@ export function WeekGridView({
                   className="relative flex-1 min-w-0 border-r border-border/30 last:border-r-0"
                   style={{ height: `${GRID_H}px` }}
                 >
+                  {/* map: position each appointment block absolutely within its
+                      day column based on start time and duration */}
                   {dayAppts.map((a) => {
                     const c = CATEGORY_COLORS[a.category];
+                    // top: convert start time to minutes, subtract the grid's
+                    // start hour, scale to pixels, and add padding offset
                     const top =
                       ((timeToMin(a.startTime24) - DAY_START * 60) / 60) * HOUR_H + GRID_TOP_PAD;
+                    // height: duration in minutes scaled to pixels, with a 2px
+                    // gap and a 20px minimum so short appointments stay clickable
                     const height = Math.max((a.durationMin / 60) * HOUR_H - 2, 20);
                     return (
                       <div

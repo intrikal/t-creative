@@ -1,3 +1,27 @@
+/**
+ * Shared types, badge config, data mappers, and UI constants for
+ * the Clients page and its child components.
+ *
+ * Used by: ClientsPage, ClientCard, ClientFormDialog, DeleteDialog, LoyaltyTab
+ *
+ * Key exports:
+ *   Client / LoyaltyEntry    — UI-facing shapes (dollars, formatted dates)
+ *   sourceBadge()            — badge label + Tailwind classes per acquisition source
+ *   SVC_LABEL / SVC_COLOR    — display labels + badge colors per service category
+ *   initials()               — extracts up to 2 uppercase initials from a full name
+ *                               via split(" ").map(w => w[0]).join("").slice(0,2)
+ *   avatarColor()            — deterministic color from charCodeAt(0) % palette length
+ *   TIER_CONFIG              — points thresholds + badge colors for loyalty tiers
+ *   getTier()                — returns tier name based on points thresholds
+ *   mapClientRow()           — transforms a raw ClientRow into the UI Client shape:
+ *                               joins first+last name, parses comma-separated tags into
+ *                               ServiceCategory[], converts cents to dollars (totalSpent/100),
+ *                               formats dates with toLocaleDateString
+ *   mapLoyaltyRow()          — transforms a LoyaltyRow + totalSpentMap lookup into
+ *                               a LoyaltyEntry with computed tier and pointsToNext
+ *   SOURCE_FILTERS           — chip labels for the source filter bar
+ *   CLIENTS_TABS             — tab config for Clients / Loyalty tabs
+ */
 import type { ClientRow, LoyaltyRow, LifecycleStage } from "../actions";
 
 /* ------------------------------------------------------------------ */

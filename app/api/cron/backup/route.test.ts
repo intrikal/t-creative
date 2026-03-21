@@ -1,3 +1,26 @@
+/**
+ * Tests for POST /api/cron/backup — nightly automated database backup cron.
+ *
+ * Covers:
+ *  - Auth: missing or wrong x-cron-secret returns 401
+ *  - Manifest creation: createBackupManifest called on valid request;
+ *    throws → 500 "Backup failed"
+ *  - Storage not configured: isStorageConfigured returns false →
+ *    200 with storageConfigured=false, warning message, no upload attempted,
+ *    audit log entry with entityId="cron-no-storage"
+ *  - Successful upload: uploadBackupToStorage called with manifest;
+ *    response includes key, bytes, compressionRatio (75.0%), uploadedAt, summary
+ *  - Audit: logAction called with S3 key as entityId after successful upload
+ *  - Upload failure: uploadBackupToStorage throws → 500 "Upload failed"
+ *
+ * Mocks: createBackupManifest, uploadBackupToStorage, isStorageConfigured,
+ * logAction (audit), Sentry (captureException, captureMessage).
+ */
+// describe: groups related tests into a labeled block (like a folder for tests)
+// it/test: defines a single test case with a description and assertion function
+// expect: creates an assertion — checks that a value matches an expected condition
+// vi: Vitest's mock utility — creates fake functions, spies on calls, and controls return values
+// beforeEach: runs a setup function before every test in the current describe block
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 /* ------------------------------------------------------------------ */

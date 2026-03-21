@@ -1,7 +1,10 @@
 /**
  * StudioExperience — Parallax text section describing the in-studio experience.
  *
+ * Used on the landing page to convey the physical studio atmosphere.
  * Client Component — uses Framer Motion scroll-linked transforms for a parallax text effect.
+ *
+ * No props — copy is static brand content.
  */
 "use client";
 
@@ -9,12 +12,18 @@ import { useRef } from "react";
 import { motion, useScroll, useTransform } from "framer-motion";
 
 export function StudioExperience() {
+  // useRef anchors this section for scroll measurement.
   const ref = useRef<HTMLDivElement>(null);
+
+  // useScroll tracks section scroll progress (0→1) through the viewport.
+  // Cannot run during render because it needs the DOM element ref to measure positions.
   const { scrollYProgress } = useScroll({
     target: ref,
     offset: ["start end", "end start"],
   });
 
+  // useTransform maps scroll progress to a y offset (40px → -40px), creating
+  // a parallax drift where text moves slower than the page scroll.
   const y = useTransform(scrollYProgress, [0, 1], [40, -40]);
 
   return (

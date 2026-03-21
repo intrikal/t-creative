@@ -19,18 +19,26 @@ import { useRef } from "react";
 import { motion, useScroll, useTransform } from "framer-motion";
 
 export function Arrival() {
+  // useRef tracks the section element so Framer Motion can measure its scroll position.
   const ref = useRef<HTMLElement>(null);
 
+  // useScroll provides 0→1 progress from when the section's top hits the viewport top
+  // to when the section's bottom reaches the viewport top. offset: ["start start", "end start"]
+  // means the animation is scoped to the section pinning range. Cannot run during render
+  // because it subscribes to DOM scroll events.
   const { scrollYProgress } = useScroll({
     target: ref,
     offset: ["start start", "end start"],
   });
 
-  // Background fades from espresso to ivory in the latter half of scroll
+  // useTransform: background color holds dark (#2c2420) for the first 65% of scroll,
+  // then transitions to ivory (#faf6f1) — creating the atmosphere-to-brand-world transition.
   const bg = useTransform(scrollYProgress, [0, 0.65, 1], ["#2c2420", "#2c2420", "#faf6f1"]);
 
-  // Word visible through most of scroll, exits gracefully near the end
+  // useTransform: the "Studio." word stays visible through 55% of scroll, then fades out
+  // by 88% — giving the user time to absorb it before the next section.
   const textOpacity = useTransform(scrollYProgress, [0.55, 0.88], [1, 0]);
+  // Subtle upward drift (-10%) as the user scrolls, adding a sense of departure.
   const textY = useTransform(scrollYProgress, [0, 1], ["0%", "-10%"]);
 
   return (

@@ -1,3 +1,8 @@
+// describe: groups related tests into a labeled block
+// it: defines a single test case
+// expect: creates an assertion to check a value matches expected condition
+// vi: Vitest's mock utility for creating fake functions and spying on calls
+// beforeEach: runs setup before every test (typically resets mocks)
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 /* ------------------------------------------------------------------ */
@@ -26,8 +31,11 @@ const mockDb = {
   })),
 };
 
+// vi.mock() replaces an entire module with a fake so tests don't hit real APIs/DB.
+// Replaces the real DB module with an in-memory mock so tests never touch Postgres.
 vi.mock("@/db", () => ({ db: mockDb }));
 
+// Provides column-name stubs for each schema table so Drizzle ORM queries can build.
 vi.mock("@/db/schema", () => ({
   payments: { id: "id", squarePaymentId: "squarePaymentId" },
   bookings: { id: "id", clientId: "clientId", serviceId: "serviceId", status: "status" },
@@ -52,7 +60,10 @@ vi.mock("next/cache", () => ({
 }));
 
 // Mock Supabase auth
+// vi.fn(): creates a mock function that records how it was called.
+// mockGetUser simulates Supabase auth -- tests set its return value to control authentication state.
 const mockGetUser = vi.fn();
+// Replaces Supabase auth so tests control the authenticated user identity.
 vi.mock("@/utils/supabase/server", () => ({
   createClient: vi.fn(async () => ({
     auth: {
@@ -61,10 +72,11 @@ vi.mock("@/utils/supabase/server", () => ({
   })),
 }));
 
-// Mock Square client
+// Mock Square client -- intercepts payment lookups, refunds, and link creation
 const mockSquarePaymentsGet = vi.fn();
 const mockSquareRefundsRefund = vi.fn();
 const mockCreateSquarePaymentLink = vi.fn();
+// Replaces the Square payments SDK so tests never hit the real Square API.
 vi.mock("@/lib/square", () => ({
   squareClient: {
     payments: { get: (...args: unknown[]) => mockSquarePaymentsGet(...args) },
@@ -74,6 +86,7 @@ vi.mock("@/lib/square", () => ({
   createSquarePaymentLink: (...args: unknown[]) => mockCreateSquarePaymentLink(...args),
 }));
 
+// Replaces the Resend email client so tests never send real emails.
 vi.mock("@/lib/resend", () => ({
   sendEmail: vi.fn().mockResolvedValue(true),
 }));

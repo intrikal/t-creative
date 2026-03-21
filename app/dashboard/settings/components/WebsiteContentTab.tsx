@@ -20,10 +20,18 @@ import { FieldRow, StatefulSaveButton, Toggle, INPUT_CLASS } from "./shared";
 const TEXTAREA_CLASS = cn(INPUT_CLASS, "resize-none");
 
 export function WebsiteContentTab({ initial }: { initial: SiteContent }) {
+  /** Full site content object — all sections edited in one state blob. */
   const [data, setData] = useState(initial);
+  /** Whether the global save is in flight. */
   const [saving, setSaving] = useState(false);
+  /** Briefly true after save succeeds to show "Saved!" feedback. */
   const [saved, setSaved] = useState(false);
 
+  /**
+   * update — type-safe setter for any SiteContent field.
+   * Uses a generic constraint so the value type must match the key's type.
+   * Spread-merges the new value into the previous state object.
+   */
   function update<K extends keyof SiteContent>(key: K, value: SiteContent[K]) {
     setData((prev) => ({ ...prev, [key]: value }));
   }

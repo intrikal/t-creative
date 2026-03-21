@@ -1,10 +1,30 @@
+// describe: groups related tests into a labeled block (like a folder for tests)
+// it/test: defines a single test case with a description and assertion function
+// expect: creates an assertion — checks that a value matches an expected condition
+// vi: Vitest's mock utility — creates fake functions, spies on calls, and controls return values
+// beforeEach: runs a setup function before every test in the current describe block
 import { describe, it, expect, vi, beforeEach } from "vitest";
+
+/**
+ * Tests for the PostHog analytics module — server-side event tracking.
+ *
+ * Covers:
+ *  - trackEvent: calls posthog.capture correctly, no-op when unconfigured,
+ *    doesn't throw when unconfigured or when capture throws
+ *  - identifyUser: calls posthog.identify correctly, no-op when unconfigured,
+ *    doesn't throw on errors
+ *  - isPostHogConfigured: returns true/false based on POSTHOG_API_KEY
+ *
+ * Mocks: posthog-node (PostHog class with capture/identify), @sentry/nextjs.
+ */
 
 /* ------------------------------------------------------------------ */
 /*  Shared mock state                                                  */
 /* ------------------------------------------------------------------ */
 
+// mockCapture: tracks calls to posthog.capture() — the main event tracking method
 const mockCapture = vi.fn();
+// mockIdentify: tracks calls to posthog.identify() — sets user properties
 const mockIdentify = vi.fn();
 
 /* ------------------------------------------------------------------ */

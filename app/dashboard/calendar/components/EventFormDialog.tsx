@@ -36,10 +36,17 @@ export function EventFormDialog({
   }[];
   staffOptions: { id: string; name: string }[];
 }) {
+  /** Controlled form state for all booking fields. */
   const [form, setForm] = useState<FormState>(initial);
+  /** Curried setter — returns a callback that updates one form field. */
   const set = (k: keyof FormState) => (v: string | number) =>
     setForm((prev) => ({ ...prev, [k]: v }));
 
+  /**
+   * onServiceChange — when a service is selected, auto-fills the title,
+   * event type (derived from service category), and duration from the
+   * service definition. This reduces manual data entry for the admin.
+   */
   function onServiceChange(serviceId: number | "") {
     if (!serviceId) {
       setForm((prev) => ({ ...prev, serviceId: "", title: "", type: "lash" as EventType }));

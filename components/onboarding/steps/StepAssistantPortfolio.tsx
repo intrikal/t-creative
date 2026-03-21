@@ -1,5 +1,40 @@
 "use client";
 
+/**
+ * StepAssistantPortfolio — step 5 of the assistant onboarding wizard.
+ *
+ * ## Responsibility
+ * Collects the assistant's public portfolio and social media links:
+ * - Portfolio Instagram (separate from the personal handle collected in step 6)
+ * - TikTok handle
+ * - Website / portfolio URL
+ *
+ * All three fields are optional — the OK button is always enabled.
+ *
+ * ## Why a separate portfolio Instagram
+ * Many beauty professionals have a personal Instagram and a separate business/
+ * portfolio account. StepContactPrefs (step 6) collects the personal handle;
+ * this step collects the portfolio-specific one. Both are stored on the profile
+ * and displayed in different contexts.
+ *
+ * ## Input normalization
+ * Each Instagram/TikTok input strips a leading "@" via `.replace(/^@/, "")` so
+ * the stored value is always the bare handle (e.g. "tcreative" not "@tcreative").
+ * The visual "@" prefix is rendered as a separate span outside the input.
+ *
+ * ## Keyboard handling
+ * Enter advances when no input is focused (tracked by `inputFocusedRef`).
+ * This prevents accidental step advancement while typing a URL.
+ *
+ * ## Props
+ * @prop form — the TanStack Form instance (AssistantOnboardingForm)
+ * @prop onNext — advances to step 6 (contact preferences)
+ * @prop stepNum — displayed as the step badge number
+ *
+ * ## Related files
+ * - components/onboarding/panels/PanelAssistantPortfolio.tsx — paired right panel
+ * - components/onboarding/OnboardingFlow.tsx — renders this as step 5
+ */
 import { useEffect, useCallback, useRef } from "react";
 import { motion } from "framer-motion";
 import type { AssistantOnboardingForm } from "../OnboardingFlow";

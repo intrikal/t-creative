@@ -1,3 +1,19 @@
+/**
+ * NotificationsPanel — tabular view of all sent notifications with a
+ * "Send Notification" dialog for manual dispatch.
+ *
+ * Used by the Messages page when the user switches to the Notifications
+ * sub-view. Fetches notification rows on mount via `getNotifications()`
+ * and renders them in a responsive table with type badges, channel icons,
+ * and delivery status indicators.
+ *
+ * ## Loading strategy
+ * Shows a skeleton table during the initial fetch (5 placeholder rows
+ * with pulse animation). After loading, shows the real data or an empty
+ * state with a CTA to send the first notification.
+ *
+ * @module messages/components/NotificationsPanel
+ */
 "use client";
 
 import { useState, useEffect } from "react";
@@ -64,6 +80,12 @@ const CHANNEL_ICON: Record<NotificationChannel, typeof Mail> = {
 /*  Send Notification Dialog                                           */
 /* ------------------------------------------------------------------ */
 
+/**
+ * SendNotificationDialog — modal for manually sending a notification to a client.
+ *
+ * Fields: recipient (client picker), type, channel (email/sms/internal),
+ * title, and body. Calls `sendNotification()` server action on confirm.
+ */
 function SendNotificationDialog({
   open,
   onClose,
@@ -163,8 +185,11 @@ function SendNotificationDialog({
 /* ------------------------------------------------------------------ */
 
 export function NotificationsPanel({ clients }: { clients: { id: string; name: string }[] }) {
+  /** All notification rows fetched from the server. */
   const [entries, setEntries] = useState<NotificationRow[]>([]);
+  /** True during the initial data fetch; controls skeleton visibility. */
   const [loading, setLoading] = useState(true);
+  /** Whether the "Send Notification" dialog is open. */
   const [sendOpen, setSendOpen] = useState(false);
 
   // Fix: load data in useEffect instead of during render

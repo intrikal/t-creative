@@ -1,12 +1,33 @@
+// describe: groups related tests into a labeled block (like a folder for tests)
+// it/test: defines a single test case with a description and assertion function
+// expect: creates an assertion — checks that a value matches an expected condition
+// vi: Vitest's mock utility — creates fake functions, spies on calls, and controls return values
+// beforeEach: runs a setup function before every test in the current describe block
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
+/**
+ * Tests for the Cloudflare Turnstile bot-check verifier.
+ *
+ * Covers:
+ *  - Success: Cloudflare reports success → true
+ *  - Failure: Cloudflare reports failure → false
+ *  - Empty token: still sends to API, returns false
+ *  - Network error: propagates (no internal catch)
+ *  - Dev bypass: returns true when secret is unconfigured in development
+ *  - Prod guard: returns false when secret is unconfigured in production
+ *
+ * Mocks: global fetch (simulates Cloudflare siteverify endpoint).
+ * Uses vi.stubEnv to toggle TURNSTILE_SECRET_KEY and NODE_ENV.
+ */
 describe("lib/turnstile", () => {
+  // Clear module cache and unstub all env vars + globals for a clean slate
   beforeEach(() => {
     vi.resetModules();
     vi.unstubAllEnvs();
     vi.unstubAllGlobals();
   });
 
+  // Tests for the main verification function — called by all public-facing POST endpoints
   describe("verifyTurnstileToken", () => {
     it("returns true when Cloudflare reports success", async () => {
       vi.stubEnv("TURNSTILE_SECRET_KEY", "test-secret");

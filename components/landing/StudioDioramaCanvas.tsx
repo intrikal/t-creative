@@ -17,13 +17,22 @@ import { StudioRoom } from "@/components/three/StudioRoom";
 import { ZONES } from "@/lib/zones";
 import { useStudioStore } from "@/stores/useStudioStore";
 
-/** Boots the store into "exploring" and auto-completes transitions (no camera lerp). */
+/**
+ * DioramaInit — Invisible component that initializes the Zustand store for diorama mode.
+ * Boots the store into "exploring" on mount and auto-completes any transition state.
+ * This exists as a component (not a hook) because it runs inside the R3F Canvas tree
+ * and needs access to the React lifecycle within that tree.
+ */
 function DioramaInit() {
+  // Individual selectors to minimize re-renders — each reads only one store field.
   const mode = useStudioStore((s) => s.mode);
   const isTransitioning = useStudioStore((s) => s.isTransitioning);
   const enterStudio = useStudioStore((s) => s.enterStudio);
   const completeTransition = useStudioStore((s) => s.completeTransition);
 
+  // useEffect: when the diorama mounts and the store is still in "landing" mode,
+  // immediately transition to studio mode and skip the camera animation (completeTransition).
+  // Cannot run during render because it mutates external store state.
   useEffect(() => {
     if (mode === "landing") {
       enterStudio();
@@ -31,6 +40,8 @@ function DioramaInit() {
     }
   }, [mode, enterStudio, completeTransition]);
 
+  // useEffect: catch any transition state (e.g., from zone clicks) and auto-complete it.
+  // The diorama uses OrbitControls for camera movement, not animated transitions.
   useEffect(() => {
     if (isTransitioning) {
       completeTransition();
@@ -41,6 +52,8 @@ function DioramaInit() {
 }
 
 export function StudioDioramaCanvas() {
+  // Selectors for zone focus state — activeZone determines if a zone is highlighted,
+  // unfocusZone resets when user clicks empty space (onPointerMissed).
   const activeZone = useStudioStore((s) => s.activeZone);
   const unfocusZone = useStudioStore((s) => s.unfocusZone);
 
@@ -65,6 +78,9 @@ export function StudioDioramaCanvas() {
       <StudioLighting />
       <StudioRoom />
 
+      {/* Object.values(ZONES) converts the zone registry object into an array for .map().
+          Object.values chosen over Object.entries because we only need the zone data, not the keys.
+          Each zone renders as a clickable ServiceZone mesh in the 3D scene. */}
       {Object.values(ZONES).map((zone) => (
         <ServiceZone key={zone.id} zone={zone} />
       ))}

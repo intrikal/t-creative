@@ -1,12 +1,34 @@
+/**
+ * Tests for GET /api/cron/booking-reminders — 24h/48h reminder sender.
+ *
+ * Covers:
+ *  - Auth: missing or wrong x-cron-secret returns 401
+ *  - No-op: no bookings in any reminder window → zero counts, no sends
+ *  - Happy path: booking with both email + SMS prefs → sends both (sent: 2)
+ *  - Partial prefs: notifySms=false → email only; notifyEmail=false → SMS only
+ *  - Deduplication: existing sync_log entry for email or SMS → skips that channel
+ *  - Failure counting: sendEmail returns false → increments failed counter
+ *
+ * Mocks: db (select chain), sendEmail, sendSms, BookingReminder component,
+ * settings-actions (remindersConfig, businessProfile).
+ */
+// describe: groups related tests into a labeled block (like a folder for tests)
+// it/test: defines a single test case with a description and assertion function
+// expect: creates an assertion — checks that a value matches an expected condition
+// vi: Vitest's mock utility — creates fake functions, spies on calls, and controls return values
+// beforeEach: runs a setup function before every test in the current describe block
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 /* ------------------------------------------------------------------ */
 /*  Shared mock state                                                   */
 /* ------------------------------------------------------------------ */
 
+// selectIdx / selectData: stateful counter routing sequential db.select() calls to mock data
 let selectIdx = 0;
 let selectData: unknown[][] = [];
+// mockSendEmail: captures email send calls via the Resend wrapper
 const mockSendEmail = vi.fn();
+// mockSendSms: captures SMS send calls via the Twilio wrapper
 const mockSendSms = vi.fn();
 
 function buildDb() {

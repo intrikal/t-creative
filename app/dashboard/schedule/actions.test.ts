@@ -1,9 +1,22 @@
+/**
+ * @file actions.test.ts
+ * @description Unit tests for schedule/actions (appointment mapping, stats
+ * computation, client initials, event rows, notes priority).
+ *
+ * Testing utilities: describe, it, expect, vi, vi.doMock, vi.resetModules,
+ * vi.clearAllMocks, beforeEach.
+ */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 /* ------------------------------------------------------------------ */
 /*  Chainable DB mock helper                                           */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Creates a chainable mock that mimics Drizzle's query-builder API.
+ * groupBy switches to an empty-resolving chain so event sub-queries
+ * return nothing in booking-only test cases.
+ */
 function makeChain(rows: unknown[] = []) {
   const resolved = Promise.resolve(rows);
   // emptyChain always resolves to [] — used as the result of groupBy so that
@@ -38,6 +51,10 @@ function makeChain(rows: unknown[] = []) {
 
 // A chain where groupBy stays on the same resolved chain — used to return
 // event rows from the grouped events query in event-specific test cases.
+/**
+ * Variant of makeChain where groupBy stays on the same resolved chain.
+ * Used to return event rows from the grouped events sub-query.
+ */
 function makeEventChain(rows: unknown[] = []) {
   const resolved = Promise.resolve(rows);
   const chain: any = {
@@ -59,8 +76,10 @@ function makeEventChain(rows: unknown[] = []) {
 /*  Shared mock refs                                                   */
 /* ------------------------------------------------------------------ */
 
+/** Stub for supabase auth.getUser. */
 const mockGetUser = vi.fn();
 
+/** Registers all module mocks; accepts optional custom db object. */
 function setupMocks(db: Record<string, unknown> | null = null) {
   const defaultDb = {
     select: vi.fn(() => makeChain([])),

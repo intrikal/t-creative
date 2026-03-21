@@ -1,0 +1,1 @@
+ALTER TABLE "payments" ADD COLUMN "square_refund_id" varchar(100);

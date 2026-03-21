@@ -284,6 +284,10 @@ describe("settings-actions", () => {
         noShowFeePercent: 100,
         depositRequired: false,
         depositPercent: 0,
+        fullRefundHours: 48,
+        partialRefundPct: 50,
+        partialRefundMinHours: 24,
+        noRefundHours: 24,
       });
       expect(mockInsertValues).toHaveBeenCalledWith(
         expect.objectContaining({ key: "policy_settings" }),
@@ -300,6 +304,10 @@ describe("settings-actions", () => {
         noShowFeePercent: 100,
         depositRequired: false,
         depositPercent: 0,
+        fullRefundHours: 48,
+        partialRefundPct: 50,
+        partialRefundMinHours: 24,
+        noRefundHours: 24,
       });
       expect(mockTrackEvent).toHaveBeenCalledWith("user-1", "policies_updated");
     });
@@ -314,6 +322,10 @@ describe("settings-actions", () => {
         noShowFeePercent: 100,
         depositRequired: false,
         depositPercent: 0,
+        fullRefundHours: 48,
+        partialRefundPct: 50,
+        partialRefundMinHours: 24,
+        noRefundHours: 24,
       });
       expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/settings");
     });

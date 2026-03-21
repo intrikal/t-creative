@@ -84,10 +84,14 @@ export interface PolicySettings {
   noShowFeePercent: number;
   depositRequired: boolean;
   depositPercent: number;
-  /** Plain-text cancellation policy shown to clients as a required TOS checkbox during booking. */
-  cancellationPolicy: string;
-  /** Version identifier for the current policy (e.g. '2025-01'). Stored on each booking for legal record. */
-  tosVersion: string;
+  /** Hours before appointment at which client gets a full deposit refund. */
+  fullRefundHours: number;
+  /** Percent of deposit refunded when cancelled between partialRefundMinHours and fullRefundHours. */
+  partialRefundPct: number;
+  /** Minimum hours before appointment to qualify for a partial refund. */
+  partialRefundMinHours: number;
+  /** Cancellations within this many hours of appointment get no refund. */
+  noRefundHours: number;
 }
 
 export interface LoyaltyConfig {
@@ -172,9 +176,10 @@ const DEFAULT_POLICIES: PolicySettings = {
   noShowFeePercent: 100,
   depositRequired: true,
   depositPercent: 25,
-  cancellationPolicy:
-    "Cancellations made less than 48 hours before your appointment are subject to a 50% late-cancel fee. No-shows are charged 100% of the service price. By booking you agree to these terms.",
-  tosVersion: "2025-01",
+  fullRefundHours: 48,
+  partialRefundPct: 50,
+  partialRefundMinHours: 24,
+  noRefundHours: 24,
 };
 
 const DEFAULT_LOYALTY: LoyaltyConfig = {
@@ -373,8 +378,10 @@ const policySettingsSchema = z.object({
   noShowFeePercent: z.number().int().nonnegative(),
   depositRequired: z.boolean(),
   depositPercent: z.number().int().nonnegative(),
-  cancellationPolicy: z.string(),
-  tosVersion: z.string().min(1),
+  fullRefundHours: z.number().int().nonnegative(),
+  partialRefundPct: z.number().int().min(0).max(100),
+  partialRefundMinHours: z.number().int().nonnegative(),
+  noRefundHours: z.number().int().nonnegative(),
 });
 
 export async function savePolicies(data: PolicySettings): Promise<ActionResult<void>> {

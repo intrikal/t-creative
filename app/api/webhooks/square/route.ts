@@ -168,6 +168,7 @@ async function handlePaymentCompleted(data: PaymentCreatedEventData | undefined)
       squareOrderId,
       squareReceiptUrl: squarePayment.receiptUrl ?? null,
       notes: isDeposit ? "Deposit collected via Square" : "Auto-linked via Square order",
+      needsManualReview: booking.needsManualReview ?? false,
     });
 
     // Update deposit tracking on the booking if this is a deposit payment
@@ -367,13 +368,65 @@ async function handlePaymentCompleted(data: PaymentCreatedEventData | undefined)
 }
 
 /**
+ * Fetches a Square order with retries for the known race condition where
+ * terminal webhook events fire before order metadata has fully propagated.
+ *
+ * Retries up to 3 times with 2-second exponential backoff (2 s → 4 s → 8 s).
+ * Returns whatever data was resolved; `metadataMissing` is true when neither
+ * `metadata` nor `referenceId` could be read after all attempts.
+ */
+async function fetchSquareOrderWithRetry(
+  squareOrderId: string,
+): Promise<{
+  paymentType?: string;
+  referenceId?: string;
+  metadataMissing: boolean;
+}> {
+  const MAX_RETRIES = 3;
+  const BASE_DELAY_MS = 2000;
+
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    if (attempt > 0) {
+      await new Promise((r) => setTimeout(r, BASE_DELAY_MS * Math.pow(2, attempt - 1)));
+    }
+
+    try {
+      const resp = await squareClient.orders.get({ orderId: squareOrderId });
+      const order = resp.order;
+
+      // If the order carries any identifying data, consider metadata resolved.
+      if (order?.metadata || order?.referenceId) {
+        return {
+          paymentType: order.metadata?.paymentType as string | undefined,
+          referenceId: order.referenceId,
+          metadataMissing: false,
+        };
+      }
+    } catch {
+      // API call failed — will retry on next iteration
+    }
+  }
+
+  // All retries exhausted without resolving metadata
+  Sentry.captureMessage(
+    `Square order metadata not resolved after ${MAX_RETRIES} retries — flagging for manual review`,
+    { level: "warning", extra: { squareOrderId } },
+  );
+
+  return { metadataMissing: true };
+}
+
+/**
  * Finds a booking by its Square order ID. Tries two strategies:
  * 1. Direct DB lookup on bookings.squareOrderId
  * 2. Fetch the Square order and use its referenceId (= booking ID)
+ *
+ * Uses {@link fetchSquareOrderWithRetry} to handle the ~8 % race condition
+ * where Square's terminal webhook fires before order metadata propagates.
  */
 async function findBookingByOrder(
   squareOrderId: string | null,
-): Promise<{ id: number; clientId: string; squareOrderType?: string } | null> {
+): Promise<{ id: number; clientId: string; squareOrderType?: string; needsManualReview?: boolean } | null> {
   if (!squareOrderId) return null;
 
   // Strategy 1: direct DB lookup
@@ -385,37 +438,34 @@ async function findBookingByOrder(
   if (byOrder) {
     // Fetch order metadata to reliably determine payment type (deposit vs balance)
     if (isSquareConfigured()) {
-      try {
-        const orderResponse = await squareClient.orders.get({ orderId: squareOrderId });
-        const paymentType = orderResponse.order?.metadata?.paymentType as string | undefined;
-        return { ...byOrder, squareOrderType: paymentType };
-      } catch {
-        // Non-fatal — fall back to note-based detection
-      }
+      const orderData = await fetchSquareOrderWithRetry(squareOrderId);
+      return {
+        ...byOrder,
+        squareOrderType: orderData.paymentType,
+        needsManualReview: orderData.metadataMissing,
+      };
     }
     return byOrder;
   }
 
   // Strategy 2: fetch order from Square API, use referenceId
   if (isSquareConfigured()) {
-    try {
-      const orderResponse = await squareClient.orders.get({
-        orderId: squareOrderId,
-      });
-      const referenceId = orderResponse.order?.referenceId;
-      const paymentType = orderResponse.order?.metadata?.paymentType as string | undefined;
-      if (referenceId) {
-        const bookingId = parseInt(referenceId, 10);
-        if (!isNaN(bookingId)) {
-          const [byRef] = await db
-            .select({ id: bookings.id, clientId: bookings.clientId })
-            .from(bookings)
-            .where(eq(bookings.id, bookingId));
-          if (byRef) return { ...byRef, squareOrderType: paymentType };
+    const orderData = await fetchSquareOrderWithRetry(squareOrderId);
+    if (orderData.referenceId) {
+      const bookingId = parseInt(orderData.referenceId, 10);
+      if (!isNaN(bookingId)) {
+        const [byRef] = await db
+          .select({ id: bookings.id, clientId: bookings.clientId })
+          .from(bookings)
+          .where(eq(bookings.id, bookingId));
+        if (byRef) {
+          return {
+            ...byRef,
+            squareOrderType: orderData.paymentType,
+            needsManualReview: orderData.metadataMissing,
+          };
         }
       }
-    } catch {
-      // Non-fatal — fall through to manual linking
     }
   }
 

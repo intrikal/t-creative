@@ -738,4 +738,136 @@ describe("POST /api/webhooks/square", () => {
     expect(paymentInsert).toBeDefined();
     expect((paymentInsert![0] as Record<string, unknown>).taxAmountInCents).toBe(0);
   });
+
+  /* ---------- Orders API retry on missing metadata ---------- */
+
+  it("retries Orders API when metadata is missing, links booking on second success", async () => {
+    vi.resetModules();
+
+    let selectCallCount = 0;
+    const localInsertValues = vi.fn();
+
+    const schemaMock = {
+      payments: {
+        id: "id",
+        squarePaymentId: "squarePaymentId",
+        taxAmountInCents: "taxAmountInCents",
+        needsManualReview: "needsManualReview",
+      },
+      bookings: {
+        id: "id",
+        clientId: "clientId",
+        squareOrderId: "squareOrderId",
+        zohoInvoiceId: "zohoInvoiceId",
+        depositPaidInCents: "depositPaidInCents",
+        depositPaidAt: "depositPaidAt",
+      },
+      orders: { id: "id", clientId: "clientId", squareOrderId: "squareOrderId" },
+      profiles: {
+        id: "id",
+        email: "email",
+        firstName: "firstName",
+        role: "role",
+        onboardingData: "onboardingData",
+        notifyEmail: "notifyEmail",
+      },
+      webhookEvents: {
+        id: "id",
+        provider: "provider",
+        externalEventId: "externalEventId",
+        isProcessed: "isProcessed",
+      },
+      syncLog: {},
+      loyaltyTransactions: { id: "id", profileId: "profileId", type: "type" },
+    };
+
+    vi.doMock("@/db", () => ({
+      db: {
+        select: () => ({
+          from: () => ({
+            where: (..._args: unknown[]) => {
+              selectCallCount++;
+              // Call 3: booking by squareOrderId → found
+              if (selectCallCount === 3) {
+                return [{ id: 42, clientId: "client-retry" }];
+              }
+              return [];
+            },
+            limit: () => [],
+          }),
+        }),
+        insert: () => ({
+          values: (...args: unknown[]) => {
+            localInsertValues(...args);
+            return { returning: () => [{ id: 1 }] };
+          },
+        }),
+        update: () => ({ set: () => ({ where: vi.fn() }) }),
+      },
+    }));
+    vi.doMock("@/db/schema", () => schemaMock);
+
+    // Mock Orders API: first call returns order with NO metadata (race condition),
+    // second call returns order WITH metadata (propagated).
+    let ordersGetCallCount = 0;
+    vi.doMock("@/lib/square", () => ({
+      SQUARE_WEBHOOK_SIGNATURE_KEY: "",
+      squareClient: {
+        orders: {
+          get: vi.fn(() => {
+            ordersGetCallCount++;
+            if (ordersGetCallCount === 1) {
+              // Race condition: order exists but metadata hasn't propagated yet
+              return Promise.resolve({ order: { id: "sq_order_retry" } });
+            }
+            // Second call: metadata resolved
+            return Promise.resolve({
+              order: {
+                id: "sq_order_retry",
+                metadata: { bookingId: "42", paymentType: "balance" },
+                referenceId: "42",
+              },
+            });
+          }),
+        },
+      },
+      isSquareConfigured: vi.fn(() => true),
+    }));
+
+    const mod = await import("./route");
+    const event = makeEvent({
+      type: "payment.completed",
+      data: {
+        object: {
+          payment: {
+            id: "sq_pay_retry",
+            orderId: "sq_order_retry",
+            amountMoney: { amount: 15000, currency: "USD" },
+            tenders: [{ type: "CARD" }],
+            receiptUrl: "https://squareup.com/receipt/retry",
+          },
+        },
+      },
+    });
+
+    const res = await mod.POST(makeRequest(JSON.stringify(event)));
+
+    // Always returns 200 to Square to prevent retry storms
+    expect(res.status).toBe(200);
+
+    // Orders API was called at least twice (retry happened)
+    expect(ordersGetCallCount).toBeGreaterThanOrEqual(2);
+
+    // Payment was inserted and linked to the correct booking
+    const paymentInsert = localInsertValues.mock.calls.find(
+      (call: unknown[]) =>
+        call[0] &&
+        typeof call[0] === "object" &&
+        "bookingId" in (call[0] as Record<string, unknown>),
+    );
+    expect(paymentInsert).toBeDefined();
+    expect((paymentInsert![0] as Record<string, unknown>).bookingId).toBe(42);
+    // Metadata resolved on retry — no manual review needed
+    expect((paymentInsert![0] as Record<string, unknown>).needsManualReview).toBe(false);
+  }, 15_000); // Extended timeout: retry includes a real 2 s delay
 });

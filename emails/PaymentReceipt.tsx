@@ -10,6 +10,7 @@ export type PaymentReceiptProps = {
   method: string;
   receiptUrl?: string;
   description: string;
+  businessName?: string;
 };
 
 export function PaymentReceipt({
@@ -18,9 +19,13 @@ export function PaymentReceipt({
   method,
   receiptUrl,
   description,
+  businessName = "T Creative Studio",
 }: PaymentReceiptProps) {
   return (
-    <Layout preview={`Payment received — ${formatCents(amountInCents)}`}>
+    <Layout
+      preview={`Payment received — ${formatCents(amountInCents)}`}
+      businessName={businessName}
+    >
       <Section style={content}>
         <Text style={heading}>Payment Received</Text>
         <Text style={paragraph}>Hey {clientName}, we received your payment. Thank you!</Text>

@@ -34,6 +34,7 @@ import { revalidatePath, updateTag } from "next/cache";
 import * as Sentry from "@sentry/nextjs";
 import { eq, sql, asc, and, desc } from "drizzle-orm";
 import { z } from "zod";
+import { getPublicBusinessProfile } from "@/app/dashboard/settings/settings-actions";
 import { db } from "@/db";
 import {
   trainingPrograms,
@@ -47,8 +48,8 @@ import {
   profiles,
 } from "@/db/schema";
 import { EnrollmentConfirmation } from "@/emails/EnrollmentConfirmation";
-import { sendEmail, getEmailRecipient } from "@/lib/resend";
 import { getUser } from "@/lib/auth";
+import { sendEmail, getEmailRecipient } from "@/lib/resend";
 
 const PATH = "/dashboard/training";
 
@@ -746,14 +747,16 @@ export async function createEnrollment(form: EnrollmentFormData) {
           .where(eq(trainingPrograms.id, form.programId));
 
         if (program) {
+          const bp = await getPublicBusinessProfile();
           await sendEmail({
             to: recipient.email,
-            subject: `Enrollment confirmed — ${program.name} — T Creative`,
+            subject: `Enrollment confirmed — ${program.name} — ${bp.businessName}`,
             react: EnrollmentConfirmation({
               clientName: recipient.firstName,
               programName: program.name,
               format: "In Person",
               priceInCents: program.priceInCents ?? 0,
+              businessName: bp.businessName,
             }),
             entityType: "enrollment_confirmation",
             localId: `${form.clientId}-${form.programId}`,

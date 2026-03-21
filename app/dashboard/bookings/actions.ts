@@ -54,7 +54,7 @@ import * as Sentry from "@sentry/nextjs";
 import { eq, desc, ne, and, sql, inArray, isNull, gte, lte } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { z } from "zod";
-import { getPolicies } from "@/app/dashboard/settings/settings-actions";
+import { getPolicies, getPublicBusinessProfile } from "@/app/dashboard/settings/settings-actions";
 import { db } from "@/db";
 import {
   bookings,
@@ -77,6 +77,7 @@ import { NoShowFeeInvoice } from "@/emails/NoShowFeeInvoice";
 import { PaymentLinkEmail } from "@/emails/PaymentLinkEmail";
 import { RecurringBookingConfirmation } from "@/emails/RecurringBookingConfirmation";
 import { logAction } from "@/lib/audit";
+import { requireAdmin, requireStaff } from "@/lib/auth";
 import { trackEvent } from "@/lib/posthog";
 import { getEmailRecipient, sendEmail } from "@/lib/resend";
 import {
@@ -90,7 +91,6 @@ import { sendSms } from "@/lib/twilio";
 import { notifyWaitlistForCancelledBooking } from "@/lib/waitlist-notify";
 import { createZohoDeal, updateZohoDeal } from "@/lib/zoho";
 import { createZohoBooksInvoice } from "@/lib/zoho-books";
-import { requireAdmin, requireStaff } from "@/lib/auth";
 
 /* ------------------------------------------------------------------ */
 /*  Type exports                                                       */
@@ -943,15 +943,17 @@ async function generateNextRecurringBooking(bookingId: number): Promise<void> {
             hour: "numeric",
             minute: "2-digit",
           });
+          const bp = await getPublicBusinessProfile();
           await sendEmail({
             to: row.clientEmail,
-            subject: `Next appointment scheduled — ${row.serviceName} — T Creative`,
+            subject: `Next appointment scheduled — ${row.serviceName} — ${bp.businessName}`,
             react: RecurringBookingConfirmation({
               clientName: row.clientFirstName,
               serviceName: row.serviceName,
               startsAt: dateFormatted,
               durationMinutes: booking.durationMinutes,
               totalInCents: booking.totalInCents,
+              businessName: bp.businessName,
             }),
             entityType: "recurring_booking_confirmation",
             localId: String(newBooking.id),
@@ -1066,15 +1068,17 @@ async function generateNextRecurringBooking(bookingId: number): Promise<void> {
           minute: "2-digit",
         });
 
+        const bp = await getPublicBusinessProfile();
         await sendEmail({
           to: row.clientEmail,
-          subject: `Next appointment scheduled — ${row.serviceName} — T Creative`,
+          subject: `Next appointment scheduled — ${row.serviceName} — ${bp.businessName}`,
           react: RecurringBookingConfirmation({
             clientName: row.clientFirstName,
             serviceName: row.serviceName,
             startsAt: dateFormatted,
             durationMinutes: booking.durationMinutes,
             totalInCents: booking.totalInCents,
+            businessName: bp.businessName,
           }),
           entityType: "recurring_booking_confirmation",
           localId: String(newBooking.id),
@@ -1289,15 +1293,17 @@ async function tryAutoSendDepositLink(bookingId: number): Promise<void> {
       payload: { url, orderId, amountInCents: row.depositInCents },
     });
 
+    const bp = await getPublicBusinessProfile();
     await sendEmail({
       to: row.clientEmail,
-      subject: `Deposit required — ${row.serviceName} — T Creative`,
+      subject: `Deposit required — ${row.serviceName} — ${bp.businessName}`,
       react: PaymentLinkEmail({
         clientName: row.clientFirstName,
         serviceName: row.serviceName,
         amountInCents: row.depositInCents,
         type: "deposit",
         paymentUrl: url,
+        businessName: bp.businessName,
       }),
       entityType: "payment_link_delivery",
       localId: String(bookingId),
@@ -1413,9 +1419,10 @@ async function trySendBookingConfirmation(bookingId: number): Promise<void> {
     });
 
     if (row.clientEmail && row.notifyEmail) {
+      const bp = await getPublicBusinessProfile();
       await sendEmail({
         to: row.clientEmail,
-        subject: `Booking confirmed — ${row.serviceName} — T Creative`,
+        subject: `Booking confirmed — ${row.serviceName} — ${bp.businessName}`,
         react: BookingConfirmation({
           clientName: row.clientFirstName,
           serviceName: row.serviceName,
@@ -1423,6 +1430,7 @@ async function trySendBookingConfirmation(bookingId: number): Promise<void> {
           durationMinutes: row.durationMinutes,
           totalInCents: row.totalInCents,
           addOns: addOnRows.length > 0 ? addOnRows : undefined,
+          businessName: bp.businessName,
         }),
         entityType: "booking_confirmation",
         localId: String(bookingId),
@@ -1504,15 +1512,18 @@ async function trySendBookingStatusEmail(
       minute: "2-digit",
     });
 
+    const bp = await getPublicBusinessProfile();
+
     if (status === "cancelled") {
       await sendEmail({
         to: row.clientEmail,
-        subject: `Booking cancelled — ${row.serviceName} — T Creative`,
+        subject: `Booking cancelled — ${row.serviceName} — ${bp.businessName}`,
         react: BookingCancellation({
           clientName: row.clientFirstName,
           serviceName: row.serviceName,
           bookingDate: dateFormatted,
           cancellationReason,
+          businessName: bp.businessName,
         }),
         entityType: "booking_cancellation",
         localId: String(bookingId),
@@ -1527,10 +1538,11 @@ async function trySendBookingStatusEmail(
     } else if (status === "completed") {
       await sendEmail({
         to: row.clientEmail,
-        subject: `Thanks for visiting — ${row.serviceName} — T Creative`,
+        subject: `Thanks for visiting — ${row.serviceName} — ${bp.businessName}`,
         react: BookingCompleted({
           clientName: row.clientFirstName,
           serviceName: row.serviceName,
+          businessName: bp.businessName,
         }),
         entityType: "booking_completed",
         localId: String(bookingId),
@@ -1545,11 +1557,12 @@ async function trySendBookingStatusEmail(
     } else if (status === "no_show") {
       await sendEmail({
         to: row.clientEmail,
-        subject: `Missed appointment — ${row.serviceName} — T Creative`,
+        subject: `Missed appointment — ${row.serviceName} — ${bp.businessName}`,
         react: BookingNoShow({
           clientName: row.clientFirstName,
           serviceName: row.serviceName,
           bookingDate: dateFormatted,
+          businessName: bp.businessName,
         }),
         entityType: "booking_no_show",
         localId: String(bookingId),
@@ -1675,9 +1688,10 @@ async function tryEnforceFee(
 
           // Send receipt email
           if (row.clientEmail && row.notifyEmail) {
+            const bp = await getPublicBusinessProfile();
             await sendEmail({
               to: row.clientEmail,
-              subject: `${feeType === "no_show" ? "No-show" : "Late cancellation"} fee charged — ${row.serviceName} — T Creative`,
+              subject: `${feeType === "no_show" ? "No-show" : "Late cancellation"} fee charged — ${row.serviceName} — ${bp.businessName}`,
               react: NoShowFeeCharged({
                 clientName: row.clientFirstName,
                 serviceName: row.serviceName,
@@ -1685,6 +1699,7 @@ async function tryEnforceFee(
                 feeAmountInCents,
                 feeType,
                 receiptUrl: result.receiptUrl ?? undefined,
+                businessName: bp.businessName,
               }),
               entityType: `${feeType}_fee_charged`,
               localId: String(bookingId),
@@ -1746,15 +1761,17 @@ async function tryEnforceFee(
 
       // Send invoice email
       if (row.clientEmail && row.notifyEmail) {
+        const bp = await getPublicBusinessProfile();
         await sendEmail({
           to: row.clientEmail,
-          subject: `${feeType === "no_show" ? "No-show" : "Late cancellation"} fee invoice — ${row.serviceName} — T Creative`,
+          subject: `${feeType === "no_show" ? "No-show" : "Late cancellation"} fee invoice — ${row.serviceName} — ${bp.businessName}`,
           react: NoShowFeeInvoice({
             clientName: row.clientFirstName,
             serviceName: row.serviceName,
             bookingDate: dateFormatted,
             feeAmountInCents,
             feeType,
+            businessName: bp.businessName,
           }),
           entityType: `${feeType}_fee_invoice`,
           localId: String(bookingId),
@@ -1883,14 +1900,16 @@ async function trySendBookingReschedule(bookingId: number, oldStartsAt: Date): P
         minute: "2-digit",
       });
 
+    const bp = await getPublicBusinessProfile();
     await sendEmail({
       to: row.clientEmail,
-      subject: `Booking rescheduled — ${row.serviceName} — T Creative`,
+      subject: `Booking rescheduled — ${row.serviceName} — ${bp.businessName}`,
       react: BookingReschedule({
         clientName: row.clientFirstName,
         serviceName: row.serviceName,
         oldDateTime: fmt(oldStartsAt),
         newDateTime: fmt(row.startsAt),
+        businessName: bp.businessName,
       }),
       entityType: "booking_reschedule",
       localId: String(bookingId),

@@ -6,11 +6,17 @@ export type ReferralBonusProps = {
   referrerName: string;
   refereeName: string;
   pointsEarned: number;
+  businessName?: string;
 };
 
-export function ReferralBonus({ referrerName, refereeName, pointsEarned }: ReferralBonusProps) {
+export function ReferralBonus({
+  referrerName,
+  refereeName,
+  pointsEarned,
+  businessName = "T Creative Studio",
+}: ReferralBonusProps) {
   return (
-    <Layout preview={`Referral bonus — ${pointsEarned} points earned!`}>
+    <Layout preview={`Referral bonus — ${pointsEarned} points earned!`} businessName={businessName}>
       <Section style={content}>
         <Text style={heading}>Referral Bonus!</Text>
         <Text style={paragraph}>

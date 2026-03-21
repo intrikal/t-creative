@@ -9,6 +9,7 @@ export type OrderShippedProps = {
   productTitle: string;
   trackingNumber: string;
   trackingUrl: string;
+  businessName?: string;
 };
 
 export function OrderShipped({
@@ -17,9 +18,10 @@ export function OrderShipped({
   productTitle,
   trackingNumber,
   trackingUrl,
+  businessName = "T Creative Studio",
 }: OrderShippedProps) {
   return (
-    <Layout preview={`Order ${orderNumber} has shipped`}>
+    <Layout preview={`Order ${orderNumber} has shipped`} businessName={businessName}>
       <Section style={content}>
         <Text style={heading}>Your Order Has Shipped!</Text>
         <Text style={paragraph}>

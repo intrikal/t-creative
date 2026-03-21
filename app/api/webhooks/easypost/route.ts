@@ -14,6 +14,7 @@
  */
 import * as Sentry from "@sentry/nextjs";
 import { eq } from "drizzle-orm";
+import { getPublicBusinessProfile } from "@/app/dashboard/settings/settings-actions";
 import { db } from "@/db";
 import { orders, profiles, webhookEvents, syncLog } from "@/db/schema";
 import { OrderShipped } from "@/emails/OrderShipped";
@@ -25,10 +26,7 @@ import { sendEmail } from "@/lib/resend";
 /*  EasyPost tracking status → order status mapping                    */
 /* ------------------------------------------------------------------ */
 
-type OrderStatus =
-  | "in_progress"
-  | "shipped"
-  | "completed";
+type OrderStatus = "in_progress" | "shipped" | "completed";
 
 function mapTrackingStatus(epStatus: string): OrderStatus | null {
   switch (epStatus) {
@@ -137,15 +135,17 @@ export async function POST(request: Request): Promise<Response> {
                   .where(eq(profiles.id, order.clientId));
 
                 if (client?.email) {
+                  const bp = await getPublicBusinessProfile();
                   await sendEmail({
                     to: client.email,
-                    subject: `Your order ${order.orderNumber} has shipped — T Creative`,
+                    subject: `Your order ${order.orderNumber} has shipped — ${bp.businessName}`,
                     react: OrderShipped({
                       clientName: client.firstName,
                       orderNumber: order.orderNumber,
                       productTitle: order.title,
                       trackingNumber: trackingCode,
                       trackingUrl: publicUrl ?? "",
+                      businessName: bp.businessName,
                     }),
                     entityType: "order_shipped",
                     localId: String(order.id),

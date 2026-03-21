@@ -18,9 +18,12 @@
 import { NextResponse } from "next/server";
 import { format } from "date-fns";
 import { and, desc, eq, gt, gte, lte, ne, sql } from "drizzle-orm";
+import {
+  getPublicBusinessProfile,
+  getPublicRemindersConfig,
+} from "@/app/dashboard/settings/settings-actions";
 import { db } from "@/db";
 import { bookings, profiles, services, syncLog } from "@/db/schema";
-import { getPublicRemindersConfig } from "@/app/dashboard/settings/settings-actions";
 import { FillReminder } from "@/emails/FillReminder";
 import { sendEmail } from "@/lib/resend";
 
@@ -88,7 +91,10 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const remindersConfig = await getPublicRemindersConfig();
+  const [remindersConfig, bp] = await Promise.all([
+    getPublicRemindersConfig(),
+    getPublicBusinessProfile(),
+  ]);
   const fillReminderDays = remindersConfig.fillReminderDays;
   const windowHours = 24; // daily job — look back over a 24h window
 
@@ -242,6 +248,7 @@ export async function GET(request: Request) {
         staffName,
         suggestedDay,
         suggestedTime,
+        businessName: bp.businessName,
       }),
       entityType: "fill_reminder",
       localId,

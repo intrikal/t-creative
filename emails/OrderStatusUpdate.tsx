@@ -7,6 +7,7 @@ export type OrderStatusUpdateProps = {
   orderNumber: string;
   productTitle: string;
   status: "ready_for_pickup" | "shipped" | "completed";
+  businessName?: string;
 };
 
 const statusConfig = {
@@ -29,11 +30,12 @@ export function OrderStatusUpdate({
   orderNumber,
   productTitle,
   status,
+  businessName = "T Creative Studio",
 }: OrderStatusUpdateProps) {
   const config = statusConfig[status];
 
   return (
-    <Layout preview={`Order ${orderNumber} — ${config.heading}`}>
+    <Layout preview={`Order ${orderNumber} — ${config.heading}`} businessName={businessName}>
       <Section style={content}>
         <Text style={heading}>{config.heading}</Text>
         <Text style={paragraph}>

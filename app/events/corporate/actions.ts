@@ -8,6 +8,7 @@
 
 import * as React from "react";
 import { z } from "zod";
+import { getPublicBusinessProfile } from "@/app/dashboard/settings/settings-actions";
 import { db } from "@/db";
 import { inquiries } from "@/db/schema";
 import { CorporateEventInquiry } from "@/emails/CorporateEventInquiry";
@@ -119,6 +120,7 @@ export async function submitCorporateInquiry(
   });
 
   const adminEmail = process.env.ADMIN_EMAIL ?? "hello@tcreativestudio.com";
+  const bp = await getPublicBusinessProfile();
 
   await sendEmail({
     to: adminEmail,
@@ -133,6 +135,7 @@ export async function submitCorporateInquiry(
       headcount,
       preferredDate,
       details,
+      businessName: bp.businessName,
     }),
     entityType: "corporate_inquiry",
     localId: String(row.id),

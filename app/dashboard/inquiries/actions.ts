@@ -23,14 +23,14 @@ import { revalidatePath } from "next/cache";
 import * as Sentry from "@sentry/nextjs";
 import { eq, desc } from "drizzle-orm";
 import { z } from "zod";
+import { getPublicBusinessProfile } from "@/app/dashboard/settings/settings-actions";
 import { db } from "@/db";
 import { inquiries, productInquiries, products } from "@/db/schema";
-import { getPublicBusinessProfile } from "@/app/dashboard/settings/settings-actions";
 import { InquiryReply } from "@/emails/InquiryReply";
 import { ProductQuote } from "@/emails/ProductQuote";
+import { getUser } from "@/lib/auth";
 import { trackEvent } from "@/lib/posthog";
 import { sendEmail } from "@/lib/resend";
-import { getUser } from "@/lib/auth";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -305,13 +305,15 @@ export async function sendProductQuote(id: number, amountInCents: number) {
       .where(eq(productInquiries.id, id));
 
     if (row?.email) {
+      const bp = await getPublicBusinessProfile();
       await sendEmail({
         to: row.email,
-        subject: `Quote — ${row.productTitle ?? "Your product"} — T Creative`,
+        subject: `Quote — ${row.productTitle ?? "Your product"} — ${bp.businessName}`,
         react: ProductQuote({
           clientName: row.clientName,
           productTitle: row.productTitle ?? "Your product",
           quotedAmountInCents: amountInCents,
+          businessName: bp.businessName,
         }),
         entityType: "product_quote",
         localId: String(id),

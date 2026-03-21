@@ -10,6 +10,7 @@ export type RefundNotificationProps = {
   method: string;
   reason?: string;
   serviceName: string;
+  businessName?: string;
 };
 
 export function RefundNotification({
@@ -19,9 +20,13 @@ export function RefundNotification({
   method,
   reason,
   serviceName,
+  businessName = "T Creative Studio",
 }: RefundNotificationProps) {
   return (
-    <Layout preview={`Refund processed — ${formatCents(refundAmountInCents)}`}>
+    <Layout
+      preview={`Refund processed — ${formatCents(refundAmountInCents)}`}
+      businessName={businessName}
+    >
       <Section style={content}>
         <Text style={heading}>Refund Processed</Text>
         <Text style={paragraph}>Hey {clientName}, your refund has been processed.</Text>

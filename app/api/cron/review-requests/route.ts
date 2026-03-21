@@ -8,9 +8,12 @@
  */
 import { NextResponse } from "next/server";
 import { and, eq, gte, lte } from "drizzle-orm";
+import {
+  getPublicBusinessProfile,
+  getPublicRemindersConfig,
+} from "@/app/dashboard/settings/settings-actions";
 import { db } from "@/db";
 import { bookings, profiles, services, syncLog } from "@/db/schema";
-import { getPublicRemindersConfig } from "@/app/dashboard/settings/settings-actions";
 import { ReviewRequest } from "@/emails/ReviewRequest";
 import { sendEmail } from "@/lib/resend";
 
@@ -20,7 +23,10 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const remindersConfig = await getPublicRemindersConfig();
+  const [remindersConfig, bp] = await Promise.all([
+    getPublicRemindersConfig(),
+    getPublicBusinessProfile(),
+  ]);
   const delayHours = remindersConfig.reviewRequestDelayHours;
 
   const now = new Date();
@@ -77,6 +83,7 @@ export async function GET(request: Request) {
       react: ReviewRequest({
         clientName: booking.clientFirstName,
         serviceName: booking.serviceName,
+        businessName: bp.businessName,
       }),
       entityType: "review_request",
       localId,

@@ -14,6 +14,7 @@ export type FillReminderProps = {
   suggestedDay?: string | null;
   /** Most common time-of-day from booking history (e.g. "10:00 AM"). */
   suggestedTime?: string | null;
+  businessName?: string;
 };
 
 export function FillReminder({
@@ -24,6 +25,7 @@ export function FillReminder({
   staffName,
   suggestedDay,
   suggestedTime,
+  businessName = "T Creative Studio",
 }: FillReminderProps) {
   // Build a personalised suggestion line from available data.
   const suggestionParts: string[] = [];

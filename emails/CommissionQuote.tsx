@@ -10,6 +10,7 @@ export type CommissionQuoteProps = {
   quotedAmountInCents: number;
   estimatedCompletion?: string;
   notes?: string;
+  businessName?: string;
 };
 
 export function CommissionQuote({
@@ -19,9 +20,10 @@ export function CommissionQuote({
   quotedAmountInCents,
   estimatedCompletion,
   notes,
+  businessName = "T Creative Studio",
 }: CommissionQuoteProps) {
   return (
-    <Layout preview={`Your quote for ${title} is ready`}>
+    <Layout preview={`Your quote for ${title} is ready`} businessName={businessName}>
       <Section style={content}>
         <Text style={heading}>Your Quote is Ready</Text>
         <Text style={paragraph}>

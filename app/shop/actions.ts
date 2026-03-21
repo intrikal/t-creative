@@ -10,6 +10,7 @@
 
 import { revalidatePath, updateTag } from "next/cache";
 import { eq, desc, asc, sql, ilike, and, isNotNull } from "drizzle-orm";
+import { getPublicBusinessProfile } from "@/app/dashboard/settings/settings-actions";
 import { db } from "@/db";
 import {
   products,
@@ -22,14 +23,14 @@ import {
   type ShippingAddress,
 } from "@/db/schema";
 import { OrderConfirmation } from "@/emails/OrderConfirmation";
-import { trackEvent } from "@/lib/posthog";
-import { sendEmail } from "@/lib/resend";
+import { getUser } from "@/lib/auth";
 import { getShippingRates, isEasyPostConfigured } from "@/lib/easypost";
 import type { ShipmentResult } from "@/lib/easypost";
+import { trackEvent } from "@/lib/posthog";
+import { sendEmail } from "@/lib/resend";
 import { isSquareConfigured, createSquareOrderPaymentLink } from "@/lib/square";
 import { createZohoDeal } from "@/lib/zoho";
 import { createZohoBooksInvoice } from "@/lib/zoho-books";
-import { getUser } from "@/lib/auth";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -104,9 +105,7 @@ export type ClientOrder = {
  * Fetches available shipping rates from EasyPost for the given address.
  * Called at checkout when the customer selects a shipping fulfillment method.
  */
-export async function fetchShippingRates(
-  address: ShippingAddress,
-): Promise<ShipmentResult> {
+export async function fetchShippingRates(address: ShippingAddress): Promise<ShipmentResult> {
   if (!isEasyPostConfigured()) {
     throw new Error("Shipping is not available at this time");
   }
@@ -358,8 +357,7 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
 
   // Generate Square payment link for online payments
   let paymentUrl: string | undefined;
-  const requiresOnlinePayment =
-    input.fulfillmentMethod === "pickup_online" || isShipping;
+  const requiresOnlinePayment = input.fulfillmentMethod === "pickup_online" || isShipping;
 
   if (requiresOnlinePayment && isSquareConfigured() && chargeInCents > 0) {
     try {
@@ -424,9 +422,10 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
     .where(eq(profiles.id, user.id));
 
   if (clientProfile?.email) {
+    const bp = await getPublicBusinessProfile();
     await sendEmail({
       to: clientProfile.email,
-      subject: `Order ${orderNumber} confirmed — T Creative`,
+      subject: `Order ${orderNumber} confirmed — ${bp.businessName}`,
       react: OrderConfirmation({
         clientName: clientProfile.firstName,
         orderNumber,
@@ -434,6 +433,7 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
         totalInCents,
         fulfillmentMethod: input.fulfillmentMethod,
         paymentUrl,
+        businessName: bp.businessName,
       }),
       entityType: "order_confirmation",
       localId: String(createdOrderIds[0]),

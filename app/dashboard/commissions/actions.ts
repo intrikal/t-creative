@@ -19,12 +19,13 @@ import { revalidatePath } from "next/cache";
 import * as Sentry from "@sentry/nextjs";
 import { and, desc, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
+import { getPublicBusinessProfile } from "@/app/dashboard/settings/settings-actions";
 import { db } from "@/db";
 import { orders, profiles } from "@/db/schema";
 import { CommissionReceived } from "@/emails/CommissionReceived";
+import { getUser } from "@/lib/auth";
 import { trackEvent } from "@/lib/posthog";
 import { sendEmail } from "@/lib/resend";
-import { getUser } from "@/lib/auth";
 import { createClient } from "@/utils/supabase/server";
 
 /* ------------------------------------------------------------------ */
@@ -195,14 +196,16 @@ export async function submitCommissionRequest(
       .where(eq(profiles.id, user.id));
 
     if (profile?.email) {
+      const bp = await getPublicBusinessProfile();
       await sendEmail({
         to: profile.email,
-        subject: "Commission request received — T Creative",
+        subject: `Commission request received — ${bp.businessName}`,
         react: CommissionReceived({
           clientName: profile.firstName,
           orderNumber,
           title: input.title,
           category: input.category,
+          businessName: bp.businessName,
         }),
         entityType: "commission_received",
         localId: String(inserted.id),

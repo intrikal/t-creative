@@ -7,6 +7,7 @@ export type WaiverRequiredProps = {
   serviceName: string;
   appointmentDate: string;
   waiverUrl: string;
+  businessName?: string;
 };
 
 export function WaiverRequired({
@@ -14,9 +15,13 @@ export function WaiverRequired({
   serviceName,
   appointmentDate,
   waiverUrl,
+  businessName = "T Creative Studio",
 }: WaiverRequiredProps) {
   return (
-    <Layout preview={`Action required — complete your waiver for ${serviceName}`}>
+    <Layout
+      preview={`Action required — complete your waiver for ${serviceName}`}
+      businessName={businessName}
+    >
       <Section style={content}>
         <Text style={heading}>Waiver Required</Text>
         <Text style={paragraph}>

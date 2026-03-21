@@ -7,6 +7,7 @@ export type BookingRescheduleProps = {
   serviceName: string;
   oldDateTime: string;
   newDateTime: string;
+  businessName?: string;
 };
 
 export function BookingReschedule({
@@ -14,9 +15,10 @@ export function BookingReschedule({
   serviceName,
   oldDateTime,
   newDateTime,
+  businessName = "T Creative Studio",
 }: BookingRescheduleProps) {
   return (
-    <Layout preview={`Booking rescheduled — ${serviceName}`}>
+    <Layout preview={`Booking rescheduled — ${serviceName}`} businessName={businessName}>
       <Section style={content}>
         <Text style={heading}>Booking Rescheduled</Text>
         <Text style={paragraph}>Hey {clientName}, your appointment has been rescheduled.</Text>

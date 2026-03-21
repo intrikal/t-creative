@@ -12,6 +12,7 @@
  */
 import { relations } from "drizzle-orm";
 import {
+  boolean,
   index,
   integer,
   pgTable,
@@ -73,6 +74,9 @@ export const payments = pgTable(
 
     /** Staff or system notes on this payment. */
     notes: text("notes"),
+
+    /** Flagged when Square order metadata could not be resolved after retries. */
+    needsManualReview: boolean("needs_manual_review").notNull().default(false),
 
     paidAt: timestamp("paid_at", { withTimezone: true }),
     refundedAt: timestamp("refunded_at", { withTimezone: true }),

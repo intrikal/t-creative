@@ -130,19 +130,61 @@ export function AccountSection() {
       {showDeleteConfirm && (
         <Dialog
           open
-          title="Delete Account"
-          description="This action cannot be undone."
+          title="Delete My Data"
+          description="California Consumer Privacy Act (CCPA) — Right to Delete"
           onClose={() => setShowDeleteConfirm(false)}
-          size="sm"
+          size="md"
         >
-          <div className="flex items-start gap-3 p-3.5 rounded-xl bg-destructive/8 border border-destructive/20">
-            <AlertTriangle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
-            <p className="text-sm text-foreground">
-              Your profile, preferences, loyalty points, reviews, and all personal data will be
-              permanently erased. Anonymized booking and payment records are retained for legal and
-              tax compliance. This cannot be reversed.
+          <div className="space-y-4">
+            <div className="flex items-start gap-3 p-3.5 rounded-xl bg-destructive/8 border border-destructive/20">
+              <AlertTriangle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
+              <p className="text-sm font-medium text-foreground">
+                This action is permanent and cannot be reversed.
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              <p className="text-sm font-medium text-foreground">
+                Requesting deletion will:
+              </p>
+              <ul className="space-y-1.5 text-sm text-muted">
+                <li className="flex items-start gap-2">
+                  <span className="text-destructive mt-0.5 shrink-0">&#x2022;</span>
+                  <span>Anonymize your profile (name, email, phone, birthday)</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-destructive mt-0.5 shrink-0">&#x2022;</span>
+                  <span>Cancel any active memberships</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-destructive mt-0.5 shrink-0">&#x2022;</span>
+                  <span>Void all loyalty points</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-destructive mt-0.5 shrink-0">&#x2022;</span>
+                  <span>Permanently delete your gallery photos</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-destructive mt-0.5 shrink-0">&#x2022;</span>
+                  <span>Remove notification preferences and referral codes</span>
+                </li>
+              </ul>
+            </div>
+
+            <div className="space-y-1.5 p-3 rounded-lg bg-foreground/[0.03] border border-border/60">
+              <p className="text-xs font-medium text-foreground">Retained as required by law:</p>
+              <p className="text-xs text-muted">
+                Completed booking records (shown as &quot;Deleted User&quot;), payment and financial
+                transaction records, and audit logs are retained for tax and regulatory compliance.
+              </p>
+            </div>
+
+            <p className="text-xs text-muted">
+              A confirmation email will be sent to your current email address before your data is
+              removed.
             </p>
           </div>
+
           <DialogFooter
             onCancel={() => setShowDeleteConfirm(false)}
             onConfirm={async () => {
@@ -154,8 +196,9 @@ export function AccountSection() {
                 setDeleting(false);
               }
             }}
-            confirmLabel={deleting ? "Deleting..." : "Delete my account"}
+            confirmLabel={deleting ? "Deleting..." : "Delete my data"}
             destructive
+            disabled={deleting}
           />
         </Dialog>
       )}

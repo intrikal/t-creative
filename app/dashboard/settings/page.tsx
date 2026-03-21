@@ -34,7 +34,7 @@ export default async function Page() {
   const [
     { getBusinessHours, getTimeOff, getLunchBreak },
     { getServiceCategories },
-    { getAdminSettingsBundle, getSquareConnectionStatus },
+    { getAdminSettingsBundle, getSquareConnectionStatus, getCcpaDeletionLog },
     { SettingsPage },
     { getLegalDoc, seedLegalDefaults },
   ] = await Promise.all([
@@ -56,6 +56,7 @@ export default async function Page() {
     squareStatus,
     initialPrivacy,
     initialTerms,
+    initialDeletionLog,
   ] = await Promise.all([
     getBusinessHours(),
     getTimeOff(),
@@ -65,6 +66,7 @@ export default async function Page() {
     getSquareConnectionStatus(),
     getLegalDoc("privacy_policy"),
     getLegalDoc("terms_of_service"),
+    getCcpaDeletionLog(),
   ]);
 
   return (
@@ -87,6 +89,7 @@ export default async function Page() {
       calendarUrl={calendarUrl(user.id)}
       initialPrivacy={initialPrivacy}
       initialTerms={initialTerms}
+      initialDeletionLog={initialDeletionLog}
     />
   );
 }

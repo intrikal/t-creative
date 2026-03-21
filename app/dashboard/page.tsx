@@ -3,19 +3,20 @@ import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { getCurrentUser } from "@/lib/auth";
 import { getAdminSetupData } from "./admin-setup-data";
+import { AdminBottomSection } from "./sections/AdminBottomSection";
 import { AdminHeaderSection } from "./sections/AdminHeaderSection";
-import { AdminSetupSection } from "./sections/AdminSetupSection";
-import { AdminStatsSection } from "./sections/AdminStatsSection";
-import { AdminScheduleSection } from "./sections/AdminScheduleSection";
 import { AdminInquiriesSection } from "./sections/AdminInquiriesSection";
 import { AdminRevenueChartSection } from "./sections/AdminRevenueChartSection";
-import { AdminBottomSection } from "./sections/AdminBottomSection";
+import { AdminScheduleSection } from "./sections/AdminScheduleSection";
 import {
   StatsSkeletonFallback,
   ScheduleInquiriesSkeletonFallback,
   RevenueChartSkeletonFallback,
   BottomSkeletonFallback,
 } from "./sections/AdminSectionSkeletons";
+import { AdminSetupSection } from "./sections/AdminSetupSection";
+import { AdminStatsSection } from "./sections/AdminStatsSection";
+import { AdminTimeOffSection } from "./sections/AdminTimeOffSection";
 
 export const metadata: Metadata = {
   title: "Dashboard — T Creative Studio",
@@ -84,6 +85,11 @@ export default async function Page() {
             <AdminInquiriesSection />
           </Suspense>
         </div>
+      </Suspense>
+
+      {/* Time-off approval queue — streams alongside revenue chart */}
+      <Suspense fallback={null}>
+        <AdminTimeOffSection />
       </Suspense>
 
       {/* Revenue chart — streams as payment queries resolve */}

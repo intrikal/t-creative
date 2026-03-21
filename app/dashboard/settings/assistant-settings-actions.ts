@@ -29,8 +29,8 @@ import { eq, desc } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import { profiles, assistantProfiles, businessHours, timeOff, settings } from "@/db/schema";
-import { trackEvent } from "@/lib/posthog";
 import { getUser } from "@/lib/auth";
+import { trackEvent } from "@/lib/posthog";
 
 const PATH = "/dashboard/settings";
 
@@ -376,24 +376,44 @@ const timeOffRequestSchema = z.object({
   from: z.string().min(1),
   to: z.string().min(1),
   reason: z.string(),
+  requestType: z.enum(["full_day", "partial"]).default("full_day"),
+  startTime: z.string().optional(),
+  endTime: z.string().optional(),
 });
 
-export async function submitTimeOffRequest(data: { from: string; to: string; reason: string }) {
+export async function submitTimeOffRequest(data: {
+  from: string;
+  to: string;
+  reason: string;
+  requestType?: "full_day" | "partial";
+  startTime?: string;
+  endTime?: string;
+}) {
   timeOffRequestSchema.parse(data);
   const user = await getUser();
 
+  const requestType = data.requestType ?? "full_day";
+  const isPartial = requestType === "partial";
+  const partial =
+    isPartial && data.startTime && data.endTime
+      ? { startTime: data.startTime, endTime: data.endTime }
+      : false;
+
   await db.insert(timeOff).values({
     staffId: user.id,
-    type: data.from === data.to ? "day_off" : "vacation",
+    // Partial day and single-day full day use "day_off"; multi-day full day uses "vacation"
+    type: !isPartial && data.from !== data.to ? "vacation" : "day_off",
     startDate: data.from,
     endDate: data.to || data.from,
     label: data.reason || "Time off request",
     notes: JSON.stringify({
       status: "pending",
       reason: data.reason || "No reason provided",
+      partial,
     }),
   });
 
-  trackEvent(user.id, "time_off_requested", { from: data.from, to: data.to });
+  trackEvent(user.id, "time_off_requested", { from: data.from, to: data.to, requestType });
   revalidatePath(PATH);
+  revalidatePath("/dashboard");
 }

@@ -35,13 +35,13 @@ import { CalendarDays, Rss, X } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { ClientBookingRow, ClientBookingsData } from "./client-actions";
 import { submitClientReview, cancelClientBooking, rescheduleClientBooking } from "./client-actions";
-import { fmtDateLabel } from "./components/client-helpers";
-import { BookingsMiniCal } from "./components/BookingsMiniCal";
 import { BookingCard } from "./components/BookingCard";
+import { BookingsMiniCal } from "./components/BookingsMiniCal";
 import { CalendarSubscribeModal } from "./components/CalendarSubscribeModal";
-import { ReviewModal } from "./components/ReviewModal";
 import { CancelBookingModal } from "./components/CancelBookingModal";
+import { fmtDateLabel } from "./components/client-helpers";
 import { RescheduleModal } from "./components/RescheduleModal";
+import { ReviewModal } from "./components/ReviewModal";
 
 /* ------------------------------------------------------------------ */
 /*  Main export                                                         */
@@ -231,6 +231,7 @@ export function ClientBookingsPage({ data }: { data: ClientBookingsData }) {
                 onReschedule={handleReschedule}
                 onCancel={handleCancel}
                 onReview={handleReview}
+                cancelWindowHours={data.policy.cancelWindowHours}
               />
             ))}
           </CardContent>
@@ -253,6 +254,7 @@ export function ClientBookingsPage({ data }: { data: ClientBookingsData }) {
                 onReschedule={handleReschedule}
                 onCancel={handleCancel}
                 onReview={handleReview}
+                cancelWindowHours={data.policy.cancelWindowHours}
               />
             ))}
           </CardContent>
@@ -307,6 +309,8 @@ export function ClientBookingsPage({ data }: { data: ClientBookingsData }) {
           onConfirm={handleCancelBooking}
           isPending={isPending}
           errorMsg={cancelError}
+          cancelWindowHours={data.policy.cancelWindowHours}
+          lateCancelFeePercent={data.policy.lateCancelFeePercent}
         />
       )}
 

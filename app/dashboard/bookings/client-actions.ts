@@ -26,17 +26,33 @@
 
 import { revalidatePath } from "next/cache";
 import * as Sentry from "@sentry/nextjs";
-import { eq, desc, and, sql, isNull } from "drizzle-orm";
+import { eq, desc, and, sql, isNull, isNotNull, inArray, ne } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { z } from "zod";
 import { db } from "@/db";
-import { bookings, bookingAddOns, services, profiles, reviews } from "@/db/schema";
+import {
+  bookings,
+  bookingAddOns,
+  services,
+  profiles,
+  reviews,
+  payments,
+  notifications,
+  settings,
+  businessHours,
+  timeOff,
+  syncLog,
+} from "@/db/schema";
+import { BookingCancellation } from "@/emails/BookingCancellation";
+import { BookingReschedule } from "@/emails/BookingReschedule";
 import { logAction } from "@/lib/audit";
+import { getUser } from "@/lib/auth";
 import { calendarUrl } from "@/lib/calendar-token";
 import { trackEvent } from "@/lib/posthog";
+import { sendEmail, getEmailRecipient } from "@/lib/resend";
+import { squareClient, isSquareConfigured } from "@/lib/square";
 import { notifyWaitlistForCancelledBooking } from "@/lib/waitlist-notify";
 import { updateZohoDeal, logZohoNote } from "@/lib/zoho";
-import { getUser } from "@/lib/auth";
 
 const PATH = "/dashboard/bookings";
 
@@ -66,6 +82,10 @@ export type ClientBookingRow = {
 export type ClientBookingsData = {
   bookings: ClientBookingRow[];
   calendarUrl: string;
+  policy: {
+    cancelWindowHours: number;
+    lateCancelFeePercent: number;
+  };
 };
 
 /* ------------------------------------------------------------------ */
@@ -178,7 +198,25 @@ export async function getClientBookings(): Promise<ClientBookingsData> {
       };
     });
 
-    return { bookings: bookingList, calendarUrl: calendarUrl(user.id) };
+    // Fetch cancellation policy settings (no auth needed — public setting)
+    const [policyRow] = await db
+      .select({ value: settings.value })
+      .from(settings)
+      .where(eq(settings.key, "policy_settings"))
+      .limit(1);
+    const policyData =
+      (policyRow?.value as { cancelWindowHours?: number; lateCancelFeePercent?: number } | null) ??
+      {};
+    const policySettings = {
+      cancelWindowHours: policyData.cancelWindowHours ?? 48,
+      lateCancelFeePercent: policyData.lateCancelFeePercent ?? 50,
+    };
+
+    return {
+      bookings: bookingList,
+      calendarUrl: calendarUrl(user.id),
+      policy: policySettings,
+    };
   } catch (err) {
     Sentry.captureException(err);
     throw err;
@@ -266,6 +304,178 @@ export async function submitClientReview(data: {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Available reschedule slots                                        */
+/* ------------------------------------------------------------------ */
+
+/** Returns available 30-minute time slots for a given booking and date. */
+export async function getAvailableRescheduleSlots(
+  bookingId: number,
+  dateISO: string,
+): Promise<{ time: string; label: string }[]> {
+  try {
+    await getUser();
+    z.number().int().positive().parse(bookingId);
+    z.string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .parse(dateISO);
+
+    // Get booking details to know service duration and assigned staff
+    const [booking] = await db
+      .select({
+        staffId: bookings.staffId,
+        durationMinutes: bookings.durationMinutes,
+        clientId: bookings.clientId,
+      })
+      .from(bookings)
+      .where(and(eq(bookings.id, bookingId), isNull(bookings.deletedAt)))
+      .limit(1);
+
+    if (!booking) return [];
+
+    // Parse the requested date
+    const [yr, mo, dy] = dateISO.split("-").map(Number);
+    const localDate = new Date(yr, mo - 1, dy);
+    // JS getDay(): 0=Sun,1=Mon,...,6=Sat → ISO: 1=Mon,...,7=Sun
+    const jsDay = localDate.getDay();
+    const isoDay = jsDay === 0 ? 7 : jsDay;
+
+    // Check time-off: studio-wide OR staff-specific
+    const timeOffConditions = [isNull(timeOff.staffId)];
+    if (booking.staffId) timeOffConditions.push(eq(timeOff.staffId, booking.staffId));
+    const timeOffBlocks = await db
+      .select({ startDate: timeOff.startDate, endDate: timeOff.endDate })
+      .from(timeOff)
+      .where(
+        inArray(
+          timeOff.staffId,
+          booking.staffId
+            ? [null as unknown as string, booking.staffId]
+            : [null as unknown as string],
+        ),
+      );
+
+    const isBlocked = timeOffBlocks.some((b) => dateISO >= b.startDate && dateISO <= b.endDate);
+    if (isBlocked) return [];
+
+    // Get business hours: prefer staff-specific, fall back to studio
+    let hoursRow: { isOpen: boolean; opensAt: string | null; closesAt: string | null } | null =
+      null;
+    if (booking.staffId) {
+      const [staffHours] = await db
+        .select({
+          isOpen: businessHours.isOpen,
+          opensAt: businessHours.opensAt,
+          closesAt: businessHours.closesAt,
+        })
+        .from(businessHours)
+        .where(and(eq(businessHours.staffId, booking.staffId), eq(businessHours.dayOfWeek, isoDay)))
+        .limit(1);
+      if (staffHours) hoursRow = staffHours;
+    }
+    if (!hoursRow) {
+      const [studioHours] = await db
+        .select({
+          isOpen: businessHours.isOpen,
+          opensAt: businessHours.opensAt,
+          closesAt: businessHours.closesAt,
+        })
+        .from(businessHours)
+        .where(and(isNull(businessHours.staffId), eq(businessHours.dayOfWeek, isoDay)))
+        .limit(1);
+      if (studioHours) hoursRow = studioHours;
+    }
+    if (!hoursRow?.isOpen || !hoursRow.opensAt || !hoursRow.closesAt) return [];
+
+    // Get lunch break setting
+    const [lunchRow] = await db
+      .select({ value: settings.value })
+      .from(settings)
+      .where(eq(settings.key, "lunch_break"))
+      .limit(1);
+    const lunch = lunchRow?.value as { enabled: boolean; start: string; end: string } | null;
+
+    // Get min notice hours from booking rules
+    const [rulesRow] = await db
+      .select({ value: settings.value })
+      .from(settings)
+      .where(eq(settings.key, "booking_rules"))
+      .limit(1);
+    const minNoticeHours =
+      (rulesRow?.value as { minNoticeHours?: number } | null)?.minNoticeHours ?? 24;
+
+    // Generate 30-min slots between open and close, skipping lunch
+    const [oh, om] = hoursRow.opensAt.split(":").map(Number);
+    const [ch, cm] = hoursRow.closesAt.split(":").map(Number);
+    const openMin = oh * 60 + om;
+    const closeMin = ch * 60 + cm;
+
+    let lunchStart = -1;
+    let lunchEnd = -1;
+    if (lunch?.enabled) {
+      const [lh, lm] = lunch.start.split(":").map(Number);
+      const [leh, lem] = lunch.end.split(":").map(Number);
+      lunchStart = lh * 60 + lm;
+      lunchEnd = leh * 60 + lem;
+    }
+
+    const rawSlots: string[] = [];
+    for (let min = openMin; min + booking.durationMinutes <= closeMin; min += 30) {
+      if (lunchStart >= 0 && min >= lunchStart && min < lunchEnd) continue;
+      const hh = String(Math.floor(min / 60)).padStart(2, "0");
+      const mm = String(min % 60).padStart(2, "0");
+      rawSlots.push(`${hh}:${mm}`);
+    }
+
+    // Filter: slots must be at least minNoticeHours in the future
+    const minStartMs = Date.now() + minNoticeHours * 60 * 60 * 1000;
+
+    // Fetch existing confirmed/in_progress bookings for this staff on ±1 day range
+    const dayStart = new Date(yr, mo - 1, dy, 0, 0, 0);
+    const dayEnd = new Date(yr, mo - 1, dy + 1, 0, 0, 0);
+    const existingBookings = booking.staffId
+      ? await db
+          .select({ startsAt: bookings.startsAt, durationMinutes: bookings.durationMinutes })
+          .from(bookings)
+          .where(
+            and(
+              eq(bookings.staffId, booking.staffId),
+              inArray(bookings.status, ["confirmed", "in_progress"]),
+              ne(bookings.id, bookingId),
+              sql`${bookings.startsAt} >= ${dayStart} AND ${bookings.startsAt} < ${dayEnd}`,
+              isNull(bookings.deletedAt),
+            ),
+          )
+      : [];
+
+    // Filter slots by min notice and no overlap with existing bookings
+    const available = rawSlots.filter((slot) => {
+      const [sh, sm] = slot.split(":").map(Number);
+      const slotMs = new Date(yr, mo - 1, dy, sh, sm).getTime();
+      if (slotMs < minStartMs) return false;
+
+      const slotEnd = slotMs + booking.durationMinutes * 60_000;
+      for (const b of existingBookings) {
+        const bStart = b.startsAt.getTime();
+        const bEnd = bStart + b.durationMinutes * 60_000;
+        if (slotMs < bEnd && slotEnd > bStart) return false;
+      }
+      return true;
+    });
+
+    // Format as 12-hour label
+    return available.map((slot) => {
+      const [sh, sm] = slot.split(":").map(Number);
+      const h12 = sh % 12 || 12;
+      const ap = sh < 12 ? "AM" : "PM";
+      return { time: slot, label: `${h12}:${String(sm).padStart(2, "0")} ${ap}` };
+    });
+  } catch (err) {
+    Sentry.captureException(err);
+    return [];
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /*  Reschedule booking                                                 */
 /* ------------------------------------------------------------------ */
 
@@ -280,6 +490,9 @@ export async function rescheduleClientBooking(bookingId: number, newStartsAt: st
         clientId: bookings.clientId,
         status: bookings.status,
         startsAt: bookings.startsAt,
+        staffId: bookings.staffId,
+        durationMinutes: bookings.durationMinutes,
+        depositPaidInCents: bookings.depositPaidInCents,
         serviceName: services.name,
       })
       .from(bookings)
@@ -295,10 +508,19 @@ export async function rescheduleClientBooking(bookingId: number, newStartsAt: st
       throw new Error("This booking cannot be rescheduled");
     }
 
+    // Read cancel window from policy settings (defaults to 48h)
+    const [policyRow] = await db
+      .select({ value: settings.value })
+      .from(settings)
+      .where(eq(settings.key, "policy_settings"))
+      .limit(1);
+    const cancelWindowHours =
+      (policyRow?.value as { cancelWindowHours?: number } | null)?.cancelWindowHours ?? 48;
+
     const hoursUntilCurrent = (booking.startsAt.getTime() - Date.now()) / (1000 * 60 * 60);
-    if (hoursUntilCurrent < 24) {
+    if (hoursUntilCurrent < cancelWindowHours) {
       throw new Error(
-        "Bookings cannot be rescheduled within 24 hours of the scheduled time. Please contact us directly.",
+        `Bookings cannot be rescheduled within ${cancelWindowHours} hours of the scheduled time. Please contact us directly.`,
       );
     }
 
@@ -308,14 +530,53 @@ export async function rescheduleClientBooking(bookingId: number, newStartsAt: st
 
     const oldStartsAt = booking.startsAt.toISOString();
 
-    await db
-      .update(bookings)
-      .set({
-        startsAt: newDate,
-        status: "pending",
-        staffNotes: `Rescheduled by client from ${oldStartsAt}`,
-      })
-      .where(eq(bookings.id, bookingId));
+    // Use advisory lock + overlap check in a transaction to prevent concurrent
+    // reschedule operations from booking the same slot (advisory lock pattern).
+    await db.transaction(async (tx) => {
+      // Lock this booking for the duration of the transaction
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(${bookingId})`);
+
+      // Re-read to confirm state hasn't changed under the lock
+      const [fresh] = await tx
+        .select({ status: bookings.status })
+        .from(bookings)
+        .where(eq(bookings.id, bookingId))
+        .limit(1);
+      if (!fresh || (fresh.status !== "pending" && fresh.status !== "confirmed")) {
+        throw new Error("Booking state changed — please refresh and try again");
+      }
+
+      // Check for overlapping bookings for the same staff at the new time
+      if (booking.staffId) {
+        const newEndsAt = new Date(newDate.getTime() + booking.durationMinutes * 60_000);
+        const [conflict] = await tx
+          .select({ id: bookings.id })
+          .from(bookings)
+          .where(
+            and(
+              eq(bookings.staffId, booking.staffId),
+              inArray(bookings.status, ["confirmed", "in_progress"]),
+              ne(bookings.id, bookingId),
+              sql`${bookings.startsAt} < ${newEndsAt}`,
+              sql`${bookings.startsAt} + (${bookings.durationMinutes} || ' minutes')::interval > ${newDate}`,
+              isNull(bookings.deletedAt),
+            ),
+          )
+          .limit(1);
+        if (conflict) {
+          throw new Error("That time slot is no longer available. Please pick another time.");
+        }
+      }
+
+      await tx
+        .update(bookings)
+        .set({
+          startsAt: newDate,
+          status: "pending",
+          staffNotes: `Rescheduled by client from ${oldStartsAt}`,
+        })
+        .where(eq(bookings.id, bookingId));
+    });
 
     trackEvent(user.id, "booking_rescheduled_by_client", {
       bookingId,
@@ -331,6 +592,36 @@ export async function rescheduleClientBooking(bookingId: number, newStartsAt: st
       description: "Booking rescheduled by client",
       metadata: { oldStartsAt, newStartsAt },
     });
+
+    // Send reschedule confirmation email (non-fatal)
+    try {
+      const recipient = await getEmailRecipient(user.id);
+      if (recipient) {
+        const fmt = (d: Date) =>
+          d.toLocaleString("en-US", {
+            weekday: "long",
+            month: "long",
+            day: "numeric",
+            year: "numeric",
+            hour: "numeric",
+            minute: "2-digit",
+          });
+        await sendEmail({
+          to: recipient.email,
+          subject: `Booking rescheduled — ${booking.serviceName ?? "your service"} — T Creative`,
+          react: BookingReschedule({
+            clientName: recipient.firstName,
+            serviceName: booking.serviceName ?? "Your service",
+            oldDateTime: fmt(booking.startsAt),
+            newDateTime: fmt(new Date(newStartsAt)),
+          }),
+          entityType: "booking_rescheduled",
+          localId: String(bookingId),
+        });
+      }
+    } catch {
+      // Non-fatal
+    }
 
     revalidatePath(PATH);
   } catch (err) {
@@ -354,9 +645,12 @@ export async function cancelClientBooking(bookingId: number) {
         clientId: bookings.clientId,
         status: bookings.status,
         startsAt: bookings.startsAt,
+        staffId: bookings.staffId,
         depositPaidInCents: bookings.depositPaidInCents,
+        serviceName: services.name,
       })
       .from(bookings)
+      .leftJoin(services, eq(bookings.serviceId, services.id))
       .where(and(eq(bookings.id, bookingId), isNull(bookings.deletedAt)))
       .limit(1);
 
@@ -368,19 +662,25 @@ export async function cancelClientBooking(bookingId: number) {
       throw new Error("This booking cannot be cancelled");
     }
 
-    // Enforce 24-hour cancellation window
+    // Read cancel window from policy settings (defaults to 48h)
+    const [policyRow] = await db
+      .select({ value: settings.value })
+      .from(settings)
+      .where(eq(settings.key, "policy_settings"))
+      .limit(1);
+    const cancelWindowHours =
+      (policyRow?.value as { cancelWindowHours?: number } | null)?.cancelWindowHours ?? 48;
+
+    // Enforce cancellation window from settings
     const hoursUntilAppointment = (booking.startsAt.getTime() - Date.now()) / (1000 * 60 * 60);
-    if (hoursUntilAppointment < 24) {
+    if (hoursUntilAppointment < cancelWindowHours) {
       throw new Error(
-        "Appointments cannot be cancelled within 24 hours of the scheduled time. Please contact us directly.",
+        `Appointments cannot be cancelled within ${cancelWindowHours} hours of the scheduled time. Please contact us directly.`,
       );
     }
 
     const depositPaidInCents = booking.depositPaidInCents ?? 0;
-    const cancellationReason =
-      depositPaidInCents > 0
-        ? "Cancelled by client — deposit pending admin review"
-        : "Cancelled by client";
+    const cancellationReason = "Cancelled by client";
 
     await db
       .update(bookings)
@@ -405,6 +705,125 @@ export async function cancelClientBooking(bookingId: number) {
       description: "Booking cancelled by client",
       metadata: { previousStatus: booking.status, depositPaidInCents },
     });
+
+    // Trigger Square refund for any paid deposit payments (non-fatal)
+    if (depositPaidInCents > 0 && isSquareConfigured()) {
+      try {
+        const depositPayments = await db
+          .select({
+            id: payments.id,
+            squarePaymentId: payments.squarePaymentId,
+            amountInCents: payments.amountInCents,
+            refundedInCents: payments.refundedInCents,
+          })
+          .from(payments)
+          .where(
+            and(
+              eq(payments.bookingId, bookingId),
+              isNotNull(payments.squarePaymentId),
+              inArray(payments.status, ["paid", "partially_refunded"]),
+            ),
+          );
+
+        for (const pmt of depositPayments) {
+          const refundable = pmt.amountInCents - pmt.refundedInCents;
+          if (refundable <= 0 || !pmt.squarePaymentId) continue;
+          try {
+            await squareClient.refunds.refundPayment({
+              idempotencyKey: crypto.randomUUID(),
+              paymentId: pmt.squarePaymentId,
+              amountMoney: { amount: BigInt(refundable), currency: "USD" },
+              reason: "Booking cancelled by client",
+            });
+            const newRefundedTotal = pmt.refundedInCents + refundable;
+            await db
+              .update(payments)
+              .set({
+                refundedInCents: newRefundedTotal,
+                refundedAt: new Date(),
+                status: newRefundedTotal >= pmt.amountInCents ? "refunded" : "partially_refunded",
+              })
+              .where(eq(payments.id, pmt.id));
+            await db.insert(syncLog).values({
+              provider: "square",
+              direction: "outbound",
+              status: "success",
+              entityType: "refund",
+              localId: String(pmt.id),
+              remoteId: pmt.squarePaymentId,
+              message: `Deposit refunded $${(refundable / 100).toFixed(2)} — client self-cancel`,
+            });
+          } catch (refundErr) {
+            await db.insert(syncLog).values({
+              provider: "square",
+              direction: "outbound",
+              status: "failed",
+              entityType: "refund",
+              localId: String(pmt.id),
+              remoteId: pmt.squarePaymentId,
+              message: `Deposit refund failed — client self-cancel booking #${bookingId}`,
+              errorMessage: refundErr instanceof Error ? refundErr.message : "Square refund failed",
+            });
+          }
+        }
+      } catch {
+        // Non-fatal — refund failure shouldn't block the cancellation
+      }
+    }
+
+    // Notify assigned staff member via in-app notification (non-fatal)
+    if (booking.staffId) {
+      try {
+        const dateFormatted = booking.startsAt.toLocaleString("en-US", {
+          weekday: "short",
+          month: "short",
+          day: "numeric",
+          hour: "numeric",
+          minute: "2-digit",
+        });
+        await db.insert(notifications).values({
+          profileId: booking.staffId,
+          type: "booking_cancellation",
+          channel: "internal",
+          status: "delivered",
+          title: `Client cancelled: ${booking.serviceName ?? "Appointment"}`,
+          body: `Booking on ${dateFormatted} has been cancelled by the client.`,
+          relatedEntityType: "booking",
+          relatedEntityId: bookingId,
+        });
+      } catch {
+        // Non-fatal
+      }
+    }
+
+    // Send cancellation confirmation email to client (non-fatal)
+    try {
+      const recipient = await getEmailRecipient(user.id);
+      if (recipient) {
+        const dateFormatted = booking.startsAt.toLocaleString("en-US", {
+          weekday: "long",
+          month: "long",
+          day: "numeric",
+          year: "numeric",
+          hour: "numeric",
+          minute: "2-digit",
+        });
+        await sendEmail({
+          to: recipient.email,
+          subject: `Booking cancelled — ${booking.serviceName ?? "your service"} — T Creative`,
+          react: BookingCancellation({
+            clientName: recipient.firstName,
+            serviceName: booking.serviceName ?? "your service",
+            bookingDate: dateFormatted,
+            cancellationReason,
+          }),
+          entityType: "booking_cancellation",
+          localId: String(bookingId),
+        });
+      }
+    } catch {
+      // Non-fatal
+    }
 
     // Zoho CRM: mark deal as lost
     updateZohoDeal(bookingId, "Closed Lost");

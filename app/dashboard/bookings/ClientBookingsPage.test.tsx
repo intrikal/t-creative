@@ -35,7 +35,10 @@ function makeDateISO(iso: string): string {
   return iso.split("T")[0];
 }
 
-const FUTURE_ISO = futureISO();
+// Use 96 h so the booking is comfortably inside the 48 h cancellable window —
+// using exactly 48 h causes flakiness because a few ms of test execution can
+// push hoursUntil just below the cancelWindowHours threshold.
+const FUTURE_ISO = futureISO(96);
 const FUTURE_DATE_ISO = makeDateISO(FUTURE_ISO);
 
 // Mock data: a confirmed future booking used to test upcoming-booking UI
@@ -100,7 +103,11 @@ const cancelledBooking: ClientBookingRow = {
 };
 
 function makeData(bookings: ClientBookingRow[]): ClientBookingsData {
-  return { bookings, calendarUrl: "https://example.com/calendar.ics" };
+  return {
+    bookings,
+    calendarUrl: "https://example.com/calendar.ics",
+    policy: { cancelWindowHours: 48, lateCancelFeePercent: 50 },
+  };
 }
 
 // Tests the client-facing bookings page: rendering, stats cards, status badges,

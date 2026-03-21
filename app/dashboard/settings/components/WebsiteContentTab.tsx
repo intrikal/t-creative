@@ -26,6 +26,8 @@ export function WebsiteContentTab({ initial }: { initial: SiteContent }) {
   const [saving, setSaving] = useState(false);
   /** Briefly true after save succeeds to show "Saved!" feedback. */
   const [saved, setSaved] = useState(false);
+  /** Error message from save, if any. */
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   /**
    * update — type-safe setter for any SiteContent field.
@@ -38,17 +40,30 @@ export function WebsiteContentTab({ initial }: { initial: SiteContent }) {
 
   async function handleSave() {
     setSaving(true);
-    try {
-      await saveSiteContent(data);
+    setSaveError(null);
+    const result = await saveSiteContent(data);
+    setSaving(false);
+    if (result.success) {
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
-    } finally {
-      setSaving(false);
+    } else {
+      setSaveError(result.error);
     }
   }
 
   return (
     <div className="space-y-5">
+      {saveError && (
+        <div className="p-3 bg-red-50 border border-red-200 text-xs text-red-700 flex items-center justify-between">
+          <span>{saveError}</span>
+          <button
+            onClick={() => setSaveError(null)}
+            className="ml-4 text-red-500 hover:text-red-700"
+          >
+            ✕
+          </button>
+        </div>
+      )}
       <div>
         <h2 className="text-base font-semibold text-foreground">Website Content</h2>
         <p className="text-xs text-muted mt-0.5">
@@ -181,7 +196,12 @@ export function WebsiteContentTab({ initial }: { initial: SiteContent }) {
               />
               <button
                 type="button"
-                onClick={() => update("socialLinks", data.socialLinks.filter((_, j) => j !== i))}
+                onClick={() =>
+                  update(
+                    "socialLinks",
+                    data.socialLinks.filter((_, j) => j !== i),
+                  )
+                }
                 className="text-muted hover:text-destructive transition-colors p-2"
                 aria-label="Remove social link"
               >
@@ -252,7 +272,10 @@ export function WebsiteContentTab({ initial }: { initial: SiteContent }) {
                   <button
                     type="button"
                     onClick={() =>
-                      update("faqEntries", data.faqEntries.filter((_, j) => j !== i))
+                      update(
+                        "faqEntries",
+                        data.faqEntries.filter((_, j) => j !== i),
+                      )
                     }
                     className="p-1 text-muted hover:text-destructive transition-colors"
                     aria-label="Remove FAQ"
@@ -276,9 +299,7 @@ export function WebsiteContentTab({ initial }: { initial: SiteContent }) {
           ))}
           <button
             type="button"
-            onClick={() =>
-              update("faqEntries", [...data.faqEntries, { question: "", answer: "" }])
-            }
+            onClick={() => update("faqEntries", [...data.faqEntries, { question: "", answer: "" }])}
             className="flex items-center gap-1.5 text-sm text-accent hover:text-accent/80 transition-colors"
           >
             <Plus className="w-4 h-4" /> Add FAQ Entry
@@ -448,7 +469,10 @@ export function WebsiteContentTab({ initial }: { initial: SiteContent }) {
                 <button
                   type="button"
                   onClick={() =>
-                    update("consultingBenefits", data.consultingBenefits.filter((_, j) => j !== i))
+                    update(
+                      "consultingBenefits",
+                      data.consultingBenefits.filter((_, j) => j !== i),
+                    )
                   }
                   className="p-1 text-muted hover:text-destructive transition-colors"
                   aria-label="Remove benefit"
@@ -459,9 +483,7 @@ export function WebsiteContentTab({ initial }: { initial: SiteContent }) {
             ))}
             <button
               type="button"
-              onClick={() =>
-                update("consultingBenefits", [...data.consultingBenefits, ""])
-              }
+              onClick={() => update("consultingBenefits", [...data.consultingBenefits, ""])}
               className="text-xs text-accent hover:text-accent/80 transition-colors"
             >
               + Add benefit
@@ -501,7 +523,10 @@ export function WebsiteContentTab({ initial }: { initial: SiteContent }) {
               <button
                 type="button"
                 onClick={() =>
-                  update("eventDescriptions", data.eventDescriptions.filter((_, j) => j !== i))
+                  update(
+                    "eventDescriptions",
+                    data.eventDescriptions.filter((_, j) => j !== i),
+                  )
                 }
                 className="p-2 text-muted hover:text-destructive transition-colors"
                 aria-label="Remove event"

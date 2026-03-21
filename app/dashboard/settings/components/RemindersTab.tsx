@@ -9,8 +9,8 @@
 "use client";
 
 import { useState } from "react";
-import { useTimeoutFlag } from "@/lib/hooks/use-timeout-flag";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useTimeoutFlag } from "@/lib/hooks/use-timeout-flag";
 import { cn } from "@/lib/utils";
 import type { RemindersConfig } from "../settings-actions";
 import { saveReminders } from "../settings-actions";
@@ -22,13 +22,19 @@ export function RemindersTab({ initial }: { initial: RemindersConfig }) {
   /** Days after a visit to send a fill/rebook reminder. */
   const [fillReminderDays, setFillReminderDays] = useState(initial.fillReminderDays);
   /** Hours after appointment completion to send a review request. */
-  const [reviewRequestDelayHours, setReviewRequestDelayHours] = useState(initial.reviewRequestDelayHours);
+  const [reviewRequestDelayHours, setReviewRequestDelayHours] = useState(
+    initial.reviewRequestDelayHours,
+  );
   /** Comma-separated hour values for booking reminder windows (e.g. "24, 48"). */
-  const [bookingReminderHours, setBookingReminderHours] = useState(initial.bookingReminderHours.join(", "));
+  const [bookingReminderHours, setBookingReminderHours] = useState(
+    initial.bookingReminderHours.join(", "),
+  );
   /** Whether the save action is in flight. */
   const [saving, setSaving] = useState(false);
   /** Briefly true after a successful save; auto-resets via useTimeoutFlag. */
   const [saved, triggerSaved] = useTimeoutFlag(2000);
+  /** Error message from save, if any. */
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   /**
    * toggleField — flips a single boolean (email, sms, or active) on a reminder step.
@@ -41,27 +47,37 @@ export function RemindersTab({ initial }: { initial: RemindersConfig }) {
 
   async function handleSave() {
     setSaving(true);
-    try {
-      // Parse the comma-separated hours string into an array of positive integers.
-      // Invalid entries (NaN, <= 0) are filtered out; falls back to [24, 48] if empty.
-      const parsedHours = bookingReminderHours
-        .split(",")
-        .map((s) => parseInt(s.trim(), 10))
-        .filter((n) => !isNaN(n) && n > 0);
-      await saveReminders({
-        items: reminders,
-        fillReminderDays,
-        reviewRequestDelayHours,
-        bookingReminderHours: parsedHours.length > 0 ? parsedHours : [24, 48],
-      });
-      triggerSaved();
-    } finally {
-      setSaving(false);
-    }
+    setSaveError(null);
+    // Parse the comma-separated hours string into an array of positive integers.
+    // Invalid entries (NaN, <= 0) are filtered out; falls back to [24, 48] if empty.
+    const parsedHours = bookingReminderHours
+      .split(",")
+      .map((s) => parseInt(s.trim(), 10))
+      .filter((n) => !isNaN(n) && n > 0);
+    const result = await saveReminders({
+      items: reminders,
+      fillReminderDays,
+      reviewRequestDelayHours,
+      bookingReminderHours: parsedHours.length > 0 ? parsedHours : [24, 48],
+    });
+    setSaving(false);
+    if (result.success) triggerSaved();
+    else setSaveError(result.error);
   }
 
   return (
     <div className="space-y-5">
+      {saveError && (
+        <div className="p-3 bg-red-50 border border-red-200 text-xs text-red-700 flex items-center justify-between">
+          <span>{saveError}</span>
+          <button
+            onClick={() => setSaveError(null)}
+            className="ml-4 text-red-500 hover:text-red-700"
+          >
+            ✕
+          </button>
+        </div>
+      )}
       <div>
         <h2 className="text-base font-semibold text-foreground">Automated Reminders</h2>
         <p className="text-xs text-muted mt-0.5">

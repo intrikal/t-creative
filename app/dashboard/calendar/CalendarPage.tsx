@@ -28,6 +28,11 @@ import {
 import { Calendar as DatePicker } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { createBooking, updateBooking, deleteBooking } from "../bookings/actions";
+import { createEvent as createStudioEvent } from "../events/actions";
+import type { VenueRow } from "../events/actions";
+import { EventDialog } from "../events/components/EventDialog";
+import { emptyEventForm, formToInput } from "../events/components/helpers";
+import type { EventForm as EventFormType } from "../events/components/types";
 import {
   saveBusinessHours,
   saveLunchBreak,
@@ -59,11 +64,6 @@ import {
   fmtEventRange,
 } from "./components/helpers";
 import { MonthView } from "./components/MonthView";
-import { EventDialog } from "../events/components/EventDialog";
-import { emptyEventForm, formToInput } from "../events/components/helpers";
-import type { EventForm as EventFormType } from "../events/components/types";
-import { createEvent as createStudioEvent } from "../events/actions";
-import type { VenueRow } from "../events/actions";
 import { StaffView } from "./components/StaffView";
 import type {
   CalEvent,
@@ -140,7 +140,13 @@ function AvailabilityTab({
   timeOff: TimeOffRow[];
   lunchBreak: LunchBreak | null;
 }) {
-  type AvailDay = { id: number; dayOfWeek: number; isOpen: boolean; opensAt: string; closesAt: string };
+  type AvailDay = {
+    id: number;
+    dayOfWeek: number;
+    isOpen: boolean;
+    opensAt: string;
+    closesAt: string;
+  };
   type AvailState = {
     days: AvailDay[];
     hoursStatus: "idle" | "saving" | "saved";
@@ -287,7 +293,10 @@ function AvailabilityTab({
       const row = await addTimeOff({
         type: blockedForm.type,
         startDate: blockedForm.startDate,
-        endDate: blockedForm.type === "day_off" ? blockedForm.startDate : blockedForm.endDate || blockedForm.startDate,
+        endDate:
+          blockedForm.type === "day_off"
+            ? blockedForm.startDate
+            : blockedForm.endDate || blockedForm.startDate,
         label: blockedForm.label || undefined,
       });
       dispatch({ type: "RESET_BLOCKED_FORM" });
@@ -312,7 +321,8 @@ function AvailabilityTab({
         <div>
           <h2 className="text-base font-semibold text-foreground">Studio Availability</h2>
           <p className="text-sm text-muted mt-1">
-            Set your weekly hours, lunch break, and blocked dates. These show on your calendar and booking page.
+            Set your weekly hours, lunch break, and blocked dates. These show on your calendar and
+            booking page.
           </p>
         </div>
 
@@ -332,9 +342,15 @@ function AvailabilityTab({
             <div className="px-5 pb-4 space-y-0.5">
               {/* Column header */}
               <div className="flex items-center gap-3 px-3 pb-1">
-                <span className="text-[10px] font-medium uppercase tracking-wide text-muted/60 w-24 shrink-0">Day</span>
-                <span className="flex-1 text-[10px] font-medium uppercase tracking-wide text-muted/60">Hours</span>
-                <span className="text-[10px] font-medium uppercase tracking-wide text-muted/60 w-10 text-center">Open</span>
+                <span className="text-[10px] font-medium uppercase tracking-wide text-muted/60 w-24 shrink-0">
+                  Day
+                </span>
+                <span className="flex-1 text-[10px] font-medium uppercase tracking-wide text-muted/60">
+                  Hours
+                </span>
+                <span className="text-[10px] font-medium uppercase tracking-wide text-muted/60 w-10 text-center">
+                  Open
+                </span>
               </div>
               {days.map((row, idx) => (
                 <div
@@ -365,7 +381,12 @@ function AvailabilityTab({
                         <TimeSelect
                           value={row.closesAt}
                           onChange={(v) =>
-                            dispatch({ type: "UPDATE_DAY", index: idx, field: "closesAt", value: v })
+                            dispatch({
+                              type: "UPDATE_DAY",
+                              index: idx,
+                              field: "closesAt",
+                              value: v,
+                            })
                           }
                         />
                       </>
@@ -376,7 +397,12 @@ function AvailabilityTab({
                   <AvailToggle
                     on={row.isOpen}
                     onChange={() =>
-                      dispatch({ type: "UPDATE_DAY", index: idx, field: "isOpen", value: !row.isOpen })
+                      dispatch({
+                        type: "UPDATE_DAY",
+                        index: idx,
+                        field: "isOpen",
+                        value: !row.isOpen,
+                      })
                     }
                   />
                 </div>
@@ -387,7 +413,11 @@ function AvailabilityTab({
                   disabled={hoursStatus === "saving"}
                   className="px-4 py-2 rounded-lg bg-accent text-white text-sm font-medium hover:bg-accent/90 transition-colors flex items-center gap-1.5 disabled:opacity-60"
                 >
-                  {hoursStatus === "saved" ? "Saved!" : hoursStatus === "saving" ? "Saving…" : "Save Hours"}
+                  {hoursStatus === "saved"
+                    ? "Saved!"
+                    : hoursStatus === "saving"
+                      ? "Saving…"
+                      : "Save Hours"}
                 </button>
               </div>
             </div>
@@ -434,7 +464,11 @@ function AvailabilityTab({
                     disabled={lunchStatus === "saving"}
                     className="px-4 py-2 rounded-lg bg-accent text-white text-sm font-medium hover:bg-accent/90 transition-colors flex items-center gap-1.5 disabled:opacity-60"
                   >
-                    {lunchStatus === "saved" ? "Saved!" : lunchStatus === "saving" ? "Saving…" : "Save Lunch Break"}
+                    {lunchStatus === "saved"
+                      ? "Saved!"
+                      : lunchStatus === "saving"
+                        ? "Saving…"
+                        : "Save Lunch Break"}
                   </button>
                 </div>
               </div>
@@ -462,160 +496,201 @@ function AvailabilityTab({
                 </div>
               </div>
               <div className="px-5 pb-4 space-y-3">
-            {blockedForm.open && (
-              <div className="bg-surface border border-border rounded-xl p-4 space-y-4">
-                {/* Type toggle */}
-                <div className="flex gap-2">
-                  {(["day_off", "vacation"] as const).map((t) => (
-                    <button
-                      key={t}
-                      onClick={() => {
-                        dispatch({ type: "UPDATE_BLOCKED_FORM", field: "type", value: t });
-                        if (t === "day_off") dispatch({ type: "UPDATE_BLOCKED_FORM", field: "endDate", value: "" });
-                      }}
-                      className={cn(
-                        "px-3 py-1.5 text-xs font-medium rounded-lg transition-colors",
-                        blockedForm.type === t
-                          ? "bg-accent text-white"
-                          : "bg-foreground/5 text-muted hover:text-foreground",
+                {blockedForm.open && (
+                  <div className="bg-surface border border-border rounded-xl p-4 space-y-4">
+                    {/* Type toggle */}
+                    <div className="flex gap-2">
+                      {(["day_off", "vacation"] as const).map((t) => (
+                        <button
+                          key={t}
+                          onClick={() => {
+                            dispatch({ type: "UPDATE_BLOCKED_FORM", field: "type", value: t });
+                            if (t === "day_off")
+                              dispatch({
+                                type: "UPDATE_BLOCKED_FORM",
+                                field: "endDate",
+                                value: "",
+                              });
+                          }}
+                          className={cn(
+                            "px-3 py-1.5 text-xs font-medium rounded-lg transition-colors",
+                            blockedForm.type === t
+                              ? "bg-accent text-white"
+                              : "bg-foreground/5 text-muted hover:text-foreground",
+                          )}
+                        >
+                          {t === "day_off" ? "Day Off" : "Vacation"}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Calendar picker */}
+                    <div className="flex justify-center">
+                      {blockedForm.type === "day_off" ? (
+                        <DatePicker
+                          mode="single"
+                          selected={
+                            blockedForm.startDate ? parseDate(blockedForm.startDate) : undefined
+                          }
+                          onSelect={(day) => {
+                            dispatch({
+                              type: "UPDATE_BLOCKED_FORM",
+                              field: "startDate",
+                              value: day ? fmtDateISO(day) : "",
+                            });
+                            dispatch({ type: "UPDATE_BLOCKED_FORM", field: "endDate", value: "" });
+                          }}
+                          disabled={{ before: new Date() }}
+                          className="!bg-transparent"
+                        />
+                      ) : (
+                        <DatePicker
+                          mode="range"
+                          selected={
+                            blockedForm.startDate
+                              ? {
+                                  from: parseDate(blockedForm.startDate),
+                                  to: blockedForm.endDate
+                                    ? parseDate(blockedForm.endDate)
+                                    : undefined,
+                                }
+                              : undefined
+                          }
+                          onSelect={(range) => {
+                            dispatch({
+                              type: "UPDATE_BLOCKED_FORM",
+                              field: "startDate",
+                              value: range?.from ? fmtDateISO(range.from) : "",
+                            });
+                            dispatch({
+                              type: "UPDATE_BLOCKED_FORM",
+                              field: "endDate",
+                              value: range?.to ? fmtDateISO(range.to) : "",
+                            });
+                          }}
+                          disabled={{ before: new Date() }}
+                          className="!bg-transparent"
+                        />
                       )}
-                    >
-                      {t === "day_off" ? "Day Off" : "Vacation"}
-                    </button>
-                  ))}
-                </div>
+                    </div>
 
-                {/* Calendar picker */}
-                <div className="flex justify-center">
-                  {blockedForm.type === "day_off" ? (
-                    <DatePicker
-                      mode="single"
-                      selected={blockedForm.startDate ? parseDate(blockedForm.startDate) : undefined}
-                      onSelect={(day) => {
-                        dispatch({ type: "UPDATE_BLOCKED_FORM", field: "startDate", value: day ? fmtDateISO(day) : "" });
-                        dispatch({ type: "UPDATE_BLOCKED_FORM", field: "endDate", value: "" });
-                      }}
-                      disabled={{ before: new Date() }}
-                      className="!bg-transparent"
-                    />
-                  ) : (
-                    <DatePicker
-                      mode="range"
-                      selected={
-                        blockedForm.startDate
-                          ? {
-                              from: parseDate(blockedForm.startDate),
-                              to: blockedForm.endDate ? parseDate(blockedForm.endDate) : undefined,
-                            }
-                          : undefined
-                      }
-                      onSelect={(range) => {
-                        dispatch({ type: "UPDATE_BLOCKED_FORM", field: "startDate", value: range?.from ? fmtDateISO(range.from) : "" });
-                        dispatch({ type: "UPDATE_BLOCKED_FORM", field: "endDate", value: range?.to ? fmtDateISO(range.to) : "" });
-                      }}
-                      disabled={{ before: new Date() }}
-                      className="!bg-transparent"
-                    />
-                  )}
-                </div>
+                    {/* Selected date display + label */}
+                    {blockedForm.startDate && (
+                      <div className="space-y-3">
+                        <p className="text-sm text-foreground text-center">
+                          {blockedForm.type === "day_off"
+                            ? parseDate(blockedForm.startDate).toLocaleDateString("en-US", {
+                                weekday: "short",
+                                month: "short",
+                                day: "numeric",
+                                year: "numeric",
+                              })
+                            : blockedForm.endDate
+                              ? `${parseDate(blockedForm.startDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })} – ${parseDate(blockedForm.endDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`
+                              : `Starting ${parseDate(blockedForm.startDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })} — select end date`}
+                        </p>
+                        <input
+                          type="text"
+                          value={blockedForm.label}
+                          onChange={(e) =>
+                            dispatch({
+                              type: "UPDATE_BLOCKED_FORM",
+                              field: "label",
+                              value: e.target.value,
+                            })
+                          }
+                          placeholder="Label (optional) — e.g. Hawaii trip"
+                          className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-1 focus:ring-accent/30"
+                        />
+                      </div>
+                    )}
 
-                {/* Selected date display + label */}
-                {blockedForm.startDate && (
-                  <div className="space-y-3">
-                    <p className="text-sm text-foreground text-center">
-                      {blockedForm.type === "day_off"
-                        ? parseDate(blockedForm.startDate).toLocaleDateString("en-US", {
-                            weekday: "short",
-                            month: "short",
-                            day: "numeric",
-                            year: "numeric",
-                          })
-                        : blockedForm.endDate
-                          ? `${parseDate(blockedForm.startDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })} – ${parseDate(blockedForm.endDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`
-                          : `Starting ${parseDate(blockedForm.startDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })} — select end date`}
-                    </p>
-                    <input
-                      type="text"
-                      value={blockedForm.label}
-                      onChange={(e) => dispatch({ type: "UPDATE_BLOCKED_FORM", field: "label", value: e.target.value })}
-                      placeholder="Label (optional) — e.g. Hawaii trip"
-                      className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-1 focus:ring-accent/30"
-                    />
+                    {/* Actions */}
+                    <div className="flex gap-2 justify-end">
+                      <button
+                        onClick={() => dispatch({ type: "CLOSE_BLOCKED_FORM" })}
+                        className="px-3 py-1.5 text-xs font-medium text-muted rounded-lg hover:bg-foreground/5 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleAddBlocked}
+                        disabled={
+                          !blockedForm.startDate ||
+                          (blockedForm.type === "vacation" && !blockedForm.endDate) ||
+                          blockedForm.isAdding
+                        }
+                        className="px-3 py-1.5 text-xs font-medium bg-accent text-white rounded-lg hover:bg-accent/90 transition-colors disabled:opacity-60"
+                      >
+                        {blockedForm.isAdding
+                          ? "Adding…"
+                          : blockedForm.type === "day_off"
+                            ? "Block Day"
+                            : "Block Dates"}
+                      </button>
+                    </div>
                   </div>
                 )}
 
-                {/* Actions */}
-                <div className="flex gap-2 justify-end">
-                  <button
-                    onClick={() => dispatch({ type: "CLOSE_BLOCKED_FORM" })}
-                    className="px-3 py-1.5 text-xs font-medium text-muted rounded-lg hover:bg-foreground/5 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleAddBlocked}
-                    disabled={!blockedForm.startDate || (blockedForm.type === "vacation" && !blockedForm.endDate) || blockedForm.isAdding}
-                    className="px-3 py-1.5 text-xs font-medium bg-accent text-white rounded-lg hover:bg-accent/90 transition-colors disabled:opacity-60"
-                  >
-                    {blockedForm.isAdding ? "Adding…" : blockedForm.type === "day_off" ? "Block Day" : "Block Dates"}
-                  </button>
-                </div>
-              </div>
-            )}
+                {blocked.length === 0 && !blockedForm.open && (
+                  <p className="text-sm text-muted/50 italic text-center py-4">
+                    No blocked dates — your schedule is fully open.
+                  </p>
+                )}
 
-            {blocked.length === 0 && !blockedForm.open && (
-              <p className="text-sm text-muted/50 italic text-center py-4">
-                No blocked dates — your schedule is fully open.
-              </p>
-            )}
-
-            {blocked.map((entry) => {
-              const startD = parseDate(entry.startDate);
-              const endD = parseDate(entry.endDate);
-              const sameDay = entry.startDate === entry.endDate;
-              const fmtD = (d: Date) =>
-                d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-              return (
-                <div
-                  key={entry.id}
-                  className="flex items-center justify-between gap-3 py-2.5 px-3 rounded-xl bg-surface/60"
-                >
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span
-                        className={cn(
-                          "text-[10px] font-semibold px-1.5 py-0.5 rounded-full shrink-0",
-                          entry.type === "day_off"
-                            ? "bg-amber-50 text-amber-600"
-                            : "bg-blue-50 text-blue-600",
-                        )}
+                {blocked.map((entry) => {
+                  const startD = parseDate(entry.startDate);
+                  const endD = parseDate(entry.endDate);
+                  const sameDay = entry.startDate === entry.endDate;
+                  const fmtD = (d: Date) =>
+                    d.toLocaleDateString("en-US", {
+                      month: "short",
+                      day: "numeric",
+                      year: "numeric",
+                    });
+                  return (
+                    <div
+                      key={entry.id}
+                      className="flex items-center justify-between gap-3 py-2.5 px-3 rounded-xl bg-surface/60"
+                    >
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span
+                            className={cn(
+                              "text-[10px] font-semibold px-1.5 py-0.5 rounded-full shrink-0",
+                              entry.type === "day_off"
+                                ? "bg-amber-50 text-amber-600"
+                                : "bg-blue-50 text-blue-600",
+                            )}
+                          >
+                            {entry.type === "day_off" ? "Day Off" : "Vacation"}
+                          </span>
+                          {entry.label && (
+                            <span className="text-sm font-medium text-foreground truncate">
+                              {entry.label}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted mt-0.5">
+                          {sameDay ? fmtD(startD) : `${fmtD(startD)} – ${fmtD(endD)}`}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => handleDeleteBlocked(entry.id)}
+                        className="text-muted hover:text-destructive transition-colors shrink-0 p-1.5 rounded-lg hover:bg-destructive/10"
+                        title="Remove blocked date"
                       >
-                        {entry.type === "day_off" ? "Day Off" : "Vacation"}
-                      </span>
-                      {entry.label && (
-                        <span className="text-sm font-medium text-foreground truncate">
-                          {entry.label}
-                        </span>
-                      )}
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     </div>
-                    <p className="text-xs text-muted mt-0.5">
-                      {sameDay ? fmtD(startD) : `${fmtD(startD)} – ${fmtD(endD)}`}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => handleDeleteBlocked(entry.id)}
-                    className="text-muted hover:text-destructive transition-colors shrink-0 p-1.5 rounded-lg hover:bg-destructive/10"
-                    title="Remove blocked date"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              );
-            })}
+                  );
+                })}
+              </div>
+            </div>
           </div>
+          {/* end right column */}
         </div>
-          </div>{/* end right column */}
-        </div>{/* end grid */}
+        {/* end grid */}
       </div>
     </div>
   );
@@ -734,11 +809,27 @@ function EventsTab({ events, venues }: { events: EventRow[]; venues: VenueRow[] 
   }
 
   const EVENT_IDEAS = [
-    { icon: Store, label: "Pop-Up Shop", desc: "Sell jewelry, crochet, and products at a local market or venue" },
-    { icon: GraduationCap, label: "Workshop", desc: "Teach lash application, crochet basics, or 3D printing" },
+    {
+      icon: Store,
+      label: "Pop-Up Shop",
+      desc: "Sell jewelry, crochet, and products at a local market or venue",
+    },
+    {
+      icon: GraduationCap,
+      label: "Workshop",
+      desc: "Teach lash application, crochet basics, or 3D printing",
+    },
     { icon: Heart, label: "Bridal Party", desc: "Group lash sessions for brides and bridesmaids" },
-    { icon: PartyPopper, label: "Birthday Party", desc: "Private party bookings with custom services" },
-    { icon: Briefcase, label: "Corporate Event", desc: "Team-building or employee appreciation sessions" },
+    {
+      icon: PartyPopper,
+      label: "Birthday Party",
+      desc: "Private party bookings with custom services",
+    },
+    {
+      icon: Briefcase,
+      label: "Corporate Event",
+      desc: "Team-building or employee appreciation sessions",
+    },
     { icon: Plane, label: "Travel Pop-Up", desc: "Take your services on the road to a new city" },
   ];
 
@@ -759,7 +850,8 @@ function EventsTab({ events, venues }: { events: EventRow[]; venues: VenueRow[] 
           <div>
             <h3 className="text-sm font-semibold text-foreground">No events yet</h3>
             <p className="text-xs text-muted mt-1 max-w-md mx-auto">
-              Track pop-ups, workshops, bridal parties, and other special bookings. Manage guests, staff, venues, and revenue all in one place.
+              Track pop-ups, workshops, bridal parties, and other special bookings. Manage guests,
+              staff, venues, and revenue all in one place.
             </p>
           </div>
           <button
@@ -771,10 +863,15 @@ function EventsTab({ events, venues }: { events: EventRow[]; venues: VenueRow[] 
         </div>
 
         <div>
-          <p className="text-xs font-semibold text-muted uppercase tracking-wide mb-3">Event ideas for your studio</p>
+          <p className="text-xs font-semibold text-muted uppercase tracking-wide mb-3">
+            Event ideas for your studio
+          </p>
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
             {EVENT_IDEAS.map(({ icon: Icon, label, desc }) => (
-              <div key={label} className="bg-background border border-border rounded-xl p-4 flex items-start gap-3">
+              <div
+                key={label}
+                className="bg-background border border-border rounded-xl p-4 flex items-start gap-3"
+              >
                 <div className="w-9 h-9 rounded-lg bg-surface flex items-center justify-center shrink-0">
                   <Icon className="w-4.5 h-4.5 text-muted" />
                 </div>
@@ -933,6 +1030,7 @@ export function CalendarPage({
   const [formOpen, setFormOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<CalEvent | null>(null);
   const [formInitial, setFormInitial] = useState<FormState>(BLANK_FORM);
+  const [mutationError, setMutationError] = useState<string | null>(null);
 
   const openNew = (prefill?: Partial<FormState>) => {
     setEditTarget(null);
@@ -969,7 +1067,7 @@ export function CalendarPage({
     setFormOpen(false);
     if (editTarget && editTarget.bookingId) {
       startTransition(async () => {
-        await updateBooking(editTarget.bookingId!, {
+        const result = await updateBooking(editTarget.bookingId!, {
           clientId: f.clientId,
           serviceId: Number(f.serviceId),
           staffId: f.staffId || null,
@@ -986,10 +1084,11 @@ export function CalendarPage({
             | "cancelled"
             | "no_show",
         });
+        if (!result.success) setMutationError(result.error);
       });
     } else if (f.serviceId && f.clientId) {
       startTransition(async () => {
-        await createBooking({
+        const result = await createBooking({
           clientId: f.clientId,
           serviceId: Number(f.serviceId),
           staffId: f.staffId || null,
@@ -999,6 +1098,7 @@ export function CalendarPage({
           location: f.location || undefined,
           clientNotes: f.notes || undefined,
         });
+        if (!result.success) setMutationError(result.error);
       });
     }
   };
@@ -1008,7 +1108,8 @@ export function CalendarPage({
     if (ev.bookingId) {
       startTransition(async () => {
         addOptimistic({ type: "delete", id: ev.id });
-        await deleteBooking(ev.bookingId!);
+        const result = await deleteBooking(ev.bookingId!);
+        if (!result.success) setMutationError(result.error);
       });
     }
   };
@@ -1064,6 +1165,17 @@ export function CalendarPage({
   /* ---- Calendar tab ---- */
   return (
     <div className="flex flex-col h-full max-w-[1600px] mx-auto w-full px-4 md:px-6 lg:px-8 pt-4 md:pt-6 pb-4 gap-4">
+      {mutationError && (
+        <div className="p-3 bg-red-50 border border-red-200 text-xs text-red-700 flex items-center justify-between">
+          <span>{mutationError}</span>
+          <button
+            onClick={() => setMutationError(null)}
+            className="ml-4 text-red-500 hover:text-red-700"
+          >
+            ✕
+          </button>
+        </div>
+      )}
       {/* ---- Tab bar ---- */}
       <div className="flex gap-1 border-b border-border -mx-4 md:-mx-6 lg:-mx-8 px-4 md:px-6 lg:px-8 shrink-0">
         {CAL_PAGE_TABS.map(({ id, label }) => (

@@ -14,9 +14,9 @@
 "use client";
 
 import { useState } from "react";
-import { useTimeoutFlag } from "@/lib/hooks/use-timeout-flag";
 import { Trash2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+import { useTimeoutFlag } from "@/lib/hooks/use-timeout-flag";
 import { cn } from "@/lib/utils";
 import type { BusinessProfile, FinancialConfig, RevenueGoal } from "../settings-actions";
 import { saveBusinessProfile, saveFinancialConfig, saveRevenueGoals } from "../settings-actions";
@@ -68,6 +68,8 @@ export function BusinessTab({
   const [saving, setSaving] = useState(false);
   /** Briefly true after profile save succeeds. */
   const [saved, triggerSaved] = useTimeoutFlag(2000);
+  /** Error message from profile save, if any. */
+  const [saveError, setSaveError] = useState<string | null>(null);
   /** Financial config (estimated tax rate). */
   const [financial, setFinancial] = useState(initialFinancial);
   /** Whether the financial config save is in flight. */
@@ -96,22 +98,19 @@ export function BusinessTab({
 
   async function handleSave() {
     setSaving(true);
-    try {
-      await saveBusinessProfile(data);
-      triggerSaved();
-    } finally {
-      setSaving(false);
-    }
+    setSaveError(null);
+    const result = await saveBusinessProfile(data);
+    setSaving(false);
+    if (result.success) triggerSaved();
+    else setSaveError(result.error);
   }
 
   async function handleSaveFinancial() {
     setSavingFinancial(true);
-    try {
-      await saveFinancialConfig(financial);
-      triggerSavedFinancial();
-    } finally {
-      setSavingFinancial(false);
-    }
+    const result = await saveFinancialConfig(financial);
+    setSavingFinancial(false);
+    if (result.success) triggerSavedFinancial();
+    else setSaveError(result.error);
   }
 
   /**
@@ -141,12 +140,10 @@ export function BusinessTab({
 
   async function handleSaveGoals() {
     setSavingGoals(true);
-    try {
-      await saveRevenueGoals(goals);
-      triggerSavedGoals();
-    } finally {
-      setSavingGoals(false);
-    }
+    const result = await saveRevenueGoals(goals);
+    setSavingGoals(false);
+    if (result.success) triggerSavedGoals();
+    else setSaveError(result.error);
   }
 
   const fields: { label: string; key: keyof BusinessProfile }[] = [
@@ -163,6 +160,17 @@ export function BusinessTab({
 
   return (
     <div className="space-y-5">
+      {saveError && (
+        <div className="p-3 bg-red-50 border border-red-200 text-xs text-red-700 flex items-center justify-between">
+          <span>{saveError}</span>
+          <button
+            onClick={() => setSaveError(null)}
+            className="ml-4 text-red-500 hover:text-red-700"
+          >
+            ✕
+          </button>
+        </div>
+      )}
       <div>
         <h2 className="text-base font-semibold text-foreground">Business Information</h2>
         <p className="text-xs text-muted mt-0.5">

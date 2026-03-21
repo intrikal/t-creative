@@ -41,7 +41,15 @@
 
 import { type ReactNode, useState, useOptimistic, useTransition, useCallback } from "react";
 import dynamic from "next/dynamic";
-import { Search, Plus, CalendarDays, CalendarCheck, DollarSign, ListOrdered, CalendarX } from "lucide-react";
+import {
+  Search,
+  Plus,
+  CalendarDays,
+  CalendarCheck,
+  DollarSign,
+  ListOrdered,
+  CalendarX,
+} from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import {
@@ -161,6 +169,7 @@ export function BookingsPage({
   const [serviceNotesTarget, setServiceNotesTarget] = useState<Booking | null>(null);
   const [waiverGateTarget, setWaiverGateTarget] = useState<Booking | null>(null);
   const [missingWaivers, setMissingWaivers] = useState<MissingWaiver[]>([]);
+  const [mutationError, setMutationError] = useState<string | null>(null);
 
   const filtered = bookings.filter((b) => {
     const matchSearch =
@@ -210,7 +219,8 @@ export function BookingsPage({
 
     startTransition(async () => {
       addOptimistic({ type: "update_status", id: booking.id, status });
-      await updateBookingStatus(booking.id, status);
+      const result = await updateBookingStatus(booking.id, status);
+      if (!result.success) setMutationError(result.error);
     });
 
     // Show payment choice dialog when confirming a booking
@@ -233,7 +243,8 @@ export function BookingsPage({
     setCancelReason("");
     startTransition(async () => {
       addOptimistic({ type: "update_status", id: targetId, status: "cancelled" });
-      await updateBookingStatus(targetId, "cancelled", reason);
+      const result = await updateBookingStatus(targetId, "cancelled", reason);
+      if (!result.success) setMutationError(result.error);
     });
   }
 
@@ -248,7 +259,8 @@ export function BookingsPage({
     setDeleteTarget(null);
     startTransition(async () => {
       addOptimistic({ type: "delete", id: targetId });
-      await deleteBooking(targetId);
+      const result = await deleteBooking(targetId);
+      if (!result.success) setMutationError(result.error);
     });
   }
 
@@ -270,7 +282,7 @@ export function BookingsPage({
       if (!data.clientId || data.serviceId === "" || !data.date || !data.time) return;
       const startsAt = new Date(`${data.date}T${data.time}`);
       startTransition(async () => {
-        await updateBooking(editTarget.id, {
+        const result = await updateBooking(editTarget.id, {
           clientId: data.clientId,
           serviceId: Number(data.serviceId),
           staffId: data.staffId || null,
@@ -282,12 +294,13 @@ export function BookingsPage({
           recurrenceRule,
           status: data.status,
         });
+        if (!result.success) setMutationError(result.error);
       });
     } else {
       if (!data.clientId || data.serviceId === "" || !data.date || !data.time) return;
       const startsAt = new Date(`${data.date}T${data.time}`);
       startTransition(async () => {
-        await createBooking({
+        const result = await createBooking({
           clientId: data.clientId,
           serviceId: Number(data.serviceId),
           staffId: data.staffId || null,
@@ -299,6 +312,7 @@ export function BookingsPage({
           recurrenceRule,
           subscriptionId: data.subscriptionId !== "" ? Number(data.subscriptionId) : undefined,
         } satisfies BookingInput);
+        if (!result.success) setMutationError(result.error);
       });
     }
   }
@@ -307,14 +321,16 @@ export function BookingsPage({
     setMenuOpen(null);
     startTransition(async () => {
       addOptimistic({ type: "update_status", id: booking.id, status: "cancelled" });
-      await cancelBookingSeries(booking.id);
+      const result = await cancelBookingSeries(booking.id);
+      if (!result.success) setMutationError(result.error);
     });
   }
 
   async function removeFromWaitlist(id: number) {
     startTransition(async () => {
       addOptimistic({ type: "update_status", id, status: "cancelled" });
-      await updateBookingStatus(id, "cancelled");
+      const result = await updateBookingStatus(id, "cancelled");
+      if (!result.success) setMutationError(result.error);
     });
   }
 
@@ -333,10 +349,23 @@ export function BookingsPage({
 
   return (
     <div className="p-4 md:p-6 lg:p-8 space-y-4">
+      {mutationError && (
+        <div className="p-3 bg-red-50 border border-red-200 text-xs text-red-700 flex items-center justify-between">
+          <span>{mutationError}</span>
+          <button
+            onClick={() => setMutationError(null)}
+            className="ml-4 text-red-500 hover:text-red-700"
+          >
+            ✕
+          </button>
+        </div>
+      )}
       {/* Header */}
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-semibold text-foreground tracking-tight">Bookings</h1>
+          <h1 className="text-2xl sm:text-3xl font-semibold text-foreground tracking-tight">
+            Bookings
+          </h1>
           <p className="text-sm text-muted mt-0.5">Manage appointments and scheduling</p>
         </div>
         <button
@@ -351,16 +380,46 @@ export function BookingsPage({
       {/* Stat cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         {[
-          { label: "Today", value: String(todayCount), sub: "appointments", icon: CalendarDays, iconColor: "text-blush", iconBg: "bg-blush/10" },
-          { label: "Upcoming", value: String(pendingCount), sub: "confirmed + pending", icon: CalendarCheck, iconColor: "text-accent", iconBg: "bg-accent/10" },
-          { label: "Collected", value: `$${revenue.toLocaleString()}`, sub: "completed this week", icon: DollarSign, iconColor: "text-[#4e6b51]", iconBg: "bg-[#4e6b51]/10" },
-          { label: "Waitlist", value: String(waitingCount), sub: "clients waiting", icon: ListOrdered, iconColor: "text-[#7a5c10]", iconBg: "bg-[#7a5c10]/10" },
+          {
+            label: "Today",
+            value: String(todayCount),
+            sub: "appointments",
+            icon: CalendarDays,
+            iconColor: "text-blush",
+            iconBg: "bg-blush/10",
+          },
+          {
+            label: "Upcoming",
+            value: String(pendingCount),
+            sub: "confirmed + pending",
+            icon: CalendarCheck,
+            iconColor: "text-accent",
+            iconBg: "bg-accent/10",
+          },
+          {
+            label: "Collected",
+            value: `$${revenue.toLocaleString()}`,
+            sub: "completed this week",
+            icon: DollarSign,
+            iconColor: "text-[#4e6b51]",
+            iconBg: "bg-[#4e6b51]/10",
+          },
+          {
+            label: "Waitlist",
+            value: String(waitingCount),
+            sub: "clients waiting",
+            icon: ListOrdered,
+            iconColor: "text-[#7a5c10]",
+            iconBg: "bg-[#7a5c10]/10",
+          },
         ].map(({ label, value, sub, icon: Icon, iconColor, iconBg }) => (
           <Card key={label} className="gap-0 py-0">
             <CardContent className="px-4 py-3">
               <div className="flex items-start justify-between gap-2">
                 <div className="space-y-0.5 min-w-0">
-                  <p className="text-[10px] font-semibold uppercase tracking-wide text-muted truncate">{label}</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-muted truncate">
+                    {label}
+                  </p>
                   <p className="text-lg font-semibold text-foreground tracking-tight">{value}</p>
                   <p className="text-xs text-muted truncate">{sub}</p>
                 </div>
@@ -435,7 +494,9 @@ export function BookingsPage({
               <div className="py-10 text-center">
                 <CalendarX className="w-7 h-7 text-foreground/15 mx-auto mb-2" />
                 <p className="text-sm text-muted/60 font-medium">
-                  {search || statusFilter !== "All" ? "No bookings match your filters" : "No bookings yet"}
+                  {search || statusFilter !== "All"
+                    ? "No bookings match your filters"
+                    : "No bookings yet"}
                 </p>
                 <p className="text-xs text-muted/40 mt-0.5">
                   {search || statusFilter !== "All"

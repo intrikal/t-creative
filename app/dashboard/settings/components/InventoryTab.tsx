@@ -20,20 +20,35 @@ export function InventoryTab({ initial }: { initial: InventoryConfig }) {
   const [saving, setSaving] = useState(false);
   /** Briefly true after a successful save to show "Saved!" feedback. */
   const [saved, setSaved] = useState(false);
+  /** Error message from save, if any. */
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   async function handleSave() {
     setSaving(true);
-    try {
-      await saveInventoryConfig(data);
+    setSaveError(null);
+    const result = await saveInventoryConfig(data);
+    setSaving(false);
+    if (result.success) {
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
-    } finally {
-      setSaving(false);
+    } else {
+      setSaveError(result.error);
     }
   }
 
   return (
     <div className="space-y-5">
+      {saveError && (
+        <div className="p-3 bg-red-50 border border-red-200 text-xs text-red-700 flex items-center justify-between">
+          <span>{saveError}</span>
+          <button
+            onClick={() => setSaveError(null)}
+            className="ml-4 text-red-500 hover:text-red-700"
+          >
+            ✕
+          </button>
+        </div>
+      )}
       <div>
         <h2 className="text-base font-semibold text-foreground">Inventory & Gift Cards</h2>
         <p className="text-xs text-muted mt-0.5">
@@ -60,9 +75,7 @@ export function InventoryTab({ initial }: { initial: InventoryConfig }) {
             <input
               type="text"
               value={data.giftCardCodePrefix}
-              onChange={(e) =>
-                setData((prev) => ({ ...prev, giftCardCodePrefix: e.target.value }))
-              }
+              onChange={(e) => setData((prev) => ({ ...prev, giftCardCodePrefix: e.target.value }))}
               placeholder="TC-GC"
               className={INPUT_CLASS}
             />

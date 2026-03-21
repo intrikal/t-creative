@@ -23,10 +23,17 @@ import { saveLoyaltyConfig } from "../settings-actions";
 import { FieldRow, StatefulSaveButton, NUM_INPUT_CLASS } from "./shared";
 
 export function LoyaltyTab({ initial }: { initial: LoyaltyConfig }) {
+  /** Full loyalty config (point values, tier thresholds, birthday perk). */
   const [data, setData] = useState(initial);
+  /** Whether the save action is in flight. */
   const [saving, setSaving] = useState(false);
+  /** Briefly true after a successful save to show "Saved!" feedback. */
   const [saved, setSaved] = useState(false);
 
+  /**
+   * updateNum — parses a numeric input and updates one loyalty config field.
+   * NaN values are silently ignored to prevent storing invalid data.
+   */
   function updateNum(key: keyof LoyaltyConfig, raw: string) {
     const n = parseInt(raw, 10);
     if (!isNaN(n)) setData((prev) => ({ ...prev, [key]: n }));

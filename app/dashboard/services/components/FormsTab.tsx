@@ -50,9 +50,13 @@ import { NewFormDialog } from "./NewFormDialog";
  * @param initialForms - Server-fetched form rows to hydrate the initial list.
  */
 export function FormsTab({ initialForms }: { initialForms: FormRow[] }) {
+  /** Local forms list, initialized by mapping DB rows to UI-friendly objects via dbToForm. */
   const [forms, setForms] = useState<ClientForm[]>(() => initialForms.map(dbToForm));
+  /** ID of the currently expanded accordion row (null = all collapsed). */
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  /** Whether the NewFormDialog is open. */
   const [newFormOpen, setNewFormOpen] = useState(false);
+  /** The form whose fields are being edited in EditFieldsDialog (null = closed). */
   const [editFieldsTarget, setEditFieldsTarget] = useState<ClientForm | null>(null);
 
   async function handleToggleActive(id: number) {
@@ -80,6 +84,7 @@ export function FormsTab({ initialForms }: { initialForms: FormRow[] }) {
     setForms((prev) => prev.filter((f) => f.id !== id));
   }
 
+  /** Number of active forms — displayed in the stat card. */
   const activeCount = forms.filter((f) => f.active).length;
 
   return (

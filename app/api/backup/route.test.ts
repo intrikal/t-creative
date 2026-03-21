@@ -1,3 +1,30 @@
+/**
+ * Tests for GET and POST /api/backup — admin backup download and S3 upload.
+ *
+ * GET tests cover:
+ *  - Auth: unauthenticated (401), non-admin (403), missing profile (403)
+ *  - Happy path: returns JSON attachment with correct Content-Type,
+ *    Content-Disposition filename, and Cache-Control: no-store
+ *  - Audit: logAction called with action="export", entityId="json-download"
+ *  - Error: createBackupManifest throws → 500
+ *
+ * POST tests cover:
+ *  - Auth: unauthenticated (401), non-admin (403)
+ *  - Storage not configured: isStorageConfigured returns false → 503
+ *    with hint about required env vars
+ *  - Happy path: returns upload summary with key, bytes, compressionRatio
+ *  - Audit: logAction called with the S3 key as entityId
+ *  - Errors: manifest creation failure (500), upload failure (500)
+ *
+ * Mocks: Supabase auth (getUser), db.select (thenable chain),
+ * createBackupManifest, isStorageConfigured, uploadBackupToStorage,
+ * logAction (audit), Sentry.
+ */
+// describe: groups related tests into a labeled block (like a folder for tests)
+// it/test: defines a single test case with a description and assertion function
+// expect: creates an assertion — checks that a value matches an expected condition
+// vi: Vitest's mock utility — creates fake functions, spies on calls, and controls return values
+// beforeEach: runs a setup function before every test in the current describe block
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 /* ------------------------------------------------------------------ */

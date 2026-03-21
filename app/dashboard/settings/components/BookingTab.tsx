@@ -14,10 +14,17 @@ import { saveBookingRules } from "../settings-actions";
 import { FieldRow, ToggleRow, StatefulSaveButton, NUM_INPUT_CLASS } from "./shared";
 
 export function BookingTab({ initial }: { initial: BookingRulesConfig }) {
+  /** Full booking rules config object — spread-updated on each field change. */
   const [rules, setRules] = useState(initial);
+  /** Whether the save action is in flight. */
   const [saving, setSaving] = useState(false);
+  /** Briefly true after a successful save to show "Saved!" feedback. */
   const [saved, setSaved] = useState(false);
 
+  /**
+   * updateNum — parses a numeric input and updates one booking rule field.
+   * NaN values are silently ignored to prevent invalid state from reaching the DB.
+   */
   function updateNum(key: keyof BookingRulesConfig, raw: string) {
     const n = parseInt(raw, 10);
     if (!isNaN(n)) setRules((prev) => ({ ...prev, [key]: n }));

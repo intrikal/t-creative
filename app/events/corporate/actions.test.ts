@@ -1,14 +1,36 @@
+/**
+ * Unit tests for the corporate event inquiry submission action.
+ *
+ * Tests the full submitCorporateInquiry flow: Zod validation, Turnstile
+ * bot check, DB insert, PostHog analytics tracking, and admin email
+ * notification. Each test uses vi.resetModules() + vi.doMock() for
+ * isolated module state.
+ *
+ * Related files:
+ *   - app/events/corporate/actions.ts — the server action under test
+ */
+
+// describe: groups related tests into a labeled block
+// it: defines a single test case
+// expect: creates an assertion to check a value matches expected condition
+// vi: Vitest's mock utility for creating fake functions
+// beforeEach: runs setup before every test (typically resets mocks)
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 /* ------------------------------------------------------------------ */
 /*  Shared mock refs                                                   */
 /* ------------------------------------------------------------------ */
 
-const mockVerifyTurnstile = vi.fn();
-const mockTrackEvent = vi.fn();
-const mockSendEmail = vi.fn().mockResolvedValue(true);
-const mockInsertValues = vi.fn();
+// vi.fn(): creates mock functions that record calls for assertion
+const mockVerifyTurnstile = vi.fn();   // Cloudflare Turnstile bot verification
+const mockTrackEvent = vi.fn();         // PostHog analytics event tracker
+const mockSendEmail = vi.fn().mockResolvedValue(true); // email service
+const mockInsertValues = vi.fn();       // DB insert — captures the inquiry row data
 
+// setupMocks: registers all vi.doMock() replacements for a fresh module graph.
+// Mocks the DB, schema, Turnstile verification, PostHog, email service,
+// and the email template component. The `turnstileValid` option controls
+// whether the bot check passes or fails.
 function setupMocks(opts: { turnstileValid?: boolean } = {}) {
   const { turnstileValid = true } = opts;
 
@@ -49,6 +71,8 @@ function setupMocks(opts: { turnstileValid?: boolean } = {}) {
 /*  Fixtures                                                           */
 /* ------------------------------------------------------------------ */
 
+// Mock data: a complete valid corporate event inquiry form submission
+// representing a company requesting a team bonding lash event
 const validData = {
   contactName: "Jane Smith",
   email: "jane@acme.com",
@@ -66,11 +90,14 @@ const validData = {
 /*  Tests                                                              */
 /* ------------------------------------------------------------------ */
 
+// Tests for the corporate event inquiry submission server action
 describe("corporate/actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
+  // Tests the submitCorporateInquiry action: validation, DB persistence,
+  // Turnstile gating, analytics tracking, and admin email notification
   describe("submitCorporateInquiry", () => {
     it("returns success: true on valid submission", async () => {
       vi.resetModules();

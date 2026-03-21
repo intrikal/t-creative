@@ -168,7 +168,12 @@ export function ThreadView({
   onDraftChange,
   threadDisplayName,
 }: ThreadViewProps) {
-  // Group messages by date for date separators, and track sender changes
+  /**
+   * Interleave date separator items into the message list for visual grouping.
+   * Iterates messages in order, inserting a "date" item whenever the calendar
+   * day changes. Also tracks sender changes to show sender names only on the
+   * first message in a consecutive run (for group threads), reducing visual noise.
+   */
   const messagesWithDates = useMemo(() => {
     const result: ({ type: "date"; label: string; key: string } | { type: "msg"; msg: MessageRow; showSender: boolean })[] = [];
     let lastDateKey = "";
@@ -180,7 +185,7 @@ export function ThreadView({
         lastSenderId = ""; // Reset sender tracking on new date
         result.push({ type: "date", label: fmtDateSeparator(msg.createdAt), key: dateKey });
       }
-      // Show sender name only when sender changes or in group threads
+      // Show sender name only when sender changes in group threads
       const showSender = selected.isGroup && msg.senderId !== lastSenderId;
       lastSenderId = msg.senderId;
       result.push({ type: "msg", msg, showSender });

@@ -1,3 +1,9 @@
+/**
+ * Confirmation dialog for cancelling a single booking (admin side).
+ * Includes an optional reason textarea that gets passed to the server action.
+ *
+ * Parent: app/dashboard/bookings/BookingsPage.tsx
+ */
 "use client";
 
 import { Dialog, Field, Textarea, DialogFooter } from "@/components/ui/dialog";

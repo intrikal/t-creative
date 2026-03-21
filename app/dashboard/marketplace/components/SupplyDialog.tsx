@@ -1,3 +1,10 @@
+/**
+ * SupplyDialog — Create/edit dialog for a consumable supply item.
+ *
+ * Reuses the shared Dialog shell and renders fields for name, category,
+ * unit of measure, current stock, and reorder point. Validates that name
+ * and unit are non-empty before allowing save.
+ */
 "use client";
 
 import { useState } from "react";
@@ -17,7 +24,10 @@ export function SupplyDialog({
   onSave: (form: SupplyForm) => void;
   saving: boolean;
 }) {
+  /** form: local draft of the supply fields, initialised from parent */
   const [form, setForm] = useState<SupplyForm>(initial);
+  // set: curried updater factory — returns an onChange handler for any field.
+  // Uses spread to immutably merge the changed field into the current draft.
   const set =
     (field: keyof SupplyForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
       setForm((f) => ({ ...f, [field]: e.target.value }));

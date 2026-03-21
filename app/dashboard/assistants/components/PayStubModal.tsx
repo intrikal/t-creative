@@ -1,3 +1,15 @@
+/**
+ * PayStubModal — Monthly pay stub viewer with line-item detail and CSV export.
+ *
+ * The admin selects a month/year and clicks "Generate" to fetch session-level
+ * earnings data for the chosen assistant. The stub shows a summary header
+ * (commission type, tip split, session count), a line-item table with each
+ * completed booking's gross, tip, and earned amounts, and a total-due callout.
+ *
+ * Implements its own focus trap and Escape-to-close because it renders as a
+ * custom fixed overlay rather than using the shared Dialog component (it needs
+ * a wider layout with a sticky period picker).
+ */
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
@@ -35,8 +47,11 @@ export function PayStubModal({
   onClose: () => void;
 }) {
   const now = new Date();
+  /** month: 1-indexed selected month (default: current month) */
   const [month, setMonth] = useState(now.getMonth() + 1);
+  /** year: selected year (default: current year) */
   const [year, setYear] = useState(now.getFullYear());
+  /** stub: fetched pay-stub data for the selected period, null until generated */
   const [stub, setStub] = useState<PayStubData | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -79,6 +94,8 @@ export function PayStubModal({
     URL.revokeObjectURL(url);
   }
 
+  // Array.from: generate [currentYear, currentYear-1, currentYear-2]
+  // for the year dropdown so stubs can be viewed up to 2 years back
   const years = Array.from({ length: 3 }, (_, i) => now.getFullYear() - i);
 
   const modalRef = useRef<HTMLDivElement>(null);

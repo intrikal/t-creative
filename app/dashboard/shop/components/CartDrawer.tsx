@@ -41,6 +41,8 @@ export function CartDrawer({
               <p className="text-sm text-muted">Your cart is empty</p>
             </div>
           ) : (
+            /* map: render one line-item row per cart entry with title,
+               unit price, quantity controls, and a remove action */
             items.map((item) => (
               <div
                 key={item.productId}
@@ -54,6 +56,8 @@ export function CartDrawer({
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
                   <button
+                    // ternary: if quantity would drop to 0, remove the
+                    // item entirely; otherwise just decrement the count
                     onClick={() =>
                       item.quantity <= 1
                         ? removeItem(item.productId)

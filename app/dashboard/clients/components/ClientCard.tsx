@@ -1,3 +1,19 @@
+/**
+ * Client card for the grid view on the Clients page. Wraps in a Link to
+ * the client detail page. Shows avatar, name, VIP star, contact info,
+ * source/lifecycle/service badges, referral info, visit/spend/last-visit
+ * stats, and a notes preview. Hover reveals edit, delete, preferences,
+ * and waivers action buttons.
+ *
+ * Parent: app/dashboard/clients/ClientsPage.tsx
+ *
+ * Key operations:
+ *   sourceBadge(client.source) — returns {label, className} for the acquisition source
+ *   avatarColor(client.name)   — deterministic color from first char code % palette length
+ *   client.services.map()      — renders category tags using SVC_LABEL/SVC_COLOR lookups
+ *   Action buttons use e.preventDefault() + e.stopPropagation() to prevent
+ *   the Link navigation when clicking edit/delete/preferences/waivers.
+ */
 "use client";
 
 import Link from "next/link";

@@ -1,3 +1,19 @@
+/**
+ * app/dashboard/loyalty/actions.ts — Server actions for the client Loyalty & Membership page.
+ *
+ * Provides:
+ *   - getClientLoyaltyData() — aggregates the client's points balance, transaction
+ *     history, membership plan details, available rewards catalog, and any pending
+ *     reward redemptions into one payload.
+ *   - redeemPoints()         — exchanges loyalty points for a reward.
+ *   - cancelRedemption()     — cancels a pending (not yet applied) redemption and
+ *     refunds the points.
+ *
+ * Tables touched: profiles, loyaltyTransactions, loyaltyRewards, loyaltyRedemptions,
+ * membershipSubscriptions, membershipPlans.
+ *
+ * @module dashboard/loyalty/actions
+ */
 "use server";
 
 import { revalidatePath } from "next/cache";
@@ -79,6 +95,26 @@ const RedeemPointsSchema = z.object({
   rewardId: z.number().int().positive(),
 });
 
+/**
+ * Exchanges loyalty points for a reward from the catalog.
+ *
+ * Step 1 — Validate the reward exists and is active:
+ *   SELECT * FROM loyalty_rewards
+ *   WHERE id = <rewardId> AND active = true
+ *   LIMIT 1
+ *
+ * Step 2 — Re-check the client's current points balance server-side
+ *   (prevents a race where the client redeems twice before the first deduction settles):
+ *   SELECT sum(points) FROM loyalty_transactions WHERE profileId = <user>
+ *
+ * Step 3 — Deduct points:
+ *   INSERT INTO loyalty_transactions (profileId, points, type, description)
+ *   VALUES (<user>, -<pointsCost>, 'redeemed', 'Redeemed: <label>')
+ *
+ * Step 4 — Record the redemption as "pending" (applied to a future booking):
+ *   INSERT INTO loyalty_redemptions (profileId, rewardId, transactionId, status)
+ *   VALUES (<user>, <rewardId>, <txId>, 'pending')
+ */
 export async function redeemPoints(input: { rewardId: number }): Promise<void> {
   try {
     RedeemPointsSchema.parse(input);
@@ -134,6 +170,24 @@ export async function redeemPoints(input: { rewardId: number }): Promise<void> {
 
 /**
  * Cancel a pending redemption and refund the points.
+ *
+ * Step 1 — Ownership + status check:
+ *   SELECT id, profileId, rewardId, status
+ *   FROM   loyalty_redemptions
+ *   WHERE  id = <redemptionId>
+ *     AND  profileId = <current user>   ← must belong to this client
+ *     AND  status = 'pending'           ← only pending redemptions can be cancelled
+ *   LIMIT 1
+ *
+ * Step 2 — Look up the reward's point cost:
+ *   SELECT pointsCost, label FROM loyalty_rewards WHERE id = <rewardId>
+ *
+ * Step 3 — Credit the points back:
+ *   INSERT INTO loyalty_transactions (profileId, points, type, description)
+ *   VALUES (<user>, +<pointsCost>, 'manual_credit', 'Cancelled: <label> (points refunded)')
+ *
+ * Step 4 — Mark redemption as cancelled:
+ *   UPDATE loyalty_redemptions SET status = 'cancelled' WHERE id = <redemptionId>
  */
 export async function cancelRedemption(redemptionId: string): Promise<void> {
   try {
@@ -194,6 +248,53 @@ export async function cancelRedemption(redemptionId: string): Promise<void> {
 /*  Query                                                              */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Aggregates all loyalty-related data for the current client into one payload.
+ * Runs 7 queries in parallel (Promise.all) for speed:
+ *
+ * 1. Profile — SELECT firstName, referralCode FROM profiles WHERE id = <user>
+ *    → client's display name and unique referral code.
+ *
+ * 2. Total points — SELECT sum(points) FROM loyalty_transactions WHERE profileId = <user>
+ *    → net points balance (positive entries = earned, negative = redeemed).
+ *
+ * 3. Recent transactions (last 20) —
+ *    SELECT id, points, type, description, createdAt
+ *    FROM   loyalty_transactions
+ *    WHERE  profileId = <user>
+ *    ORDER BY createdAt DESC  LIMIT 20
+ *    → transaction history feed (earned, redeemed, manual credits, etc.).
+ *
+ * 4. Referral count — SELECT count(*) FROM profiles WHERE referredBy = <user>
+ *    → how many other clients this user has referred.
+ *
+ * 5. Active membership —
+ *    SELECT plan.name, plan.priceInCents, plan.fillsPerCycle, sub.fillsRemainingThisCycle, ...
+ *    FROM   membership_subscriptions sub
+ *    INNER JOIN membership_plans plan ON sub.planId = plan.id
+ *      → pulls the plan's pricing and perks alongside the subscription's usage state
+ *    WHERE  sub.clientId = <user>
+ *      AND  sub.status IN ('active', 'paused')
+ *    ORDER BY sub.createdAt DESC  LIMIT 1
+ *    → the client's current (or paused) membership, if any.
+ *
+ * 6. Active rewards catalog —
+ *    SELECT id, label, pointsCost, discountInCents, category, description
+ *    FROM   loyalty_rewards
+ *    WHERE  active = true
+ *    ORDER BY sortOrder, pointsCost
+ *    → every reward the client can currently redeem.
+ *
+ * 7. Pending redemptions —
+ *    SELECT redemptions.id, rewards.label, rewards.category, rewards.pointsCost, ...
+ *    FROM   loyalty_redemptions
+ *    INNER JOIN loyalty_rewards ON redemptions.rewardId = rewards.id
+ *      → pulls reward details (label, category, cost) for each pending redemption
+ *    WHERE  redemptions.profileId = <user>
+ *      AND  redemptions.status = 'pending'
+ *    ORDER BY redemptions.createdAt DESC
+ *    → rewards the client has redeemed but that haven't been applied to a booking yet.
+ */
 export async function getClientLoyaltyData(): Promise<LoyaltyPageData> {
   try {
     const user = await getUser();
@@ -206,6 +307,9 @@ export async function getClientLoyaltyData(): Promise<LoyaltyPageData> {
       [memRow],
       rewardRows,
       pendingRows,
+    // Run all 7 independent queries in parallel via Promise.all to minimise
+    // total latency. Each query hits a different table/index so there is no
+    // contention. Sequential execution would be ~7x slower on a cold connection.
     ] = await Promise.all([
       // Profile
       db
@@ -319,6 +423,9 @@ export async function getClientLoyaltyData(): Promise<LoyaltyPageData> {
       referralCount,
       membership,
       rewards: rewardRows,
+      // Transform each pending redemption row into the PendingRedemption shape,
+      // converting the Date to a formatted string for JSON serialisation across
+      // the RSC boundary. Keeps only the fields the loyalty page card needs.
       pendingRedemptions: pendingRows.map((r) => ({
         id: r.id,
         rewardLabel: r.rewardLabel,
@@ -331,6 +438,9 @@ export async function getClientLoyaltyData(): Promise<LoyaltyPageData> {
           year: "numeric",
         }),
       })),
+      // Transform each transaction row into the LoyaltyTransaction shape,
+      // defaulting null descriptions to "" and converting Date to a formatted
+      // string. The UI renders this as the "Points History" feed.
       transactions: txRows.map((tx) => ({
         id: tx.id,
         points: tx.points,

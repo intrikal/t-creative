@@ -1,4 +1,25 @@
+/**
+ * Tests for GET /api/calendar/[profileId] — iCal subscription feed.
+ *
+ * Covers:
+ *  - Auth: invalid HMAC token returns 401
+ *  - 404 when profile does not exist
+ *  - ICS generation for admin role (sees all bookings, includes staff name)
+ *  - ICS generation for assistant/staff role (scoped to own bookings,
+ *    location falls back to "T Creative Studio")
+ *  - Empty calendar (valid ICS with no VEVENT blocks)
+ *  - Cache-Control: no-store header on all responses
+ *
+ * Mocks: db (select chain with aliased profiles), verifyCalendarToken,
+ * drizzle-orm/pg-core alias function.
+ */
+// createHmac: Node crypto function used to build test HMAC tokens for the calendar feed
 import { createHmac } from "crypto";
+// describe: groups related tests into a labeled block (like a folder for tests)
+// it/test: defines a single test case with a description and assertion function
+// expect: creates an assertion — checks that a value matches an expected condition
+// vi: Vitest's mock utility — creates fake functions, spies on calls, and controls return values
+// beforeEach: runs a setup function before every test in the current describe block
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 /* ------------------------------------------------------------------ */

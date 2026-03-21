@@ -1,3 +1,33 @@
+/**
+ * Client-facing bookings page — shows a client their appointment history,
+ * upcoming bookings, mini calendar, and actions to reschedule/cancel/review.
+ *
+ * Parent: app/dashboard/bookings/page.tsx (client role)
+ *
+ * State:
+ *   expanded          — which booking card is expanded (accordion, one at a time)
+ *   bookings          — local copy of booking data for optimistic updates
+ *   reviewTarget      — booking open in the review modal
+ *   cancelTarget/Error — booking open in the cancel modal + error message
+ *   rescheduleTarget/Error — booking open in the reschedule modal + error
+ *   selectedDate      — date filter from the mini calendar (ISO string or null)
+ *   showCalSubscribe  — toggles the calendar subscription modal
+ *   isPending         — useTransition pending flag for server action calls
+ *
+ * Key operations:
+ *   allUpcoming = bookings.filter(...) — confirmed + pending bookings
+ *   allCompleted = bookings.filter(...) — completed bookings for stats
+ *   upcoming/past — further filtered by selectedDate if set
+ *   allCompleted.reduce((s, b) => s + b.price, 0) — total spent stat
+ *
+ *   handleSubmitReview — optimistic: marks reviewLeft=true immediately,
+ *     then fires submitClientReview server action in a transition
+ *   handleCancelBooking — optimistic: sets status="cancelled" immediately,
+ *     reverts on error by mapping back to previous status
+ *   handleRescheduleBooking — on success, optimistically updates the
+ *     booking's startsAtISO, date, and time with formatted strings,
+ *     and resets status to "pending"
+ */
 "use client";
 
 import { useState, useTransition, useCallback } from "react";

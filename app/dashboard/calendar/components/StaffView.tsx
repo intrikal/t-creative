@@ -34,6 +34,11 @@ export function StaffView({
 }) {
   const ds = fmtDate(cursor);
 
+  /**
+   * Partition today's events into per-staff buckets.
+   * Pre-populates empty arrays for all staff so columns always render,
+   * then assigns each event whose date matches and has a staff field.
+   */
   const byStaff = useMemo(() => {
     const map: Record<string, CalEvent[]> = {};
     for (const s of staffMembers) map[s] = [];

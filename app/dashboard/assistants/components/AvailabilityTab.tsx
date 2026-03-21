@@ -1,3 +1,11 @@
+/**
+ * AvailabilityTab — Weekly availability grid for all assistants.
+ *
+ * Displays a table with one row per assistant and one column per weekday.
+ * A green check indicates the assistant works that day (from either the
+ * availability rows or the static shifts list); a grey circle means off.
+ * Hours are derived from the first available schedule entry when present.
+ */
 "use client";
 
 import { CheckCircle2, AlertCircle } from "lucide-react";
@@ -24,7 +32,9 @@ export function AvailabilityTab({
   assistants: Assistant[];
   availability: AvailabilityRow[];
 }) {
-  // Group availability by staffId
+  // Group availability rows by staffId into a nested Map so each
+  // assistant's per-day schedule can be looked up in O(1) during render.
+  // Inner map: day name → open/close times for that day.
   const scheduleMap = new Map<
     string,
     Map<ShiftDay, { opensAt: string | null; closesAt: string | null }>

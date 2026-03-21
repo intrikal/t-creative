@@ -73,6 +73,16 @@ export type ClientCommission = {
 /**
  * Returns all commission orders for the logged-in client.
  * Commission orders are identified by `productId IS NULL`.
+ *
+ * SELECT  id, orderNumber, category, title, description, quantity,
+ *         status, quotedInCents, estimatedCompletionAt, metadata, createdAt
+ * FROM    orders
+ * WHERE   clientId = <current user>     ← only this client's orders
+ *   AND   productId IS NULL             ← commissions have no linked product
+ *                                          (regular shop orders DO have a productId)
+ * ORDER BY createdAt DESC               ← newest commissions first
+ *
+ * No JOINs — the orders table contains all the needed fields inline.
  */
 export async function getClientCommissions(): Promise<ClientCommission[]> {
   try {
@@ -124,6 +134,12 @@ export async function getClientCommissions(): Promise<ClientCommission[]> {
 /**
  * Creates a new commission request (status: "inquiry").
  * Sends a confirmation email to the client.
+ *
+ * INSERT INTO orders (orderNumber, clientId, status, category, title, ...)
+ *   → creates the commission with status "inquiry"
+ *   → RETURNING id so we can reference it in the confirmation email
+ *
+ * Then fetches the client's email from profiles to send a confirmation.
  */
 const submitCommissionInputSchema = z.object({
   category: z.enum(["crochet", "3d_printing"]),
@@ -203,6 +219,13 @@ export async function submitCommissionRequest(
 /**
  * Client accepts a quoted commission → status moves to "accepted".
  * Validates that the order belongs to the client and is currently quoted.
+ *
+ * Step 1 — Ownership check:
+ *   SELECT clientId, status FROM orders WHERE id = <orderId>
+ *   → verifies the order exists, belongs to this client, and is in "quoted" status
+ *
+ * Step 2 — Status transition:
+ *   UPDATE orders SET status = 'accepted' WHERE id = <orderId>
  */
 export async function acceptQuote(orderId: number): Promise<void> {
   try {
@@ -230,6 +253,13 @@ export async function acceptQuote(orderId: number): Promise<void> {
 /**
  * Client declines a quoted commission → status moves to "cancelled".
  * Validates that the order belongs to the client and is currently quoted.
+ *
+ * Step 1 — Ownership check:
+ *   SELECT clientId, status FROM orders WHERE id = <orderId>
+ *   → same guard as acceptQuote — must be owned by this client and in "quoted" status
+ *
+ * Step 2 — Status transition:
+ *   UPDATE orders SET status = 'cancelled', cancelledAt = now() WHERE id = <orderId>
  */
 export async function declineQuote(orderId: number): Promise<void> {
   try {

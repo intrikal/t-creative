@@ -1,3 +1,26 @@
+/**
+ * Tests for POST /api/book/upload-reference — public reference photo upload.
+ *
+ * Covers:
+ *  - Validation: no file in form data (400), file exceeds 8 MB limit (400),
+ *    unsupported file type like PDF (400), formData() parse error (400)
+ *  - Happy path: valid JPEG upload → calls Supabase storage.upload with
+ *    path under "booking-references/", contentType matching file,
+ *    upsert=false; returns { url } with the public CDN URL
+ *  - Supported types: all 5 allowed image types (jpeg, png, webp, heic, heif)
+ *    accepted successfully
+ *  - Error handling: Supabase upload error → 500, missing env vars
+ *    (SUPABASE_SERVICE_ROLE_KEY) → 503
+ *
+ * Mocks: @supabase/supabase-js createClient (returns mock storage bucket),
+ * Sentry. Uses Request.formData() spy to inject controlled FormData.
+ * No auth — endpoint is public for both guests and authenticated users.
+ */
+// describe: groups related tests into a labeled block (like a folder for tests)
+// it/test: defines a single test case with a description and assertion function
+// expect: creates an assertion — checks that a value matches an expected condition
+// vi: Vitest's mock utility — creates fake functions, spies on calls, and controls return values
+// beforeEach: runs a setup function before every test in the current describe block
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 /* ------------------------------------------------------------------ */

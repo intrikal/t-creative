@@ -1,7 +1,10 @@
 /**
  * Portfolio — Grid gallery of work samples with hover overlays and captions.
  *
+ * Used on the landing page to showcase the studio's range of creative work.
  * Client Component — uses Framer Motion for staggered grid item animations on scroll.
+ *
+ * No props — placeholder data is static. Links to /portfolio for the full gallery.
  */
 "use client";
 
@@ -9,6 +12,8 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { SectionWrapper } from "@/components/ui/SectionWrapper";
 
+// Placeholder portfolio items — each has a caption and brand-palette color for the gradient.
+// These are decorative stand-ins until real portfolio images are integrated.
 const placeholders = [
   { caption: "Volume Set — Special Event", color: "#C4907A" },
   { caption: "Permanent Bracelet — Gold Chain", color: "#D4A574" },
@@ -39,6 +44,10 @@ export function Portfolio() {
         </motion.div>
 
         <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
+          {/* .map() over placeholders to render a 2x3 (mobile) / 3x2 (desktop) grid.
+              Each card has a gradient background built from the item's color with varying alpha
+              stops — chosen over flat colors to add depth without requiring actual images.
+              Stagger delay (i * 0.08) cascades the entrance animation. */}
           {placeholders.map((item, i) => (
             <motion.div
               key={item.caption}

@@ -1,13 +1,42 @@
+// describe: groups related tests into a labeled block (like a folder for tests)
+// it/test: defines a single test case with a description and assertion function
+// expect: creates an assertion — checks that a value matches an expected condition
+// vi: Vitest's mock utility — creates fake functions, spies on calls, and controls return values
+// beforeEach: runs a setup function before every test in the current describe block
+// afterEach: runs a cleanup function after every test in the current describe block
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
+/**
+ * Tests for the Zoho CRM integration module (contacts, deals, notes).
+ *
+ * Covers:
+ *  - isZohoConfigured: delegates to isZohoAuthConfigured
+ *  - upsertZohoContact: no-op when unconfigured, upserts via CRM API, stores
+ *    zohoContactId, fire-and-forget on failure
+ *  - createZohoDeal: no-op when unconfigured, creates deal + stores ID on booking,
+ *    fire-and-forget on failure
+ *  - updateZohoDeal: no-op when unconfigured/no deal, PUTs new stage, fire-and-forget
+ *  - logZohoNote: no-op when unconfigured/no contact, POSTs note, fire-and-forget
+ *
+ * Mocks: zoho-auth (OAuth), global fetch (Zoho CRM API), db (profile/booking lookup),
+ * db/schema, drizzle-orm, Sentry.
+ */
+
 // --- Persistent mock references ---
+// mockIsZohoAuthConfigured: controls whether Zoho OAuth layer reports as ready
 const mockIsZohoAuthConfigured = vi.fn();
+// mockGetZohoAccessToken: returns a fake bearer token for API calls
 const mockGetZohoAccessToken = vi.fn();
+// mockFetch: simulates Zoho CRM REST API endpoints
 const mockFetch = vi.fn();
+// mockDbLimit: controls profile/booking lookup results
 const mockDbLimit = vi.fn();
+// mockDbSetWhere: captures profile/booking update calls (storing Zoho IDs)
 const mockDbSetWhere = vi.fn();
+// mockDbInsertValues: captures sync_log writes
 const mockDbInsertValues = vi.fn();
 
+// Mock Zoho auth so tests don't need real OAuth credentials
 vi.mock("@/lib/zoho-auth", () => ({
   isZohoAuthConfigured: mockIsZohoAuthConfigured,
   getZohoAccessToken: mockGetZohoAccessToken,

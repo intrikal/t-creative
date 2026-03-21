@@ -17,8 +17,11 @@ export function AddGuestDialog({
   onClose: () => void;
   onAdd: (guest: { name: string; service: string; paid: boolean }) => void;
 }) {
+  /** Guest's full name (required). */
   const [name, setName] = useState("");
+  /** Service the guest is receiving (optional, e.g. "Volume Lashes"). */
   const [service, setService] = useState("");
+  /** Whether the guest has already paid. */
   const [paid, setPaid] = useState(false);
 
   return (

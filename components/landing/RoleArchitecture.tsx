@@ -1,13 +1,18 @@
 /**
  * RoleArchitecture — Presents the three platform roles (Admin, Assistant, Client) in a card grid.
  *
+ * Used on the landing page to explain the platform's multi-role architecture.
  * Client Component — uses Framer Motion scroll-linked opacity and position transforms per card.
+ *
+ * No props — role definitions are static brand copy.
  */
 "use client";
 
 import { useRef } from "react";
 import { motion, useScroll, useTransform } from "framer-motion";
 
+// Three platform roles — each describes a perspective within the system.
+// Array structure enables .map() with index-based scroll stagger in RoleColumn.
 const roles = [
   {
     name: "Admin",
@@ -30,7 +35,11 @@ const roles = [
 ];
 
 export function RoleArchitecture() {
+  // useRef tracks the section element for Framer Motion's scroll measurement.
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // useScroll provides 0→1 progress as the section scrolls through the viewport.
+  // Passed down to each RoleColumn so cards can stagger their reveal based on scroll position.
   const { scrollYProgress } = useScroll({
     target: containerRef,
     offset: ["start end", "end start"],
@@ -55,6 +64,8 @@ export function RoleArchitecture() {
         </motion.div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-4">
+          {/* .map() renders each role as a RoleColumn with its index for scroll stagger.
+              Array-driven to keep the stagger offset calculation (0.2 + index * 0.15) consistent. */}
           {roles.map((role, i) => (
             <RoleColumn key={role.name} role={role} index={i} scrollProgress={scrollYProgress} />
           ))}
@@ -64,6 +75,14 @@ export function RoleArchitecture() {
   );
 }
 
+/**
+ * RoleColumn — A single role card whose opacity and y-position are driven by parent scroll progress.
+ *
+ * Props:
+ * - role: the role data object (name, description, detail) from the roles array
+ * - index: position in the grid — used to offset the scroll trigger window so cards reveal sequentially
+ * - scrollProgress: parent's scrollYProgress MotionValue — shared to avoid duplicate scroll listeners
+ */
 function RoleColumn({
   role,
   index,
@@ -73,6 +92,9 @@ function RoleColumn({
   index: number;
   scrollProgress: ReturnType<typeof useScroll>["scrollYProgress"];
 }) {
+  // Each card's animation window is offset by its index (0.2 + index * 0.15).
+  // This creates a left-to-right reveal as the user scrolls. useTransform converts
+  // the parent's scroll progress into per-card opacity and vertical offset.
   const start = 0.2 + index * 0.15;
   const end = start + 0.2;
   const opacity = useTransform(scrollProgress, [start, end], [0.35, 1]);

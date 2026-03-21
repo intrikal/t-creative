@@ -1,3 +1,10 @@
+/**
+ * ProductsTab — Category-filterable grid of product cards.
+ *
+ * Renders a row of filter buttons (All, Lash Supplies, Jewelry, etc.)
+ * and a responsive grid of ProductCard instances. When no products
+ * match the active filter, shows an empty-state with a create CTA.
+ */
 "use client";
 
 import { Plus } from "lucide-react";
@@ -25,12 +32,16 @@ export function ProductsTab({
   onDelete: (id: number) => void;
   onToggle: (id: number) => void;
 }) {
+  // filter: when "all" is selected, show every product; otherwise narrow
+  // to the chosen category so the admin can focus on one product line
   const filtered = filter === "all" ? products : products.filter((p) => p.category === filter);
 
   return (
     <>
       {/* Category filter */}
       <div className="flex gap-1 flex-wrap">
+        {/* map: render one filter pill per category, plus "All".
+            The array is const-asserted so TS infers literal union types. */}
         {(["all", "lash-supplies", "jewelry", "crochet", "aftercare", "merch"] as const).map(
           (f) => (
             <button

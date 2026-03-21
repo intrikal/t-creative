@@ -1,3 +1,8 @@
+// describe: groups related tests into a labeled block
+// it: defines a single test case
+// expect: creates an assertion to check a value matches expected condition
+// vi: Vitest's mock utility for creating fake functions
+// beforeEach: runs setup before every test (typically resets mocks)
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 /**
@@ -21,6 +26,9 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 type MockRow = Record<string, unknown>;
 
+// createStatefulDb builds an in-memory fake database tracking gift cards,
+// transactions, and sync log rows. Uses a selectQueue so tests can
+// pre-load exactly which rows each sequential SELECT will return.
 function createStatefulDb() {
   const giftCardsTable: MockRow[] = [];
   const giftCardTransactionsTable: MockRow[] = [];
@@ -121,18 +129,24 @@ function createStatefulDb() {
 /*  External API mocks                                                 */
 /* ------------------------------------------------------------------ */
 
-const mockSendEmail = vi.fn().mockResolvedValue(true);
-const mockGetEmailRecipient = vi.fn();
-const mockLogAction = vi.fn().mockResolvedValue(undefined);
-const mockGetUser = vi.fn().mockResolvedValue({ data: { user: { id: "client-1" } } });
-const mockAdminGetUser = vi.fn().mockResolvedValue({ id: "admin-1" });
-const mockRevalidatePath = vi.fn();
-const mockSquareCreate = vi.fn();
+// Shared mock handles — declared at module scope so the same reference
+// is used in both setupShopMocks() registration and test assertions
+const mockSendEmail = vi.fn().mockResolvedValue(true);          // email service
+const mockGetEmailRecipient = vi.fn();                            // email recipient resolver
+const mockLogAction = vi.fn().mockResolvedValue(undefined);       // audit log
+const mockGetUser = vi.fn().mockResolvedValue({ data: { user: { id: "client-1" } } }); // Supabase auth
+const mockAdminGetUser = vi.fn().mockResolvedValue({ id: "admin-1" }); // admin auth guard
+const mockRevalidatePath = vi.fn();                               // Next.js cache invalidation
+const mockSquareCreate = vi.fn();                                 // Square payment link creation
 
 /* ------------------------------------------------------------------ */
 /*  Setup helper                                                       */
 /* ------------------------------------------------------------------ */
 
+// setupShopMocks registers all vi.doMock() replacements after vi.resetModules().
+// Mocks the DB, schema, Drizzle ORM operators, auth, email, audit log, Square,
+// and Sentry so the real purchaseGiftCard and recordRedemption functions run
+// against the stateful in-memory DB without any external dependencies.
 function setupShopMocks(db: ReturnType<typeof createStatefulDb>) {
   vi.doMock("@/db", () => ({ db }));
   vi.doMock("@/db/schema", () => ({
@@ -224,6 +238,10 @@ function setupShopMocks(db: ReturnType<typeof createStatefulDb>) {
 /*  Tests                                                              */
 /* ------------------------------------------------------------------ */
 
+// End-to-end integration tests for the gift card lifecycle:
+// purchase (code generation, transaction recording, email), then
+// admin redemption (balance decrement, status change, error guards).
+// Each test creates a fresh stateful DB and asserts on final row state.
 describe("Gift card flow — integration", () => {
   beforeEach(() => {
     vi.clearAllMocks();

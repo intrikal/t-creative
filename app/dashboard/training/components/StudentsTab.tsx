@@ -1,3 +1,13 @@
+/**
+ * StudentsTab — renders a filterable list of enrolled students on the admin
+ * Training dashboard.
+ *
+ * Provides status filter tabs (all, active, waitlist, completed, paused).
+ * The students array is filtered client-side since the full list is already
+ * in memory from the parent page load.
+ *
+ * @module training/components/StudentsTab
+ */
 "use client";
 
 import { UserPlus } from "lucide-react";
@@ -20,6 +30,8 @@ export function StudentsTab({
   pendingIds: Set<string>;
   onDelete: (id: number) => void;
 }) {
+  // Filter students client-side based on the selected status tab.
+  // "all" shows every student; specific statuses match exactly.
   const filtered = students.filter((s) => filter === "all" || s.status === filter);
 
   return (

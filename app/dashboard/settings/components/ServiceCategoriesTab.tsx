@@ -21,16 +21,27 @@ type EditingCategory = Omit<ServiceCategoryRow, "id"> & { id?: number };
 const EMPTY: EditingCategory = { name: "", slug: "", displayOrder: 0, isActive: true };
 
 export function ServiceCategoriesTab({ initial }: { initial: ServiceCategoryRow[] }) {
+  /** Live list of categories, patched optimistically after CRUD operations. */
   const [categories, setCategories] = useState<ServiceCategoryRow[]>(initial);
+  /** The category currently being created/edited (null = form hidden). */
   const [editing, setEditing] = useState<EditingCategory | null>(null);
+  /** Whether the save action is in flight. */
   const [saving, setSaving] = useState(false);
+  /** Briefly true after a successful save to show "Saved!" feedback. */
   const [saved, setSaved] = useState(false);
+  /** ID of the category currently being deleted (to show loading state). */
   const [deleting, setDeleting] = useState<number | null>(null);
 
+  /** Populate the edit form with an existing category's data. */
   function startEdit(cat: ServiceCategoryRow) {
     setEditing({ ...cat });
   }
 
+  /**
+   * startAdd — opens the form for a new category.
+   * Auto-assigns displayOrder to max+1 so the new category sorts last.
+   * Uses .reduce() to find the highest existing order value.
+   */
   function startAdd() {
     const maxOrder = categories.reduce((max, c) => Math.max(max, c.displayOrder), 0);
     setEditing({ ...EMPTY, displayOrder: maxOrder + 1 });
@@ -71,6 +82,8 @@ export function ServiceCategoriesTab({ initial }: { initial: ServiceCategoryRow[
     }
   }
 
+  // Sort categories by displayOrder for consistent rendering.
+  // Spread into a new array to avoid mutating the state array.
   const sorted = [...categories].sort((a, b) => a.displayOrder - b.displayOrder);
 
   return (

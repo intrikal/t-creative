@@ -1,4 +1,30 @@
+/**
+ * Tests for POST /api/webhooks/square — Square payment and refund webhook.
+ *
+ * Covers:
+ *  - Signature verification: invalid HMAC-SHA256 sig (403), valid sig (200),
+ *    bypass when webhook key is not configured (empty string)
+ *  - Invalid input: malformed JSON body (400)
+ *  - Idempotency: already-processed event_id → 200 "Already processed"
+ *    without re-running handlers
+ *  - Event routing: payment.completed, payment.updated, refund.created,
+ *    and unknown event types all return 200 (never fail to Square)
+ *  - Auto-linking: payment matched to booking via squareOrderId → inserts
+ *    payment row; no match → logs for manual linking in sync_log
+ *  - Tax handling: taxMoney.amount stored as taxAmountInCents; absent
+ *    taxMoney defaults to 0
+ *
+ * Mocks: db (select/insert/update chains), Square SDK client,
+ * SQUARE_WEBHOOK_SIGNATURE_KEY (toggled per test), Sentry.
+ * Uses per-test vi.resetModules + vi.doMock to swap DB mock behaviour.
+ */
+// createHmac: Node crypto function used to build valid HMAC-SHA256 signatures for webhook verification
 import { createHmac } from "crypto";
+// describe: groups related tests into a labeled block (like a folder for tests)
+// it/test: defines a single test case with a description and assertion function
+// expect: creates an assertion — checks that a value matches an expected condition
+// vi: Vitest's mock utility — creates fake functions, spies on calls, and controls return values
+// beforeEach: runs a setup function before every test in the current describe block
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 /* ------------------------------------------------------------------ */

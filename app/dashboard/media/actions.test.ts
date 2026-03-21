@@ -1,9 +1,20 @@
+/**
+ * @file actions.test.ts
+ * @description Unit tests for media/actions (media items listing, stats,
+ * file upload to Supabase storage, publish/featured toggling, deletion).
+ *
+ * Testing utilities: describe, it, expect, vi, vi.doMock, vi.resetModules,
+ * vi.clearAllMocks, beforeEach.
+ */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 /* ------------------------------------------------------------------ */
 /*  Chainable DB mock helper                                           */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Creates a chainable mock that mimics Drizzle's query-builder API.
+ */
 function makeChain(rows: unknown[] = []) {
   const resolved = Promise.resolve(rows);
   const chain: any = {
@@ -24,16 +35,19 @@ function makeChain(rows: unknown[] = []) {
 /*  Shared mock refs                                                   */
 /* ------------------------------------------------------------------ */
 
+/** Stub for supabase auth.getUser. */
 const mockGetUser = vi.fn();
+/** Captures revalidatePath calls. */
 const mockRevalidatePath = vi.fn();
 
-// Supabase storage mocks
+// Supabase storage mocks — stubs for the storage.from().upload/remove/getPublicUrl chain
 const mockStorageUpload = vi.fn().mockResolvedValue({ error: null });
 const mockStorageRemove = vi.fn().mockResolvedValue({ error: null });
 const mockStorageGetPublicUrl = vi.fn(() => ({
   data: { publicUrl: "https://cdn.example.com/photo.jpg" },
 }));
 
+/** Assembles the storage bucket mock object returned by supabase.storage.from(). */
 function makeStorage() {
   return {
     upload: mockStorageUpload,
@@ -42,6 +56,7 @@ function makeStorage() {
   };
 }
 
+/** Registers all module mocks; accepts optional custom db object. */
 function setupMocks(db: Record<string, unknown> | null = null) {
   const defaultDb = {
     select: vi.fn(() => makeChain([])),

@@ -1,13 +1,20 @@
 /**
  * Events — Showcase event offerings (parties, pop-ups, bridal, corporate).
  *
+ * Used on the landing page to promote group/event services.
  * Client Component — uses Framer Motion for staggered scroll-reveal.
+ *
+ * Props (all optional):
+ * - eventDescriptions: override event titles/descriptions from admin dashboard.
+ *   Falls back to FALLBACK_EVENTS when not provided (first deploy or no admin config).
  */
 "use client";
 
 import Link from "next/link";
 import { motion } from "framer-motion";
 
+// Default event descriptions used when no admin-configured events are provided.
+// Array of {title, description} objects — same shape as the optional prop.
 const FALLBACK_EVENTS = [
   {
     title: "Private Lash Parties",
@@ -31,6 +38,9 @@ const FALLBACK_EVENTS = [
   },
 ];
 
+// Metadata lookup — maps event titles to detail text and zone color.
+// Record<string, ...> chosen over an array because lookups are by title (O(1) vs O(n)).
+// Falls back to DEFAULT_DETAIL for any unrecognized event title.
 const EVENT_DETAILS: Record<string, { detail: string; color: string }> = {
   "Private Lash Parties": { detail: "Up to 6 guests", color: "#C4907A" },
   "Pop-Up Events": { detail: "Travel available", color: "#D4A574" },
@@ -45,6 +55,7 @@ export function Events({
 }: {
   eventDescriptions?: { title: string; description: string }[];
 } = {}) {
+  // Nullish coalescing: use prop events if provided, otherwise fall back to hardcoded defaults.
   const events = eventDescriptions ?? FALLBACK_EVENTS;
   return (
     <section className="py-28 md:py-40 px-6 bg-surface" aria-label="Events">
@@ -69,6 +80,9 @@ export function Events({
         </motion.div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-12">
+          {/* .map() renders event cards with stagger delay (i * 0.1).
+              Each iteration looks up metadata via EVENT_DETAILS[event.title] with nullish
+              coalescing fallback to DEFAULT_DETAIL for any title not in the lookup. */}
           {events.map((event, i) => {
             const meta = EVENT_DETAILS[event.title] ?? DEFAULT_DETAIL;
             return (

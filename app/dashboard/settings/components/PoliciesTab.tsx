@@ -21,10 +21,18 @@ import { savePolicies } from "../settings-actions";
 import { FieldRow, ToggleRow, StatefulSaveButton, NUM_INPUT_CLASS } from "./shared";
 
 export function PoliciesTab({ initial }: { initial: PolicySettings }) {
+  /** Full policy config object — spread-updated on each field change. */
   const [data, setData] = useState(initial);
+  /** Whether the save action is in flight. */
   const [saving, setSaving] = useState(false);
+  /** Briefly true after a successful save to show "Saved!" feedback. */
   const [saved, setSaved] = useState(false);
 
+  /**
+   * updateNum — parses a numeric input string and updates one policy field.
+   * Uses computed property key so a single function handles all numeric fields.
+   * NaN values are silently ignored to prevent invalid state.
+   */
   function updateNum(key: keyof PolicySettings, raw: string) {
     const n = parseInt(raw, 10);
     if (!isNaN(n)) setData((prev) => ({ ...prev, [key]: n }));

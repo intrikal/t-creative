@@ -1,3 +1,11 @@
+/**
+ * ListView — Compact day-grouped appointment list for the current week.
+ *
+ * Groups appointments by their dayLabel (e.g. "Mon, Mar 17") and renders
+ * each group as a card with clickable rows. Each row shows category dot,
+ * time, client avatar, service name, duration, optional location, price,
+ * and status badge. A "Today" pill highlights the current day's group.
+ */
 "use client";
 
 import { Building2, Clock, MapPin } from "lucide-react";
@@ -17,7 +25,9 @@ export function ListView({
   todayLabel: string;
   onApptClick: (a: AppointmentRow) => void;
 }) {
-  // Group by day
+  // reduce: group appointments into a Record keyed by dayLabel so each
+  // day renders as a separate card. Nullish coalescing (??=) initialises
+  // the array on first encounter of a new day key.
   const byDay = appointments.reduce<Record<string, AppointmentRow[]>>((acc, a) => {
     (acc[a.dayLabel] ??= []).push(a);
     return acc;
@@ -44,7 +54,9 @@ export function ListView({
               </span>
             )}
             <span className="text-xs text-muted">
+              {/* ternary: pluralise "appointment(s)" */}
               {appts.length} appointment{appts.length !== 1 ? "s" : ""} · $
+              {/* reduce: sum prices for the day's total revenue badge */}
               {appts.reduce((s, a) => s + a.price, 0)}
             </span>
           </div>

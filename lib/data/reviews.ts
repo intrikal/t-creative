@@ -10,23 +10,61 @@
  * Trini controls which reviews are featured from the admin dashboard.
  */
 
+/**
+ * Lifecycle status of a review. Trini moves reviews through these states
+ * from the admin dashboard. Only "featured" reviews appear on the public
+ * landing page; "approved" reviews are visible in the client portal but
+ * not highlighted; "pending" awaits moderation; "hidden" is soft-deleted.
+ */
 export type ReviewStatus = "pending" | "approved" | "featured" | "hidden";
+
+/**
+ * Where the review originated. Used for attribution tracking and icon
+ * display in the admin Reviews table.
+ */
 export type ReviewSource = "google" | "website" | "instagram" | "yelp";
+
+/**
+ * Business vertical the review is associated with. Maps 1:1 to the zone
+ * IDs used across the booking system and 3D landing page.
+ */
 export type ServiceCategory = "lash" | "jewelry" | "crochet" | "consulting" | "training";
 
+/**
+ * Shape of a single review row. Mirrors the DB `reviews` table joined with
+ * the client's profile (for display name / initials). When the backend is
+ * wired up, this interface should be replaced by the Drizzle select type.
+ */
 export interface Review {
+  /** Auto-incrementing primary key. */
   id: number;
+  /** Full display name from the client's profile. */
   client: string;
+  /** Two-letter initials used as avatar fallback when no photo exists. */
   initials: string;
+  /** 1–5 star rating. */
   rating: number;
+  /** Business vertical the review pertains to. */
   service: ServiceCategory;
+  /** Platform the review was originally submitted on. */
   source: ReviewSource;
+  /** Human-readable date string (e.g. "Feb 20, 2026"). */
   date: string;
+  /** The review body written by the client. */
   text: string;
+  /** Current moderation status — controls visibility on public pages. */
   status: ReviewStatus;
+  /** Optional staff reply shown beneath the review on public pages. */
   reply?: string;
 }
 
+/**
+ * Hardcoded review data used while the reviews backend is being built.
+ * Consumed by both the admin Reviews dashboard (all statuses) and the
+ * public Testimonials section (only `status === "featured"`).
+ *
+ * Replace with a server action / DB query once the `reviews` table is live.
+ */
 export const MOCK_REVIEWS: Review[] = [
   {
     id: 1,
@@ -122,6 +160,12 @@ export const MOCK_REVIEWS: Review[] = [
   },
 ];
 
+/**
+ * Aggregate star-rating distribution shown in the admin Reviews summary
+ * card. Each entry contains the star count, absolute count, and
+ * pre-computed percentage. Updated manually until the real-time
+ * aggregation query is in place.
+ */
 export const RATING_DIST = [
   { stars: 5, count: 31, pct: 74 },
   { stars: 4, count: 7, pct: 17 },

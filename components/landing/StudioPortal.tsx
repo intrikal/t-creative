@@ -27,6 +27,8 @@ import { Button } from "@/components/ui/Button";
 import { ZONES } from "@/lib/zones";
 import { useStudioStore } from "@/stores/useStudioStore";
 
+// Dynamic import with ssr:false — Three.js/R3F requires WebGL which only exists in the browser.
+// .then((mod) => mod.ScrollQuietRoom) extracts the named export for next/dynamic.
 const ScrollQuietRoom = dynamic(
   () => import("@/components/three/ScrollQuietRoom").then((mod) => mod.ScrollQuietRoom),
   {
@@ -35,7 +37,9 @@ const ScrollQuietRoom = dynamic(
   },
 );
 
-/** Zone overlay data — minimal text that appears when camera focuses each zone */
+// Zone overlay definitions — each maps to a camera position in the 3D scene.
+// enterFrom controls which side the text slides in from, alternating left/right
+// to create visual rhythm as the camera pans through zones.
 const ZONE_OVERLAYS = [
   {
     id: "lash" as const,
@@ -68,10 +72,17 @@ const ZONE_OVERLAYS = [
 ];
 
 export function StudioPortal() {
+  // useRef tracks the 300vh section for scroll progress measurement.
   const ref = useRef<HTMLElement>(null);
+  // use3D: whether device supports WebGL + is desktop + allows motion.
+  // Starts false; set in useEffect after capability detection.
   const [use3D, setUse3D] = useState(false);
+  // scrollValue: numeric 0→1 mirror of scrollYProgress, needed to pass as a plain
+  // number prop to the 3D scene component (which can't consume MotionValues directly).
   const [scrollValue, setScrollValue] = useState(0);
+  // Destructuring Zustand store — mode for view state, enterStudio for the CTA action.
   const { mode, enterStudio } = useStudioStore();
+  // Derived boolean for conditional rendering of overlays.
   const isInStudio = mode !== "landing";
 
   const { scrollYProgress } = useScroll({
@@ -79,7 +90,10 @@ export function StudioPortal() {
     offset: ["start start", "end start"],
   });
 
-  // Track scroll value for passing to 3D scene
+  // useMotionValueEvent subscribes to MotionValue changes and syncs to React state.
+  // This bridge is needed because the 3D scene (ScrollQuietRoom) accepts a plain number
+  // prop, not a MotionValue. Cannot use useTransform because R3F components re-render
+  // on prop changes, not on MotionValue changes.
   useMotionValueEvent(scrollYProgress, "change", (v) => {
     setScrollValue(v);
   });
@@ -91,7 +105,10 @@ export function StudioPortal() {
   const introOpacity = useTransform(scrollYProgress, [0, 0.06, 0.16, 0.28], [0, 1, 1, 0]);
   const introY = useTransform(scrollYProgress, [0, 0.28], ["0%", "-8%"]);
 
-  // Determine which zone overlay to show based on scroll
+  // Nested ternary maps scroll progress to the active zone index (0–3) or -1 (no zone).
+  // The scroll range 0.5→1.0 is divided into 4 equal segments (each ~12.5% of scroll).
+  // Ternary chain chosen over an if/else or lookup table because it's a simple linear
+  // partition — each threshold maps to exactly one zone in sequence.
   const activeZoneIndex =
     scrollValue < 0.5
       ? -1
@@ -103,6 +120,10 @@ export function StudioPortal() {
             ? 2
             : 3;
 
+  // useEffect runs once on mount to detect device capabilities (motion preference, screen
+  // width, WebGL support). Cannot run during render because it accesses browser-only APIs.
+  // startTransition wraps the state update so the fallback renders immediately while
+  // 3D capability is resolved as a non-urgent update.
   useEffect(() => {
     const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const isMobile = window.innerWidth < 768;
@@ -121,7 +142,8 @@ export function StudioPortal() {
   return (
     <section ref={ref} id="studio" className="relative h-[300vh]" aria-label="Interactive studio">
       <div className="sticky top-0 h-screen overflow-hidden bg-[#faf6f1]">
-        {/* 3D canvas */}
+        {/* Conditional render: 3D canvas vs. static fallback based on device capability.
+            Ternary rather than && because both branches need the same opacity wrapper. */}
         {use3D ? (
           <motion.div style={{ opacity: canvasOpacity }} className="absolute inset-0">
             <Suspense fallback={<HeroFallback />}>
@@ -179,7 +201,9 @@ export function StudioPortal() {
           </motion.div>
         )}
 
-        {/* Zone overlay text — appears when camera focuses each zone */}
+        {/* Conditional render: zone overlay text only shows when NOT in free-explore studio mode
+            AND when scroll has progressed past the 50% threshold (activeZoneIndex >= 0).
+            key={...id} forces AnimatePresence to animate between zone transitions. */}
         {!isInStudio && activeZoneIndex >= 0 && (
           <ZoneOverlayText
             key={ZONE_OVERLAYS[activeZoneIndex].id}
@@ -209,9 +233,19 @@ export function StudioPortal() {
   );
 }
 
-/** Fixed overlay text for a zone — enters from opposite side of camera movement */
+/**
+ * ZoneOverlayText — Fixed-position text card for a service zone during scroll exploration.
+ *
+ * Props:
+ * - overlay: zone overlay data including id, name, tagline, CTA, and entrance direction
+ *
+ * Enters with a clip-path reveal from the specified side (left or right), creating a
+ * wipe-in effect that matches the camera's movement direction in the 3D scene.
+ */
 function ZoneOverlayText({ overlay }: { overlay: (typeof ZONE_OVERLAYS)[number] }) {
+  // Look up full zone config (color, heading, etc.) from the shared ZONES registry.
   const zone = ZONES[overlay.id];
+  // Boolean to control which side the clip-path wipe originates from.
   const isLeft = overlay.enterFrom === "left";
 
   return (

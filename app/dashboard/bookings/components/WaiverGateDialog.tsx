@@ -1,3 +1,20 @@
+/**
+ * Waiver gate dialog — blocks booking confirmation when required waivers
+ * are unsigned. Lists missing waivers and lets admin send the client
+ * a waiver completion link via email. Shows success confirmation once sent.
+ *
+ * Parent: app/dashboard/bookings/BookingsPage.tsx
+ *
+ * State:
+ *   sending — true while the sendWaiverLink server action is in flight
+ *   sent    — flips to true on success, switches UI to confirmation view
+ *   error   — error message if the email send fails
+ *
+ * Key operations:
+ *   handleSendLink — calls sendWaiverLink server action, toggles sent/error
+ *   handleClose    — resets sent/error state before closing so next open is clean
+ *   missingWaivers.map() — renders each unsigned form as a row with icon + type badge
+ */
 "use client";
 
 import { useState } from "react";

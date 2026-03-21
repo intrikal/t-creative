@@ -19,6 +19,12 @@ interface PolicyValues {
   noShowFeePercent: number;
 }
 
+/**
+ * Replaces {placeholder} tokens in answer text with actual policy values.
+ * Chained .replace() calls with regex /g flag for global replacement.
+ * String.replace chosen over a template engine because there are only 4 known tokens —
+ * a full template parser would be overkill. String() coerces numbers to strings for insertion.
+ */
 function interpolatePolicies(text: string, policies: PolicyValues): string {
   return text
     .replace(/\{depositPercent\}/g, String(policies.depositPercent))
@@ -27,6 +33,9 @@ function interpolatePolicies(text: string, policies: PolicyValues): string {
     .replace(/\{noShowFeePercent\}/g, String(policies.noShowFeePercent));
 }
 
+// Default FAQ entries used when no admin-configured entries are provided.
+// Each has a question and answer. Answers may contain {placeholder} tokens
+// that get interpolated with policy values when the policies prop is provided.
 const FALLBACK_QUESTIONS = [
   {
     question: "Where are you located?",
@@ -60,7 +69,16 @@ const FALLBACK_QUESTIONS = [
   },
 ];
 
+/**
+ * FAQItem — Single accordion item with animated expand/collapse.
+ *
+ * Props:
+ * - question: the FAQ question text (button label)
+ * - answer: the answer text (revealed on click)
+ */
 function FAQItem({ question, answer }: { question: string; answer: string }) {
+  // open: boolean tracking whether this accordion item is expanded.
+  // Local state (not lifted) because each FAQ item toggles independently.
   const [open, setOpen] = useState(false);
 
   return (
@@ -76,6 +94,8 @@ function FAQItem({ question, answer }: { question: string; answer: string }) {
           className={`w-4 h-4 text-muted shrink-0 transition-transform duration-300 ${open ? "rotate-180" : ""}`}
         />
       </button>
+      {/* AnimatePresence enables the height collapse animation on exit.
+          Conditional render: answer content only mounts when open is true. */}
       <AnimatePresence>
         {open && (
           <motion.div
@@ -93,6 +113,13 @@ function FAQItem({ question, answer }: { question: string; answer: string }) {
   );
 }
 
+/**
+ * FAQ — Accordion FAQ section.
+ *
+ * Props (all optional):
+ * - entries: FAQ question/answer pairs from admin dashboard. Falls back to FALLBACK_QUESTIONS.
+ * - policies: business policy values for token interpolation in answers (deposit %, cancel window, etc.)
+ */
 export function FAQ({
   entries,
   policies,
@@ -100,6 +127,7 @@ export function FAQ({
   entries?: { question: string; answer: string }[];
   policies?: PolicyValues;
 }) {
+  // Nullish coalescing: use admin-provided entries or fall back to hardcoded defaults.
   const questions = entries ?? FALLBACK_QUESTIONS;
   return (
     <section className="py-28 md:py-40 px-6 bg-background" aria-label="FAQ">
@@ -123,6 +151,9 @@ export function FAQ({
           viewport={{ once: true }}
           transition={{ duration: 0.6, delay: 0.2 }}
         >
+          {/* .map() renders one FAQItem per question. key={item.question} uses the question
+              text as a stable key since questions are unique. Ternary on policies: if policy
+              values are provided, interpolate tokens in the answer; otherwise use raw text. */}
           {questions.map((item) => (
             <FAQItem
               key={item.question}

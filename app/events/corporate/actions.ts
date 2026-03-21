@@ -43,6 +43,21 @@ const serviceLabels: Record<string, string> = {
   both: "Lash Extensions & Permanent Jewelry",
 };
 
+/**
+ * Processes a corporate event inquiry form submission.
+ *
+ * 1. Validates all fields with Zod (corporateInquirySchema).
+ * 2. Verifies the Cloudflare Turnstile bot-check token.
+ * 3. Builds a structured message string from the corporate fields (company name,
+ *    event type, headcount, preferred date, details).
+ * 4. Inserts a row:
+ *    INSERT INTO inquiries (name, email, phone, interest, message, status)
+ *    VALUES (<contactName>, <email>, <phone>, 'consulting', <message>, 'new')
+ *    RETURNING id
+ *    → interest is always "consulting" for corporate events.
+ * 5. Fires a PostHog analytics event.
+ * 6. Sends an email notification to the admin with all inquiry details.
+ */
 export async function submitCorporateInquiry(
   data: CorporateInquiryInput,
 ): Promise<{ success: true } | { success: false; error: string }> {

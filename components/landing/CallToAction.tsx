@@ -1,7 +1,11 @@
 /**
  * CallToAction — Final conversion section with booking and ecosystem CTAs.
  *
+ * Used at the bottom of the landing page to drive bookings and exploration.
  * Client Component — uses Framer Motion for scroll-triggered fade-in animation.
+ * Fires PostHog analytics events on CTA clicks.
+ *
+ * No props — copy and links are static.
  */
 "use client";
 

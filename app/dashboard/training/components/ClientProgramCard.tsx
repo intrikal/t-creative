@@ -35,9 +35,11 @@ export function ClientProgramCard({
   onEnroll: () => void;
   onWaitlist: () => void;
 }) {
+  /** Whether the "What you'll learn" module list is expanded. */
   const [expanded, setExpanded] = useState(false);
   const style = PROG_STYLE[program.type];
   const isFull = program.spotsLeft === 0;
+  /** Fill bar percentage — how full the program is (enrolled / max * 100). */
   const fillPct = Math.round(((program.maxSpots - program.spotsLeft) / program.maxSpots) * 100);
 
   return (

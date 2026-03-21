@@ -1,3 +1,8 @@
+// describe: groups related tests into a labeled block
+// it: defines a single test case
+// expect: creates an assertion to check a value matches expected condition
+// vi: Vitest's mock utility for creating fake functions and spying on calls
+// beforeEach: runs setup before every test (typically resets mocks)
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 /* ------------------------------------------------------------------ */
@@ -31,6 +36,8 @@ function makeChain(rows: unknown[] = []) {
 /*  Shared mock refs                                                   */
 /* ------------------------------------------------------------------ */
 
+// vi.fn(): creates a mock function that records how it was called.
+// mockGetUser simulates Supabase auth -- tests set its return value to control authentication state.
 const mockGetUser = vi.fn();
 const mockRevalidatePath = vi.fn();
 
@@ -38,6 +45,8 @@ const mockRevalidatePath = vi.fn();
 /*  setupMocks                                                         */
 /* ------------------------------------------------------------------ */
 
+// Registers vi.doMock() calls for all external dependencies (DB, auth, schema, Sentry, etc.)
+// so the imported server actions run against fakes instead of real services.
 function setupMocks(db: Record<string, any> | null = null) {
   const defaultDb = {
     select: vi.fn(() => makeChain([])),

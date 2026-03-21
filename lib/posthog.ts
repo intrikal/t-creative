@@ -17,7 +17,14 @@ export function isPostHogConfigured(): boolean {
   return !!apiKey;
 }
 
-/** Lazy-initialized PostHog client. */
+/**
+ * Lazy-initialized PostHog client singleton.
+ *
+ * `flushAt: 1` and `flushInterval: 0` means events are sent immediately
+ * rather than batched. This is intentional for server-side usage where
+ * the process may terminate between requests (serverless) — batching
+ * risks dropping events that haven't been flushed yet.
+ */
 let _posthog: PostHog | null = null;
 function getPostHogServer(): PostHog {
   if (!_posthog) {
@@ -27,8 +34,15 @@ function getPostHogServer(): PostHog {
 }
 
 /**
- * Track a server-side event. Non-fatal — catches errors so analytics
- * failures never break the main flow.
+ * Track a server-side event in PostHog.
+ *
+ * Non-fatal — catches and reports errors to Sentry so analytics
+ * failures never break the main flow. No-ops silently when PostHog
+ * is not configured (dev / preview environments).
+ *
+ * @param distinctId - The user identifier (typically profiles.id UUID).
+ * @param event - Event name (e.g. "booking_created", "review_submitted").
+ * @param properties - Optional key-value metadata attached to the event.
  */
 export function trackEvent(
   distinctId: string,
@@ -45,8 +59,14 @@ export function trackEvent(
 }
 
 /**
- * Identify a user with person properties. Call after auth to link
- * anonymous pageviews to the real user profile.
+ * Identify a user with person properties in PostHog.
+ *
+ * Call after authentication to merge the anonymous session with the
+ * real user profile. Properties typically include email, role, and
+ * any profile metadata useful for segmentation.
+ *
+ * @param distinctId - The user identifier (profiles.id UUID).
+ * @param properties - Person properties to set (e.g. { email, role, plan }).
  */
 export function identifyUser(distinctId: string, properties: Record<string, unknown>): void {
   if (!isPostHogConfigured()) return;

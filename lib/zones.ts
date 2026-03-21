@@ -4,33 +4,59 @@
  * Each zone maps to a business vertical (lash & skin, jewelry, craft, consulting)
  * with associated camera positions, platform sizes, and marketing copy.
  * All spatial units are meters (1 unit ≈ 1 meter).
+ *
+ * Consumed by the Three.js landing page scene (`app/(public)/page.tsx`)
+ * and the zone navigation UI. Changes here directly affect camera
+ * animations, pedestal placement, and the marketing text overlays.
+ *
+ * Coordinate system: Y is up, camera faces -Z. The room is centered
+ * at [0, 0, -5] with dimensions 14 wide x 10 deep x 4.5 tall.
+ *
+ * @module lib/zones
  */
 export type ZoneId = "lash" | "jewelry" | "crochet" | "consulting";
 
+/**
+ * Full definition for a single zone in the 3D studio scene.
+ * Contains both marketing copy (label, heading, description, CTA) and
+ * spatial data (camera angles, pedestal placement, platform dimensions).
+ */
 export interface ZoneDefinition {
+  /** Unique identifier matching the business vertical. */
   id: ZoneId;
+  /** Short display name shown in the zone navigation bar. */
   label: string;
+  /** Tagline shown beneath the label in the zone overlay. */
   subtitle: string;
+  /** Full heading for the zone detail panel. */
   heading: string;
+  /** Marketing body copy shown in the zone detail panel. */
   description: string;
+  /** Call-to-action button — label text and route to navigate to. */
   cta: { label: string; href: string };
+  /** Brand color for this zone (hex) — used for accent borders, glows, and UI highlights. */
   color: string;
+  /** Where the camera moves to when this zone is selected [x, y, z] in meters. */
   cameraPosition: [number, number, number];
+  /** Point the camera aims at when this zone is selected [x, y, z] in meters. */
   cameraLookAt: [number, number, number];
+  /** World position of the display pedestal (product showcase platform) [x, y, z]. */
   pedestalPosition: [number, number, number];
-  /** Platform width (X) and depth (Z) — lash zone is largest */
+  /** Platform width (X) and depth (Z) in meters — lash zone is largest. */
   platformSize: [number, number];
-  /** Height for the HTML zone label above the display */
+  /** Height (Y) for the HTML zone label floating above the display pedestal. */
   labelHeight: number;
 }
 
 /**
- * Camera positions for non-zone states.
+ * Camera positions for non-zone states (no zone selected).
  *
- * HERO_CAMERA: Pulled-back landing page view.
- * CENTER_CAMERA: Inside room, surveying all four zones.
+ * HERO_CAMERA: Pulled-back landing page view — positioned outside
+ * the room looking in, used on initial page load before the user
+ * interacts with any zone.
  *
- * Room is 14 wide × 10 deep × 4.5 tall, centered at [0, 0, -5].
+ * CENTER_CAMERA: Inside the room, high enough to see all four zones.
+ * Used when the user clicks "back" from a zone view.
  */
 export const HERO_CAMERA = {
   position: [0, 2.8, 9] as [number, number, number],
@@ -118,6 +144,11 @@ export const ZONES: Record<ZoneId, ZoneDefinition> = {
   },
 };
 
+/**
+ * Navigation order for zone cycling (arrow keys, mobile swipe).
+ * Follows a clockwise path through the room starting from the
+ * primary business vertical (lash studio).
+ */
 export const ZONE_ORDER = [
   "lash",
   "jewelry",

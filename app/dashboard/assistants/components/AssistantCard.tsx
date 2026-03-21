@@ -1,3 +1,16 @@
+/**
+ * AssistantCard — Expandable card for a single assistant/staff member.
+ *
+ * Collapsed view: avatar, name, status badge, skill tags, and three KPI
+ * metrics (sessions this month, avg rating, all-time revenue).
+ *
+ * Expanded view: contact info, editable commission & tip-split settings,
+ * shift schedule, certifications, recent sessions, and a status toggle.
+ *
+ * Commission editing is inline (no dialog) — the admin clicks the pencil
+ * icon, edits values, and saves. This avoids modal fatigue when updating
+ * multiple assistants in sequence.
+ */
 "use client";
 
 import { useState } from "react";
@@ -51,8 +64,11 @@ export function AssistantCard({
     },
   ) => void;
 }) {
+  /** expanded: whether the card's detail section is visible */
   const [expanded, setExpanded] = useState(false);
+  /** editingCommission: toggles the inline commission editor form */
   const [editingCommission, setEditingCommission] = useState(false);
+  /** draft: local working copy of commission settings while editing */
   const [draft, setDraft] = useState<CommissionDraft>({
     commissionType: assistant.commissionType,
     commissionRate: String(assistant.commissionRate ?? 60),
@@ -61,6 +77,8 @@ export function AssistantCard({
   });
   const status = statusConfig(assistant.status);
 
+  // ternary: cycle between active ↔ on_leave; inactive always goes to active.
+  // This maps to the single toggle button shown at the card's bottom.
   const nextStatus: AssistantStatus =
     assistant.status === "active"
       ? "on_leave"
@@ -98,7 +116,8 @@ export function AssistantCard({
     setEditingCommission(false);
   }
 
-  // Display label for current commission setting
+  // ternary: format the commission value as either a dollar flat-fee
+  // per session or a percentage of revenue, matching the stored type
   const commissionLabel =
     assistant.commissionType === "flat_fee"
       ? `$${((assistant.commissionFlatFee ?? 0) / 100).toFixed(0)}/session`
@@ -122,6 +141,7 @@ export function AssistantCard({
             </div>
             <p className="text-xs text-muted mt-0.5">{assistant.role}</p>
             <div className="flex flex-wrap gap-1 mt-2">
+              {/* map: render one colour-coded pill per skill tag */}
               {assistant.skills.map((s) => {
                 const sk = skillTag(s);
                 return (

@@ -1,3 +1,27 @@
+/**
+ * Tests for GET /api/cron/birthdays — birthday greeting email with promo code.
+ *
+ * Covers:
+ *  - Auth: missing or wrong x-cron-secret returns 401
+ *  - No-op: no profiles with today's birthday → zero counts, no email sent
+ *  - Happy path: one birthday profile → generates BDAY-xxxx promo code,
+ *    inserts promotion row, sends birthday greeting email with 10% discount,
+ *    returns matched=1, sent=1
+ *  - Default discount: no settings row → falls back to 5% discount
+ *  - Failure counting: sendEmail returns false → sent=0, failed=1
+ *  - Deduplication: existing sync_log entry for this profile+year → skipped
+ *  - Null email: profile with no email → skipped silently
+ *  - Multiple profiles: two birthday profiles, second already sent →
+ *    processes first (sent=1), skips second
+ *
+ * Mocks: db (select/insert chains), sendEmail, BirthdayGreeting component,
+ * settings-actions (loyaltyConfig, businessProfile).
+ */
+// describe: groups related tests into a labeled block (like a folder for tests)
+// it/test: defines a single test case with a description and assertion function
+// expect: creates an assertion — checks that a value matches an expected condition
+// vi: Vitest's mock utility — creates fake functions, spies on calls, and controls return values
+// beforeEach: runs a setup function before every test in the current describe block
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 /* ------------------------------------------------------------------ */

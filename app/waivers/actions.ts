@@ -66,6 +66,23 @@ const DEFAULT_FIELDS: Record<string, WaiverFormField[]> = {
 /**
  * Load all data needed for the waiver completion page.
  * Verifies the token and returns the required forms that haven't been completed.
+ *
+ * Step 1 — Fetch the booking and its service:
+ *   SELECT bookings.clientId, services.name, services.category, bookings.startsAt
+ *   FROM   bookings
+ *   INNER JOIN services ON bookings.serviceId = services.id
+ *     → pulls the service name and category so we know which waivers apply
+ *   WHERE  bookings.id = <bookingId from token>
+ *
+ * Step 2 — Fetch all required, active forms:
+ *   SELECT * FROM client_forms WHERE isActive = true AND required = true
+ *   → then filter in JS to keep forms whose `appliesTo` includes "All" or the category
+ *
+ * Step 3 — Check which forms this client already submitted:
+ *   SELECT formId FROM form_submissions
+ *   WHERE  clientId = <clientId> AND formId IN (<applicable form IDs>)
+ *
+ * Step 4 — Return only the forms NOT yet submitted (the pending waivers).
  */
 export async function getWaiverPageData(token: string): Promise<WaiverPageData | null> {
   const payload = verifyWaiverToken(token);
@@ -95,6 +112,11 @@ export async function getWaiverPageData(token: string): Promise<WaiverPageData |
 
   const categoryLabel =
     booking.serviceCategory.charAt(0).toUpperCase() + booking.serviceCategory.slice(1);
+  // Filter to forms whose appliesTo array contains either "All" (universal) or
+  // the capitalised service category (e.g. "Lash"). Done in JS rather than SQL
+  // because appliesTo is a JSON array column and Drizzle doesn't natively
+  // support array-contains queries on JSON — a client-side filter on a small
+  // dataset (~5–10 forms) is simpler and fast enough.
   const applicableForms = allForms.filter(
     (f) => f.appliesTo.includes("All") || f.appliesTo.includes(categoryLabel),
   );
@@ -121,6 +143,9 @@ export async function getWaiverPageData(token: string): Promise<WaiverPageData |
     .where(
       and(
         eq(formSubmissions.clientId, clientId),
+        // Extract form IDs into a flat number[] for the SQL IN clause. Using
+        // .map() to pluck a single field avoids passing full form objects into
+        // the query builder.
         inArray(
           formSubmissions.formId,
           applicableForms.map((f) => f.id),
@@ -128,7 +153,12 @@ export async function getWaiverPageData(token: string): Promise<WaiverPageData |
       ),
     );
 
+  // Build a Set of already-submitted form IDs for O(1) membership checks.
+  // A Set is preferred over an array + .includes() because the subsequent
+  // .filter() runs once per applicable form, and Set.has is constant-time.
   const submittedIds = new Set(submissions.map((s) => s.formId));
+  // Keep only forms the client has NOT yet submitted — these are the waivers
+  // still pending completion.
   const pendingForms = applicableForms.filter((f) => !submittedIds.has(f.id));
 
   return {
@@ -141,6 +171,9 @@ export async function getWaiverPageData(token: string): Promise<WaiverPageData |
       day: "numeric",
       year: "numeric",
     }),
+    // Reshape each pending form into the WaiverForm type the client page expects.
+    // Falls back to DEFAULT_FIELDS when the form has no custom field definitions
+    // stored in the DB (null), so the UI always has a renderable field list.
     forms: pendingForms.map((f) => ({
       id: f.id,
       name: f.name,
@@ -152,7 +185,20 @@ export async function getWaiverPageData(token: string): Promise<WaiverPageData |
 }
 
 /**
- * Submit a completed waiver form. Token-authenticated.
+ * Submit a completed waiver form. Token-authenticated (no session needed).
+ *
+ * Step 1 — Verify the form exists and is active:
+ *   SELECT id, name FROM client_forms
+ *   WHERE  id = <formId> AND isActive = true
+ *
+ * Step 2 — Check for duplicate submission (idempotency):
+ *   SELECT id FROM form_submissions
+ *   WHERE  clientId = <clientId> AND formId = <formId>
+ *   → if already submitted, return success without inserting again.
+ *
+ * Step 3 — Insert the submission:
+ *   INSERT INTO form_submissions (clientId, formId, data, signatureUrl, formVersion, ipAddress)
+ *   VALUES (...)
  */
 export async function submitWaiverForm(
   token: string,

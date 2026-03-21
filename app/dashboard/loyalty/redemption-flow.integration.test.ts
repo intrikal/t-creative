@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 /**
+ * @file redemption-flow.integration.test.ts
  * Integration tests for the full loyalty redemption flow.
  *
  * These tests verify the complete lifecycle: reward creation by admin,
@@ -15,6 +16,10 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 type MockRow = Record<string, unknown>;
 
+/**
+ * Creates a mock DB that tracks loyalty transactions, rewards, and
+ * redemptions in memory. Test assertions read the _xxx arrays.
+ */
 function createStatefulDb() {
   const loyaltyTransactions: MockRow[] = [];
   const loyaltyRewards: MockRow[] = [];
@@ -119,9 +124,12 @@ function createStatefulDb() {
 /*  Shared setup                                                       */
 /* ------------------------------------------------------------------ */
 
+/** Stub for supabase auth.getUser. */
 const mockGetUser = vi.fn();
+/** Captures revalidatePath calls. */
 const mockRevalidatePath = vi.fn();
 
+/** Registers all module mocks using the stateful DB instance. */
 function setupIntegrationMocks(db: ReturnType<typeof createStatefulDb>) {
   vi.doMock("@/db", () => ({ db }));
   vi.doMock("@/db/schema", () => ({

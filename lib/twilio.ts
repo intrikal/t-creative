@@ -28,6 +28,8 @@ export function isTwilioConfigured(): boolean {
 /**
  * Fetch a profile's phone + notifySms preference.
  * Returns null if profile not found, phone missing, or SMS notifications disabled.
+ *
+ * Same opt-out enforcement pattern as `getEmailRecipient()` in lib/resend.ts.
  */
 export async function getSmsRecipient(
   profileId: string,
@@ -45,7 +47,13 @@ export async function getSmsRecipient(
   return { phone: row.phone, firstName: row.firstName };
 }
 
-/** Lazy-initialized Twilio client (avoids constructor throw when creds are missing). */
+/**
+ * Lazy-initialized Twilio client.
+ *
+ * Same pattern as lib/resend.ts — the Twilio SDK validates credentials
+ * at construction time. Lazy init lets the module import safely when
+ * env vars are missing (local dev, CI).
+ */
 let _twilio: ReturnType<typeof twilio> | null = null;
 function getTwilioClient(): ReturnType<typeof twilio> {
   if (!_twilio) {

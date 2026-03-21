@@ -31,12 +31,16 @@ export function PaymentChoiceDialog({
   depositInCents,
 }: Props) {
   const [isPending, startTransition] = useTransition();
+  /** paymentUrl: set after the Square payment link is created successfully */
   const [paymentUrl, setPaymentUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** copied: briefly true after the link is copied to clipboard */
   const [copied, setCopied] = useState(false);
 
   if (!open) return null;
 
+  // ternary: if the service has a deposit configured, charge only the
+  // deposit amount up front; otherwise charge the full balance
   const hasDeposit = depositInCents && depositInCents > 0;
   const amountInCents = hasDeposit ? depositInCents : totalInCents;
   const type = hasDeposit ? ("deposit" as const) : ("balance" as const);

@@ -35,11 +35,19 @@ export function isZohoBooksConfigured(): boolean {
 /*  Low-level API helper                                               */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Low-level wrapper around the Zoho Books v3 REST API.
+ *
+ * Unlike the CRM API (zoho.ts), Books requires `organization_id` as a
+ * query parameter on every request — appended here so callers don't
+ * need to repeat it. Uses the same OAuth token from zoho-auth.ts.
+ */
 async function booksFetch(
   path: string,
   options: { method?: string; body?: Record<string, unknown> } = {},
 ): Promise<Record<string, unknown>> {
   const token = await getZohoAccessToken();
+  // Append org ID as query param — handle paths that already have query strings.
   const separator = path.includes("?") ? "&" : "?";
   const url = `${apiDomain}/books/v3${path}${separator}organization_id=${organizationId}`;
 
@@ -66,6 +74,11 @@ async function booksFetch(
 /*  Sync log helper                                                    */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Writes to `sync_log` for audit/debugging of Zoho Books operations.
+ * Same pattern as zoho.ts — defense-in-depth: logging failures are
+ * swallowed so they never break invoice creation or payment recording.
+ */
 async function logSync(entry: {
   status: "success" | "failed";
   entityType: string;
@@ -107,7 +120,8 @@ export async function ensureZohoBooksCustomer(data: {
   if (!isZohoBooksConfigured()) return null;
 
   try {
-    // Check local cache first
+    // Check local DB first to avoid unnecessary Zoho API calls.
+    // The zohoCustomerId is cached on the profile after the first lookup.
     const [profile] = await db
       .select({ zohoCustomerId: profiles.zohoCustomerId })
       .from(profiles)
@@ -116,7 +130,9 @@ export async function ensureZohoBooksCustomer(data: {
 
     if (profile?.zohoCustomerId) return profile.zohoCustomerId;
 
-    // Search Zoho Books by email
+    // Search Zoho Books by email — the API supports email as a query filter.
+    // This is a second-level cache check: the customer may exist in Zoho
+    // but our local profile.zohoCustomerId wasn't populated yet.
     const searchResult = await booksFetch(`/contacts?email=${encodeURIComponent(data.email)}`);
     const contacts = searchResult.contacts as Array<{ contact_id: string }> | undefined;
 
@@ -216,7 +232,8 @@ export async function createZohoBooksInvoice(data: {
 
     if (!customerId) return; // Customer creation failed, abort silently
 
-    // 2. Create the invoice (convert cents to dollars)
+    // 2. Create the invoice — all internal amounts are in cents,
+    // but Zoho Books expects dollars, so divide by 100.
     const invoiceLineItems = data.lineItems.map((item) => ({
       name: item.name,
       description: item.description ?? "",
@@ -224,6 +241,9 @@ export async function createZohoBooksInvoice(data: {
       quantity: item.quantity,
     }));
 
+    // Tax is passed as an "adjustment" line rather than a tax rate because
+    // Square calculates tax at POS — we just mirror the amount in Zoho Books
+    // for accurate accounting without duplicating tax configuration.
     const taxAmountCents = data.taxAmountInCents ?? 0;
 
     const invoiceResult = await booksFetch("/invoices", {
@@ -267,7 +287,8 @@ export async function createZohoBooksInvoice(data: {
         .where(eq(enrollments.id, data.entityId));
     }
 
-    // 4. Mark as sent (non-fatal if this fails)
+    // 4. Mark as sent so the invoice appears in the customer's portal
+    // and Zoho starts aging it. Non-fatal — a draft invoice is still usable.
     try {
       await booksFetch(`/invoices/${invoiceId}/status/sent`, { method: "POST" });
     } catch {
@@ -318,6 +339,9 @@ export async function createZohoBooksInvoice(data: {
 /**
  * Records a payment against an existing Zoho Books invoice.
  * Called from the Square webhook handler when a payment completes.
+ *
+ * Requires a round-trip to fetch the invoice first because the
+ * Zoho Books payment API needs the customer_id (not stored locally).
  *
  * Fire-and-forget — never throws to the caller.
  */

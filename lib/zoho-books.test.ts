@@ -1,18 +1,47 @@
+// describe: groups related tests into a labeled block (like a folder for tests)
+// it/test: defines a single test case with a description and assertion function
+// expect: creates an assertion — checks that a value matches an expected condition
+// vi: Vitest's mock utility — creates fake functions, spies on calls, and controls return values
+// beforeEach: runs a setup function before every test in the current describe block
+// afterEach: runs a cleanup function after every test in the current describe block
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
+/**
+ * Tests for the Zoho Books invoice integration module.
+ *
+ * Covers:
+ *  - isZohoBooksConfigured: auth + organization ID required
+ *  - ensureZohoBooksCustomer: cache hit, API search, API create, error handling
+ *  - createZohoBooksInvoice: no-op when unconfigured, creates customer + invoice + marks sent,
+ *    records deposit payment, fire-and-forget on failure
+ *  - recordZohoBooksPayment: no-op when unconfigured, fetches invoice + records payment,
+ *    handles missing customer_id, fire-and-forget on failure
+ *
+ * Mocks: zoho-auth (OAuth), global fetch (Zoho Books API), db (profile cache + sync_log),
+ * db/schema, drizzle-orm, Sentry.
+ */
+
 // --- Persistent mock references ---
+// mockIsZohoAuthConfigured: controls whether the Zoho OAuth layer reports as ready
 const mockIsZohoAuthConfigured = vi.fn();
+// mockGetZohoAccessToken: returns a fake bearer token for API calls
 const mockGetZohoAccessToken = vi.fn();
+// mockFetch: simulates Zoho Books REST API endpoints
 const mockFetch = vi.fn();
+// mockDbLimit: controls the profile lookup result (e.g., cached zohoCustomerId)
 const mockDbLimit = vi.fn();
+// mockDbSetWhere: captures profile update calls (storing zohoCustomerId)
 const mockDbSetWhere = vi.fn();
+// mockDbInsertValues: captures sync_log writes
 const mockDbInsertValues = vi.fn();
 
+// Mock Zoho auth so tests don't need real OAuth credentials
 vi.mock("@/lib/zoho-auth", () => ({
   isZohoAuthConfigured: mockIsZohoAuthConfigured,
   getZohoAccessToken: mockGetZohoAccessToken,
 }));
 
+// Mock the database so tests don't need a real Postgres connection
 vi.mock("@/db", () => ({
   db: {
     select: vi.fn().mockReturnValue({

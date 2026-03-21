@@ -1,9 +1,20 @@
+/**
+ * @file notification-inbox.test.ts
+ * @description Unit tests for notification-inbox server actions (inbox summary,
+ * mark-all-read, mark-one-read, paginated inbox).
+ *
+ * Testing utilities: describe, it, expect, vi, vi.doMock, vi.resetModules,
+ * vi.clearAllMocks, beforeEach.
+ */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 /* ------------------------------------------------------------------ */
 /*  Chainable DB mock helper                                           */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Creates a chainable mock that mimics Drizzle's query-builder API.
+ */
 function makeChain(rows: unknown[] = []) {
   const resolved = Promise.resolve(rows);
   const chain: any = {
@@ -25,8 +36,10 @@ function makeChain(rows: unknown[] = []) {
 /*  Shared mock refs                                                   */
 /* ------------------------------------------------------------------ */
 
+/** Stub for supabase auth.getUser. */
 const mockGetUser = vi.fn();
 
+/** Registers all module mocks; accepts optional custom db object. */
 function setupMocks(db: Record<string, unknown> | null = null) {
   const defaultDb = {
     select: vi.fn(() => makeChain([])),

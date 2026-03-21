@@ -54,6 +54,11 @@ export function HoursTab({
   initialTimeOff: TimeOffRow[];
   initialLunchBreak: LunchBreak | null;
 }) {
+  /**
+   * Weekly schedule rows (7 entries, Mon-Sun). Initialized from DB rows via
+   * .map() to normalize null times to defaults ("09:00"/"18:00") so the
+   * time inputs always have a value.
+   */
   const [days, setDays] = useState(() =>
     initialHours.map((h) => ({
       id: h.id,
@@ -63,23 +68,40 @@ export function HoursTab({
       closesAt: h.closesAt ?? "18:00",
     })),
   );
+  /** Whether the hours save action is in flight. */
   const [hoursSaving, setHoursSaving] = useState(false);
+  /** Briefly true after hours save succeeds. */
   const [hoursSaved, setHoursSaved] = useState(false);
 
+  /** Lunch break config (enabled toggle + start/end times). */
   const [lunch, setLunch] = useState<LunchBreak>(
     initialLunchBreak ?? { enabled: false, start: "12:00", end: "13:00" },
   );
+  /** Whether the lunch save action is in flight. */
   const [lunchSaving, setLunchSaving] = useState(false);
+  /** Briefly true after lunch save succeeds. */
   const [lunchSaved, setLunchSaved] = useState(false);
 
+  /** Blocked date entries (day off / vacation ranges). */
   const [blocked, setBlocked] = useState(initialTimeOff);
+  /** Whether the "add blocked date" form is visible. */
   const [showAddForm, setShowAddForm] = useState(false);
+  /** Type of the new blocked date being added. */
   const [addType, setAddType] = useState<"day_off" | "vacation">("day_off");
+  /** Start date for the new blocked entry (YYYY-MM-DD). */
   const [addStart, setAddStart] = useState("");
+  /** End date for vacation ranges (YYYY-MM-DD). */
   const [addEnd, setAddEnd] = useState("");
+  /** Optional human-readable label for the blocked date (e.g. "Hawaii trip"). */
   const [addLabel, setAddLabel] = useState("");
+  /** Whether the add-blocked-date action is in flight. */
   const [adding, setAdding] = useState(false);
 
+  /**
+   * handleSaveHours — persists the weekly schedule to the server.
+   * Maps local state to HourInput[], nulling out times for closed days
+   * so the DB doesn't store stale time values for days marked as closed.
+   */
   async function handleSaveHours() {
     setHoursSaving(true);
     try {
@@ -129,6 +151,7 @@ export function HoursTab({
     }
   }
 
+  /** handleDeleteBlocked — deletes a time-off entry and removes it from local state. */
   async function handleDeleteBlocked(id: number) {
     await deleteTimeOff(id);
     setBlocked((prev) => prev.filter((b) => b.id !== id));

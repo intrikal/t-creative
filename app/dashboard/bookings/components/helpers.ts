@@ -1,3 +1,25 @@
+/**
+ * Shared types, status/category config, date formatters, and data mappers
+ * for the admin Bookings page and its child components.
+ *
+ * Used by: BookingsPage, BookingRow, BookingDialog, CancelDialog, DeleteDialog,
+ *          WaitlistTab, WaiverGateDialog, ServiceRecordDialog
+ *
+ * Key exports:
+ *   Booking          — UI-facing booking shape (dollars, formatted dates)
+ *   BookingStatus    — union of all booking statuses
+ *   ServiceCategory  — union of service category slugs
+ *   statusConfig()   — returns { label, className } badge styling per status
+ *   categoryDot()    — returns a Tailwind bg-color class per category
+ *   formatBookingDate() — "Today" / "Tomorrow" / "Mon, Jan 1" + time string
+ *   mapBookingRow()  — transforms a raw BookingRow (DB shape, cents) into the
+ *                       UI-facing Booking (dollars, initials, formatted dates).
+ *                       Joins first+last name via filter(Boolean).join(" "),
+ *                       computes initials from first chars, converts cents to
+ *                       dollars with totalInCents / 100.
+ *   STATUS_FILTERS   — chip labels for the status filter bar
+ *   PAGE_TABS        — tab labels for Bookings / Waitlist / Memberships
+ */
 import type { BookingRow } from "../actions";
 
 /* ------------------------------------------------------------------ */

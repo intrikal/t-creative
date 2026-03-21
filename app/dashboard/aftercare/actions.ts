@@ -1,3 +1,16 @@
+/**
+ * Aftercare & studio policy server actions — admin CRUD for aftercare
+ * instructions and studio policies.
+ *
+ * Both aftercare sections and studio policies live in the same `policies`
+ * table, distinguished by the `type` column ("aftercare" vs "studio_policy").
+ * Aftercare content is stored as a JSON string with `dos` and `donts` arrays.
+ *
+ * All actions require authentication. Mutations revalidate the dashboard
+ * services and aftercare pages so the UI stays in sync.
+ *
+ * @module dashboard/aftercare/actions
+ */
 "use server";
 
 import { revalidatePath } from "next/cache";
@@ -66,16 +79,30 @@ function parseAftercareContent(raw: string): { dos: string[]; donts: string[] } 
 /*  Queries                                                            */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Returns all aftercare sections for the admin dashboard.
+ * Each section contains a title, category, and lists of dos/donts.
+ */
 export async function getAftercareSections(): Promise<AftercareSection[]> {
   try {
     await getUser();
 
+    // QUERY: Fetch every aftercare instruction section.
+    // SELECT   — All columns from the policies table (id, title, content JSON, category, etc.).
+    // FROM     — The policies table, which stores both aftercare sections and studio policies.
+    // WHERE    — type = "aftercare" filters out studio policies, keeping only aftercare rows.
+    // ORDER BY — Primary sort by sortOrder (admin-defined display order), secondary sort by id
+    //            as a tiebreaker so rows with the same sortOrder appear in creation order.
     const rows = await db
       .select()
       .from(policies)
       .where(eq(policies.type, "aftercare"))
       .orderBy(asc(policies.sortOrder), asc(policies.id));
 
+    // Transform each policy row into an AftercareSection by parsing the JSON
+    // content column into separate dos/donts arrays. The DB stores them as a
+    // single JSON string to keep the schema simple (one content column for both
+    // aftercare and studio_policy types); we unpack here for the typed UI shape.
     return rows.map((r) => {
       const { dos, donts } = parseAftercareContent(r.content);
       return {
@@ -92,16 +119,28 @@ export async function getAftercareSections(): Promise<AftercareSection[]> {
   }
 }
 
+/**
+ * Returns all studio policy entries for the admin dashboard.
+ * Each entry has a title and free-text content (e.g. cancellation policy).
+ */
 export async function getPolicies(): Promise<PolicyEntry[]> {
   try {
     await getUser();
 
+    // QUERY: Fetch every studio policy entry.
+    // SELECT   — All columns from the policies table.
+    // FROM     — The policies table (shared with aftercare data).
+    // WHERE    — type = "studio_policy" filters out aftercare rows, keeping only policies.
+    // ORDER BY — Primary sort by sortOrder (admin-defined display order), secondary by id
+    //            as a tiebreaker for rows sharing the same sortOrder value.
     const rows = await db
       .select()
       .from(policies)
       .where(eq(policies.type, "studio_policy"))
       .orderBy(asc(policies.sortOrder), asc(policies.id));
 
+    // Extract only the fields the PolicyEntry type needs, dropping internal
+    // columns (type, slug, sortOrder, category) that the admin UI doesn't display.
     return rows.map((r) => ({
       id: r.id,
       title: r.title,
@@ -124,11 +163,24 @@ const aftercareSectionInputSchema = z.object({
   donts: z.array(z.string()),
 });
 
+/**
+ * Creates a new aftercare section and appends it to the end of the list.
+ *
+ * Side-effects:
+ * - Inserts a row in the policies table with type "aftercare".
+ * - Revalidates the services and aftercare dashboard pages so the new section appears.
+ */
 export async function createAftercareSection(input: AftercareSectionInput): Promise<void> {
   try {
     aftercareSectionInputSchema.parse(input);
     await getUser();
 
+    // QUERY: Read sortOrder values for all existing aftercare rows to determine
+    // where the new section should appear in the list.
+    // SELECT   — Only the sortOrder column (we just need the highest value).
+    // FROM     — policies table.
+    // WHERE    — type = "aftercare" so we don't count studio_policy rows.
+    // ORDER BY — Ascending so the last element in the result array is the highest sortOrder.
     const maxSort = await db
       .select({ sortOrder: policies.sortOrder })
       .from(policies)
@@ -137,6 +189,9 @@ export async function createAftercareSection(input: AftercareSectionInput): Prom
 
     const nextSort = maxSort.length > 0 ? maxSort[maxSort.length - 1].sortOrder + 1 : 0;
 
+    // MUTATION: Insert the new aftercare section at the end of the sort order.
+    // The content column stores dos/donts as a JSON string.
+    // The slug is auto-generated from the title for URL-friendly identification.
     await db.insert(policies).values({
       type: "aftercare",
       slug: slugify(input.title) + "-aftercare",
@@ -146,6 +201,7 @@ export async function createAftercareSection(input: AftercareSectionInput): Prom
       sortOrder: nextSort,
     });
 
+    // Side-effect: Purge cached pages so the new section shows immediately.
     revalidatePath("/dashboard/services");
     revalidatePath("/dashboard/aftercare");
   } catch (err) {
@@ -154,6 +210,13 @@ export async function createAftercareSection(input: AftercareSectionInput): Prom
   }
 }
 
+/**
+ * Updates an existing aftercare section's title, category, dos, and donts.
+ *
+ * Side-effects:
+ * - Overwrites the title, slug, content JSON, and category on the matching row.
+ * - Revalidates the services and aftercare dashboard pages.
+ */
 export async function updateAftercareSection(
   id: number,
   input: AftercareSectionInput,
@@ -163,6 +226,11 @@ export async function updateAftercareSection(
     aftercareSectionInputSchema.parse(input);
     await getUser();
 
+    // MUTATION: Update the aftercare row matching the given ID.
+    // SET   — Overwrites title, slug (re-derived from new title), content JSON,
+    //         and category. sortOrder is intentionally NOT changed here — use a
+    //         separate reorder action if the admin wants to move it.
+    // WHERE — Matches by primary key (policies.id).
     await db
       .update(policies)
       .set({
@@ -181,10 +249,19 @@ export async function updateAftercareSection(
   }
 }
 
+/**
+ * Permanently deletes an aftercare section.
+ *
+ * Side-effects:
+ * - Removes the row from the policies table. This is irreversible.
+ * - Revalidates the services and aftercare dashboard pages.
+ */
 export async function deleteAftercareSection(id: number): Promise<void> {
   try {
     z.number().int().positive().parse(id);
     await getUser();
+    // MUTATION: Delete the aftercare row by primary key.
+    // WHERE — Matches policies.id. Only one row is affected.
     await db.delete(policies).where(eq(policies.id, id));
     revalidatePath("/dashboard/services");
     revalidatePath("/dashboard/aftercare");
@@ -203,11 +280,23 @@ const policyInputSchema = z.object({
   content: z.string().min(1),
 });
 
+/**
+ * Creates a new studio policy and appends it to the end of the policy list.
+ *
+ * Side-effects:
+ * - Inserts a row in the policies table with type "studio_policy".
+ * - Revalidates the services and aftercare dashboard pages.
+ */
 export async function createPolicy(input: PolicyInput): Promise<void> {
   try {
     policyInputSchema.parse(input);
     await getUser();
 
+    // QUERY: Read sortOrder values for all existing studio_policy rows to find the max.
+    // SELECT   — Only sortOrder.
+    // FROM     — policies table.
+    // WHERE    — type = "studio_policy" so aftercare rows are excluded.
+    // ORDER BY — Ascending; the last element in the array holds the highest value.
     const maxSort = await db
       .select({ sortOrder: policies.sortOrder })
       .from(policies)
@@ -216,6 +305,9 @@ export async function createPolicy(input: PolicyInput): Promise<void> {
 
     const nextSort = maxSort.length > 0 ? maxSort[maxSort.length - 1].sortOrder + 1 : 0;
 
+    // MUTATION: Insert the new studio policy at the end of the sort order.
+    // The slug is auto-generated from the title for URL-friendly identification.
+    // Content is stored as plain text (unlike aftercare which uses JSON).
     await db.insert(policies).values({
       type: "studio_policy",
       slug: slugify(input.title) + "-policy",
@@ -232,12 +324,22 @@ export async function createPolicy(input: PolicyInput): Promise<void> {
   }
 }
 
+/**
+ * Updates an existing studio policy's title and content.
+ *
+ * Side-effects:
+ * - Overwrites the title, slug, and content on the matching row.
+ * - Revalidates the services and aftercare dashboard pages.
+ */
 export async function updatePolicy(id: number, input: PolicyInput): Promise<void> {
   try {
     z.number().int().positive().parse(id);
     policyInputSchema.parse(input);
     await getUser();
 
+    // MUTATION: Update the studio policy row matching the given ID.
+    // SET   — Overwrites title, slug (re-derived from new title), and content text.
+    // WHERE — Matches by primary key (policies.id).
     await db
       .update(policies)
       .set({
@@ -255,10 +357,19 @@ export async function updatePolicy(id: number, input: PolicyInput): Promise<void
   }
 }
 
+/**
+ * Permanently deletes a studio policy.
+ *
+ * Side-effects:
+ * - Removes the row from the policies table. This is irreversible.
+ * - Revalidates the services and aftercare dashboard pages.
+ */
 export async function deletePolicy(id: number): Promise<void> {
   try {
     z.number().int().positive().parse(id);
     await getUser();
+    // MUTATION: Delete the studio policy row by primary key.
+    // WHERE — Matches policies.id. Only one row is affected.
     await db.delete(policies).where(eq(policies.id, id));
     revalidatePath("/dashboard/services");
     revalidatePath("/dashboard/aftercare");
@@ -348,14 +459,29 @@ const DEFAULT_POLICIES: { title: string; content: string }[] = [
   },
 ];
 
+/**
+ * One-time seed function: populates the policies table with hardcoded default
+ * aftercare sections and studio policies if the table is completely empty.
+ *
+ * Side-effects:
+ * - Inserts multiple rows into the policies table (both aftercare and studio_policy types).
+ * - No-ops if any rows already exist, preventing duplicate seeds.
+ */
 export async function seedAftercareDefaults(): Promise<void> {
   try {
     await getUser();
 
+    // QUERY: Check whether the policies table has any rows at all.
+    // SELECT — Only the id column (we just need to know if at least one row exists).
+    // FROM   — policies table.
+    // LIMIT 1 — Stop after finding the first row; we don't need a count.
     // Only seed if empty
     const existing = await db.select({ id: policies.id }).from(policies).limit(1);
     if (existing.length > 0) return;
 
+    // Transform the hardcoded aftercare defaults into insert-ready objects,
+    // using the array index as sortOrder so they appear in the defined sequence.
+    // The dos/donts arrays are serialised to a JSON string for the content column.
     const aftercareValues = DEFAULT_AFTERCARE.map((a, i) => ({
       type: "aftercare" as const,
       slug: slugify(a.title) + "-aftercare",
@@ -365,6 +491,8 @@ export async function seedAftercareDefaults(): Promise<void> {
       sortOrder: i,
     }));
 
+    // Same pattern as aftercareValues: transform policy defaults into insert
+    // objects with index-based sortOrder and a slug derived from the title.
     const policyValues = DEFAULT_POLICIES.map((p, i) => ({
       type: "studio_policy" as const,
       slug: slugify(p.title) + "-policy",
@@ -373,6 +501,8 @@ export async function seedAftercareDefaults(): Promise<void> {
       sortOrder: i,
     }));
 
+    // MUTATION: Bulk-insert all default aftercare sections and studio policies in one query.
+    // The spread combines both arrays into a single INSERT with multiple value tuples.
     await db.insert(policies).values([...aftercareValues, ...policyValues]);
   } catch (err) {
     Sentry.captureException(err);

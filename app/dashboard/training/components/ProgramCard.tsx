@@ -1,3 +1,17 @@
+/**
+ * ProgramCard — admin-facing card for a single training program.
+ *
+ * Displays program name, type badge, price, session count, enrollment
+ * fill bar, waitlist count, and action buttons (edit, delete, toggle waitlist).
+ * Used by `ProgramsTab` on the admin Training dashboard.
+ *
+ * The fill bar width is computed as `enrolledCount / maxSpots * 100%` and
+ * turns red when full. `spotsLeft` is clamped to 0 via Math.max to avoid
+ * negative values when the DB temporarily has more enrollments than spots
+ * (e.g. manual overrides).
+ *
+ * @module training/components/ProgramCard
+ */
 "use client";
 
 import { GraduationCap, Pencil, Trash2, Users, Lock, Unlock } from "lucide-react";

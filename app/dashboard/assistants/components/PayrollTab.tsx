@@ -1,3 +1,12 @@
+/**
+ * PayrollTab — Payroll summary, per-assistant breakdown, CSV export,
+ * and 1099 year-to-date summary for independent contractors.
+ *
+ * Displays the current pay-period totals (tips owed, total owed),
+ * a detailed table with per-assistant session counts and earned amounts,
+ * and a YTD section for tax-year 1099 reporting. Each row has a "View"
+ * link that opens the PayStubModal for a full line-item pay stub.
+ */
 "use client";
 
 import { useState } from "react";
@@ -17,6 +26,8 @@ function commissionLabel(r: PayrollRow): string {
   return `${r.rate}%`;
 }
 
+/** Build a CSV string from the payroll rows and trigger a browser download.
+ *  map: transform each row into a comma-separated line of values. */
 function exportCsv(rows: PayrollRow[], summary: PayrollSummary) {
   const header = [
     "Name",
@@ -42,6 +53,8 @@ function exportCsv(rows: PayrollRow[], summary: PayrollSummary) {
     (r.owedInCents / 100).toFixed(2),
     r.owedInCents > 0 ? "Pending" : "N/A",
   ]);
+  // map + join: assemble the CSV — each sub-array becomes a comma-joined
+  // line, then lines are newline-joined into a single downloadable string
   const csv = [header, ...lines].map((row) => row.join(",")).join("\n");
   const blob = new Blob([csv], { type: "text/csv" });
   const url = URL.createObjectURL(blob);
@@ -54,12 +67,15 @@ function exportCsv(rows: PayrollRow[], summary: PayrollSummary) {
 
 export function PayrollTab({ rows, summary }: { rows: PayrollRow[]; summary: PayrollSummary }) {
   const totalOwed = summary.totalOwedInCents;
+  // reduce: sum tips across all assistants for the period header
   const totalTips = rows.reduce((s, r) => s + r.tipsInCents, 0);
   const totalTipOwed = rows.reduce((s, r) => s + r.tipOwedInCents, 0);
 
-  // For the 1099 section — only assistants with YTD earnings
+  // filter: only show the 1099 section for assistants who have
+  // actually earned revenue this calendar year
   const ytdRows = rows.filter((r) => r.ytdRevenueInCents > 0);
 
+  /** payStubFor: when set, opens the PayStubModal for this assistant */
   const [payStubFor, setPayStubFor] = useState<{ id: string; name: string } | null>(null);
 
   return (

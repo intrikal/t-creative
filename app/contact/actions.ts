@@ -35,6 +35,20 @@ const interestMap: Record<string, ServiceCategory> = {
   Other: null,
 };
 
+/**
+ * Processes a public contact form submission.
+ *
+ * 1. Validates the form fields with Zod.
+ * 2. Verifies the Cloudflare Turnstile bot-check token.
+ * 3. Maps the human-readable interest label (e.g. "Lash Extensions") to the
+ *    DB enum value (e.g. "lash") using `interestMap`.
+ * 4. Inserts a row:
+ *    INSERT INTO inquiries (name, email, interest, message, status)
+ *    VALUES (<name>, <email>, <category>, '[<interest>] <message>', 'new')
+ *    → the interest label is prefixed to the message so the admin can see the
+ *      original selection even though the DB stores the enum.
+ * 5. Fires a PostHog analytics event.
+ */
 export async function submitContactForm(data: {
   name: string;
   email: string;

@@ -1,8 +1,20 @@
+// render: mounts a React component into a virtual DOM for testing
+// screen: provides queries to find elements in the rendered output
+// fireEvent: simulates user interactions (click, type, etc.) on DOM elements
+// act: wraps state updates so React processes them before assertions
 import { render, screen, fireEvent, act } from "@testing-library/react";
+// describe: groups related tests into a labeled block
+// it: defines a single test case
+// expect: creates an assertion to check a value matches expected condition
+// vi: Vitest's mock utility for creating fake functions and spying on calls
+// beforeEach: runs setup before every test (typically resets mocks)
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { ClientBookingRow, ClientBookingsData } from "./client-actions";
 import { ClientBookingsPage } from "./ClientBookingsPage";
 
+// vi.mock() replaces the client-actions module so tests never call
+// real server actions (which would hit the DB and auth layer).
+// All three actions resolve immediately with no side effects.
 vi.mock("./client-actions", () => ({
   submitClientReview: vi.fn().mockResolvedValue(undefined),
   cancelClientBooking: vi.fn().mockResolvedValue(undefined),
@@ -13,6 +25,8 @@ vi.mock("./client-actions", () => ({
 /*  Test fixtures                                                       */
 /* ------------------------------------------------------------------ */
 
+// Generates ISO date strings relative to "now" so booking status logic
+// (upcoming vs past) works regardless of when tests run.
 function futureISO(hoursFromNow = 48): string {
   return new Date(Date.now() + hoursFromNow * 60 * 60 * 1000).toISOString();
 }
@@ -24,6 +38,8 @@ function makeDateISO(iso: string): string {
 const FUTURE_ISO = futureISO();
 const FUTURE_DATE_ISO = makeDateISO(FUTURE_ISO);
 
+// Mock data: a confirmed future booking used to test upcoming-booking UI
+// (cancel button, reschedule button, status badge)
 const confirmedBooking: ClientBookingRow = {
   id: 1,
   dateISO: FUTURE_DATE_ISO,
@@ -43,6 +59,7 @@ const confirmedBooking: ClientBookingRow = {
   depositPaid: false,
 };
 
+// Mock data: a completed past booking used to test review flow and stats
 const completedBooking: ClientBookingRow = {
   id: 2,
   dateISO: "2024-01-10",
@@ -62,6 +79,7 @@ const completedBooking: ClientBookingRow = {
   depositPaid: false,
 };
 
+// Mock data: a cancelled booking used to verify cancelled badge and exclusion from stats
 const cancelledBooking: ClientBookingRow = {
   id: 3,
   dateISO: "2024-02-05",
@@ -85,7 +103,10 @@ function makeData(bookings: ClientBookingRow[]): ClientBookingsData {
   return { bookings, calendarUrl: "https://example.com/calendar.ics" };
 }
 
+// Tests the client-facing bookings page: rendering, stats cards, status badges,
+// card expand/collapse, cancel/reschedule/review modals, and calendar subscribe.
 describe("ClientBookingsPage", () => {
+  // Reset all mock call counts between tests to prevent cross-contamination
   beforeEach(() => {
     vi.clearAllMocks();
   });

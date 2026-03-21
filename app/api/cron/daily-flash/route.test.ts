@@ -1,3 +1,27 @@
+/**
+ * Tests for GET /api/cron/daily-flash — morning flash report email to admin.
+ *
+ * Covers:
+ *  - Auth: missing or wrong CRON_SECRET returns 401
+ *  - Happy path: rich data scenario with revenue ($250), 1 appointment,
+ *    1 overnight cancellation, 3 inquiries → sends email, returns all counts
+ *  - Zero-booking day: all queries return zero/empty → still sends email
+ *    (admin should know it was a quiet day), all counts are 0
+ *  - No admin email: admin query returns empty → 500 with "No admin email found",
+ *    no email sent
+ *
+ * The route fires 9 parallel DB queries via Promise.all (revenue, today's
+ * bookings, cancellations, inquiries, 3 waitlist queries, unpaid invoices,
+ * admin). Each query chain is thenable so Promise.all can resolve it.
+ *
+ * Mocks: db (thenable select chains for 9 parallel queries), sendEmail,
+ * DailyFlashReport component, drizzle-orm operators, date-fns format.
+ */
+// describe: groups related tests into a labeled block (like a folder for tests)
+// it/test: defines a single test case with a description and assertion function
+// expect: creates an assertion — checks that a value matches an expected condition
+// vi: Vitest's mock utility — creates fake functions, spies on calls, and controls return values
+// beforeEach: runs a setup function before every test in the current describe block
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 /* ------------------------------------------------------------------ */

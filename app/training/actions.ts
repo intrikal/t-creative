@@ -1,6 +1,14 @@
 /**
- * Public cached queries for the /training page.
- * No authentication required — reads only active programs with upcoming sessions.
+ * app/training/actions.ts — Public cached queries for the /training page.
+ *
+ * Fetches all active training programs along with their next upcoming session
+ * and curriculum modules. No authentication required. Results are cached with
+ * a "training" tag and revalidated when programs are updated in the admin dashboard.
+ *
+ * Tables touched: training_programs (read), training_sessions (read),
+ * training_modules (read).
+ *
+ * @module training/actions
  */
 import { cacheTag, cacheLife } from "next/cache";
 import { eq, asc, and, gte, sql } from "drizzle-orm";
@@ -30,6 +38,33 @@ export type PublicProgram = {
   curriculum: string[];
 };
 
+/**
+ * Returns all active training programs with their next upcoming session and
+ * curriculum module names. Runs 3 sequential queries:
+ *
+ * Query 1 — Active programs:
+ *   SELECT * FROM training_programs
+ *   WHERE  isActive = true
+ *   ORDER BY sortOrder ASC
+ *   → all programs the admin has marked as visible, in display order.
+ *
+ * Query 2 — Upcoming sessions:
+ *   SELECT programId, startsAt, location, meetingUrl
+ *   FROM   training_sessions
+ *   WHERE  startsAt >= now()              ← only future sessions
+ *     AND  status = 'scheduled'           ← not cancelled or completed
+ *   ORDER BY startsAt ASC                 ← soonest first
+ *   → grouped in JS by programId; only the first (nearest) session per program is kept.
+ *
+ * Query 3 — Curriculum modules:
+ *   SELECT programId, name, sortOrder
+ *   FROM   training_modules
+ *   ORDER BY programId ASC, sortOrder ASC
+ *   → module names grouped by program, used to display the curriculum outline.
+ *
+ * No JOINs — the three tables are queried independently and merged in JS
+ * because a program may have zero sessions or zero modules.
+ */
 export async function getPublishedPrograms(): Promise<PublicProgram[]> {
   "use cache";
   cacheTag("training");

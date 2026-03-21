@@ -37,9 +37,14 @@ export function NewFormDialog({
 
   if (!open) return null;
 
+  /**
+   * toggleAppliesTo — toggles a service category in the "applies to" multi-select.
+   * "All" is mutually exclusive: selecting it clears specific categories.
+   * Selecting a specific category removes "All" and toggles the category.
+   * Uses .filter() to remove conflicting values, then spread to add the new one.
+   */
   function toggleAppliesTo(val: string) {
     setForm((prev) => {
-      // "All" is mutually exclusive with specific categories.
       if (val === "All") return { ...prev, appliesTo: ["All"] };
       const without = prev.appliesTo.filter((a) => a !== "All" && a !== val);
       return { ...prev, appliesTo: prev.appliesTo.includes(val) ? without : [...without, val] };

@@ -1,9 +1,20 @@
+/**
+ * @file actions.test.ts
+ * @description Unit tests for gallery/actions (client gallery, portfolio/myPhotos
+ * separation, before-image URL generation, photo consent granting).
+ *
+ * Testing utilities: describe, it, expect, vi, vi.doMock, vi.resetModules,
+ * vi.clearAllMocks, beforeEach.
+ */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 /* ------------------------------------------------------------------ */
 /*  Chainable DB mock helper                                           */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Creates a chainable mock that mimics Drizzle's query-builder API.
+ */
 function makeChain(rows: unknown[] = []) {
   const resolved = Promise.resolve(rows);
   const chain: any = {
@@ -24,14 +35,17 @@ function makeChain(rows: unknown[] = []) {
 /*  Shared mock refs                                                   */
 /* ------------------------------------------------------------------ */
 
+/** Stub for supabase auth.getUser. */
 const mockGetUser = vi.fn();
+/** Captures revalidatePath calls. */
 const mockRevalidatePath = vi.fn();
 
-// Mock for supabase storage
+// Mock for supabase storage — stubs getPublicUrl to return a deterministic URL
 const mockGetPublicUrl = vi.fn((path: string) => ({
   data: { publicUrl: `https://storage.example.com/${path}` },
 }));
 
+/** Registers all module mocks; accepts optional custom db object. */
 function setupMocks(db: Record<string, unknown> | null = null) {
   const defaultDb = {
     select: vi.fn(() => makeChain([])),

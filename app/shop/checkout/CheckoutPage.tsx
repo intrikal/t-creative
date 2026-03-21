@@ -1,9 +1,20 @@
 /**
- * CheckoutPage — Order summary with payment method choice.
+ * CheckoutPage — Order review + placement for /shop/checkout.
  *
- * Two options:
- * 1. "Pay Now" — generates a Square payment link, redirects to Square checkout
- * 2. "Pick Up & Pay Cash" — creates the order without payment
+ * Reads the Zustand cart store and renders an order summary, an optional
+ * gift-card redemption field, and a payment-method picker:
+ *   1. "Pay Now" (pickup_online) — calls placeOrder server action which
+ *      generates a Square payment link; the page opens it in a new tab.
+ *   2. "Pick Up & Pay Cash" (pickup_cash) — creates the order with no
+ *      payment; the customer pays in person at the studio.
+ *
+ * On success the cart is cleared and a confirmation screen with the order
+ * number is shown. If a gift card is applied, the discount is deducted
+ * from the total before display.
+ *
+ * This is a Client Component ("use client") because it reads the Zustand
+ * cart (browser-only store), fires a PostHog analytics event on mount,
+ * and manages multi-step UI state (method selection, gift card, result).
  */
 "use client";
 
@@ -19,8 +30,13 @@ type FulfillmentMethod = "pickup_online" | "pickup_cash";
 export function CheckoutPage() {
   const { items, clearCart } = useCartStore();
   const total = cartTotalInCents(items);
+  // Selected payment/fulfillment method — defaults to online pay.
   const [method, setMethod] = useState<FulfillmentMethod>("pickup_online");
 
+  // Fire a PostHog analytics event once when the checkout page mounts.
+  // This must be a useEffect (not run during render) because PostHog
+  // accesses browser globals and this is a side-effect with no return value.
+  // The empty deps array ensures it fires only once per mount.
   useEffect(() => {
     if (items.length > 0) {
       posthog.capture("checkout_started", {
@@ -29,7 +45,11 @@ export function CheckoutPage() {
       });
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Transition for the main "Place Order" action.
   const [isPending, startTransition] = useTransition();
+  // Result of the placeOrder server action — holds the order number and
+  // optional Square payment URL on success, or an error message on failure.
   const [result, setResult] = useState<{
     success: boolean;
     orderNumber?: string;
@@ -37,15 +57,22 @@ export function CheckoutPage() {
     error?: string;
   } | null>(null);
 
-  const [giftCardInput, setGiftCardInput] = useState("");
-  const [appliedCard, setAppliedCard] = useState<GiftCardLookupResult | null>(null);
-  const [appliedCode, setAppliedCode] = useState<string>("");
-  const [giftCardError, setGiftCardError] = useState<string | null>(null);
-  const [isApplyingCard, startApplyTransition] = useTransition();
+  // --- Gift card state ---
+  // These are kept as separate pieces rather than one object because the
+  // input field, the applied card result, and error feedback all update at
+  // different times and from different user actions.
+  const [giftCardInput, setGiftCardInput] = useState(""); // Current text in the gift-card input
+  const [appliedCard, setAppliedCard] = useState<GiftCardLookupResult | null>(null); // Validated card from lookupGiftCard server action
+  const [appliedCode, setAppliedCode] = useState<string>(""); // The code string that matched the applied card
+  const [giftCardError, setGiftCardError] = useState<string | null>(null); // Error message from a failed lookup
+  const [isApplyingCard, startApplyTransition] = useTransition(); // Separate transition so the apply button spins independently
 
   const discountInCents = appliedCard ? Math.min(appliedCard.balanceInCents, total) : 0;
   const chargeInCents = total - discountInCents;
 
+  // Calls the lookupGiftCard server action to validate the code and retrieve
+  // the card balance. On success, stores the card so the discount can be
+  // calculated and sent along with the order.
   function handleApplyGiftCard() {
     if (!giftCardInput.trim()) return;
     setGiftCardError(null);
@@ -62,6 +89,9 @@ export function CheckoutPage() {
     });
   }
 
+  // Calls the placeOrder server action with the cart items, fulfillment
+  // method, and optional gift card code. On success, clears the cart and
+  // opens the Square payment page in a new tab (if paying online).
   function handleSubmit() {
     if (items.length === 0) return;
 

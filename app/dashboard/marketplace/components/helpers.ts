@@ -1,3 +1,12 @@
+/**
+ * helpers.ts — Shared constants, display config, and form conversion
+ * utilities for the marketplace (products + supplies) dashboard.
+ *
+ * Keeps category/status styling, price formatting, and form ↔ data
+ * transformations in one place so ProductsTab, InventoryTab, and the
+ * dialog components stay presentation-only.
+ */
+
 import type {
   ProductRow,
   ProductCategory,
@@ -87,6 +96,9 @@ export function emptyProductForm(): ProductForm {
   };
 }
 
+/** Convert a DB product row into form-friendly string fields.
+ *  Numeric values become strings; the tags array is joined with
+ *  commas so it can be edited as a single text input. */
 export function productToForm(p: ProductRow): ProductForm {
   return {
     name: p.name,
@@ -97,11 +109,15 @@ export function productToForm(p: ProductRow): ProductForm {
     priceMax: p.priceMax != null ? String(p.priceMax) : "",
     stock: p.stock != null ? String(p.stock) : "",
     status: p.status,
+    // join: convert the tags array back to a comma-separated string
+    // for the text input; the server splits it back on save
     tags: p.tags.join(", "),
     serviceId: p.serviceId != null ? String(p.serviceId) : "",
   };
 }
 
+/** Convert form strings back to typed data for the server action.
+ *  Empty strings become undefined so optional DB columns stay null. */
 export function formToData(form: ProductForm): ProductFormData {
   return {
     name: form.name,

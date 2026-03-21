@@ -1,12 +1,17 @@
 /**
  * DashboardPreview — Animated mockup of the studio admin dashboard with stats, chart, and bookings.
  *
+ * Used on the landing page to visualize the platform's admin experience.
  * Client Component — uses Framer Motion for staggered reveal of sidebar, stats, chart bars, and booking rows.
+ *
+ * No props — all data is static/hardcoded since this is a decorative preview, not a live dashboard.
  */
 "use client";
 
 import { motion } from "framer-motion";
 
+// Static sidebar labels — mirrors the real dashboard nav structure to give visitors a
+// preview of what the admin panel looks like. Array order matches the visual top-to-bottom layout.
 const sidebarItems = [
   "Bookings",
   "Calendar",
@@ -18,6 +23,8 @@ const sidebarItems = [
   "Settings",
 ];
 
+// Hardcoded stat cards — representative numbers that communicate "successful studio"
+// without revealing real financials. Each object has a label, display value, and change indicator.
 const stats = [
   { label: "Revenue", value: "$11,610", change: "+15.3%" },
   { label: "Bookings", value: "47", change: "+12.5%" },
@@ -73,9 +80,14 @@ export function DashboardPreview() {
                 <p className="text-sm font-medium text-white">Trini Lam</p>
                 <p className="text-xs text-white/40">Admin</p>
               </div>
+              {/* .map() iterates sidebar labels to render nav items with staggered entrance.
+                  Each item gets a delay offset (0.4 + i * 0.05) so they cascade in sequence.
+                  Array approach chosen over hardcoded JSX to keep stagger logic DRY. */}
               {sidebarItems.map((item, i) => (
                 <motion.div
                   key={item}
+                  // Ternary: first item (i === 0) gets active styling (accent text + highlight bg)
+                  // to simulate a selected nav state; all others get muted appearance.
                   className={`px-5 py-2 text-xs ${
                     i === 0 ? "text-accent bg-white/5" : "text-white/50 hover:text-white/80"
                   } transition-colors`}
@@ -93,6 +105,8 @@ export function DashboardPreview() {
             <div className="flex-1 p-6 md:p-8">
               {/* Stats row */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                {/* .map() over stats array to render 4 metric cards in a responsive grid.
+                    Stagger delay (0.5 + i * 0.08) creates a left-to-right cascade effect. */}
                 {stats.map((stat, i) => (
                   <motion.div
                     key={stat.label}
@@ -104,6 +118,8 @@ export function DashboardPreview() {
                   >
                     <p className="text-xs text-white/40 mb-1">{stat.label}</p>
                     <p className="text-xl font-light text-white">{stat.value}</p>
+                    {/* Conditional render: only show change indicator if stat.change is truthy.
+                        Repeat Rate has empty string change, so no badge renders for it. */}
                     {stat.change && <p className="text-xs text-accent mt-1">{stat.change}</p>}
                   </motion.div>
                 ))}
@@ -113,6 +129,10 @@ export function DashboardPreview() {
               <div className="bg-white/5 rounded-md p-5 mb-6">
                 <p className="text-xs text-white/40 mb-4">Revenue — Last 30 days</p>
                 <div className="flex items-end gap-1.5 h-24">
+                  {/* .map() over inline height-percentage array to build 12 chart bars.
+                      Each value represents bar height as a percentage. Inline array chosen
+                      because these are purely visual — no semantic data worth naming.
+                      Bars animate from height:0 to their target height for a growth effect. */}
                   {[40, 55, 35, 65, 50, 70, 60, 80, 75, 90, 85, 95].map((h, i) => (
                     <motion.div
                       key={i}
@@ -132,6 +152,9 @@ export function DashboardPreview() {
 
               {/* Recent bookings placeholder */}
               <div className="space-y-2">
+                {/* .map() over inline booking strings to render 3 sample appointment rows.
+                    Inline array is appropriate here since these are decorative placeholders,
+                    not reused or filtered elsewhere. Each row fades in with staggered delay. */}
                 {[
                   "Classic Lash Set — 10:00 AM",
                   "Permanent Bracelet — 2:00 PM",

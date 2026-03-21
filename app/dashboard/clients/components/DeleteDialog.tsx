@@ -1,3 +1,9 @@
+/**
+ * Destructive confirmation dialog for permanently deleting a client.
+ * Warns that bookings and loyalty history will also be removed.
+ *
+ * Parent: app/dashboard/clients/ClientsPage.tsx (via ClientCard actions)
+ */
 "use client";
 
 import { Dialog, DialogFooter } from "@/components/ui/dialog";

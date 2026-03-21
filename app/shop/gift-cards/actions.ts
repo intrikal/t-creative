@@ -80,6 +80,11 @@ export async function purchaseGiftCard(
   let newCard!: { id: number };
 
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    // QUERY: Find the most recently created gift card to determine the next code number.
+    // SELECT   — Only the code column (e.g. "TC-GC-042").
+    // FROM     — gift_cards table.
+    // ORDER BY — Descending by id so the newest card (highest auto-increment) comes first.
+    // LIMIT 1  — We only need the single latest card to extract its sequence number.
     const [lastCard] = await db
       .select({ code: giftCards.code })
       .from(giftCards)
@@ -93,6 +98,12 @@ export async function purchaseGiftCard(
     code = `${prefix}-${nextNum}`;
 
     try {
+      // MUTATION: Insert a new gift card row with status "active" and full balance.
+      // Side-effects: The card is immediately usable at checkout. If two concurrent
+      // purchases generate the same code, the unique index on gift_cards.code will
+      // throw a constraint violation — caught below to retry with a fresh sequence.
+      // RETURNING — Gives us the auto-generated card ID for the transaction ledger
+      // entry, Square payment link, and email sends that follow.
       const [inserted] = await db
         .insert(giftCards)
         .values({
@@ -116,6 +127,10 @@ export async function purchaseGiftCard(
   }
 
   // Record purchase transaction in the ledger
+  // MUTATION: Insert a "purchase" row into gift_card_transactions.
+  // Side-effects: Creates the first entry in this card's transaction history.
+  // balanceAfterInCents equals the full amount because nothing has been spent yet.
+  // performedBy records which user bought the card for audit purposes.
   await db.insert(giftCardTransactions).values({
     giftCardId: newCard.id,
     type: "purchase",
@@ -158,6 +173,9 @@ export async function purchaseGiftCard(
       if (link?.url) {
         paymentUrl = link.url;
 
+        // MUTATION: Log the successful Square API call in the sync_log table.
+        // Side-effects: Creates an audit row so admins can trace every outbound
+        // integration call, including the payment URL and amount.
         await db.insert(syncLog).values({
           provider: "square",
           direction: "outbound",
@@ -176,6 +194,10 @@ export async function purchaseGiftCard(
 
   // Send emails (non-fatal)
   try {
+    // QUERY: Fetch the buyer's email and first name for the confirmation email.
+    // SELECT — Only email and firstName (the minimum needed for the email template).
+    // FROM   — profiles table (one row per user, stores contact details).
+    // WHERE  — Matches the authenticated user who is purchasing the gift card.
     const [buyer] = await db
       .select({ email: profiles.email, firstName: profiles.firstName })
       .from(profiles)

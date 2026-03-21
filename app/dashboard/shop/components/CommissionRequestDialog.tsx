@@ -26,10 +26,12 @@ const IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/hei
 
 export function CommissionRequestDialog({ onClose }: { onClose: () => void }) {
   const [isPending, startTransition] = useTransition();
+  /** submitted: flips to the success/confirmation screen */
   const [submitted, setSubmitted] = useState(false);
   const [orderNumber, setOrderNumber] = useState<string>();
   const [uploadError, setUploadError] = useState<string | null>(null);
 
+  /** category: "crochet" or "3d_printing" — controls which detail fields appear */
   const [category, setCategory] = useState<CommissionCategory>("crochet");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -40,6 +42,7 @@ export function CommissionRequestDialog({ onClose }: { onClose: () => void }) {
   const [deadline, setDeadline] = useState("");
   const [budgetRange, setBudgetRange] = useState("");
   const [referenceNotes, setReferenceNotes] = useState("");
+  /** attachments: up to 5 reference images or design files pending upload */
   const [attachments, setAttachments] = useState<Attachment[]>([]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -49,6 +52,9 @@ export function CommissionRequestDialog({ onClose }: { onClose: () => void }) {
     if (!files.length) return;
 
     const remaining = 5 - attachments.length;
+    // slice: cap at the remaining slots (max 5 total attachments).
+    // map: classify each file as either a design file (STL, OBJ, etc.)
+    // or an image and generate an object-URL preview for images.
     const toAdd: Attachment[] = files.slice(0, remaining).map((file) => {
       const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
       const isDesignFile = DESIGN_EXTENSIONS.has(ext);
@@ -60,6 +66,7 @@ export function CommissionRequestDialog({ onClose }: { onClose: () => void }) {
       };
     });
 
+    // spread: append new files to the existing attachment list immutably
     setAttachments((prev) => [...prev, ...toAdd]);
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
@@ -99,6 +106,8 @@ export function CommissionRequestDialog({ onClose }: { onClose: () => void }) {
         }
       }
 
+      // spread: conditionally include each optional metadata field only
+      // when the user filled it in — keeps the stored JSON lean
       const result = await submitCommissionRequest({
         category,
         title,

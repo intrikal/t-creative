@@ -84,6 +84,7 @@ export async function saveOnboardingData(
     throw new Error("Not authenticated");
   }
 
+  /* ---- Admin onboarding path ---- */
   if (role === "admin") {
     const {
       firstName,
@@ -110,6 +111,11 @@ export async function saveOnboardingData(
     } = adminOnboardingSchema.parse(raw);
 
     // Strip empty handles so we don't store blank strings in the DB.
+    // Object.entries converts the socials object to [key, value] tuples,
+    // .filter() removes entries where the value is blank, then
+    // Object.fromEntries rebuilds the object. This round-trip pattern is
+    // the idiomatic way to filter an object's entries without mutation —
+    // spread or Object.assign can't selectively remove keys.
     const filteredSocials = Object.fromEntries(
       Object.entries(socials ?? {}).filter(([, v]) => v.trim() !== ""),
     );
@@ -127,6 +133,12 @@ export async function saveOnboardingData(
       consulting: "Consulting",
     } as const;
     type ServiceKey = keyof typeof SERVICE_CATEGORIES;
+    // Convert the services config object into an array of DB-ready insert rows.
+    // Object.entries turns { lash: {...}, jewelry: {...} } into tuples so we
+    // can chain .filter() (only enabled services with a price) then .map()
+    // (convert UI form values to DB column shapes with cents conversion).
+    // This filter→map approach is preferred over reduce because the output
+    // is a simple mapped array, not an accumulated object.
     const serviceInserts = (
       Object.entries(services ?? {}) as [
         ServiceKey,
@@ -334,6 +346,7 @@ export async function saveOnboardingData(
     return;
   }
 
+  /* ---- Assistant onboarding path ---- */
   if (role === "assistant") {
     /**
      * Run the assistant-specific Zod schema against the raw form data.
@@ -483,6 +496,7 @@ export async function saveOnboardingData(
       experienceLevel,
       offersTraining: offersTraining ?? false,
     });
+  /* ---- Client onboarding path ---- */
   } else {
     /**
      * Client path — parse and validate against the client onboarding schema.
@@ -545,6 +559,9 @@ export async function saveOnboardingData(
       crochet: "Crochet",
       consulting: "Consulting",
     };
+    // Map interest IDs ("lash", "jewelry") to display labels ("Lashes", "Jewelry"),
+    // filter out any that don't have a mapping (defensive), then join into a
+    // comma-separated string for the DB tags column.
     const tags = interests
       .map((id) => INTEREST_TAGS[id])
       .filter(Boolean)
@@ -584,7 +601,11 @@ export async function saveOnboardingData(
         onboardingData,
         referralCode,
         tags: tags || null,
-        ...(referredBy ? { referredBy } : {}),
+        // Conditional spread: only include referredBy in the update when it has
+      // a value. Spreading an empty object {} is a no-op, so the field is
+      // omitted entirely rather than being set to null (which would overwrite
+      // any existing referral on re-submit).
+      ...(referredBy ? { referredBy } : {}),
       };
 
       await tx
@@ -739,6 +760,10 @@ export async function saveOnboardingData(
       phone: phone || undefined,
       source: source ?? undefined,
       role: "client",
+      // Build a pipe-separated description string from conditional parts.
+      // Ternaries produce null for absent fields, then filter(Boolean)
+      // removes the nulls so we don't get "Interests: Lashes |  | ".
+      // This pattern avoids nested if/else string concatenation.
       description: [
         interests.length > 0 ? `Interests: ${interests.join(", ")}` : null,
         birthday?.trim() ? `Birthday: ${birthday}` : null,

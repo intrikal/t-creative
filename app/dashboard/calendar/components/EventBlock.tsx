@@ -19,8 +19,11 @@ export function EventBlock({
   onSelect: (e: CalEvent) => void;
 }) {
   const c = TYPE_C[ev.type];
+  // Convert start time to pixel offset from grid top (minutes-since-day-start / 60 * px-per-hour)
   const top = ((timeToMin(ev.startTime) - DAY_START * 60) / 60) * HOUR_H + GRID_TOP_PAD;
+  // Convert duration to height, with a 2px gap between adjacent blocks and 20px minimum
   const height = Math.max((ev.durationMin / 60) * HOUR_H - 2, 20);
+  // Divide available width equally among overlapping columns
   const wPct = 100 / totalCols;
   const lPct = colIndex * wPct;
 

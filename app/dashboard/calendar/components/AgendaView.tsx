@@ -23,6 +23,13 @@ export function AgendaView({
 }) {
   const fromDate = fmtDate(cursor);
 
+  /**
+   * Group future events by date for rendering with date headers.
+   * 1. Filter to only events on or after the cursor date.
+   * 2. Sort by date then start time for chronological order.
+   * 3. Group consecutively — push to last group if same date, else start new group.
+   * This produces an array of { date, events[] } sections for the agenda list.
+   */
   const grouped = useMemo(() => {
     const future = events
       .filter((ev) => ev.date >= fromDate)

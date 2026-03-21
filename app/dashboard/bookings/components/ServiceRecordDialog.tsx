@@ -1,3 +1,28 @@
+/**
+ * Post-service documentation dialog for recording lash mappings, products used,
+ * reactions, and before/after photos. Fetches any existing record on open;
+ * upserts on save. Also supports promoting before/after photos to the portfolio
+ * gallery (with client consent flow).
+ *
+ * Parent: app/dashboard/bookings/BookingsPage.tsx (via ServiceRecordDialog lazy import)
+ *
+ * State overview:
+ *   form            — all text fields for the service record
+ *   loading/saving  — async load/save spinners
+ *   loadedBookingId — tracks which booking's record is loaded to avoid re-fetching
+ *   before/afterPath/Url — Supabase storage paths + public URLs for photo previews
+ *   uploadingBefore/After — per-slot upload spinner
+ *   promoteCategory/Caption — fields for the "submit to portfolio" sub-form
+ *   promoting/promoted — transition state for the portfolio promotion action
+ *
+ * Key operations:
+ *   handleUpload  — uploads a file to Supabase Storage immediately on selection
+ *                   so the tech sees a preview before saving the full record
+ *   handleSave    — upserts the service record via server action, converting
+ *                   empty strings to undefined so Drizzle stores NULLs
+ *   handlePromote — creates a media_items row + consent notification for the client
+ *   set()         — generic updater using spread to merge a single field into form state
+ */
 "use client";
 
 import { useRef, useState, useTransition } from "react";

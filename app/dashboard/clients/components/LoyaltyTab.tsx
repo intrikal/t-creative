@@ -1,3 +1,41 @@
+/**
+ * Loyalty program tab on the Clients page — tier summary cards, member table
+ * with progress bars, rewards catalog, and issue-reward dialog.
+ *
+ * Parent: app/dashboard/clients/ClientsPage.tsx (Loyalty tab)
+ *
+ * State:
+ *   loyaltyData  — local copy of loyalty entries for optimistic tier-up updates
+ *   showPerks    — toggles the tier perks breakdown panel
+ *   issueTarget  — member open in the IssueRewardDialog
+ *
+ * Key operations:
+ *   handleIssue(entry, type, amount, note)
+ *     — for "points" type: parses amount, computes newTier via getTier(),
+ *       persists via issueLoyaltyReward server action, then optimistically
+ *       updates loyaltyData using .map() to update the matching entry and
+ *       .sort((a,b) => b.points - a.points) to maintain points-descending order.
+ *       Returns { tieredUp, newTier } so the IssueRewardDialog can show
+ *       tier-up celebration UI.
+ *
+ *   totals = { enrolled, redeemable, totalPoints }
+ *     — derived stats: redeemable filters to points >= 500,
+ *       totalPoints uses .reduce() to sum all member points
+ *
+ *   loyaltyData.filter(l => l.tier === tier).length
+ *     — per-tier count for the summary cards
+ *
+ *   Progress bar: pct = ((points - tierMin) / (tierMax - tierMin)) * 100
+ *     — normalized within the current tier's range
+ *
+ * Sub-component: IssueRewardDialog
+ *   Four reward types: discount, addon, service, points (radio group).
+ *   Shows current points balance, amount/note fields, and after issuing
+ *   shows either a tier-up celebration or a simple confirmation.
+ *
+ *   State: type, amount, note, issued (null until confirmed)
+ *   handleConfirm — calls onIssue callback, stores the returned tier info
+ */
 "use client";
 
 import { useState } from "react";

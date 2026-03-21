@@ -1,3 +1,11 @@
+/**
+ * InventoryTab — Stock management table for tracked products.
+ *
+ * Renders a responsive table where the admin can view current stock
+ * levels, status badges, and +/- adjustment buttons for each product.
+ * Products without a defined stock value show an "Enable" link that
+ * opens the edit dialog so the admin can opt into inventory tracking.
+ */
 "use client";
 
 import { Plus, Minus, Pencil, AlertTriangle } from "lucide-react";
@@ -18,6 +26,8 @@ export function InventoryTab({
   onAdjustStock: (id: number, delta: number) => void;
   onEdit: (p: ProductRow) => void;
 }) {
+  // filter: only count products that have stock tracking enabled,
+  // so the header badge shows how many items are actively managed
   const trackedProducts = products.filter((p) => p.stock !== undefined);
 
   return (
@@ -60,12 +70,18 @@ export function InventoryTab({
               </tr>
             </thead>
             <tbody>
+              {/* map: render one table row per product with category badge,
+                  stock count, status, and inline adjustment controls */}
               {products.map((p) => {
                 const cat = CATEGORY_CONFIG[p.category];
                 const sts = statusConfig(p.status);
+                // isLow: warn when stock is positive but at or below the
+                // reorder threshold — prompts the admin to restock soon
                 const isLow =
                   p.stock !== undefined && p.stock > 0 && p.stock <= LOW_STOCK_THRESHOLD;
                 const isOut = p.stock === 0;
+                // pending: true while an optimistic stock adjustment is
+                // in-flight — dims the row to signal the change isn't persisted yet
                 const pending = pendingIds.has(`p-${p.id}`);
                 return (
                   <tr

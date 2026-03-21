@@ -1,12 +1,32 @@
+// describe: groups related tests into a labeled block (like a folder for tests)
+// it/test: defines a single test case with a description and assertion function
+// expect: creates an assertion — checks that a value matches an expected condition
+// vi: Vitest's mock utility — creates fake functions, spies on calls, and controls return values
+// beforeEach: runs a setup function before every test in the current describe block
 import { describe, it, expect, vi, beforeEach } from "vitest";
+
+/**
+ * Tests for the Instagram Graph API integration module.
+ *
+ * Covers:
+ *  - isInstagramConfigured: true when INSTAGRAM_ACCESS_TOKEN is set
+ *  - fetchRecentMedia: returns formatted posts, parses all fields correctly,
+ *    handles empty data, passes limit param, throws when unconfigured,
+ *    throws + reports to Sentry on API error/rate limit
+ *
+ * Mocks: global fetch (Instagram Graph API), @sentry/nextjs.
+ */
 
 /* ------------------------------------------------------------------ */
 /*  Shared mock state                                                   */
 /* ------------------------------------------------------------------ */
 
+// mockCaptureException: captures Sentry error reports for API failures
 const mockCaptureException = vi.fn();
+// mockFetch: simulates the Instagram Graph API /me/media endpoint
 const mockFetch = vi.fn();
 
+// Mock Sentry so tests don't send real error reports
 vi.mock("@sentry/nextjs", () => ({
   captureException: mockCaptureException,
 }));

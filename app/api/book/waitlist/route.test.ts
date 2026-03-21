@@ -1,9 +1,29 @@
+/**
+ * Tests for POST /api/book/waitlist — public waitlist join endpoint.
+ *
+ * Covers:
+ *  - Input validation: invalid JSON, missing/non-numeric serviceId,
+ *    nonexistent service
+ *  - Guest flow: missing name/email (400), invalid email (400),
+ *    Turnstile failure (403), admin notification email sent on success
+ *  - Authenticated flow: inserts a waitlist DB row with the user's ID,
+ *    does NOT send an email (admin email is only for guests)
+ *
+ * Mocks: db (select/insert chains), Resend email sender, Turnstile
+ * verifier, Supabase auth (getUser toggles guest vs authenticated).
+ */
+// describe: groups related tests into a labeled block (like a folder for tests)
+// it/test: defines a single test case with a description and assertion function
+// expect: creates an assertion — checks that a value matches an expected condition
+// vi: Vitest's mock utility — creates fake functions, spies on calls, and controls return values
+// beforeEach: runs a setup function before every test in the current describe block
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 /* ------------------------------------------------------------------ */
 /*  Shared mock state                                                   */
 /* ------------------------------------------------------------------ */
 
+// selectIdx / selectData: stateful counter routing sequential db.select() calls to mock data
 let selectIdx = 0;
 let selectData: unknown[][] = [];
 const mockInsert = vi.fn();

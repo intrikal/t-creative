@@ -1,3 +1,16 @@
+/**
+ * Integrations tab — displays third-party service connections and calendar sync.
+ *
+ * Used by the Settings page. Shows a categorized list of integrations
+ * (Payments, Business, Marketing) with connected/disconnected status badges,
+ * plus a Calendar Sync card with a subscribable iCal feed URL.
+ *
+ * Square integration status is passed from the server component so the UI
+ * reflects the real connection state. Other integrations are currently
+ * display-only placeholders.
+ *
+ * @module settings/components/IntegrationsTab
+ */
 "use client";
 
 import { useState } from "react";
@@ -12,6 +25,13 @@ type IntegrationsTabProps = {
   calendarUrl?: string;
 };
 
+/**
+ * buildIntegrations — constructs the integration list with live Square status.
+ *
+ * Returns a static array of integration objects. Square's description and
+ * connected flag are dynamic (from server props); all others are hardcoded
+ * until their OAuth flows are implemented.
+ */
 function buildIntegrations(
   squareConnected: boolean,
   squareEnvironment?: string,
@@ -67,10 +87,19 @@ function buildIntegrations(
   ];
 }
 
+/**
+ * CalendarCard — iCal feed subscription card with copy-to-clipboard and
+ * one-click Google/Apple Calendar subscription links.
+ *
+ * @param calendarUrl - The HTTPS iCal feed URL from the server.
+ */
 function CalendarCard({ calendarUrl }: { calendarUrl: string }) {
+  /** Whether the "Copied!" confirmation is visible (auto-resets after 2s). */
   const [copied, setCopied] = useState(false);
 
+  // Replace https:// with webcal:// so calendar apps recognize the protocol
   const webcalUrl = calendarUrl.replace(/^https?:\/\//, "webcal://");
+  // Google Calendar expects the webcal:// URL encoded as a query param
   const googleUrl = `https://calendar.google.com/calendar/render?cid=${encodeURIComponent(webcalUrl)}`;
 
   function handleCopy() {
@@ -145,6 +174,8 @@ export function IntegrationsTab({
   calendarUrl,
 }: IntegrationsTabProps = {}) {
   const integrations = buildIntegrations(squareConnected, squareEnvironment, squareLocationId);
+  // Extract unique category names to render grouped sections.
+  // Set preserves insertion order so categories appear in the same order as the array.
   const categories = [...new Set(integrations.map((i) => i.category))];
 
   return (

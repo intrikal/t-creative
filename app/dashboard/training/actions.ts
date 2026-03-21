@@ -1,11 +1,32 @@
 /**
- * Server actions for the Training dashboard (`/dashboard/training`).
+ * app/dashboard/training/actions.ts — Server actions for the Training dashboard
+ * (`/dashboard/training`) and the assistant training portal.
  *
- * Programs tab: CRUD against `training_programs` + `training_sessions`.
- * Students tab: Enrollments CRUD with delete-protected programs.
+ * ## Views served
+ * - **Admin Programs tab**: CRUD for `training_programs` + auto-generated
+ *   `training_sessions` (placeholder weekly sessions created on program creation).
+ * - **Admin Students tab**: Enrollment management — create, delete, with
+ *   delete-protection on programs that have active enrollments.
+ * - **Admin Stats cards**: Active students, waitlist count, certifications issued,
+ *   total training revenue.
+ * - **Assistant Training view**: Per-lesson progress tracking across enrolled
+ *   programs, with module completion status and certificate counts.
  *
- * @module training/actions
- * @see {@link ./TrainingPage.tsx} — client component
+ * ## UI ↔ DB status mapping
+ * The UI uses simplified statuses ("active", "completed", "paused", "waitlist")
+ * while the DB uses the full `enrollment_status` enum. Two mapping functions
+ * (`enrollmentStatusToUI` / `uiStatusToEnrollment`) bridge this gap so the
+ * database schema can evolve independently of the UI labels.
+ *
+ * ## Category ↔ ProgramType mapping
+ * The DB stores `service_category` enum values ("consulting") while the UI
+ * uses friendlier labels ("business"). `CATEGORY_TO_TYPE` / `TYPE_TO_CATEGORY`
+ * handle the translation.
+ *
+ * ## Related files
+ * - db/schema/training.ts               — table definitions
+ * - app/dashboard/training/TrainingPage  — admin client component
+ * - app/dashboard/team/                  — assistant training portal
  */
 "use server";
 
@@ -108,6 +129,11 @@ const TYPE_TO_CATEGORY: Record<ProgramType, string> = {
   crochet: "crochet",
 };
 
+/**
+ * Map DB enrollment_status → UI-friendly label.
+ * "enrolled" and "in_progress" both show as "active" because the UI
+ * doesn't distinguish between newly enrolled and mid-course students.
+ */
 function enrollmentStatusToUI(dbStatus: string): StudentStatus {
   switch (dbStatus) {
     case "waitlisted":
@@ -124,6 +150,7 @@ function enrollmentStatusToUI(dbStatus: string): StudentStatus {
   }
 }
 
+/** Map UI status back to DB enrollment_status for writes. */
 function uiStatusToEnrollment(uiStatus: StudentStatus): string {
   switch (uiStatus) {
     case "waitlist":
@@ -137,6 +164,11 @@ function uiStatusToEnrollment(uiStatus: StudentStatus): string {
   }
 }
 
+/**
+ * Generate a URL-safe slug with a timestamp suffix to guarantee uniqueness.
+ * The timestamp avoids collisions if two programs share the same name
+ * (e.g., "Lash Certification" created, deleted, then re-created).
+ */
 function slugify(title: string): string {
   return (
     title
@@ -151,10 +183,20 @@ function slugify(title: string): string {
 /*  Queries                                                            */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Fetch all training programs with session counts and waitlist status.
+ *
+ * Three parallel queries avoid N+1: programs, session counts per program,
+ * and waitlist status (aggregated via `bool_or` — true if any scheduled
+ * session has its waitlist open). Results are merged via Maps.
+ */
 export async function getPrograms(): Promise<ProgramRow[]> {
   try {
     await getUser();
 
+    // Promise.all runs three independent queries in parallel — programs, session
+    // counts, and waitlist status have no data dependency, so wall-clock time
+    // equals the slowest single query instead of the sum of all three.
     const [rows, sessionCounts, waitlistRows] = await Promise.all([
       db
         .select({
@@ -185,9 +227,15 @@ export async function getPrograms(): Promise<ProgramRow[]> {
         .groupBy(trainingSessions.programId),
     ]);
 
+    // Build Map<programId, count> for O(1) session-count lookups when merging
+    // into program rows below — avoids O(n*m) nested scanning.
     const sessionCountMap = new Map(sessionCounts.map((r) => [r.programId, Number(r.count)]));
+    // Build Map<programId, bool> for O(1) waitlist-status lookups.
     const waitlistMap = new Map(waitlistRows.map((r) => [r.programId, r.anyOpen]));
 
+    // Transform each DB row into a UI-friendly ProgramRow by mapping the DB
+    // category enum to UI ProgramType, converting cents to dollars, and merging
+    // in session counts + waitlist status from the two Maps built above.
     return rows.map((r) => ({
       id: r.id,
       name: r.name,
@@ -205,10 +253,24 @@ export async function getPrograms(): Promise<ProgramRow[]> {
   }
 }
 
+/**
+ * Fetch all enrolled students with their session progress and certification status.
+ *
+ * Five parallel queries pull enrollments, session counts, certificates,
+ * all sessions (for the per-student session log), and attendance records.
+ * The session log merges attendance data to determine per-session status:
+ * attended → "completed", cancelled → "cancelled", otherwise → "upcoming".
+ *
+ * Session topic falls back to location then "Session N" when notes are empty,
+ * giving the UI a reasonable label even for sessions with no metadata.
+ */
 export async function getStudents(): Promise<StudentRow[]> {
   try {
     await getUser();
 
+    // Promise.all fires five independent queries in parallel — enrollments,
+    // session counts, certificates, all sessions, and attendance records share
+    // no data dependencies, so total latency equals the slowest query.
     const [rows, sessionCounts, certs, allSessions, attendanceRows] = await Promise.all([
       // Enrollments + profiles + programs
       db
@@ -266,7 +328,10 @@ export async function getStudents(): Promise<StudentRow[]> {
         .from(sessionAttendance),
     ]);
 
+    // Build Map<programId, sessionCount> for O(1) lookups during row assembly.
     const sessionCountMap = new Map(sessionCounts.map((r) => [r.programId, Number(r.count)]));
+    // Build Map<enrollmentId, issuedAt> so we can check certification status per
+    // enrollment in O(1) without scanning the certs array for each student.
     const certMap = new Map(certs.map((c) => [c.enrollmentId, c.issuedAt]));
 
     // Build attendance lookup: enrollmentId → sessionId → record
@@ -289,10 +354,20 @@ export async function getStudents(): Promise<StudentRow[]> {
       sessionsByProgram.get(s.programId)!.push(s);
     }
 
+    // Transform each enrollment DB row into a UI-friendly StudentRow by:
+    // - Building display name/initials from nullable first/last name columns
+    //   (.filter(Boolean) drops empty strings so "Jane" + "" becomes "Jane" not "Jane ")
+    // - Mapping DB enrollment_status to simplified UI status via enrollmentStatusToUI
+    // - Converting cents to dollars for amountPaid/amountTotal
+    // - Merging session log + attendance + certificate data from the Maps above
     return rows.map((r) => {
       const first = r.firstName ?? "";
       const last = r.lastName ?? "";
+      // .filter(Boolean) strips empty strings so a missing last name doesn't
+      // produce a trailing space in the display name.
       const name = [first, last].filter(Boolean).join(" ");
+      // Extract first character of each name part for avatar initials;
+      // .filter(Boolean) handles cases where first or last name is empty.
       const initials = [first[0], last[0]].filter(Boolean).join("").toUpperCase() || "?";
 
       const certDate = certMap.get(r.enrollmentId);
@@ -300,6 +375,9 @@ export async function getStudents(): Promise<StudentRow[]> {
       // Build session log
       const programSessions = sessionsByProgram.get(r.programId) ?? [];
       const enrollmentAttendance = attendanceMap.get(r.enrollmentId);
+      // Transform each program session into a SessionRow, merging attendance data
+      // to determine per-session status (attended → completed, cancelled → cancelled,
+      // otherwise → upcoming). Topic falls back through notes → location → "Session N".
       const sessions: SessionRow[] = programSessions.map((s, idx) => {
         const att = enrollmentAttendance?.get(s.id);
         let status: "completed" | "upcoming" | "cancelled";
@@ -359,10 +437,21 @@ export async function getStudents(): Promise<StudentRow[]> {
   }
 }
 
+/**
+ * Aggregate training dashboard stats: active students, waitlist count,
+ * certifications issued, and total revenue. Feeds the summary cards
+ * at the top of the Training page.
+ *
+ * Uses SQL `filter (where ...)` clauses to compute multiple aggregates
+ * in a single table scan rather than issuing separate queries.
+ */
 export async function getTrainingStats(): Promise<TrainingStats> {
   try {
     await getUser();
 
+    // Destructuring the first element from each query result — both queries
+    // return a single-row aggregate. Promise.all runs them in parallel since
+    // enrollment stats and certificate counts are independent queries.
     const [[enrollmentStats], [certStats]] = await Promise.all([
       db
         .select({
@@ -386,6 +475,7 @@ export async function getTrainingStats(): Promise<TrainingStats> {
   }
 }
 
+/** Fetch all client profiles for the "Enroll Student" dropdown. */
 export async function getClients(): Promise<ClientOption[]> {
   try {
     await getUser();
@@ -400,6 +490,9 @@ export async function getClients(): Promise<ClientOption[]> {
       .where(eq(profiles.role, "client"))
       .orderBy(asc(profiles.firstName), asc(profiles.lastName));
 
+    // Transform each profile row into a ClientOption for the dropdown.
+    // .filter(Boolean) on name parts handles null first/last names gracefully;
+    // initials uses optional chaining + filter to safely extract first characters.
     return rows.map((r) => {
       const name = [r.firstName, r.lastName].filter(Boolean).join(" ");
       const initials =
@@ -438,6 +531,13 @@ const ProgramFormSchema = z.object({
   waitlistOpen: z.boolean(),
 });
 
+/**
+ * Create a new training program and auto-generate placeholder sessions.
+ *
+ * Sessions are spaced one week apart starting from tomorrow. This gives
+ * the admin a starting schedule to customise rather than requiring
+ * manual session creation from scratch.
+ */
 export async function createProgram(form: ProgramFormData) {
   try {
     ProgramFormSchema.parse(form);
@@ -458,6 +558,10 @@ export async function createProgram(form: ProgramFormData) {
 
     // Create placeholder sessions (weekly from now)
     if (form.sessions > 0 && program) {
+      // Array.from creates N session objects with weekly spacing — using Array.from
+      // instead of a for-loop because we need a typed array of insert values for
+      // Drizzle's batch insert, and the index-based date arithmetic is cleaner as
+      // a single expression.
       const sessionValues = Array.from({ length: form.sessions }, (_, i) => ({
         programId: program.id,
         startsAt: new Date(Date.now() + (i + 1) * 7 * 24 * 60 * 60 * 1000),
@@ -475,6 +579,12 @@ export async function createProgram(form: ProgramFormData) {
   }
 }
 
+/**
+ * Update program details and propagate waitlist setting to all scheduled sessions.
+ *
+ * Only scheduled (not completed/cancelled) sessions are updated — historical
+ * sessions retain their original waitlist state for audit accuracy.
+ */
 export async function updateProgram(id: number, form: ProgramFormData) {
   try {
     z.number().int().positive().parse(id);
@@ -543,6 +653,11 @@ export async function deleteProgram(id: number): Promise<{ error?: string }> {
   }
 }
 
+/**
+ * Toggle waitlist open/closed for all scheduled sessions in a program.
+ * Reads the current state from any scheduled session and inverts it,
+ * ensuring all sessions stay in sync.
+ */
 export async function toggleWaitlist(programId: number) {
   try {
     z.number().int().positive().parse(programId);
@@ -593,6 +708,13 @@ const EnrollmentFormSchema = z.object({
   amountPaid: z.number().nonnegative(),
 });
 
+/**
+ * Enroll a student in a training program.
+ *
+ * Sets `isPaid: true` when any amount is paid upfront — partial payments
+ * are supported (e.g., $600 of $1,200). A confirmation email is sent
+ * asynchronously; failures are swallowed so the enrollment still succeeds.
+ */
 export async function createEnrollment(form: EnrollmentFormData) {
   try {
     EnrollmentFormSchema.parse(form);
@@ -651,6 +773,7 @@ export async function createEnrollment(form: EnrollmentFormData) {
   }
 }
 
+/** Remove an enrollment. Cascades to attendance records via FK. */
 export async function deleteEnrollment(id: number) {
   try {
     z.number().int().positive().parse(id);
@@ -752,6 +875,8 @@ export async function getAssistantTraining(): Promise<AssistantTrainingData> {
       .from(enrollments)
       .where(eq(enrollments.clientId, user.id));
 
+    // Build Map<programId, enrollment> for O(1) lookups when determining each
+    // module's lock/available/in_progress/completed status below.
     const enrollmentMap = new Map(assistantEnrollments.map((e) => [e.programId, e]));
 
     // 3. Get assistant's lesson completions
@@ -760,6 +885,8 @@ export async function getAssistantTraining(): Promise<AssistantTrainingData> {
       .from(lessonCompletions)
       .where(eq(lessonCompletions.profileId, user.id));
 
+    // Build Set<lessonId> for O(1) completion checks — .has() is called once
+    // per lesson when constructing the module map below.
     const completedLessonIds = new Set(completions.map((c) => c.lessonId));
 
     // 4. Get next session date per program (for due date)
@@ -778,6 +905,8 @@ export async function getAssistantTraining(): Promise<AssistantTrainingData> {
       )
       .groupBy(trainingSessions.programId);
 
+    // Build Map<programId, nextSessionDate> — .map() extracts the programId
+    // and parses the date for O(1) due-date lookups per module.
     const nextSessionMap = new Map(
       upcomingSessions.map((s) => [s.programId, new Date(s.startsAt)]),
     );
@@ -788,6 +917,8 @@ export async function getAssistantTraining(): Promise<AssistantTrainingData> {
       .from(certificates)
       .where(eq(certificates.clientId, user.id));
 
+    // Build Set<programId> for O(1) certificate existence checks.
+    // .size is used as the total certificate count in the stats output.
     const certProgramIds = new Set(certs.map((c) => c.programId));
 
     // 6. Group rows into modules
@@ -831,6 +962,9 @@ export async function getAssistantTraining(): Promise<AssistantTrainingData> {
     const modules: AssistantModule[] = [];
     for (const [moduleId, mod] of moduleMap) {
       const enrollment = enrollmentMap.get(mod.programId);
+      // .every() checks if all lessons in this module are completed (→ "completed" status).
+      // .some() checks if at least one lesson is completed (→ "in_progress" status).
+      // Using both avoids a .reduce() with counter tracking — clearer intent.
       const allLessonsDone = mod.lessons.every((l) => l.completed);
       const anyStarted = mod.lessons.some((l) => l.completed);
       const nextSession = nextSessionMap.get(mod.programId);
@@ -870,14 +1004,20 @@ export async function getAssistantTraining(): Promise<AssistantTrainingData> {
       });
     }
 
-    // Sort: available/in_progress first, then completed, then locked
+    // Sort: available/in_progress first, then completed, then locked.
+    // Using a numeric priority map with .sort() comparator — O(n log n).
+    // This ordering surfaces actionable modules at the top of the UI list.
     const statusOrder = { in_progress: 0, available: 1, completed: 2, locked: 3 };
     modules.sort((a, b) => statusOrder[a.status] - statusOrder[b.status]);
 
+    // .flatMap() flattens nested module→lessons into a single array so we can
+    // count total and completed lessons across all modules without nested loops.
     const totalLessons = modules.flatMap((m) => m.lessons).length;
+    // Chain .flatMap() → .filter() to count only completed lessons across all modules.
     const totalCompletedLessons = modules
       .flatMap((m) => m.lessons)
       .filter((l) => l.completed).length;
+    // .filter() counts modules with "completed" status for the stats summary card.
     const completedModules = modules.filter((m) => m.status === "completed").length;
 
     return {

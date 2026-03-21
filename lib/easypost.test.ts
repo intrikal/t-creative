@@ -1,5 +1,23 @@
+// describe: groups related tests into a labeled block (like a folder for tests)
+// it/test: defines a single test case with a description and assertion function
+// expect: creates an assertion — checks that a value matches an expected condition
+// vi: Vitest's mock utility — creates fake functions, spies on calls, and controls return values
+// beforeEach: runs a setup function before every test in the current describe block
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
+/**
+ * Tests for the EasyPost shipping integration module.
+ *
+ * Covers:
+ *  - isEasyPostConfigured: true when EASYPOST_API_KEY is set, false otherwise
+ *  - easypostClient: null when not configured
+ *  - getShippingRates: creates shipment, returns sorted rates with cents conversion
+ *  - buyShippingLabel: returns tracking number, URL, label URL, carrier, service
+ *
+ * Mocks: @easypost/api SDK (Shipment.create, Shipment.buy), @sentry/nextjs, db/schema.
+ */
+
+// mockShipmentCreate: simulates EasyPost Shipment.create() — returns rates for a test shipment
 const mockShipmentCreate = vi.fn().mockResolvedValue({
   id: "shp_123",
   rates: [
@@ -8,6 +26,7 @@ const mockShipmentCreate = vi.fn().mockResolvedValue({
   ],
 });
 
+// mockShipmentBuy: simulates EasyPost Shipment.buy() — returns tracking info after label purchase
 const mockShipmentBuy = vi.fn().mockResolvedValue({
   tracking_code: "TRACK123",
   tracker: {
@@ -18,6 +37,7 @@ const mockShipmentBuy = vi.fn().mockResolvedValue({
   selected_rate: { carrier: "USPS", service: "Priority" },
 });
 
+// Registers all vi.doMock calls needed per test — must be called after vi.resetModules()
 function setupMocks() {
   vi.doMock("@sentry/nextjs", () => ({ captureException: vi.fn() }));
   vi.doMock("@easypost/api", () => ({

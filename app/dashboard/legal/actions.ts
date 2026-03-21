@@ -1,3 +1,19 @@
+/**
+ * legal/actions — Server actions for managing Privacy Policy & Terms of Service.
+ *
+ * Powers the Legal tab in `/dashboard/settings`. Each legal document type
+ * (privacy_policy, terms_of_service) stores exactly one row — upserted on save.
+ * Sections are stored as JSONB arrays so the admin can reorder/edit paragraphs
+ * without schema migrations.
+ *
+ * The `seedLegalDefaults()` function populates California-compliant defaults
+ * (CCPA, health disclosure, cancellation terms) on first visit if the table
+ * is empty. These are T Creative–specific, not generic boilerplate.
+ *
+ * @see {@link ./LegalSettingsPage.tsx} — admin editor consuming this data
+ * @see {@link /app/privacy/page.tsx} — public-facing privacy policy page
+ * @see {@link /app/terms/page.tsx} — public-facing terms page
+ */
 "use server";
 
 import { revalidatePath, updateTag } from "next/cache";
@@ -56,7 +72,8 @@ export async function getLegalDoc(
   try {
     await getUser();
 
-    // Prefer published; fall back to most recent draft
+    // Order by isPublished DESC, id DESC so the published version wins;
+    // if none published yet, the most recent draft is returned instead.
     const rows = await db
       .select()
       .from(legalDocuments)
@@ -139,6 +156,8 @@ export async function saveLegalDoc(
       });
     }
 
+    // Invalidate the settings page (admin editor) and the "legal" cache tag
+    // which the public /privacy and /terms pages use via unstable_cache.
     revalidatePath("/dashboard/settings");
     updateTag("legal");
   } catch (err) {

@@ -1,9 +1,27 @@
+// describe: groups related tests into a labeled block (like a folder for tests)
+// it/test: defines a single test case with a description and assertion function
+// expect: creates an assertion — checks that a value matches an expected condition
+// vi: Vitest's mock utility — creates fake functions, spies on calls, and controls return values
+// beforeEach: runs a setup function before every test in the current describe block
 import { describe, it, expect, vi, beforeEach } from "vitest";
+
+/**
+ * Tests for getFeaturedReviews — public-facing review data fetcher.
+ *
+ * Covers:
+ *  - Returns featured reviews with computed client name + initials
+ *  - Empty array when no featured reviews exist
+ *  - Database error → empty array + Sentry report
+ *  - Missing profile names → "Anonymous" fallback
+ *
+ * Mocks: db (select chain), db/schema (reviews + profiles), drizzle-orm, Sentry.
+ */
 
 /* ------------------------------------------------------------------ */
 /*  Chainable DB mock helper                                           */
 /* ------------------------------------------------------------------ */
 
+// Creates a thenable chain that mimics Drizzle's query builder pattern
 function makeChain(rows: unknown[] = []) {
   const resolved = Promise.resolve(rows);
   const chain: any = {
@@ -24,9 +42,12 @@ function makeChain(rows: unknown[] = []) {
 /*  Mock setup                                                         */
 /* ------------------------------------------------------------------ */
 
+// mockSelect: captures db.select() calls for assertion
 const mockSelect = vi.fn();
+// mockCaptureException: captures Sentry error reports
 const mockCaptureException = vi.fn();
 
+// Registers all vi.doMock calls — must be called after vi.resetModules() per test
 function setupMocks(rows: unknown[] = []) {
   vi.doMock("@/db", () => ({
     db: {

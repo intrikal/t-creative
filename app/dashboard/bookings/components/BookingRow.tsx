@@ -1,3 +1,12 @@
+/**
+ * Single booking row for the admin Bookings table (BookingsPage).
+ * Displays date, client avatar, service, staff, price, and status badge.
+ * Hover reveals edit + overflow menu with quick-status, cancel, cancel-series,
+ * delete, payment link, and service-notes actions.
+ *
+ * Parent: app/dashboard/bookings/BookingsPage.tsx
+ * Helpers: ./helpers.ts (statusConfig, categoryDot, Booking type)
+ */
 "use client";
 
 import {

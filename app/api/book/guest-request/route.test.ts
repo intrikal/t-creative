@@ -1,16 +1,42 @@
+/**
+ * Tests for POST /api/book/guest-request — public booking request endpoint.
+ *
+ * Covers:
+ *  - Input validation: invalid JSON, missing required fields, empty name,
+ *    invalid email format, nonexistent service
+ *  - Turnstile bot-check rejection (403)
+ *  - Happy path: service found + admin exists → sends notification email to admin
+ *  - Graceful degradation: no admin profile → 200 without sending email
+ *  - Reference photo URLs included in the email HTML
+ *
+ * Mocks: db (select chain), Resend email sender, Turnstile verifier.
+ * Does NOT mock Supabase auth — this route is fully unauthenticated.
+ */
+// describe: groups related tests into a labeled block (like a folder for tests)
+// it/test: defines a single test case with a description and assertion function
+// expect: creates an assertion — checks that a value matches an expected condition
+// vi: Vitest's mock utility — creates fake functions, spies on calls, and controls return values
+// beforeEach: runs a setup function before every test in the current describe block
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 /* ------------------------------------------------------------------ */
 /*  Shared mock state                                                   */
 /* ------------------------------------------------------------------ */
 
+// selectIdx / selectData: stateful counter that routes each sequential db.select()
+// call to the correct mock data array — simulates multiple DB queries in order
 let selectIdx = 0;
 let selectData: unknown[][] = [];
+// mockInsert: captures db.insert() table reference calls
 const mockInsert = vi.fn();
+// mockInsertValues: captures the row data passed to .values()
 const mockInsertValues = vi.fn();
+// mockResendSend: captures Resend SDK emails.send() calls
 const mockResendSend = vi.fn();
+// mockVerifyTurnstile: controls the bot-check result (true=pass, false=fail)
 const mockVerifyTurnstile = vi.fn();
 
+// Builds a fake Drizzle DB instance that returns selectData rows in order
 function buildDb() {
   return {
     select: vi.fn().mockImplementation(() => {
@@ -44,6 +70,8 @@ function buildDb() {
 describe("POST /api/book/guest-request", () => {
   let POST: (request: Request) => Promise<Response>;
 
+  // Reset all mock call counts, clear the stateful select counter, and set
+  // default happy-path mock behaviors before each test
   beforeEach(async () => {
     vi.clearAllMocks();
     selectIdx = 0;

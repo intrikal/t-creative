@@ -4,6 +4,16 @@
  * Uses the Supabase server client (cookie-based session) to get the
  * authenticated user, then queries the Drizzle profiles table for
  * application-level data (role, onboarding status, etc.).
+ *
+ * Auth checks are split into three tiers:
+ * - `getCurrentUser()` — read-only, returns null if unauthenticated
+ * - `getUser()` / `requireStaff()` — throws 401 if unauthenticated
+ * - `requireAdmin()` — throws 403 if not admin role
+ *
+ * React `cache()` wraps the hot-path functions so multiple server
+ * components / actions within a single RSC render share one DB query.
+ *
+ * @module lib/auth
  */
 import { cache } from "react";
 import { eq } from "drizzle-orm";
@@ -11,6 +21,11 @@ import { db } from "@/db";
 import { profiles } from "@/db/schema";
 import { createClient } from "@/utils/supabase/server";
 
+/**
+ * Composite type returned by `getCurrentUser()`. The `profile` field
+ * is null when the user exists in Supabase Auth but hasn't completed
+ * onboarding (profile row not yet created or firstName is empty).
+ */
 export type CurrentUser = {
   id: string;
   email: string;
@@ -98,6 +113,7 @@ export async function requireStaff() {
 
 /**
  * Check if a profile has completed onboarding (firstName is filled).
+ * Used by middleware and layout components to redirect to /onboarding.
  */
 export function isOnboardingComplete(profile: typeof profiles.$inferSelect | null): boolean {
   return !!profile?.firstName;

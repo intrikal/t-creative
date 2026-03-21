@@ -242,6 +242,9 @@ export const getAdminStatsAndAlerts = cache(async () => {
 
   // ── Build alerts ──
   const alerts: AdminAlert[] = [];
+  // Build actionable alert banners from the queried data.
+  // filter + join: combine first/last name, falling back to "a client"
+  // when both are null (e.g. deleted profile).
   if (overdueInvoicesRaw.length === 1) {
     const inv = overdueInvoicesRaw[0];
     const clientName =
@@ -258,6 +261,7 @@ export const getAdminStatsAndAlerts = cache(async () => {
       cta: "View Invoice",
     });
   } else if (overdueInvoicesRaw.length > 1) {
+    // reduce: sum overdue amounts across multiple invoices for the banner
     const totalCents = overdueInvoicesRaw.reduce((s, i) => s + i.amountInCents, 0);
     alerts.push({
       id: "overdue-multiple",
@@ -324,6 +328,8 @@ export const getAdminTodayBookings = cache(async () => {
     .orderBy(asc(bookings.startsAt))
     .limit(10);
 
+  // map: transform raw DB rows into the AdminBooking display type,
+  // formatting timestamps and combining first/last name into full name
   const todayBookings: AdminBooking[] = todayBookingsRaw.map((b) => ({
     id: b.id,
     time: b.startsAt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }),
@@ -359,9 +365,12 @@ export const getAdminInquiries = cache(async () => {
     .orderBy(desc(inquiries.createdAt))
     .limit(5);
 
+  // map: transform raw inquiry rows into display type with computed initials
   const adminInquiries: AdminInquiry[] = recentInquiriesRaw.map((q) => ({
     id: q.id,
     name: q.name,
+    // split + map + join + slice: extract first character of each word,
+    // concatenate, and cap at 2 chars for the avatar fallback
     initials: q.name
       .split(" ")
       .map((w) => w.charAt(0))
@@ -404,9 +413,14 @@ export const getAdminWeeklyRevenue = cache(async () => {
   ]);
 
   const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  // Map: index daily revenue totals by date string for O(1) lookup when
+  // building the 7-day chart array. Cents are converted to whole dollars.
   const revByDate = new Map(
     weeklyRevDailyRaw.map((r) => [r.dateStr, Math.round(Number(r.total) / 100)]),
   );
+  // Array.from: generate exactly 7 entries (one per day of the past week),
+  // filling in $0 for days with no payments. This guarantees the chart
+  // always renders 7 bars even if some days had no revenue.
   const weeklyRevenue = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(sevenDaysAgo);
     d.setDate(d.getDate() + i);
@@ -418,6 +432,7 @@ export const getAdminWeeklyRevenue = cache(async () => {
   });
 
   const priorWeekRev = Math.round(Number(priorWeekRevRow?.total ?? 0) / 100);
+  // reduce: sum this week's daily totals for the comparison metric
   const thisWeekRev = weeklyRevDailyRaw.reduce(
     (s, r) => s + Math.round(Number(r.total) / 100),
     0,
@@ -495,6 +510,9 @@ export const getAdminRecentClientsAndTeam = cache(async () => {
   }));
 
   // Team today
+  // reduce + Set: deduplicate shifts by assistantId so each assistant
+  // appears once even if they have multiple shift segments today.
+  // The first shift's times are used as the display hours.
   const seenAssistants = new Set<string>();
   const teamToday: AdminStaff[] = teamShiftsRaw.reduce<AdminStaff[]>((acc, s) => {
     if (seenAssistants.has(s.assistantId)) return acc;

@@ -17,13 +17,24 @@ import { saveReminders } from "../settings-actions";
 import { Toggle, FieldRow, StatefulSaveButton, NUM_INPUT_CLASS } from "./shared";
 
 export function RemindersTab({ initial }: { initial: RemindersConfig }) {
+  /** Reminder step configurations (label, timing, email/sms/active toggles). */
   const [reminders, setReminders] = useState(initial.items);
+  /** Days after a visit to send a fill/rebook reminder. */
   const [fillReminderDays, setFillReminderDays] = useState(initial.fillReminderDays);
+  /** Hours after appointment completion to send a review request. */
   const [reviewRequestDelayHours, setReviewRequestDelayHours] = useState(initial.reviewRequestDelayHours);
+  /** Comma-separated hour values for booking reminder windows (e.g. "24, 48"). */
   const [bookingReminderHours, setBookingReminderHours] = useState(initial.bookingReminderHours.join(", "));
+  /** Whether the save action is in flight. */
   const [saving, setSaving] = useState(false);
+  /** Briefly true after a successful save; auto-resets via useTimeoutFlag. */
   const [saved, triggerSaved] = useTimeoutFlag(2000);
 
+  /**
+   * toggleField — flips a single boolean (email, sms, or active) on a reminder step.
+   * Uses .map() to produce a new array with only the matched reminder changed,
+   * and a computed property key so one function handles all three toggle types.
+   */
   function toggleField(id: number, field: "email" | "sms" | "active") {
     setReminders((prev) => prev.map((r) => (r.id === id ? { ...r, [field]: !r[field] } : r)));
   }
@@ -31,6 +42,8 @@ export function RemindersTab({ initial }: { initial: RemindersConfig }) {
   async function handleSave() {
     setSaving(true);
     try {
+      // Parse the comma-separated hours string into an array of positive integers.
+      // Invalid entries (NaN, <= 0) are filtered out; falls back to [24, 48] if empty.
       const parsedHours = bookingReminderHours
         .split(",")
         .map((s) => parseInt(s.trim(), 10))

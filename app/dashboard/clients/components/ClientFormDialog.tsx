@@ -1,3 +1,17 @@
+/**
+ * Create / Edit client dialog with fields for name, email, phone,
+ * acquisition source, lifecycle stage, referral info, tags, notes, and VIP flag.
+ *
+ * Parent: app/dashboard/clients/ClientsPage.tsx
+ *
+ * State:
+ *   form — ClientFormState with all field values
+ *
+ * Key operations:
+ *   set() — curried updater: set("firstName")(value) spreads the key into form state.
+ *           Uses a closure so each field's onChange can be a one-liner.
+ *   Referral field conditionally renders when source === "referral".
+ */
 "use client";
 
 import { useState } from "react";

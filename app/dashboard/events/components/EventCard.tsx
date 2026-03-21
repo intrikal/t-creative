@@ -52,18 +52,26 @@ export function EventCard({
   onAssignStaff?: (data: { staffId: string; role?: string }) => void;
   onRemoveStaff?: (assignmentId: number) => void;
 }) {
+  /** Whether the detail accordion panel is expanded. */
   const [expanded, setExpanded] = useState(false);
+  /** Whether the AddGuestDialog is open. */
   const [guestDialogOpen, setGuestDialogOpen] = useState(false);
+  /** Transition state for the invite email action (shows "Sending..." indicator). */
   const [isSendingInvite, startInviteTransition] = useTransition();
+  /** Whether the inline staff assignment form is visible. */
   const [addingStaff, setAddingStaff] = useState(false);
+  /** Selected staff ID in the assignment form. */
   const [newStaffId, setNewStaffId] = useState("");
+  /** Role text input for the staff assignment form. */
   const [newStaffRole, setNewStaffRole] = useState("");
   const type = TYPE_CONFIG[event.eventType];
   const status = statusConfig(event.status);
+  /** Count of paid guests — used for the "X paid" summary in the header. */
   const paidCount = event.guests.filter((g) => g.paid).length;
   const revDisplay = centsToDisplay(event.expectedRevenueInCents);
   const depDisplay = centsToDisplay(event.depositInCents);
   const travelDisplay = centsToDisplay(event.travelFeeInCents);
+  /** Prefer venue name over raw location string when a saved venue is linked. */
   const displayLocation = event.venueName ?? event.location;
 
   return (

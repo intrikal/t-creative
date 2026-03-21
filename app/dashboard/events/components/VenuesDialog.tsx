@@ -28,7 +28,9 @@ export function VenuesDialog({
   onAdd: (form: VenueForm) => void;
   onUpdate: (id: number, form: VenueForm, isActive: boolean) => void;
 }) {
+  /** Whether the "Add Venue" form dialog is open. */
   const [addOpen, setAddOpen] = useState(false);
+  /** The venue being edited (null = no edit in progress). */
   const [editingVenue, setEditingVenue] = useState<VenueRow | null>(null);
 
   return (

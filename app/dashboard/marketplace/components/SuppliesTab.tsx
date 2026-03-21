@@ -1,3 +1,11 @@
+/**
+ * SuppliesTab — Consumable supply tracking table.
+ *
+ * Tracks supplies consumed during services (glue, chains, cleanser,
+ * lash trays, etc.) with stock levels, reorder-point alerts, and
+ * inline +/- adjustment controls. Surfaces a banner when any items
+ * are low or out of stock so the admin can reorder promptly.
+ */
 "use client";
 
 import { Plus, Minus, Pencil, Trash2, AlertTriangle, Package } from "lucide-react";
@@ -19,6 +27,8 @@ export function SuppliesTab({
   onDelete: (id: number) => void;
   onAdjustStock: (id: number, delta: number) => void;
 }) {
+  // filter + .length: count supplies below reorder point (low) and
+  // at zero (out) separately so the alert banner can show both numbers
   const lowCount = supplies.filter((c) => c.stock > 0 && c.stock <= c.reorder).length;
   const outCount = supplies.filter((c) => c.stock === 0).length;
 
@@ -87,9 +97,13 @@ export function SuppliesTab({
               </tr>
             </thead>
             <tbody>
+              {/* map: one row per supply with stock count, reorder point,
+                  status pill, and inline +/- controls */}
               {supplies.map((item) => {
                 const isOut = item.stock === 0;
                 const isLow = !isOut && item.stock <= item.reorder;
+                // ternary: pick status colour (red/amber/green) based on
+                // stock level relative to the admin-set reorder point
                 const statusColor = isOut
                   ? "text-destructive bg-destructive/10 border-destructive/20"
                   : isLow

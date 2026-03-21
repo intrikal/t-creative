@@ -1,5 +1,43 @@
 "use client";
 
+/**
+ * StepAssistantPolicies — step 7 (final step) of the assistant onboarding wizard.
+ *
+ * ## Responsibility
+ * Collects four mandatory policy agreements before the assistant's data is saved:
+ * A. Client photo consent, B. Confidentiality, C. Studio conduct, D. Compensation.
+ * All four must be acknowledged before the OK button enables.
+ *
+ * ## One-way toggles
+ * Unlike the client flow's StepPolicies (which allows toggling agreements on/off),
+ * these toggles are one-way: once clicked, they stay agreed. The `handleAgree`
+ * callback checks `if (prev[key]) return prev` — if already agreed, it's a no-op.
+ * This prevents accidental un-agreement after the assistant has read the policy.
+ *
+ * ## State design
+ * `agreed` is a single Record<string, boolean> object instead of four separate
+ * boolean states. This simplifies the `allAgreed` check — `POLICIES.every()`
+ * iterates the static array and looks up each key in the object. One object also
+ * means one `setAgreed` call per toggle instead of four separate setters.
+ *
+ * ## Keyboard shortcuts
+ * - A-D acknowledge the corresponding policy (only if not already agreed)
+ * - Enter advances when all four are agreed
+ *
+ * ## form.setFieldValue inside setState
+ * `handleAgree` calls `form.setFieldValue` inside the `setAgreed` updater. This
+ * works here because the policy fields are simple booleans that don't trigger
+ * TanStack Form's LocalSubscribe re-render cycle (unlike complex nested fields).
+ *
+ * ## Props
+ * @prop form — the TanStack Form instance (AssistantOnboardingForm)
+ * @prop onNext — triggers the form submission and transitions to completion
+ * @prop stepNum — displayed as the step badge number
+ *
+ * ## Related files
+ * - components/onboarding/panels/PanelAssistantPolicies.tsx — paired right panel
+ * - components/onboarding/OnboardingFlow.tsx — renders this as step 7
+ */
 import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import type { AssistantOnboardingForm } from "../OnboardingFlow";
@@ -10,6 +48,10 @@ interface StepProps {
   stepNum: number;
 }
 
+// POLICIES array: each entry defines a policy agreement toggle.
+// `key` matches the form field name (e.g. "policyClientPhotos").
+// `letter` is the keyboard shortcut shown in the badge.
+// `as const` narrows each key to its literal string type for type-safe form access.
 const POLICIES = [
   {
     key: "policyClientPhotos" as const,
@@ -38,6 +80,8 @@ const POLICIES = [
 ];
 
 export function StepAssistantPolicies({ form, onNext, stepNum }: StepProps) {
+  // Single object tracks all four agreement states. Lazy initializer reads
+  // current form values on first render so navigating back preserves prior agreements.
   const [agreed, setAgreed] = useState<Record<string, boolean>>(() => ({
     policyClientPhotos: (form.getFieldValue("policyClientPhotos") as boolean) ?? false,
     policyConfidentiality: (form.getFieldValue("policyConfidentiality") as boolean) ?? false,
@@ -45,6 +89,8 @@ export function StepAssistantPolicies({ form, onNext, stepNum }: StepProps) {
     policyCompensation: (form.getFieldValue("policyCompensation") as boolean) ?? false,
   }));
 
+  // .every() returns true only if every element in the array passes the test.
+  // Here it checks that every policy key maps to `true` in the `agreed` object.
   const allAgreed = POLICIES.every((p) => agreed[p.key]);
 
   const handleAgree = useCallback(

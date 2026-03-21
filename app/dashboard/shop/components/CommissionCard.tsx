@@ -22,8 +22,11 @@ import { cn } from "@/lib/utils";
 import { STATUS_CONFIG, CAT_CONFIG } from "./commissions-helpers";
 
 export function CommissionCard({ commission }: { commission: ClientCommission }) {
+  /** expanded: whether the detail section (description, metadata, files) is open */
   const [expanded, setExpanded] = useState(false);
   const [isPending, startTransition] = useTransition();
+  /** actionDone: tracks the client's quote response so the UI reflects
+   *  the new status optimistically before the server confirms */
   const [actionDone, setActionDone] = useState<"accepted" | "declined" | null>(null);
 
   const s = STATUS_CONFIG[commission.status] ?? STATUS_CONFIG.inquiry;
@@ -37,7 +40,10 @@ export function CommissionCard({ commission }: { commission: ClientCommission })
   const CatIcon = catCfg.icon;
 
   const meta = commission.metadata as Record<string, unknown> | null;
-  // Separate display fields from file URL arrays
+  // Separate display fields from file URL arrays — SKIP_KEYS holds
+  // metadata keys that are rendered as file galleries, not key-value pairs.
+  // Object.entries + filter: extract only string-valued metadata fields
+  // for the detail grid, skipping file arrays and empty values.
   const SKIP_KEYS = new Set(["referenceUrls", "designUrls"]);
   const metaEntries = meta
     ? Object.entries(meta).filter(([k, v]) => !SKIP_KEYS.has(k) && v && typeof v === "string")
@@ -60,6 +66,8 @@ export function CommissionCard({ commission }: { commission: ClientCommission })
     });
   }
 
+  // ternary: derive the displayed status — if the client just accepted
+  // or declined, show that immediately without waiting for revalidation
   const effectiveStatus =
     actionDone === "accepted"
       ? "accepted"

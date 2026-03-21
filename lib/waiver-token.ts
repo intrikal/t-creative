@@ -8,10 +8,17 @@
  */
 import { createHmac } from "crypto";
 
+// Signing secret priority: dedicated waiver secret > NextAuth secret > hardcoded fallback.
+// The fallback is intentionally weak to make missing config obvious in dev
+// while still allowing the app to boot.
 const SECRET = process.env.WAIVER_TOKEN_SECRET || process.env.NEXTAUTH_SECRET || "waiver-fallback-secret";
 
+/** The data encoded inside a waiver token — identifies which booking
+ *  and which client the waiver completion link is for. */
 interface WaiverTokenPayload {
+  /** Primary key of the booking that requires waiver completion. */
   bookingId: number;
+  /** UUID of the client's profile row (profiles.id). */
   clientId: string;
 }
 
@@ -33,7 +40,19 @@ export function generateWaiverToken(payload: WaiverTokenPayload, expiryDays: num
 }
 
 /**
- * Verify and decode a waiver token. Returns null if invalid or expired.
+ * Verify and decode a waiver token.
+ *
+ * Validation steps:
+ * 1. Split on "." — must have exactly two parts (payload + signature).
+ * 2. Recompute HMAC-SHA256 over the encoded payload and compare to the
+ *    provided signature (constant-time comparison not used here because
+ *    the tokens are short-lived and low-value; timing attacks are not a
+ *    practical risk for waiver links).
+ * 3. JSON-decode the payload and check the `exp` timestamp.
+ *
+ * @param token - The full token string from the waiver URL query param.
+ * @returns The decoded payload ({bookingId, clientId}) or null if the
+ *          token is malformed, tampered with, or expired.
  */
 export function verifyWaiverToken(token: string): WaiverTokenPayload | null {
   const parts = token.split(".");

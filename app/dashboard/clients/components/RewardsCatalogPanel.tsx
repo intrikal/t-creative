@@ -1,3 +1,32 @@
+/**
+ * Admin panel for managing the loyalty rewards catalog — CRUD for reward items
+ * that clients can redeem with their loyalty points. Shows a table of all rewards
+ * with category, points cost, dollar value, active status, and edit/deactivate actions.
+ *
+ * Parent: app/dashboard/clients/components/LoyaltyTab.tsx
+ *
+ * State:
+ *   rewards     — local copy of reward rows for optimistic updates
+ *   editTarget  — reward being edited (opens RewardFormDialog)
+ *   showCreate  — controls the create RewardFormDialog
+ *
+ * Key operations:
+ *   rewards.filter((r) => r.active).length — count of active rewards for header
+ *   handleDelete — deactivates a reward via server action, then optimistically
+ *                  sets active=false in local state using .map()
+ *   rewards.map() — renders each reward as a table row with category icon lookup
+ *                   from CATEGORY_ICON record, and category label via .replace("_", " ")
+ *
+ * Sub-component: RewardFormDialog
+ *   Create/edit form for a single reward with label, category radio group,
+ *   points cost, discount amount (for discount category), description, sort order,
+ *   and active toggle.
+ *
+ *   State: form (FormData), isPending, error
+ *   set()       — generic updater spreading a single key into form state
+ *   handleSave  — validates inputs, calls createLoyaltyReward or updateLoyaltyReward
+ *   formFromRow — converts a LoyaltyRewardRow to form state for editing
+ */
 "use client";
 
 import { useState, useTransition } from "react";

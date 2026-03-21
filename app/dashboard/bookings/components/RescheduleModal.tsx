@@ -1,13 +1,16 @@
 /**
  * Modal for rescheduling a booking to a new date and time.
+ * Step 1: pick a date; Step 2: pick an available slot for the same service + staff.
  *
  * Related: app/dashboard/bookings/ClientBookingsPage.tsx
  */
 "use client";
 
-import { useState, useMemo } from "react";
-import { X } from "lucide-react";
+import { useState, useTransition } from "react";
+import { X, Loader2 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import type { ClientBookingRow } from "../client-actions";
+import { getAvailableRescheduleSlots } from "../client-actions";
 
 export function RescheduleModal({
   booking,
@@ -22,14 +25,36 @@ export function RescheduleModal({
   isPending: boolean;
   errorMsg: string | null;
 }) {
-  const [newDateTime, setNewDateTime] = useState("");
+  const [selectedDate, setSelectedDate] = useState("");
+  const [slots, setSlots] = useState<{ time: string; label: string }[]>([]);
+  const [selectedSlot, setSelectedSlot] = useState("");
+  const [isLoadingSlots, startSlotTransition] = useTransition();
 
-  // Build a min value: 24h + 1min from now, rounded to nearest minute
-  const minValue = useMemo(() => {
-    // eslint-disable-next-line react-hooks/purity
-    const minDate = new Date(Date.now() + 24 * 60 * 60 * 1000 + 60 * 1000);
-    return `${minDate.getFullYear()}-${String(minDate.getMonth() + 1).padStart(2, "0")}-${String(minDate.getDate()).padStart(2, "0")}T${String(minDate.getHours()).padStart(2, "0")}:${String(minDate.getMinutes()).padStart(2, "0")}`;
-  }, []);
+  // Minimum selectable date: tomorrow
+  const minDate = (() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  })();
+
+  function handleDateChange(dateISO: string) {
+    setSelectedDate(dateISO);
+    setSelectedSlot("");
+    setSlots([]);
+    if (!dateISO) return;
+
+    startSlotTransition(async () => {
+      const available = await getAvailableRescheduleSlots(booking.id, dateISO);
+      setSlots(available);
+    });
+  }
+
+  function handleConfirm() {
+    if (!selectedDate || !selectedSlot) return;
+    // Build local datetime string → convert to ISO UTC for server
+    const localDT = `${selectedDate}T${selectedSlot}`;
+    onConfirm(booking.id, new Date(localDT).toISOString());
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-foreground/20 backdrop-blur-sm">
@@ -40,22 +65,57 @@ export function RescheduleModal({
             <X className="w-4 h-4" />
           </button>
         </div>
-        <div className="px-5 py-4 space-y-3">
+        <div className="px-5 py-4 space-y-4">
           <p className="text-xs text-muted">
             {booking.service} · currently {booking.date} at {booking.time}
           </p>
+
+          {/* Step 1: Date picker */}
           <div className="space-y-1.5">
-            <p className="text-xs font-medium text-foreground">New date & time</p>
+            <p className="text-xs font-medium text-foreground">Select a new date</p>
             <input
-              type="datetime-local"
-              value={newDateTime}
-              min={minValue}
-              onChange={(e) => setNewDateTime(e.target.value)}
+              type="date"
+              value={selectedDate}
+              min={minDate}
+              onChange={(e) => handleDateChange(e.target.value)}
               className="w-full text-sm text-foreground bg-surface border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-accent/40"
             />
           </div>
+
+          {/* Step 2: Time slot picker */}
+          {selectedDate && (
+            <div className="space-y-1.5">
+              <p className="text-xs font-medium text-foreground">Select a time</p>
+              {isLoadingSlots ? (
+                <div className="flex items-center justify-center py-4">
+                  <Loader2 className="w-4 h-4 animate-spin text-muted" />
+                </div>
+              ) : slots.length === 0 ? (
+                <p className="text-xs text-muted py-2">No available slots for this date.</p>
+              ) : (
+                <div className="grid grid-cols-3 gap-1.5">
+                  {slots.map((s) => (
+                    <button
+                      key={s.time}
+                      onClick={() => setSelectedSlot(s.time)}
+                      className={cn(
+                        "py-2 rounded-lg border text-xs font-medium transition-colors",
+                        selectedSlot === s.time
+                          ? "border-accent bg-accent/10 text-accent"
+                          : "border-border text-muted hover:border-accent/50 hover:text-foreground",
+                      )}
+                    >
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           <p className="text-[11px] text-muted">
-            Your booking will return to pending and our team will confirm the new time.
+            Your deposit will be kept. Your booking will return to pending and our team will confirm
+            the new time.
           </p>
           {errorMsg && (
             <p className="text-xs text-destructive bg-destructive/8 border border-destructive/20 rounded-lg px-3 py-2">
@@ -71,10 +131,8 @@ export function RescheduleModal({
             Keep Current
           </button>
           <button
-            onClick={() =>
-              newDateTime && onConfirm(booking.id, new Date(newDateTime).toISOString())
-            }
-            disabled={isPending || !newDateTime || !!errorMsg}
+            onClick={handleConfirm}
+            disabled={isPending || !selectedDate || !selectedSlot}
             className="flex-1 py-2 rounded-lg bg-accent text-white text-sm font-medium hover:bg-accent/90 transition-colors disabled:opacity-40"
           >
             Reschedule

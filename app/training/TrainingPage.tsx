@@ -1,6 +1,16 @@
 /**
- * TrainingPage — Certification programs with dates, deposits, and enrollment CTAs.
- * Driven by database with hardcoded fallback.
+ * TrainingPage — Public-facing certification program listing at /training.
+ *
+ * Renders a hero section followed by a vertical list of program cards, each
+ * showing format, duration, pricing, next session date/location, curriculum
+ * bullet points, and enrollment CTAs. Programs are sourced from the database
+ * (passed in as `programs` prop from a Server Component); if the DB returns
+ * an empty list, a hardcoded FALLBACK_PROGRAMS array is displayed so the
+ * page is never blank.
+ *
+ * This is a Client Component ("use client") because it uses Framer Motion
+ * for scroll-triggered entry animations (whileInView), which requires
+ * browser Intersection Observer APIs.
  */
 "use client";
 
@@ -158,7 +168,14 @@ const FALLBACK_PROGRAMS: ProgramDisplay[] = [
 /*  Transform DB programs to display format                            */
 /* ------------------------------------------------------------------ */
 
+// Maps raw DB program records into the flat display shape used by the JSX.
+// Resolves category color, formats the next session date, and converts
+// cents to a human-readable price string.
 function toDisplay(programs: PublicProgram[]): ProgramDisplay[] {
+  // Map each DB program into the flat ProgramDisplay shape the JSX consumes.
+  // Resolves the category string to a hex color, formats the next session date,
+  // converts duration fields to a readable string, and formats cents to dollars.
+  // This decouples the DB schema from the rendering layer.
   return programs.map((p) => ({
     title: p.name,
     color: CATEGORY_COLORS[p.category ?? ""] ?? "#888",
@@ -178,6 +195,8 @@ function toDisplay(programs: PublicProgram[]): ProgramDisplay[] {
 /* ------------------------------------------------------------------ */
 
 export function TrainingPage({ programs }: { programs: PublicProgram[] }) {
+  // Use DB-driven programs when available; fall back to hardcoded data so
+  // the page still renders useful content even if no programs exist yet.
   const displayPrograms: ProgramDisplay[] =
     programs.length > 0 ? toDisplay(programs) : FALLBACK_PROGRAMS;
 
@@ -218,6 +237,8 @@ export function TrainingPage({ programs }: { programs: PublicProgram[] }) {
         {/* Programs */}
         <section className="pb-32 px-6">
           <div className="mx-auto max-w-4xl flex flex-col gap-8">
+            {/* Render one animated card per program. The index drives a staggered
+                delay so cards fade in sequentially as the user scrolls. */}
             {displayPrograms.map((program, i) => (
               <motion.div
                 key={program.title}
@@ -293,6 +314,9 @@ export function TrainingPage({ programs }: { programs: PublicProgram[] }) {
                         What You&apos;ll Learn
                       </h3>
                       <ul className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                        {/* Render each curriculum bullet as a list item. Uses the
+                            item text as the React key since curriculum entries are
+                            unique within a program. */}
                         {program.curriculum.map((item) => (
                           <li key={item} className="text-sm text-muted flex items-start gap-2">
                             <span className="text-accent mt-0.5">+</span>

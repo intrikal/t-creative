@@ -13,7 +13,15 @@ import { useRef } from "react";
 import Link from "next/link";
 import { motion, useMotionValue, useSpring } from "framer-motion";
 
-/** Magnetic button — subtly follows cursor within ±4px */
+/**
+ * MagneticButton — Link element that subtly follows the cursor within ±4px, creating a
+ * "magnetic" tactile feel. Uses Framer Motion springs for smooth easing back to center.
+ *
+ * Props:
+ * - href: link destination
+ * - children: button label content
+ * - className: optional styling override
+ */
 function MagneticButton({
   href,
   children,
@@ -23,12 +31,19 @@ function MagneticButton({
   children: React.ReactNode;
   className?: string;
 }) {
+  // useRef tracks the anchor element for bounding rect calculations.
   const ref = useRef<HTMLAnchorElement>(null);
+  // useMotionValue for x/y offsets — MotionValues update without triggering React re-renders,
+  // which is critical here since mousemove fires at 60fps and re-renders would be expensive.
   const x = useMotionValue(0);
   const y = useMotionValue(0);
+  // useSpring wraps raw MotionValues with spring physics for smooth, organic easing
+  // back to center when the cursor leaves.
   const springX = useSpring(x, { stiffness: 200, damping: 20 });
   const springY = useSpring(y, { stiffness: 200, damping: 20 });
 
+  // Calculates cursor offset from button center and scales by 0.08 (8% of distance).
+  // The 0.08 multiplier keeps the magnetic pull subtle — larger values would feel jittery.
   function handleMouseMove(e: React.MouseEvent) {
     if (!ref.current) return;
     const rect = ref.current.getBoundingClientRect();

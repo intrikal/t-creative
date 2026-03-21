@@ -8,22 +8,31 @@
  */
 import { createHmac } from "crypto";
 
+// Signing secret priority: dedicated waiver secret > NextAuth secret > hardcoded fallback.
+// The fallback is intentionally weak to make missing config obvious in dev
+// while still allowing the app to boot.
 const SECRET = process.env.WAIVER_TOKEN_SECRET || process.env.NEXTAUTH_SECRET || "waiver-fallback-secret";
-const EXPIRY_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
+/** The data encoded inside a waiver token — identifies which booking
+ *  and which client the waiver completion link is for. */
 interface WaiverTokenPayload {
+  /** Primary key of the booking that requires waiver completion. */
   bookingId: number;
+  /** UUID of the client's profile row (profiles.id). */
   clientId: string;
 }
 
 /**
  * Generate a signed waiver token.
  * Format: base64url({ bookingId, clientId, exp }).signature
+ *
+ * @param expiryDays — token validity in days (default: 7, configurable via settings)
  */
-export function generateWaiverToken(payload: WaiverTokenPayload): string {
+export function generateWaiverToken(payload: WaiverTokenPayload, expiryDays: number = 7): string {
+  const expiryMs = expiryDays * 24 * 60 * 60 * 1000;
   const data = {
     ...payload,
-    exp: Date.now() + EXPIRY_MS,
+    exp: Date.now() + expiryMs,
   };
   const encoded = Buffer.from(JSON.stringify(data)).toString("base64url");
   const sig = createHmac("sha256", SECRET).update(encoded).digest("base64url");
@@ -31,7 +40,19 @@ export function generateWaiverToken(payload: WaiverTokenPayload): string {
 }
 
 /**
- * Verify and decode a waiver token. Returns null if invalid or expired.
+ * Verify and decode a waiver token.
+ *
+ * Validation steps:
+ * 1. Split on "." — must have exactly two parts (payload + signature).
+ * 2. Recompute HMAC-SHA256 over the encoded payload and compare to the
+ *    provided signature (constant-time comparison not used here because
+ *    the tokens are short-lived and low-value; timing attacks are not a
+ *    practical risk for waiver links).
+ * 3. JSON-decode the payload and check the `exp` timestamp.
+ *
+ * @param token - The full token string from the waiver URL query param.
+ * @returns The decoded payload ({bookingId, clientId}) or null if the
+ *          token is malformed, tampered with, or expired.
  */
 export function verifyWaiverToken(token: string): WaiverTokenPayload | null {
   const parts = token.split(".");

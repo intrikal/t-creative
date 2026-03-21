@@ -12,7 +12,6 @@ export default function AnalyticsError({
 }) {
   useEffect(() => {
     Sentry.captureException(error);
-    console.error("[analytics error]", error);
   }, [error]);
 
   return (

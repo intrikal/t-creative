@@ -16,16 +16,31 @@ import { PROG_STYLE } from "./client-helpers";
 
 export function LessonProgressCard({ enrollment }: { enrollment: ClientEnrollment }) {
   const style = PROG_STYLE[enrollment.programType];
+  /** Local copy of modules with lessons, updated optimistically on toggle. */
   const [modules, setModules] = useState<ClientLessonModule[]>(enrollment.lessonModules);
+  /**
+   * ID of the currently expanded module accordion.
+   * Defaults to the first module that has an incomplete lesson, so the student
+   * sees their next actionable item immediately.
+   */
   const [expandedModule, setExpandedModule] = useState<number | null>(
     modules.find((m) => m.lessons.some((l) => !l.completed))?.id ?? modules[0]?.id ?? null,
   );
+  /** useTransition state for the server action (disables checkboxes during save). */
   const [isPending, startTransition] = useTransition();
 
+  /** Total lessons across all modules — computed via .reduce() for the progress bar. */
   const totalLessons = modules.reduce((n, m) => n + m.lessons.length, 0);
+  /** Completed lessons — filters each module's lessons then sums the counts. */
   const doneLessons = modules.reduce((n, m) => n + m.lessons.filter((l) => l.completed).length, 0);
+  /** Overall progress percentage for the header progress bar. */
   const pct = totalLessons > 0 ? Math.round((doneLessons / totalLessons) * 100) : 0;
 
+  /**
+   * handleToggle — optimistically toggles a lesson's completed state, then
+   * fires the server action in a transition so the UI stays responsive.
+   * Uses nested .map() to find and update the specific lesson within its module.
+   */
   function handleToggle(moduleId: number, lessonId: number) {
     setModules((prev) =>
       prev.map((m) =>

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 /**
+ * @file session-use-flow.integration.test.ts
  * Integration tests for subscription lifecycle mutations.
  *
  * Calls `createSubscription` and `updateSubscriptionStatus` from
@@ -17,6 +18,10 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 type MockRow = Record<string, unknown>;
 
+/**
+ * Creates a mock DB that tracks subscription rows in memory.
+ * Test assertions read _subscriptions to verify final state.
+ */
 function createStatefulDb() {
   const subscriptionsTable: MockRow[] = [];
 
@@ -88,13 +93,16 @@ function createStatefulDb() {
 /*  Shared mock refs                                                   */
 /* ------------------------------------------------------------------ */
 
+/** Stub for supabase auth.getUser — pre-configured as an admin user. */
 const mockGetUser = vi.fn().mockResolvedValue({ data: { user: { id: "admin-1" } } });
+/** Captures revalidatePath calls. */
 const mockRevalidatePath = vi.fn();
 
 /* ------------------------------------------------------------------ */
 /*  Setup helper                                                       */
 /* ------------------------------------------------------------------ */
 
+/** Registers all module mocks using the stateful DB instance. */
 function setupMocks(db: ReturnType<typeof createStatefulDb>) {
   vi.doMock("@/db", () => ({ db }));
   vi.doMock("@/db/schema", () => ({

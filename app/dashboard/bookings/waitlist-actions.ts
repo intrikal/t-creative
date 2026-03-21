@@ -11,21 +11,13 @@ import * as Sentry from "@sentry/nextjs";
 import { eq, desc } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { z } from "zod";
+import { getPublicBusinessProfile } from "@/app/dashboard/settings/settings-actions";
 import { db } from "@/db";
 import { profiles, services, waitlist } from "@/db/schema";
 import { WaitlistNotification } from "@/emails/WaitlistNotification";
+import { getUser } from "@/lib/auth";
 import { trackEvent } from "@/lib/posthog";
 import { sendEmail } from "@/lib/resend";
-import { createClient } from "@/utils/supabase/server";
-
-async function getUser() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
-  return user;
-}
 
 export type WaitlistRow = {
   id: number;
@@ -170,12 +162,14 @@ export async function updateWaitlistStatus(
           .where(eq(waitlist.id, id));
 
         if (row?.clientEmail && row.notifyEmail) {
+          const bp = await getPublicBusinessProfile();
           await sendEmail({
             to: row.clientEmail,
-            subject: `A spot opened up — ${row.serviceName} — T Creative`,
+            subject: `A spot opened up — ${row.serviceName} — ${bp.businessName}`,
             react: WaitlistNotification({
               clientName: row.clientFirstName,
               serviceName: row.serviceName,
+              businessName: bp.businessName,
             }),
             entityType: "waitlist_notification",
             localId: String(id),

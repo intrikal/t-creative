@@ -1,11 +1,14 @@
 /**
  * StudioDiorama — Isometric 3D studio scene embedded as a landing page section.
  *
- * Renders the full studio room with service zones in an isometric view.
- * Users can rotate the scene by dragging (OrbitControls). No scroll-jacking.
- * Clicking a zone opens a sidesheet overlay anchored inside the canvas area.
+ * Used on the landing page as the interactive studio exploration. Renders the full studio
+ * room with service zones in an isometric view. Users can rotate the scene by dragging
+ * (OrbitControls). No scroll-jacking. Clicking a zone opens a sidesheet overlay anchored
+ * inside the canvas area.
  *
  * Client Component — dynamic import (SSR disabled) for Three.js canvas.
+ *
+ * No props — reads activeZone/unfocusZone from Zustand store for zone focus state.
  */
 "use client";
 
@@ -28,6 +31,8 @@ function DioramaLoadingSkeleton() {
   );
 }
 
+// Dynamic import with ssr:false — Three.js Canvas requires WebGL (browser-only).
+// .then() extracts the named export for next/dynamic compatibility.
 const DioramaCanvas = dynamic(
   () => import("./StudioDioramaCanvas").then((mod) => mod.StudioDioramaCanvas),
   {
@@ -37,11 +42,16 @@ const DioramaCanvas = dynamic(
 );
 
 export function StudioDiorama() {
+  // Selectors read only the needed fields from Zustand — avoids re-renders from unrelated store changes.
   const activeZone = useStudioStore((s) => s.activeZone);
   const unfocusZone = useStudioStore((s) => s.unfocusZone);
+  // Ternary: look up full zone config only when a zone is focused; null otherwise.
   const zone = activeZone ? ZONES[activeZone] : null;
 
-  // Close on Escape
+  // useEffect adds a keyboard listener for Escape to close the zone sidesheet.
+  // Early return when !zone avoids adding a listener when no panel is open.
+  // Cannot run during render because it needs to register a DOM event listener.
+  // Cleanup function removes the listener when the zone changes or the panel closes.
   useEffect(() => {
     if (!zone) return;
     const handleKey = (e: KeyboardEvent) => {
@@ -87,14 +97,17 @@ export function StudioDiorama() {
             <DioramaCanvas />
           </Suspense>
 
-          {/* Drag hint — hidden when a zone is focused */}
+          {/* Conditional render: drag hint only shows when no zone panel is open.
+              Hides during zone focus to keep the UI clean and avoid overlapping the sidesheet. */}
           {!activeZone && (
             <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-[10px] tracking-widest uppercase text-muted/50 pointer-events-none select-none">
               Drag to rotate · Click a zone to explore
             </div>
           )}
 
-          {/* Sidesheet overlay — slides in from right, anchored inside the canvas */}
+          {/* Sidesheet overlay — AnimatePresence enables enter/exit spring animations.
+              mode="wait" ensures the old panel fully exits before the new one enters.
+              Conditional render: only mounts when a zone is focused (zone is truthy). */}
           <AnimatePresence mode="wait">
             {zone && (
               <motion.div

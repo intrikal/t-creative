@@ -5,8 +5,6 @@ import type { Metadata } from "next";
 import { getPublishedPrograms } from "./actions";
 import { TrainingPage } from "./TrainingPage";
 
-export const revalidate = 3600;
-
 export const metadata: Metadata = {
   title: "Training Programs | Lash & Permanent Jewelry Certification | T Creative Studio",
   description:

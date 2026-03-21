@@ -1,5 +1,54 @@
 "use client";
 
+/**
+ * StepRoleSkills — step 2 of the assistant onboarding wizard.
+ *
+ * ## Responsibility
+ * Collects the assistant's professional identity: preferred title, skills,
+ * experience level, short bio, certifications, work style preference, and
+ * whether they offer training (with format sub-options).
+ *
+ * ## Skills selection (required)
+ * Multi-select pill buttons for the four service categories (A-D keyboard
+ * shortcuts). At least one skill must be selected before the OK button enables.
+ * Uses the same toggle pattern as StepInterests (client flow) — local state +
+ * ref + form.setFieldValue in the event handler.
+ *
+ * ## Ref-based state sync pattern
+ * `selectedSkillsRef`, `selectedCertsRef`, and `selectedTrainingFormatsRef`
+ * hold the current array values synchronously so `form.setFieldValue` can be
+ * called directly in toggle event handlers — not inside React setState updaters.
+ * Calling form.setFieldValue inside a setState updater triggers a "Cannot
+ * update a component while rendering" warning because it updates TanStack
+ * Form's internal LocalSubscribe component during the current render.
+ *
+ * ## Toggle functions (toggleSkill, toggleCert, toggleTrainingFormat)
+ * Each follows the same pattern:
+ * 1. Read current array from the ref (not from state — avoids stale closures)
+ * 2. If item exists, .filter() it out; if not, spread + append
+ * 3. Update the ref, update local state, update the form
+ *
+ * ## Experience level
+ * Single-select pills (junior/mid/senior) managed directly by form.Field —
+ * no local state needed because only one can be selected at a time.
+ *
+ * ## Training toggle
+ * When "I also offer training" is toggled off, both `offersTraining` and
+ * `trainingFormats` are cleared to avoid orphaned format selections.
+ *
+ * ## Keyboard handling
+ * - A-D toggle skills (suppressed when an input has focus via inputFocusedRef)
+ * - Enter advances when at least one skill is selected
+ *
+ * ## Props
+ * @prop form — the TanStack Form instance (AssistantOnboardingForm)
+ * @prop onNext — advances to step 3 (shift availability)
+ * @prop stepNum — displayed as the step badge number
+ *
+ * ## Related files
+ * - components/onboarding/panels/PanelRoleSkills.tsx — paired right-side panel
+ * - components/onboarding/OnboardingFlow.tsx — renders this as step 2
+ */
 import { useState, useEffect, useCallback, useRef } from "react";
 import { motion } from "framer-motion";
 import type { AssistantOnboardingForm } from "../OnboardingFlow";
@@ -55,6 +104,9 @@ export function StepRoleSkills({ form, onNext, stepNum }: StepProps) {
   const titleRef = useRef<HTMLInputElement>(null);
   const inputFocusedRef = useRef(false);
 
+  // Four separate state variables instead of one object — each section (skills,
+  // certs, training toggle, training formats) updates independently, so separate
+  // states avoid unnecessary re-renders of unrelated sections.
   const [selectedSkills, setSelectedSkills] = useState<
     ("lash" | "jewelry" | "crochet" | "consulting")[]
   >(() => form.state.values.skills ?? []);
@@ -77,9 +129,15 @@ export function StepRoleSkills({ form, onNext, stepNum }: StepProps) {
 
   const canContinue = selectedSkills.length > 0;
 
+  // Toggle pattern: if the item is already in the array, .filter() removes it;
+  // if not, [...spread, id] appends it. Reads from the ref (not state) to avoid
+  // stale closures, then updates ref → state → form in sequence.
   const toggleSkill = useCallback(
     (id: "lash" | "jewelry" | "crochet" | "consulting") => {
       const prev = selectedSkillsRef.current;
+      // .includes() checks if the array already contains this id.
+      // .filter(x => x !== id) creates a new array with that id removed.
+      // [...prev, id] creates a new array with the id appended (spread + append).
       const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
       selectedSkillsRef.current = next;
       setSelectedSkills(next);

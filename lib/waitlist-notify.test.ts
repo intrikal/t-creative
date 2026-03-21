@@ -1,11 +1,33 @@
+// describe: groups related tests into a labeled block (like a folder for tests)
+// it/test: defines a single test case with a description and assertion function
+// expect: creates an assertion — checks that a value matches an expected condition
+// vi: Vitest's mock utility — creates fake functions, spies on calls, and controls return values
+// beforeEach: runs a setup function before every test in the current describe block
 import { describe, it, expect, vi, beforeEach } from "vitest";
+
+/**
+ * Tests for the waitlist notification module.
+ *
+ * Covers:
+ *  - notifyNextWaitlistEntry: sends email + updates row when entry found,
+ *    no-op on empty waitlist, no-op on disabled email preference,
+ *    resolves even if notification insert fails
+ *  - notifyWaitlistForCancelledBooking: looks up cancelled booking and
+ *    notifies next entry, no-op on missing booking, doesn't throw on errors
+ *
+ * Mocks: db (select/insert/update chains), sendEmail, WaitlistNotification
+ * component, drizzle-orm operators.
+ */
 
 /* ------------------------------------------------------------------ */
 /*  Shared mock state                                                   */
 /* ------------------------------------------------------------------ */
 
+// mockSendEmail: captures email send calls
 const mockSendEmail = vi.fn();
+// mockDbInsertValues: captures notification row inserts
 const mockDbInsertValues = vi.fn();
+// mockDbUpdateSetWhere: captures waitlist row status updates
 const mockDbUpdateSetWhere = vi.fn();
 
 /** Builds a thenable chain usable for any Drizzle select query shape. */
@@ -32,6 +54,7 @@ function makeSelectChain(result: unknown[] = []) {
 
 const mockDbSelect = vi.fn();
 
+// Mock the database so tests don't need a real Postgres connection
 vi.mock("@/db", () => ({
   db: {
     select: (...args: unknown[]) => mockDbSelect(...args),
@@ -50,10 +73,12 @@ vi.mock("@/db/schema", () => ({
   waitlist: {},
 }));
 
+// Mock Resend so tests don't send real emails
 vi.mock("@/lib/resend", () => ({
   sendEmail: (...args: unknown[]) => mockSendEmail(...args),
 }));
 
+// Mock the email template component — we only care that sendEmail is called, not the HTML
 vi.mock("@/emails/WaitlistNotification", () => ({
   WaitlistNotification: vi.fn().mockReturnValue(null),
 }));

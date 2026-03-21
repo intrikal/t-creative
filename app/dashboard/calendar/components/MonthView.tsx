@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { DAY_NAMES_SHORT, TYPE_C } from "./constants";
 import { fmtDate, getMonthGrid, isToday, getDayAvailability } from "./helpers";
 import type { CalEvent, BusinessHourRow, TimeOffRow, LunchBreak } from "./types";
+import { groupEventsByDate } from "../utils";
 
 export function MonthView({
   cursor,
@@ -30,16 +31,11 @@ export function MonthView({
 }) {
   const year = cursor.getFullYear();
   const month = cursor.getMonth();
+  /** 35 or 42 day cells covering the full month grid (including leading/trailing days). */
   const grid = useMemo(() => getMonthGrid(year, month), [year, month]);
 
-  const byDate = useMemo(() => {
-    const map: Record<string, CalEvent[]> = {};
-    for (const ev of events) {
-      if (!map[ev.date]) map[ev.date] = [];
-      map[ev.date].push(ev);
-    }
-    return map;
-  }, [events]);
+  /** Events indexed by "YYYY-MM-DD" for O(1) lookup per day cell. */
+  const byDate = useMemo(() => groupEventsByDate(events), [events]);
 
   return (
     <div className="flex-1 overflow-auto flex flex-col">

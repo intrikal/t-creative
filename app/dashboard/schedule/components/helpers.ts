@@ -1,3 +1,12 @@
+/**
+ * helpers.ts — Date utilities, grid constants, and style config for the
+ * schedule calendar views (list, month, week, agenda).
+ *
+ * Contains pure functions for date arithmetic (no side effects), the
+ * week-grid pixel constants, service-category colour mappings, booking
+ * status badge config, and navigation helpers used by the view switcher.
+ */
+
 import type { AppointmentRow, BookingStatus, ServiceCategory } from "../actions";
 
 /* ------------------------------------------------------------------ */
@@ -42,15 +51,22 @@ export function startOfWeek(d: Date): Date {
   return r;
 }
 
+/** Array.from: generate an array of 7 consecutive dates starting from
+ *  the Sunday of the anchor's week — used by WeekGridView columns. */
 export function getWeekDays(anchor: Date): Date[] {
   const s = startOfWeek(anchor);
   return Array.from({ length: 7 }, (_, i) => addDays(s, i));
 }
 
+/** Build the full grid of dates for a month view calendar.
+ *  Pads with leading/trailing days from adjacent months so the grid
+ *  always starts on Sunday and ends on Saturday (complete weeks). */
 export function getMonthGrid(year: number, month: number): Date[] {
   const first = new Date(year, month, 1);
   const last = new Date(year, month + 1, 0);
+  // Extend backwards to the previous Sunday
   const start = addDays(first, -first.getDay());
+  // Extend forwards to the next Saturday
   const end = addDays(last, 6 - last.getDay());
   const days: Date[] = [];
   let cur = new Date(start);

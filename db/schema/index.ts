@@ -61,6 +61,9 @@ export {
   serviceAddOnsRelations,
 } from "./services";
 
+/* Service categories (lookup table) */
+export { serviceCategories } from "./service-categories";
+
 /* Bookings & appointments */
 export { bookings, bookingAddOns, bookingsRelations, bookingAddOnsRelations } from "./bookings";
 

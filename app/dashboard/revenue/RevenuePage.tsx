@@ -65,13 +65,14 @@ interface Props {
   stats: RevenueStats;
   categoryRevenue: CategoryRevenue[];
   weeklyRevenue: DailyRevenue[];
+  embedded?: boolean;
 }
 
 /* ------------------------------------------------------------------ */
 /*  Main export                                                         */
 /* ------------------------------------------------------------------ */
 
-export function RevenuePage({ payments, stats, categoryRevenue, weeklyRevenue }: Props) {
+export function RevenuePage({ payments, stats, categoryRevenue, weeklyRevenue, embedded }: Props) {
   const [search, setSearch] = useState("");
 
   const maxBar = Math.max(...weeklyRevenue.map((b) => b.amount), 1);
@@ -91,12 +92,14 @@ export function RevenuePage({ payments, stats, categoryRevenue, weeklyRevenue }:
         : `↓ ${Math.abs(stats.revenueVsPriorPeriodPct)}% vs last month`;
 
   return (
-    <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
+    <div className={embedded ? "space-y-6" : "p-4 md:p-6 lg:p-8 max-w-7xl mx-auto space-y-6"}>
       {/* Header */}
+      {!embedded && (
       <div>
         <h1 className="text-xl font-semibold text-foreground tracking-tight">Revenue</h1>
         <p className="text-sm text-muted mt-0.5">Payments and earnings overview</p>
       </div>
+      )}
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">

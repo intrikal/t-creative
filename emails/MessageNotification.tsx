@@ -9,6 +9,7 @@ export type MessageNotificationProps = {
   threadSubject: string;
   messagePreview: string;
   threadUrl: string;
+  businessName?: string;
 };
 
 export function MessageNotification({
@@ -17,9 +18,10 @@ export function MessageNotification({
   threadSubject,
   messagePreview,
   threadUrl,
+  businessName = "T Creative Studio",
 }: MessageNotificationProps) {
   return (
-    <Layout preview={`New message — ${threadSubject}`}>
+    <Layout preview={`New message — ${threadSubject}`} businessName={businessName}>
       <Section style={content}>
         <Text style={heading}>New Message</Text>
         <Text style={paragraph}>

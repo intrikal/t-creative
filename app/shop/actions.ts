@@ -8,8 +8,9 @@
  */
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { eq, desc, asc, sql, ilike, and, isNotNull } from "drizzle-orm";
+import { getPublicBusinessProfile } from "@/app/dashboard/settings/settings-actions";
 import { db } from "@/db";
 import {
   products,
@@ -22,14 +23,14 @@ import {
   type ShippingAddress,
 } from "@/db/schema";
 import { OrderConfirmation } from "@/emails/OrderConfirmation";
-import { trackEvent } from "@/lib/posthog";
-import { sendEmail } from "@/lib/resend";
+import { getUser } from "@/lib/auth";
 import { getShippingRates, isEasyPostConfigured } from "@/lib/easypost";
 import type { ShipmentResult } from "@/lib/easypost";
+import { trackEvent } from "@/lib/posthog";
+import { sendEmail } from "@/lib/resend";
 import { isSquareConfigured, createSquareOrderPaymentLink } from "@/lib/square";
 import { createZohoDeal } from "@/lib/zoho";
 import { createZohoBooksInvoice } from "@/lib/zoho-books";
-import { getUser } from "@/lib/auth";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -104,9 +105,7 @@ export type ClientOrder = {
  * Fetches available shipping rates from EasyPost for the given address.
  * Called at checkout when the customer selects a shipping fulfillment method.
  */
-export async function fetchShippingRates(
-  address: ShippingAddress,
-): Promise<ShipmentResult> {
+export async function fetchShippingRates(address: ShippingAddress): Promise<ShipmentResult> {
   if (!isEasyPostConfigured()) {
     throw new Error("Shipping is not available at this time");
   }
@@ -123,6 +122,11 @@ export async function fetchShippingRates(
  * code to perform the actual redemption atomically.
  */
 export async function lookupGiftCard(code: string): Promise<GiftCardLookupResult> {
+  // QUERY: Look up a single gift card by its code.
+  // SELECT — Reads the card's id, current balance, original loaded amount, status, and expiry date.
+  // FROM   — The gift_cards table which stores every issued gift card.
+  // WHERE  — Case-insensitive match (ILIKE) on the trimmed code the user typed in.
+  // LIMIT 1 — We only need one row; codes are unique but LIMIT guards against edge cases.
   const [card] = await db
     .select({
       id: giftCards.id,
@@ -151,43 +155,7 @@ export async function lookupGiftCard(code: string): Promise<GiftCardLookupResult
 /*  Public queries                                                     */
 /* ------------------------------------------------------------------ */
 
-/**
- * Returns all published products for the shop.
- * No authentication required — this powers the public /shop page.
- */
-export async function getPublishedProducts(): Promise<ShopProduct[]> {
-  const rows = await db
-    .select({
-      id: products.id,
-      title: products.title,
-      slug: products.slug,
-      description: products.description,
-      category: products.category,
-      pricingType: products.pricingType,
-      priceInCents: products.priceInCents,
-      priceMinInCents: products.priceMinInCents,
-      priceMaxInCents: products.priceMaxInCents,
-      availability: products.availability,
-      stockCount: products.stockCount,
-      imageUrl: products.imageUrl,
-      serviceId: products.serviceId,
-      tags: products.tags,
-      isFeatured: products.isFeatured,
-    })
-    .from(products)
-    .where(eq(products.isPublished, true))
-    .orderBy(asc(products.sortOrder), desc(products.createdAt));
-
-  return rows.map((r) => ({
-    ...r,
-    tags: r.tags
-      ? r.tags
-          .split(",")
-          .map((t) => t.trim())
-          .filter(Boolean)
-      : [],
-  }));
-}
+// getPublishedProducts is now in ./queries.ts with "use cache"
 
 /* ------------------------------------------------------------------ */
 /*  Checkout                                                           */
@@ -215,8 +183,16 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
     }
   }
 
-  // Validate all products exist and are purchasable
+  // Extract just the product IDs from the cart items so we can batch-fetch
+  // them in a single SQL query (WHERE id = ANY(...)). Using .map() to pluck
+  // one field is simpler than destructuring in a loop and produces the exact
+  // number[] shape the ANY() operator needs.
   const productIds = input.items.map((i) => i.productId);
+  // QUERY: Fetch every product referenced in the cart so we can validate price, stock, and status.
+  // SELECT — Reads id, title, price, pricing type, availability status, stock count, and published flag.
+  // FROM   — The products table (the full product catalog).
+  // WHERE  — Uses Postgres ANY() to match all product IDs from the cart in a single round-trip.
+  //          Equivalent to: WHERE id IN (1, 2, 3, ...).
   const productRows = await db
     .select({
       id: products.id,
@@ -230,6 +206,10 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
     .from(products)
     .where(sql`${products.id} = ANY(${productIds})`);
 
+  // Build a Map keyed by product ID for O(1) lookups in the validation loop
+  // below. A Map is preferred over an object because the keys are numbers and
+  // Map preserves key types without coercion. Using .map() inside the
+  // constructor converts the flat array into [key, value] tuples in one pass.
   const productMap = new Map(productRows.map((r) => [r.id, r]));
 
   // Validate each item
@@ -267,6 +247,14 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
     const itemTotal = product.priceInCents! * item.quantity;
     totalInCents += itemTotal;
 
+    // MUTATION: Insert one order row per cart item into the orders table.
+    // Each row gets a unique order number (e.g. "ord-abc123-7") combining the shared
+    // order prefix with the product ID. Status starts as "accepted".
+    // Side-effects: Creates a new row in the orders table. If the customer chose
+    // shipping, the shipping address, EasyPost shipment ID, and cost are persisted
+    // on the order row so fulfillment can reference them later.
+    // RETURNING — Gives us the auto-generated order ID for downstream use
+    // (Square link, sync log, email).
     const [inserted] = await db
       .insert(orders)
       .values({
@@ -289,6 +277,10 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
     createdOrderIds.push(inserted.id);
 
     // Decrement stock for in-stock items
+    // MUTATION: Reduce the product's stockCount by the purchased quantity.
+    // Side-effects: If stock hits zero, the product's availability flips to
+    // "out_of_stock" so the storefront hides the "Add to Cart" button.
+    // updatedAt is set so admin dashboards reflect the last inventory change.
     if (product.availability === "in_stock") {
       const newStock = Math.max(0, product.stockCount - item.quantity);
       await db
@@ -305,6 +297,13 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
   // Apply gift card if provided — re-validate server-side and decrement balance
   let giftCardDiscountInCents = 0;
   if (input.giftCardCode) {
+    // QUERY: Re-fetch the gift card at redemption time to guard against stale data.
+    // The earlier lookupGiftCard call was read-only; between that call and now the
+    // card could have been redeemed by another checkout, so we re-validate here.
+    // SELECT — Reads id, current balance, status, and expiry.
+    // FROM   — gift_cards table.
+    // WHERE  — Case-insensitive match on the code (ILIKE).
+    // LIMIT 1 — Codes are unique; limit is a safety net.
     const [card] = await db
       .select({
         id: giftCards.id,
@@ -325,11 +324,18 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
       giftCardDiscountInCents = Math.min(card.balanceInCents, totalInCents);
       const newBalance = card.balanceInCents - giftCardDiscountInCents;
 
+      // MUTATION: Subtract the discount amount from the gift card's balance.
+      // Side-effects: If the entire balance is consumed, status flips to "redeemed"
+      // so the card cannot be used again. Otherwise it stays "active" with the
+      // reduced balance available for future purchases.
       await db
         .update(giftCards)
         .set({ balanceInCents: newBalance, status: newBalance === 0 ? "redeemed" : "active" })
         .where(eq(giftCards.id, card.id));
 
+      // MUTATION: Record the redemption in the gift_card_transactions ledger.
+      // Side-effects: Creates an audit trail row with the amount deducted and
+      // the balance remaining after this transaction. Used for admin reporting.
       await db.insert(giftCardTransactions).values({
         giftCardId: card.id,
         type: "redemption",
@@ -351,8 +357,7 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
 
   // Generate Square payment link for online payments
   let paymentUrl: string | undefined;
-  const requiresOnlinePayment =
-    input.fulfillmentMethod === "pickup_online" || isShipping;
+  const requiresOnlinePayment = input.fulfillmentMethod === "pickup_online" || isShipping;
 
   if (requiresOnlinePayment && isSquareConfigured() && chargeInCents > 0) {
     try {
@@ -372,11 +377,14 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
 
       paymentUrl = url;
 
-      // Store Square order ID on all order rows
+      // MUTATION: Persist the Square-generated order ID on every local order row
+      // so we can reconcile payments when Square sends webhook callbacks.
       for (const id of createdOrderIds) {
         await db.update(orders).set({ squareOrderId }).where(eq(orders.id, id));
       }
 
+      // MUTATION: Write a success entry to the sync_log table so admins can
+      // audit every outbound integration call (provider, direction, payload).
       await db.insert(syncLog).values({
         provider: "square",
         direction: "outbound",
@@ -389,6 +397,7 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to create payment link";
+      // MUTATION: Log the failed Square API call so admins can diagnose and retry.
       await db.insert(syncLog).values({
         provider: "square",
         direction: "outbound",
@@ -403,15 +412,20 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
   }
 
   // Send order confirmation email (non-fatal)
+  // QUERY: Fetch the buyer's email and first name so we can send the confirmation.
+  // SELECT — Reads only email and firstName (minimal data for the email template).
+  // FROM   — The profiles table (one row per user, stores contact info).
+  // WHERE  — Matches the authenticated user's ID.
   const [clientProfile] = await db
     .select({ email: profiles.email, firstName: profiles.firstName })
     .from(profiles)
     .where(eq(profiles.id, user.id));
 
   if (clientProfile?.email) {
+    const bp = await getPublicBusinessProfile();
     await sendEmail({
       to: clientProfile.email,
-      subject: `Order ${orderNumber} confirmed — T Creative`,
+      subject: `Order ${orderNumber} confirmed — ${bp.businessName}`,
       react: OrderConfirmation({
         clientName: clientProfile.firstName,
         orderNumber,
@@ -419,6 +433,7 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
         totalInCents,
         fulfillmentMethod: input.fulfillmentMethod,
         paymentUrl,
+        businessName: bp.businessName,
       }),
       entityType: "order_confirmation",
       localId: String(createdOrderIds[0]),
@@ -437,6 +452,10 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
 
   // Zoho CRM: create deal for shop order
   if (clientProfile?.email) {
+    // Pluck just the product names and join them into a comma-separated string
+    // for the Zoho CRM deal title (e.g. "Lash Cleanser, Spoolie Set"). Using
+    // .map() + .join() is the idiomatic way to produce a delimited summary from
+    // an array of objects.
     const itemNames = lineItems.map((i) => i.name).join(", ");
     createZohoDeal({
       contactEmail: clientProfile.email,
@@ -454,6 +473,9 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
       profileId: user.id,
       email: clientProfile.email,
       firstName: clientProfile.firstName,
+      // Reshape each line item into the {name, rate, quantity} structure Zoho
+      // Books expects. The rate is derived by dividing the total back to a
+      // per-unit price because Zoho computes the line total itself (rate * qty).
       lineItems: lineItems.map((item) => ({
         name: item.name,
         rate: item.amountInCents / item.quantity,
@@ -462,7 +484,7 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
     });
   }
 
-  revalidatePath("/shop");
+  updateTag("products");
   revalidatePath("/dashboard/marketplace");
 
   return { success: true, orderNumber, paymentUrl };
@@ -478,6 +500,15 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
 export async function getClientOrders(): Promise<ClientOrder[]> {
   const user = await getUser();
 
+  // QUERY: Fetch every order placed by the currently logged-in client.
+  // SELECT   — Reads order id, order number, product title, status, quantity,
+  //            final price, fulfillment method, and creation timestamp.
+  // FROM     — The orders table (one row per line-item in a checkout).
+  // WHERE    — Two conditions combined with AND:
+  //            1. clientId matches the authenticated user (only show their orders).
+  //            2. productId IS NOT NULL filters out non-shop orders (e.g. service
+  //               bookings that also live in the orders table but have no product).
+  // ORDER BY — Most recent orders first (descending by createdAt).
   const rows = await db
     .select({
       id: orders.id,
@@ -493,6 +524,11 @@ export async function getClientOrders(): Promise<ClientOrder[]> {
     .where(and(eq(orders.clientId, user.id), isNotNull(orders.productId)))
     .orderBy(desc(orders.createdAt));
 
+  // Transform each order row by converting the Date object to a human-readable
+  // string (e.g. "Mar 15, 2026"). Spread keeps all other fields intact. We
+  // serialise the date here (server-side) rather than on the client because
+  // server actions must return plain JSON — Date objects cannot cross the
+  // RSC serialisation boundary.
   return rows.map((r) => ({
     ...r,
     createdAt: r.createdAt.toLocaleDateString("en-US", {
@@ -513,11 +549,18 @@ export async function getClientOrders(): Promise<ClientOrder[]> {
 export async function getWishlistProductIds(): Promise<number[]> {
   const user = await getUser();
 
+  // QUERY: Get every product ID the client has wishlisted.
+  // SELECT — Only the productId column (we just need IDs to highlight hearts in the UI).
+  // FROM   — The wishlist_items table (a join table linking clients to products).
+  // WHERE  — Filters to rows belonging to the authenticated client.
   const rows = await db
     .select({ productId: wishlistItems.productId })
     .from(wishlistItems)
     .where(eq(wishlistItems.clientId, user.id));
 
+  // Pluck just the productId from each wishlist row, producing a flat number[]
+  // the UI uses to check "is this product wishlisted?" via .includes(). A flat
+  // array is cheaper to serialise and check than passing full row objects.
   return rows.map((r) => r.productId);
 }
 
@@ -528,6 +571,11 @@ export async function getWishlistProductIds(): Promise<number[]> {
 export async function addToWishlist(productId: number): Promise<void> {
   const user = await getUser();
 
+  // QUERY: Check whether this product is already in the client's wishlist.
+  // SELECT — Only the row ID (we don't need any data, just existence).
+  // FROM   — wishlist_items table.
+  // WHERE  — Both clientId AND productId must match (compound uniqueness check).
+  // LIMIT 1 — Stop scanning after the first match.
   const [existing] = await db
     .select({ id: wishlistItems.id })
     .from(wishlistItems)
@@ -535,9 +583,13 @@ export async function addToWishlist(productId: number): Promise<void> {
     .limit(1);
 
   if (!existing) {
+    // MUTATION: Insert a new wishlist row linking this client to this product.
+    // Side-effects: The product will now appear in the client's wishlist page
+    // and the heart icon will be filled on the shop grid.
     await db.insert(wishlistItems).values({ clientId: user.id, productId });
   }
 
+  // Side-effect: Revalidates the shop page cache so the wishlist state is fresh.
   revalidatePath("/dashboard/shop");
 }
 
@@ -547,9 +599,15 @@ export async function addToWishlist(productId: number): Promise<void> {
 export async function removeFromWishlist(productId: number): Promise<void> {
   const user = await getUser();
 
+  // MUTATION: Delete the wishlist row for this client + product combination.
+  // WHERE — Both clientId AND productId must match so we only remove the
+  //         specific product, not the client's entire wishlist.
+  // Side-effects: The product disappears from the client's saved items and
+  // the heart icon reverts to unfilled on the shop grid.
   await db
     .delete(wishlistItems)
     .where(and(eq(wishlistItems.clientId, user.id), eq(wishlistItems.productId, productId)));
 
+  // Side-effect: Revalidates the shop page cache so the UI reflects the removal.
   revalidatePath("/dashboard/shop");
 }

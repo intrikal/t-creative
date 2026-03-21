@@ -1,9 +1,20 @@
+/**
+ * @file actions.test.ts
+ * @description Unit tests for subscriptions/actions (session-based subscription
+ * CRUD, status updates, notes, active-subscriptions-for-client filtering).
+ *
+ * Testing utilities: describe, it, expect, vi, vi.doMock, vi.resetModules,
+ * vi.clearAllMocks, beforeEach.
+ */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 /* ------------------------------------------------------------------ */
 /*  Chainable DB mock helper                                           */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Creates a chainable mock that mimics Drizzle's query-builder API.
+ */
 function makeChain(rows: unknown[] = []) {
   const resolved = Promise.resolve(rows);
   const chain: any = {
@@ -24,9 +35,12 @@ function makeChain(rows: unknown[] = []) {
 /*  Shared mock refs                                                   */
 /* ------------------------------------------------------------------ */
 
+/** Stub for supabase auth.getUser. */
 const mockGetUser = vi.fn();
+/** Captures revalidatePath calls. */
 const mockRevalidatePath = vi.fn();
 
+/** Registers all module mocks; accepts optional custom db object. */
 function setupMocks(db: Record<string, unknown> | null = null) {
   const defaultDb = {
     select: vi.fn(() => makeChain([])),
@@ -343,7 +357,7 @@ describe("subscriptions/actions", () => {
       expect(mockInsertValues).toHaveBeenCalledWith(expect.objectContaining({ notes: null }));
     });
 
-    it("revalidates /dashboard/subscriptions", async () => {
+    it("revalidates /dashboard/memberships", async () => {
       vi.resetModules();
       setupMocks({
         select: vi.fn(() => makeChain([])),
@@ -355,7 +369,8 @@ describe("subscriptions/actions", () => {
       });
       const { createSubscription } = await import("./actions");
       await createSubscription(input);
-      expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/subscriptions");
+      expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/bookings");
+      expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/memberships");
     });
   });
 
@@ -405,12 +420,13 @@ describe("subscriptions/actions", () => {
       }
     });
 
-    it("revalidates /dashboard/subscriptions", async () => {
+    it("revalidates /dashboard/memberships", async () => {
       vi.resetModules();
       setupMocks();
       const { updateSubscriptionStatus } = await import("./actions");
       await updateSubscriptionStatus(1, "completed");
-      expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/subscriptions");
+      expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/bookings");
+      expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/memberships");
     });
   });
 
@@ -459,12 +475,13 @@ describe("subscriptions/actions", () => {
       expect(mockUpdateSet).toHaveBeenCalledWith(expect.objectContaining({ notes: null }));
     });
 
-    it("revalidates /dashboard/subscriptions", async () => {
+    it("revalidates /dashboard/memberships", async () => {
       vi.resetModules();
       setupMocks();
       const { updateSubscriptionNotes } = await import("./actions");
       await updateSubscriptionNotes(1, "some notes");
-      expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/subscriptions");
+      expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/bookings");
+      expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/memberships");
     });
   });
 });

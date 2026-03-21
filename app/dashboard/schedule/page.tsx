@@ -1,4 +1,6 @@
+import { redirect } from "next/navigation";
 import type { Metadata } from "next";
+import { getCurrentUser } from "@/lib/auth";
 import { getScheduleData } from "./actions";
 import { AssistantSchedulePage } from "./SchedulePage";
 
@@ -9,6 +11,10 @@ export const metadata: Metadata = {
 };
 
 export default async function Page() {
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+  if (user.profile?.role === "client") redirect("/dashboard");
+
   const { appointments, stats, todayKey } = await getScheduleData();
 
   return (

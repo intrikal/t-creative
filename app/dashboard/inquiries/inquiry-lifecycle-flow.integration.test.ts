@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 /**
+ * @file inquiry-lifecycle-flow.integration.test.ts
  * Integration tests for the inquiry lifecycle flow.
  *
  * These tests verify the complete lifecycle of `replyToInquiry`,
@@ -15,6 +16,10 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 type MockRow = Record<string, unknown>;
 
+/**
+ * Creates a mock DB that tracks inserted/updated rows in memory.
+ * Test assertions read _inquiries / _productInquiries to verify final state.
+ */
 function createStatefulDb() {
   const _inquiries: MockRow[] = [];
   const _productInquiries: MockRow[] = [];
@@ -91,14 +96,18 @@ function createStatefulDb() {
 /*  Shared mock refs                                                   */
 /* ------------------------------------------------------------------ */
 
+/** Stub for supabase auth.getUser. */
 const mockGetUser = vi.fn();
+/** Captures Resend sendEmail calls. */
 const mockSendEmail = vi.fn().mockResolvedValue(true);
+/** Captures revalidatePath calls. */
 const mockRevalidatePath = vi.fn();
 
 /* ------------------------------------------------------------------ */
 /*  Setup helper                                                       */
 /* ------------------------------------------------------------------ */
 
+/** Registers all module mocks using the stateful DB instance. */
 function setupMocks(db: ReturnType<typeof createStatefulDb>) {
   vi.doMock("@/db", () => ({ db }));
 

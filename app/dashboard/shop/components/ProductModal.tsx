@@ -27,6 +27,7 @@ export function ProductModal({
   onAddToCart: (product: ShopProduct) => void;
 }) {
   const cat = getCatConfig(product.category);
+  /** added: briefly true after adding to cart — switches the button to "Added" state for 2s */
   const [added, setAdded] = useState(false);
   const available = canAddToCart(product);
 

@@ -9,6 +9,7 @@ export type NoShowFeeInvoiceProps = {
   bookingDate: string;
   feeAmountInCents: number;
   feeType: "no_show" | "late_cancellation";
+  businessName?: string;
 };
 
 export function NoShowFeeInvoice({
@@ -17,6 +18,7 @@ export function NoShowFeeInvoice({
   bookingDate,
   feeAmountInCents,
   feeType,
+  businessName = "T Creative Studio",
 }: NoShowFeeInvoiceProps) {
   const title = feeType === "no_show" ? "No-Show Fee Invoice" : "Late Cancellation Fee Invoice";
   const reason =
@@ -25,7 +27,7 @@ export function NoShowFeeInvoice({
       : "your appointment was cancelled within the cancellation window";
 
   return (
-    <Layout preview={`${title} — ${formatCents(feeAmountInCents)}`}>
+    <Layout preview={`${title} — ${formatCents(feeAmountInCents)}`} businessName={businessName}>
       <Section style={content}>
         <Text style={heading}>{title}</Text>
         <Text style={paragraph}>

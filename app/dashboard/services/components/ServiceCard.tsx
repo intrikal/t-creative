@@ -51,6 +51,7 @@ export function ServiceCard({
   onToggleActive: () => void;
   onAddOns: () => void;
 }) {
+  /** Whether the in-card delete confirmation overlay is visible. */
   const [confirmDelete, setConfirmDelete] = useState(false);
   const cat = CAT_CONFIG[service.category];
 

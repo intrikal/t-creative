@@ -1,9 +1,19 @@
 /**
- * GiftCardPurchasePage — client-facing gift card purchase flow.
+ * GiftCardPurchasePage — Public gift card purchase flow at /shop/gift-cards.
  *
- * Clients pick a preset amount (or enter a custom value), optionally
- * name a recipient, then pay via Square. On success the card code is
- * shown and a confirmation email is sent.
+ * Two-step flow rendered as a single page:
+ *   1. Selection — Pick from six preset dollar amounts or enter a custom
+ *      value ($25-$500), optionally name a recipient.
+ *   2. Confirmation — After the `purchaseGiftCard` server action succeeds,
+ *      show the generated card code and open the Square payment link in a
+ *      new tab so the buyer can pay to activate the card.
+ *
+ * The server action creates the gift-card record in the DB and returns a
+ * { success, giftCardCode, paymentUrl } response.
+ *
+ * This is a Client Component ("use client") because it manages interactive
+ * state (amount selection, custom input, pending transition) and triggers
+ * a window.open for the Square payment link.
  */
 "use client";
 
@@ -14,11 +24,18 @@ import { purchaseGiftCard } from "./actions";
 const PRESET_AMOUNTS = [25, 50, 75, 100, 150, 200];
 
 export function GiftCardPurchasePage() {
-  const [selectedAmount, setSelectedAmount] = useState<number | null>(50);
-  const [customAmount, setCustomAmount] = useState("");
-  const [useCustom, setUseCustom] = useState(false);
-  const [recipientName, setRecipientName] = useState("");
+  // --- Amount selection state ---
+  // Preset and custom modes are mutually exclusive: selecting a preset
+  // clears custom, and clicking "Custom" deselects the preset. Three
+  // separate states instead of one object because the preset grid buttons,
+  // the custom input, and the mode toggle each update independently.
+  const [selectedAmount, setSelectedAmount] = useState<number | null>(50); // Which preset pill is active (dollars, not cents)
+  const [customAmount, setCustomAmount] = useState(""); // Raw text from the custom dollar input
+  const [useCustom, setUseCustom] = useState(false); // Whether the custom input is active
+  const [recipientName, setRecipientName] = useState(""); // Optional "To:" name included in the confirmation email
   const [isPending, startTransition] = useTransition();
+  // Result of the purchaseGiftCard server action — holds the card code and
+  // optional Square payment URL on success, or an error string on failure.
   const [result, setResult] = useState<{
     success: boolean;
     giftCardCode?: string;
@@ -26,12 +43,18 @@ export function GiftCardPurchasePage() {
     error?: string;
   } | null>(null);
 
+  // Resolve the active amount to cents regardless of mode. Used for
+  // validation and as the value sent to the server action.
   const resolvedAmountCents = useCustom
     ? Math.round(parseFloat(customAmount || "0") * 100)
     : (selectedAmount ?? 0) * 100;
 
+  // Enforces the $25–$500 range for both preset and custom amounts.
   const isValidAmount = resolvedAmountCents >= 2500 && resolvedAmountCents <= 50000;
 
+  // Calls the purchaseGiftCard server action which creates the gift card
+  // record in the DB and returns a Square payment URL. On success, opens
+  // the payment link in a new tab so the buyer can complete payment.
   function handleSubmit() {
     if (!isValidAmount) return;
 

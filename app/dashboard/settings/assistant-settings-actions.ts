@@ -1,3 +1,27 @@
+/**
+ * Server actions for the Assistant Settings page.
+ *
+ * Assistants (staff members, not the studio admin) manage their own
+ * profile, weekly availability, notification preferences, and time-off
+ * requests through this module.
+ *
+ * ## Auth model
+ * Uses `getUser()` (not `requireAdmin()`) so each assistant can only
+ * read/write their own data. The user ID from the session gates every query.
+ *
+ * ## Data layout
+ * - Profile fields → `profiles` + `assistant_profiles` tables
+ * - Weekly availability → `business_hours` rows keyed by `staff_id`
+ * - Notification prefs → `settings` table under key `assistant_notif:{userId}`
+ * - Time-off requests → `time_off` rows keyed by `staff_id`, with JSON metadata
+ *   in the `notes` column for status tracking (pending/approved/denied)
+ *
+ * ## Availability save strategy
+ * Same delete-and-reinsert pattern as `hours-actions.ts`, scoped to the
+ * staff member's own rows.
+ *
+ * @module settings/assistant-settings-actions
+ */
 "use server";
 
 import { revalidatePath } from "next/cache";
@@ -5,23 +29,10 @@ import { eq, desc } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import { profiles, assistantProfiles, businessHours, timeOff, settings } from "@/db/schema";
+import { getUser } from "@/lib/auth";
 import { trackEvent } from "@/lib/posthog";
-import { createClient } from "@/utils/supabase/server";
 
 const PATH = "/dashboard/settings";
-
-/* ------------------------------------------------------------------ */
-/*  Auth guard                                                         */
-/* ------------------------------------------------------------------ */
-
-async function getUser() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
-  return user;
-}
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -365,24 +376,44 @@ const timeOffRequestSchema = z.object({
   from: z.string().min(1),
   to: z.string().min(1),
   reason: z.string(),
+  requestType: z.enum(["full_day", "partial"]).default("full_day"),
+  startTime: z.string().optional(),
+  endTime: z.string().optional(),
 });
 
-export async function submitTimeOffRequest(data: { from: string; to: string; reason: string }) {
+export async function submitTimeOffRequest(data: {
+  from: string;
+  to: string;
+  reason: string;
+  requestType?: "full_day" | "partial";
+  startTime?: string;
+  endTime?: string;
+}) {
   timeOffRequestSchema.parse(data);
   const user = await getUser();
 
+  const requestType = data.requestType ?? "full_day";
+  const isPartial = requestType === "partial";
+  const partial =
+    isPartial && data.startTime && data.endTime
+      ? { startTime: data.startTime, endTime: data.endTime }
+      : false;
+
   await db.insert(timeOff).values({
     staffId: user.id,
-    type: data.from === data.to ? "day_off" : "vacation",
+    // Partial day and single-day full day use "day_off"; multi-day full day uses "vacation"
+    type: !isPartial && data.from !== data.to ? "vacation" : "day_off",
     startDate: data.from,
     endDate: data.to || data.from,
     label: data.reason || "Time off request",
     notes: JSON.stringify({
       status: "pending",
       reason: data.reason || "No reason provided",
+      partial,
     }),
   });
 
-  trackEvent(user.id, "time_off_requested", { from: data.from, to: data.to });
+  trackEvent(user.id, "time_off_requested", { from: data.from, to: data.to, requestType });
   revalidatePath(PATH);
+  revalidatePath("/dashboard");
 }

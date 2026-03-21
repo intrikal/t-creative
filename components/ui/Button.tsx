@@ -1,3 +1,12 @@
+/**
+ * Button.tsx — Variant-driven button component using class-variance-authority.
+ *
+ * Supports six visual variants (default, destructive, outline, secondary,
+ * ghost, link) and eight size presets. The `asChild` prop renders via
+ * Radix Slot so the button styling can be applied to anchors, Next.js
+ * Links, or any other element without an extra wrapper.
+ */
+
 import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { Slot } from "radix-ui";

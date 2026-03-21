@@ -5,8 +5,6 @@ import type { Metadata } from "next";
 import { getPublishedServices } from "./actions";
 import { ServicesPage } from "./ServicesPage";
 
-export const revalidate = 3600;
-
 export const metadata: Metadata = {
   title: "Services | Lash Extensions, Permanent Jewelry & More | T Creative Studio",
   description:

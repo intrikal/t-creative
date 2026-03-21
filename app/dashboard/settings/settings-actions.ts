@@ -29,9 +29,9 @@
  */
 "use server";
 
+import { revalidatePath, updateTag } from "next/cache";
 import * as Sentry from "@sentry/nextjs";
-import { revalidatePath } from "next/cache";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import { settings } from "@/db/schema";
@@ -44,6 +44,20 @@ import { isSquareConfigured } from "@/lib/square";
 /* ------------------------------------------------------------------ */
 
 const getUser = requireAdmin;
+
+/* ------------------------------------------------------------------ */
+/*  Public-safe helpers (no auth — used by public pages)               */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Read a setting without an auth guard. Used by public pages that need
+ * site content / policies but have no logged-in user.
+ */
+async function getPublicSetting<T>(key: string, fallback: T): Promise<T> {
+  const [row] = await db.select().from(settings).where(eq(settings.key, key));
+  if (!row) return fallback;
+  return row.value as T;
+}
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -59,6 +73,8 @@ export interface BusinessProfile {
   currency: string;
   bookingLink: string;
   bio: string;
+  emailSenderName: string;
+  emailFromAddress: string;
 }
 
 export interface PolicySettings {
@@ -89,6 +105,8 @@ export interface LoyaltyConfig {
   tierPlatinum: number;
   /** Percent discount for birthday promo codes (e.g. 5 = 5% off). */
   birthdayDiscountPercent: number;
+  /** Days until birthday promo code expires (default: 7). */
+  birthdayPromoExpiryDays: number;
 }
 
 export interface NotificationPrefs {
@@ -108,6 +126,10 @@ export interface BookingRulesConfig {
   depositPct: number;
   depositRequired: boolean;
   allowOnlineBooking: boolean;
+  /** Hours a waitlist member has to claim an offered slot (default: 24). */
+  waitlistClaimWindowHours: number;
+  /** Days a waiver completion token stays valid (default: 7). */
+  waiverTokenExpiryDays: number;
 }
 
 export interface ReminderItem {
@@ -121,6 +143,12 @@ export interface ReminderItem {
 
 export interface RemindersConfig {
   items: ReminderItem[];
+  /** Days after last lash visit to send fill reminder (default: 18). */
+  fillReminderDays: number;
+  /** Hours after booking completion to send review request (default: 24). */
+  reviewRequestDelayHours: number;
+  /** Hours-before-appointment windows for booking reminders (default: [24, 48]). */
+  bookingReminderHours: number[];
 }
 
 /* ------------------------------------------------------------------ */
@@ -137,6 +165,8 @@ const DEFAULT_BUSINESS: BusinessProfile = {
   currency: "USD ($)",
   bookingLink: "tcreative.studio/book",
   bio: "T Creative Studio is a San Francisco Bay Area based beauty studio specializing in lash extensions, permanent jewelry, crochet braids, and business consulting for beauty entrepreneurs.",
+  emailSenderName: "T Creative",
+  emailFromAddress: "noreply@tcreativestudio.com",
 };
 
 const DEFAULT_POLICIES: PolicySettings = {
@@ -159,6 +189,7 @@ const DEFAULT_LOYALTY: LoyaltyConfig = {
   pointsRebook: 50,
   pointsReview: 30,
   birthdayDiscountPercent: 5,
+  birthdayPromoExpiryDays: 7,
   tierSilver: 300,
   tierGold: 700,
   tierPlatinum: 1500,
@@ -173,9 +204,14 @@ const DEFAULT_BOOKING_RULES: BookingRulesConfig = {
   depositPct: 25,
   depositRequired: true,
   allowOnlineBooking: true,
+  waitlistClaimWindowHours: 24,
+  waiverTokenExpiryDays: 7,
 };
 
 const DEFAULT_REMINDERS: RemindersConfig = {
+  fillReminderDays: 18,
+  reviewRequestDelayHours: 24,
+  bookingReminderHours: [24, 48],
   items: [
     {
       id: 1,
@@ -268,6 +304,16 @@ async function upsertSetting(key: string, label: string, value: unknown): Promis
   });
 }
 
+/**
+ * Fetch multiple settings in a single query. Returns a Map keyed by
+ * setting key so callers can look up each value with its own fallback.
+ */
+async function getMultipleSettings(keys: string[]): Promise<Map<string, unknown>> {
+  if (keys.length === 0) return new Map();
+  const rows = await db.select().from(settings).where(inArray(settings.key, keys));
+  return new Map(rows.map((r) => [r.key, r.value]));
+}
+
 /* ------------------------------------------------------------------ */
 /*  Business Profile                                                   */
 /* ------------------------------------------------------------------ */
@@ -292,6 +338,8 @@ const businessProfileSchema = z.object({
   currency: z.string().min(1),
   bookingLink: z.string(),
   bio: z.string(),
+  emailSenderName: z.string().min(1),
+  emailFromAddress: z.string().min(1),
 });
 
 export async function saveBusinessProfile(data: BusinessProfile): Promise<void> {
@@ -371,6 +419,7 @@ const loyaltyConfigSchema = z.object({
   tierGold: z.number().int().nonnegative(),
   tierPlatinum: z.number().int().nonnegative(),
   birthdayDiscountPercent: z.number().int().min(1).max(100),
+  birthdayPromoExpiryDays: z.number().int().min(1).max(365),
 });
 
 export async function saveLoyaltyConfig(data: LoyaltyConfig): Promise<void> {
@@ -445,6 +494,8 @@ const bookingRulesSchema = z.object({
   depositPct: z.number().int().nonnegative(),
   depositRequired: z.boolean(),
   allowOnlineBooking: z.boolean(),
+  waitlistClaimWindowHours: z.number().int().min(1).max(168),
+  waiverTokenExpiryDays: z.number().int().min(1).max(30),
 });
 
 export async function saveBookingRules(data: BookingRulesConfig): Promise<void> {
@@ -475,6 +526,9 @@ export async function getReminders(): Promise<RemindersConfig> {
 }
 
 const remindersSchema = z.object({
+  fillReminderDays: z.number().int().min(1).max(60),
+  reviewRequestDelayHours: z.number().int().min(1).max(168),
+  bookingReminderHours: z.array(z.number().int().min(1).max(168)),
   items: z.array(
     z.object({
       id: z.number().int().positive(),
@@ -493,6 +547,51 @@ export async function saveReminders(data: RemindersConfig): Promise<void> {
     await getUser();
     await upsertSetting(KEY_REMINDERS, "Reminder Config", data);
     revalidatePath("/dashboard/settings");
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Inventory Config                                                   */
+/* ------------------------------------------------------------------ */
+
+export interface InventoryConfig {
+  lowStockThreshold: number;
+  giftCardCodePrefix: string;
+}
+
+const DEFAULT_INVENTORY: InventoryConfig = {
+  lowStockThreshold: 5,
+  giftCardCodePrefix: "TC-GC",
+};
+
+const KEY_INVENTORY = "inventory_config";
+
+export async function getInventoryConfig(): Promise<InventoryConfig> {
+  try {
+    await getUser();
+    return getSetting(KEY_INVENTORY, DEFAULT_INVENTORY);
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
+}
+
+const inventoryConfigSchema = z.object({
+  lowStockThreshold: z.number().int().min(1).max(100),
+  giftCardCodePrefix: z.string().min(1).max(20),
+});
+
+export async function saveInventoryConfig(data: InventoryConfig): Promise<void> {
+  try {
+    inventoryConfigSchema.parse(data);
+    const user = await getUser();
+    await upsertSetting(KEY_INVENTORY, "Inventory Config", data);
+    trackEvent(user.id, "inventory_config_updated");
+    revalidatePath("/dashboard/settings");
+    revalidatePath("/dashboard/marketplace");
   } catch (err) {
     Sentry.captureException(err);
     throw err;
@@ -579,6 +678,372 @@ export async function saveRevenueGoals(data: RevenueGoal[]): Promise<void> {
     await upsertSetting(KEY_REVENUE_GOALS, "Revenue Goals", data);
     revalidatePath("/dashboard/settings");
     revalidatePath("/dashboard/analytics");
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Site Content                                                       */
+/* ------------------------------------------------------------------ */
+
+export interface SiteContent {
+  heroHeadline: string;
+  heroSubheadline: string;
+  heroCtaText: string;
+  aboutBio: string;
+  footerTagline: string;
+  seoTitle: string;
+  seoDescription: string;
+  socialLinks: { platform: string; handle: string; url: string }[];
+  faqEntries: { question: string; answer: string }[];
+  consultingServices: {
+    title: string;
+    tag: string;
+    description: string;
+    outcomes: string[];
+    idealClient: string;
+  }[];
+  consultingBenefits: string[];
+  eventDescriptions: {
+    title: string;
+    description: string;
+  }[];
+  showConsultingPage: boolean;
+}
+
+const DEFAULT_SITE_CONTENT: SiteContent = {
+  heroHeadline: "Where Artistry Meets Transformation",
+  heroSubheadline:
+    "Premium lash extensions, permanent jewelry, custom crochet commissions, and business consulting. Every creation crafted with intention and care, serving San Jose and the Bay Area.",
+  heroCtaText: "Book Appointment",
+  aboutBio:
+    "A creative entrepreneur passionate about helping others feel confident and beautiful. With expertise spanning lash artistry, permanent jewelry design, handcrafted crochet, and business consulting, I bring intention and care to every creation.\n\nBased in the San Francisco Bay Area, I combine artistic vision with business acumen to transform both looks and businesses. I also work as an HR professional, bringing strategic expertise to help companies build better teams and processes.",
+  footerTagline:
+    "Lash extensions, crochet hair, permanent jewelry, custom craft, 3D printing, and business consulting. Structure makes beautiful things.",
+  seoTitle: "T Creative Studio — Lash Extensions, Permanent Jewelry & More in San Jose",
+  seoDescription:
+    "Premium lash extensions, permanent jewelry, custom crochet commissions, and business consulting. Crafted with intention and care, serving San Jose and the Bay Area.",
+  socialLinks: [
+    { platform: "Instagram", handle: "@trinitlam", url: "https://www.instagram.com/trinitlam/" },
+    {
+      platform: "Instagram",
+      handle: "@lashedbytrini_",
+      url: "https://www.instagram.com/lashedbytrini_/",
+    },
+    {
+      platform: "Instagram",
+      handle: "@linkedbytrini",
+      url: "https://www.instagram.com/linkedbytrini/",
+    },
+    {
+      platform: "Instagram",
+      handle: "@knotsnstuff",
+      url: "https://www.instagram.com/knotsnstuff/",
+    },
+    {
+      platform: "LinkedIn",
+      handle: "Trini Lam",
+      url: "https://www.linkedin.com/in/trini-lam-01b729146/",
+    },
+  ],
+  faqEntries: [
+    {
+      question: "Where are you located?",
+      answer:
+        "T Creative Studio is based in San Jose, California, serving the greater Bay Area. For events and pop-ups, we travel to your location.",
+    },
+    {
+      question: "Do I need to pay a deposit?",
+      answer:
+        "Yes — a {depositPercent}% deposit is required to confirm your appointment. The remaining balance is due at the time of service. Deposits are processed securely through Square.",
+    },
+    {
+      question: "What's the cancellation policy?",
+      answer:
+        "We require at least {cancelWindowHours} hours notice for cancellations. Late cancellations are subject to a {lateCancelFeePercent}% fee, and no-shows are charged the full service amount.",
+    },
+    {
+      question: "Can I book for a group or event?",
+      answer:
+        "Absolutely. We offer private lash parties (up to 6 guests), permanent jewelry pop-ups at your venue, bridal packages, and corporate team events. Reach out through the contact form to get started.",
+    },
+    {
+      question: "Do you offer training and certifications?",
+      answer:
+        "Yes — we run certification programs for lash extensions, permanent jewelry welding, and beauty business consulting. Each program includes hands-on training, materials, and a certificate of completion.",
+    },
+    {
+      question: "How do I prepare for my appointment?",
+      answer:
+        "Come with a clean face (no eye makeup for lash services). We'll send you a confirmation email with specific prep instructions for your service. If you have allergies or sensitivities, let us know when booking.",
+    },
+  ],
+  consultingServices: [
+    {
+      title: "HR Strategy & Consulting",
+      tag: "Remote · All Industries",
+      description:
+        "Strategic HR consulting grounded in real corporate experience. Whether you're a startup building your first team or an established company refining your people processes, this engagement covers what actually moves the needle.",
+      outcomes: [
+        "Hiring process design and job description development",
+        "Onboarding workflows and 90-day frameworks",
+        "Performance review systems and feedback structures",
+        "Team structure and reporting line clarity",
+        "HR compliance fundamentals for small businesses",
+        "Manager coaching and team communication systems",
+      ],
+      idealClient:
+        "Founders, operations leads, and small business owners who are scaling their team and need real HR infrastructure — not generic advice.",
+    },
+    {
+      title: "Beauty Business Consulting",
+      tag: "Remote · Beauty & Wellness",
+      description:
+        "Built specifically for beauty professionals ready to run their business with intention. This isn't theory — it's the exact systems, pricing strategies, and client frameworks used to build T Creative Studio from the ground up.",
+      outcomes: [
+        "Service menu design and pricing strategy",
+        "Client retention and rebooking systems",
+        "Deposit and cancellation policy setup",
+        "Social media and content strategy for beauty pros",
+        "Transitioning from booth rental to studio ownership",
+        "Building a referral-based clientele from scratch",
+      ],
+      idealClient:
+        "Lash techs, permanent jewelry artists, estheticians, and salon owners who are ready to grow sustainably — not just hustle harder.",
+    },
+  ],
+  consultingBenefits: [
+    "Flexible scheduling around your business hours — no commute",
+    "Recorded sessions your team can reference and revisit",
+    "Deliverables in writing after every session",
+    "Access to templates, frameworks, and tools used in-practice",
+  ],
+  eventDescriptions: [
+    {
+      title: "Private Lash Parties",
+      description:
+        "Book the studio for you and your group. Everyone gets lashed while you celebrate — birthdays, bachelorettes, girls' night.",
+    },
+    {
+      title: "Pop-Up Events",
+      description:
+        "Permanent jewelry welding at your venue, market, or storefront. Full setup provided — we bring the studio to you.",
+    },
+    {
+      title: "Bridal & Wedding",
+      description:
+        "Day-of lash services and permanent jewelry for the bridal party. Coordinated scheduling so everyone is ready on time.",
+    },
+    {
+      title: "Corporate & Team Events",
+      description:
+        "Team bonding with permanent jewelry or beauty services. Great for offsites, retreats, and company milestones.",
+    },
+  ],
+  showConsultingPage: true,
+};
+
+const KEY_SITE_CONTENT = "site_content";
+
+/**
+ * Get site content — public-safe (no auth required).
+ * Used by public pages to render configurable content.
+ */
+export async function getSiteContent(): Promise<SiteContent> {
+  try {
+    return getPublicSetting(KEY_SITE_CONTENT, DEFAULT_SITE_CONTENT);
+  } catch (err) {
+    Sentry.captureException(err);
+    return DEFAULT_SITE_CONTENT;
+  }
+}
+
+const siteContentSchema = z.object({
+  heroHeadline: z.string().min(1),
+  heroSubheadline: z.string().min(1),
+  heroCtaText: z.string().min(1),
+  aboutBio: z.string().min(1),
+  footerTagline: z.string().min(1),
+  seoTitle: z.string().min(1),
+  seoDescription: z.string().min(1),
+  socialLinks: z.array(
+    z.object({
+      platform: z.string().min(1),
+      handle: z.string().min(1),
+      url: z.string().url(),
+    }),
+  ),
+  faqEntries: z.array(
+    z.object({
+      question: z.string().min(1),
+      answer: z.string().min(1),
+    }),
+  ),
+  consultingServices: z.array(
+    z.object({
+      title: z.string().min(1),
+      tag: z.string().min(1),
+      description: z.string().min(1),
+      outcomes: z.array(z.string().min(1)),
+      idealClient: z.string().min(1),
+    }),
+  ),
+  consultingBenefits: z.array(z.string().min(1)),
+  eventDescriptions: z.array(
+    z.object({
+      title: z.string().min(1),
+      description: z.string().min(1),
+    }),
+  ),
+  showConsultingPage: z.boolean(),
+});
+
+export async function saveSiteContent(data: SiteContent): Promise<void> {
+  try {
+    siteContentSchema.parse(data);
+    const user = await getUser();
+    await upsertSetting(KEY_SITE_CONTENT, "Site Content", data);
+    trackEvent(user.id, "site_content_updated");
+    updateTag("site-content");
+    revalidatePath("/dashboard/settings");
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
+}
+
+/**
+ * Get reminders config — public-safe (no auth required).
+ * Used by cron jobs for fill-reminders, review-requests, booking-reminders.
+ */
+export async function getPublicRemindersConfig(): Promise<RemindersConfig> {
+  try {
+    return getPublicSetting(KEY_REMINDERS, DEFAULT_REMINDERS);
+  } catch (err) {
+    Sentry.captureException(err);
+    return DEFAULT_REMINDERS;
+  }
+}
+
+/**
+ * Get loyalty config — public-safe (no auth required).
+ * Used by birthday cron for discount percent and promo expiry.
+ */
+export async function getPublicLoyaltyConfig(): Promise<LoyaltyConfig> {
+  try {
+    return getPublicSetting(KEY_LOYALTY, DEFAULT_LOYALTY);
+  } catch (err) {
+    Sentry.captureException(err);
+    return DEFAULT_LOYALTY;
+  }
+}
+
+/**
+ * Get booking rules — public-safe (no auth required).
+ * Used by waitlist-notify for claim window hours, waiver-token for expiry.
+ */
+export async function getPublicBookingRules(): Promise<BookingRulesConfig> {
+  try {
+    return getPublicSetting(KEY_BOOKING_RULES, DEFAULT_BOOKING_RULES);
+  } catch (err) {
+    Sentry.captureException(err);
+    return DEFAULT_BOOKING_RULES;
+  }
+}
+
+/**
+ * Get inventory config — public-safe (no auth required).
+ * Used by gift-card actions for code prefix and marketplace for stock threshold.
+ */
+export async function getPublicInventoryConfig(): Promise<InventoryConfig> {
+  try {
+    return getPublicSetting(KEY_INVENTORY, DEFAULT_INVENTORY);
+  } catch (err) {
+    Sentry.captureException(err);
+    return DEFAULT_INVENTORY;
+  }
+}
+
+/**
+ * Get policies — public-safe (no auth required).
+ * Used by public FAQ to interpolate policy values.
+ */
+export async function getPublicPolicies(): Promise<PolicySettings> {
+  try {
+    return getPublicSetting(KEY_POLICIES, DEFAULT_POLICIES);
+  } catch (err) {
+    Sentry.captureException(err);
+    return DEFAULT_POLICIES;
+  }
+}
+
+/**
+ * Get business profile — public-safe (no auth required).
+ * Used by public pages for studio name, location, email.
+ */
+export async function getPublicBusinessProfile(): Promise<BusinessProfile> {
+  try {
+    return getPublicSetting(KEY_BUSINESS, DEFAULT_BUSINESS);
+  } catch (err) {
+    Sentry.captureException(err);
+    return DEFAULT_BUSINESS;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Admin Settings Bundle                                              */
+/* ------------------------------------------------------------------ */
+
+export interface AdminSettingsBundle {
+  businessProfile: BusinessProfile;
+  policies: PolicySettings;
+  loyalty: LoyaltyConfig;
+  notifications: NotificationPrefs;
+  bookingRules: BookingRulesConfig;
+  reminders: RemindersConfig;
+  siteContent: SiteContent;
+  inventory: InventoryConfig;
+  financial: FinancialConfig;
+  revenueGoals: RevenueGoal[];
+}
+
+/**
+ * Fetch all admin settings in a single query instead of 10 separate ones.
+ * Each setting falls back to its default if missing from the database.
+ */
+export async function getAdminSettingsBundle(): Promise<AdminSettingsBundle> {
+  try {
+    await getUser();
+
+    const keys = [
+      KEY_BUSINESS,
+      KEY_POLICIES,
+      KEY_LOYALTY,
+      KEY_NOTIFICATIONS,
+      KEY_BOOKING_RULES,
+      KEY_REMINDERS,
+      KEY_SITE_CONTENT,
+      KEY_INVENTORY,
+      KEY_FINANCIAL,
+      KEY_REVENUE_GOALS,
+    ];
+
+    const map = await getMultipleSettings(keys);
+
+    return {
+      businessProfile: (map.get(KEY_BUSINESS) as BusinessProfile) ?? DEFAULT_BUSINESS,
+      policies: (map.get(KEY_POLICIES) as PolicySettings) ?? DEFAULT_POLICIES,
+      loyalty: (map.get(KEY_LOYALTY) as LoyaltyConfig) ?? DEFAULT_LOYALTY,
+      notifications: (map.get(KEY_NOTIFICATIONS) as NotificationPrefs) ?? DEFAULT_NOTIFICATIONS,
+      bookingRules: (map.get(KEY_BOOKING_RULES) as BookingRulesConfig) ?? DEFAULT_BOOKING_RULES,
+      reminders: (map.get(KEY_REMINDERS) as RemindersConfig) ?? DEFAULT_REMINDERS,
+      siteContent: (map.get(KEY_SITE_CONTENT) as SiteContent) ?? DEFAULT_SITE_CONTENT,
+      inventory: (map.get(KEY_INVENTORY) as InventoryConfig) ?? DEFAULT_INVENTORY,
+      financial: (map.get(KEY_FINANCIAL) as FinancialConfig) ?? DEFAULT_FINANCIAL,
+      revenueGoals: (map.get(KEY_REVENUE_GOALS) as RevenueGoal[]) ?? [],
+    };
   } catch (err) {
     Sentry.captureException(err);
     throw err;

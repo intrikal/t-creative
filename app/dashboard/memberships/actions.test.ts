@@ -1,9 +1,20 @@
+/**
+ * @file actions.test.ts
+ * @description Unit tests for memberships/actions (plans CRUD, subscription
+ * lifecycle, fill usage, renewal, notes updates).
+ *
+ * Testing utilities: describe, it, expect, vi, vi.doMock, vi.resetModules,
+ * vi.clearAllMocks, beforeEach.
+ */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 /* ------------------------------------------------------------------ */
 /*  Chainable DB mock helper                                           */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Creates a chainable mock that mimics Drizzle's query-builder API.
+ */
 function makeChain(rows: unknown[] = []) {
   const resolved = Promise.resolve(rows);
   const chain: any = {
@@ -24,9 +35,12 @@ function makeChain(rows: unknown[] = []) {
 /*  Shared mock refs                                                   */
 /* ------------------------------------------------------------------ */
 
+/** Stub for supabase auth.getUser. */
 const mockGetUser = vi.fn();
+/** Captures revalidatePath calls. */
 const mockRevalidatePath = vi.fn();
 
+/** Registers all module mocks; accepts optional custom db object. */
 function setupMocks(db: Record<string, unknown> | null = null) {
   const defaultDb = {
     select: vi.fn(() => makeChain([])),
@@ -417,6 +431,7 @@ describe("memberships/actions", () => {
       });
       const { createMembership } = await import("./actions");
       await createMembership({ clientId: "c1", planId: 1 });
+      expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/bookings");
       expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/memberships");
     });
   });
@@ -491,6 +506,7 @@ describe("memberships/actions", () => {
       setupMocks();
       const { updateMembershipStatus } = await import("./actions");
       await updateMembershipStatus("sub-1", "active");
+      expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/bookings");
       expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/memberships");
     });
   });
@@ -562,6 +578,7 @@ describe("memberships/actions", () => {
       });
       const { useMembershipFill } = await import("./actions");
       await useMembershipFill("sub-1");
+      expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/bookings");
       expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/memberships");
     });
   });
@@ -629,6 +646,7 @@ describe("memberships/actions", () => {
       });
       const { renewMembership } = await import("./actions");
       await renewMembership("sub-1");
+      expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/bookings");
       expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/memberships");
     });
   });
@@ -681,6 +699,7 @@ describe("memberships/actions", () => {
       setupMocks();
       const { updateMembershipNotes } = await import("./actions");
       await updateMembershipNotes("sub-1", "Note");
+      expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/bookings");
       expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/memberships");
     });
   });
@@ -754,6 +773,7 @@ describe("memberships/actions", () => {
         fillsPerCycle: 1,
         productDiscountPercent: 5,
       });
+      expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/bookings");
       expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/memberships");
     });
   });
@@ -810,6 +830,7 @@ describe("memberships/actions", () => {
       setupMocks();
       const { updateMembershipPlan } = await import("./actions");
       await updateMembershipPlan(1, { name: "New Name" });
+      expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/bookings");
       expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/memberships");
     });
   });

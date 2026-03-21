@@ -10,6 +10,7 @@ export type PaymentLinkEmailProps = {
   amountInCents: number;
   type: "deposit" | "balance";
   paymentUrl: string;
+  businessName?: string;
 };
 
 export function PaymentLinkEmail({
@@ -18,11 +19,15 @@ export function PaymentLinkEmail({
   amountInCents,
   type,
   paymentUrl,
+  businessName = "T Creative Studio",
 }: PaymentLinkEmailProps) {
   const label = type === "deposit" ? "deposit" : "remaining balance";
 
   return (
-    <Layout preview={`${type === "deposit" ? "Deposit" : "Payment"} link — ${serviceName}`}>
+    <Layout
+      preview={`${type === "deposit" ? "Deposit" : "Payment"} link — ${serviceName}`}
+      businessName={businessName}
+    >
       <Section style={content}>
         <Text style={heading}>{type === "deposit" ? "Deposit Request" : "Payment Request"}</Text>
         <Text style={paragraph}>

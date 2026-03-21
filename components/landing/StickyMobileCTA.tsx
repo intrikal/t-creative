@@ -18,8 +18,15 @@ import { AnimatePresence, motion } from "framer-motion";
 import posthog from "posthog-js";
 
 export function StickyMobileCTA() {
+  // visible: controls whether the sticky bar renders. Boolean toggle driven by
+  // scroll position — true after 1.5 viewports of scroll, false near the #booking section.
   const [visible, setVisible] = useState(false);
 
+  // useEffect attaches a scroll listener on mobile only (< 768px).
+  // Cannot run during render because it accesses window.scrollY and DOM element positions.
+  // Passive listener for scroll performance — we only read, never preventDefault.
+  // Early return for desktop avoids registering a listener that would never show the bar.
+  // Cleanup removes the listener when the component unmounts.
   useEffect(() => {
     function handleScroll() {
       const scrollY = window.scrollY;
@@ -44,6 +51,8 @@ export function StickyMobileCTA() {
   }, []);
 
   return (
+    // AnimatePresence enables the exit animation (slide down) when visible becomes false.
+    // Conditional render: bar only mounts when scroll position is in the valid range.
     <AnimatePresence>
       {visible && (
         <motion.div

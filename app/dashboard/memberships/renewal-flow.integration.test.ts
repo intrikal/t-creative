@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 /**
+ * @file renewal-flow.integration.test.ts
  * Integration tests for the membership renewal and fill-usage flows.
  *
  * These tests verify the complete lifecycle of `renewMembership` and
@@ -14,6 +15,10 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 type MockRow = Record<string, unknown>;
 
+/**
+ * Creates a mock DB that tracks membership rows in memory.
+ * Test assertions read _memberships to verify final state after mutations.
+ */
 function createStatefulDb() {
   const memberships: MockRow[] = [];
 
@@ -92,13 +97,16 @@ function createStatefulDb() {
 /*  Shared mock refs                                                   */
 /* ------------------------------------------------------------------ */
 
+/** Stub for requireAdmin — resolves to an admin user by default. */
 const mockRequireAdmin = vi.fn().mockResolvedValue({ id: "admin-1" });
+/** Captures revalidatePath calls. */
 const mockRevalidatePath = vi.fn();
 
 /* ------------------------------------------------------------------ */
 /*  Setup helper                                                       */
 /* ------------------------------------------------------------------ */
 
+/** Registers all module mocks using the stateful DB instance. */
 function setupMocks(db: ReturnType<typeof createStatefulDb>) {
   vi.doMock("@/db", () => ({ db }));
 

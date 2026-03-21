@@ -23,26 +23,14 @@ import { revalidatePath } from "next/cache";
 import * as Sentry from "@sentry/nextjs";
 import { eq, desc } from "drizzle-orm";
 import { z } from "zod";
+import { getPublicBusinessProfile } from "@/app/dashboard/settings/settings-actions";
 import { db } from "@/db";
 import { inquiries, productInquiries, products } from "@/db/schema";
 import { InquiryReply } from "@/emails/InquiryReply";
 import { ProductQuote } from "@/emails/ProductQuote";
+import { getUser } from "@/lib/auth";
 import { trackEvent } from "@/lib/posthog";
 import { sendEmail } from "@/lib/resend";
-import { createClient as createSupabaseClient } from "@/utils/supabase/server";
-
-/* ------------------------------------------------------------------ */
-/*  Auth guard                                                         */
-/* ------------------------------------------------------------------ */
-
-async function getUser() {
-  const supabase = await createSupabaseClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
-  return user;
-}
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -84,6 +72,12 @@ export type ProductInquiryRow = {
 /*  Queries                                                            */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Fetch all general inquiries (contact form submissions), newest first.
+ * .limit(500) prevents unbounded result sets on high-traffic sites.
+ * Dates are serialised to ISO strings because Next.js cannot serialise
+ * Date objects across the server→client boundary.
+ */
 export async function getInquiries(): Promise<InquiryRow[]> {
   try {
     await getUser();
@@ -102,7 +96,8 @@ export async function getInquiries(): Promise<InquiryRow[]> {
         createdAt: inquiries.createdAt,
       })
       .from(inquiries)
-      .orderBy(desc(inquiries.createdAt));
+      .orderBy(desc(inquiries.createdAt))
+      .limit(500);
 
     return rows.map((r) => ({
       ...r,
@@ -115,6 +110,11 @@ export async function getInquiries(): Promise<InquiryRow[]> {
   }
 }
 
+/**
+ * Fetch all product-specific inquiries joined with product metadata.
+ * LEFT JOIN to `products` so inquiries for deleted products still appear
+ * (productTitle falls back to "Unknown Product" in the map below).
+ */
 export async function getProductInquiries(): Promise<ProductInquiryRow[]> {
   try {
     await getUser();
@@ -160,6 +160,7 @@ export async function getProductInquiries(): Promise<ProductInquiryRow[]> {
 /*  Mutations — General Inquiries                                      */
 /* ------------------------------------------------------------------ */
 
+/** Update the workflow status of a general inquiry (new → read → replied → archived). */
 export async function updateInquiryStatus(
   id: number,
   status: "new" | "read" | "replied" | "archived",
@@ -176,6 +177,11 @@ export async function updateInquiryStatus(
   }
 }
 
+/**
+ * Reply to a general inquiry — saves the reply text, marks status as "replied",
+ * and sends a notification email via Resend. Email is non-fatal (empty catch)
+ * so the reply is still saved even if the email service is down.
+ */
 export async function replyToInquiry(id: number, replyText: string) {
   z.number().int().positive().parse(id);
   z.string().min(1).parse(replyText);
@@ -199,13 +205,15 @@ export async function replyToInquiry(id: number, replyText: string) {
       .where(eq(inquiries.id, id));
 
     if (inquiry?.email) {
+      const bp = await getPublicBusinessProfile();
       await sendEmail({
         to: inquiry.email,
-        subject: "Reply to your inquiry — T Creative",
+        subject: `Reply to your inquiry — ${bp.businessName}`,
         react: InquiryReply({
           clientName: inquiry.name,
           replyText,
           originalMessage: inquiry.message,
+          businessName: bp.businessName,
         }),
         entityType: "inquiry_reply",
         localId: String(id),
@@ -234,6 +242,11 @@ export async function deleteInquiry(id: number) {
 /*  Mutations — Product Inquiries                                      */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Update product inquiry status. Automatically timestamps lifecycle events —
+ * "contacted" records when staff first reached out, "quote_sent" records
+ * when a formal quote was provided.
+ */
 export async function updateProductInquiryStatus(
   id: number,
   status: "new" | "contacted" | "quote_sent" | "in_progress" | "completed",
@@ -243,6 +256,7 @@ export async function updateProductInquiryStatus(
     z.enum(["new", "contacted", "quote_sent", "in_progress", "completed"]).parse(status);
     await getUser();
 
+    // Auto-set lifecycle timestamps based on the status transition
     const extra: Record<string, unknown> = {};
     if (status === "contacted") extra.contactedAt = new Date();
     if (status === "quote_sent") extra.quoteSentAt = new Date();
@@ -258,6 +272,11 @@ export async function updateProductInquiryStatus(
   }
 }
 
+/**
+ * Send a price quote for a product inquiry — saves the quoted amount,
+ * updates status to "quote_sent", and emails the client via Resend.
+ * LEFT JOIN to products again here to get the product title for the email.
+ */
 export async function sendProductQuote(id: number, amountInCents: number) {
   z.number().int().positive().parse(id);
   z.number().int().nonnegative().parse(amountInCents);
@@ -286,13 +305,15 @@ export async function sendProductQuote(id: number, amountInCents: number) {
       .where(eq(productInquiries.id, id));
 
     if (row?.email) {
+      const bp = await getPublicBusinessProfile();
       await sendEmail({
         to: row.email,
-        subject: `Quote — ${row.productTitle ?? "Your product"} — T Creative`,
+        subject: `Quote — ${row.productTitle ?? "Your product"} — ${bp.businessName}`,
         react: ProductQuote({
           clientName: row.clientName,
           productTitle: row.productTitle ?? "Your product",
           quotedAmountInCents: amountInCents,
+          businessName: bp.businessName,
         }),
         entityType: "product_quote",
         localId: String(id),

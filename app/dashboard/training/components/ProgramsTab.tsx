@@ -1,3 +1,12 @@
+/**
+ * ProgramsTab — renders the list of training programs on the admin Training dashboard.
+ *
+ * Computes per-program enrollment and waitlist counts by filtering the
+ * full students array. This avoids separate DB queries per program — the
+ * parent page fetches all students once and passes them down.
+ *
+ * @module training/components/ProgramsTab
+ */
 "use client";
 
 import { GraduationCap } from "lucide-react";
@@ -19,9 +28,11 @@ export function ProgramsTab({
   onDelete: (id: number) => void;
   onToggleWaitlist: (id: number) => void;
 }) {
+  /** Count active enrollments for a program by filtering the full students list. */
   function enrolledForProgram(progId: number) {
     return students.filter((s) => s.programId === progId && s.status === "active").length;
   }
+  /** Count waitlisted students for a program by filtering the full students list. */
   function waitlistForProgram(progId: number) {
     return students.filter((s) => s.programId === progId && s.status === "waitlist").length;
   }

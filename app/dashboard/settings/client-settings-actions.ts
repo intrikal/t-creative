@@ -1,3 +1,27 @@
+/**
+ * client-settings-actions — Server actions for the client-facing Settings page.
+ *
+ * Clients (not admins) manage their own profile, notification preferences,
+ * beauty preferences (lash style, allergies, etc.), and account deletion.
+ *
+ * Auth is per-user (getUser) not admin-gated — each client can only
+ * read/write their own row.
+ *
+ * ## Allergy handling
+ * Allergies are stored in the JSONB `onboardingData` column as a structured
+ * object `{ adhesive: bool, latex: bool, nickel: bool, fragrances: bool, none: bool, notes: string }`.
+ * The query deserializes this to a comma-separated display string; the mutation
+ * parses it back. This roundtrip is needed because the client form uses a
+ * simple text field, not individual checkboxes.
+ *
+ * ## CCPA "Right to Delete"
+ * `deleteClientAccount()` implements California's data deletion requirements:
+ * anonymizes the profile, deletes non-financial records, retains bookings/payments
+ * for tax compliance, and purges the Supabase auth user.
+ *
+ * @see {@link ./components/ClientSettingsPage.tsx} — client settings UI
+ * @see {@link db/schema/client-preferences.ts} — preferences table
+ */
 "use server";
 
 import * as Sentry from "@sentry/nextjs";
@@ -21,22 +45,9 @@ import {
 import { logAction } from "@/lib/audit";
 import { trackEvent } from "@/lib/posthog";
 import { syncCampaignsSubscriber, unsubscribeFromCampaigns } from "@/lib/zoho-campaigns";
-import { createClient } from "@/utils/supabase/server";
+import { getUser } from "@/lib/auth";
 
 const PATH = "/dashboard/settings";
-
-/* ------------------------------------------------------------------ */
-/*  Auth guard                                                         */
-/* ------------------------------------------------------------------ */
-
-async function getUser() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
-  return user;
-}
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -84,10 +95,23 @@ export type ClientSettingsData = {
 /*  Query                                                              */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Fetch the logged-in client's profile, notification prefs, and beauty preferences.
+ *
+ * Two parallel queries via Promise.all (no dependency between them):
+ * 1. SELECT from profiles — basic contact info + notification booleans + onboardingData JSONB
+ * 2. SELECT from client_preferences — lash/beauty preferences (separate 1:1 table)
+ *
+ * Allergies live inside the `onboardingData` JSONB blob, not a dedicated column,
+ * because they were collected during onboarding and never needed SQL filtering.
+ */
 export async function getClientSettings(): Promise<ClientSettingsData> {
   try {
     const user = await getUser();
 
+    // Promise.all runs profile and preferences queries in parallel — they have
+    // no data dependency. Destructuring extracts the first row from each result
+    // since both queries return at most one row (LIMIT 1 / unique profileId).
     const [[row], [prefRow]] = await Promise.all([
       db
         .select({
@@ -112,10 +136,14 @@ export async function getClientSettings(): Promise<ClientSettingsData> {
     let allergies = "";
     if (onboarding.allergies && typeof onboarding.allergies === "object") {
       const a = onboarding.allergies as Record<string, unknown>;
+      // .filter() keeps only allergy flags that are truthy (enabled), then .map()
+      // capitalizes each flag name for display (e.g. "adhesive" → "Adhesive").
       const flags = ["adhesive", "latex", "nickel", "fragrances"]
         .filter((k) => a[k])
         .map((k) => k.charAt(0).toUpperCase() + k.slice(1));
       const notes = (a.notes as string) ?? "";
+      // Spread operator merges the flag names and free-text notes into a single
+      // array, then .filter(Boolean) strips empty notes before .join(", ").
       allergies = [...flags, notes].filter(Boolean).join(", ");
     } else if (typeof onboarding.allergies === "string") {
       allergies = onboarding.allergies;
@@ -171,6 +199,12 @@ const clientProfileSchema = z.object({
   allergies: z.string(),
 });
 
+/**
+ * Update the client's basic profile (name, phone, allergies).
+ * Email is NOT editable here — changing email requires Supabase auth flow.
+ * Allergies are parsed from comma-separated text back into the structured
+ * JSONB format, preserving other onboardingData fields via spread.
+ */
 export async function saveClientProfile(data: {
   firstName: string;
   lastName: string;
@@ -192,14 +226,21 @@ export async function saveClientProfile(data: {
     // Parse the comma-separated allergies string back into the structured object
     const allergyText = data.allergies.toLowerCase();
     const allergyFlags = ["adhesive", "latex", "nickel", "fragrances"];
+    // Object.fromEntries + .map() builds { adhesive: bool, latex: bool, ... } by
+    // checking if each known flag appears in the input text. Using Object.fromEntries
+    // instead of a for-loop because the result is a plain Record consumed by JSONB.
     const flagValues = Object.fromEntries(allergyFlags.map((f) => [f, allergyText.includes(f)]));
     const knownFlags = new Set(allergyFlags);
+    // Split → .map(trim) → .filter() extracts free-text notes by removing any tokens
+    // that match known allergy flag names, then rejoin the remainder as a comma string.
     const notes = data.allergies
       .split(",")
       .map((s) => s.trim())
       .filter((s) => !knownFlags.has(s.toLowerCase()))
       .join(", ");
 
+    // Spread flagValues into the allergy object, then add the computed `none`
+    // flag (.some() checks if any known allergy is present) and freeform notes.
     const allergiesObj = {
       ...flagValues,
       none: !allergyFlags.some((f) => allergyText.includes(f)) && !notes,
@@ -212,6 +253,8 @@ export async function saveClientProfile(data: {
         firstName: data.firstName,
         lastName: data.lastName,
         phone: data.phone || null,
+        // Spread operator shallow-merges the updated allergies into the existing
+        // onboardingData JSONB without losing other fields (e.g. interests, birthday).
         onboardingData: { ...currentOnboarding, allergies: allergiesObj },
       })
       .where(eq(profiles.id, user.id));
@@ -235,6 +278,10 @@ const clientNotificationsSchema = z.object({
   notifyMarketing: z.boolean(),
 });
 
+/**
+ * Update notification preferences. When marketing is toggled ON, syncs the
+ * client to Zoho Campaigns mailing list. When toggled OFF, unsubscribes them.
+ */
 export async function saveClientNotifications(prefs: ClientNotifications) {
   try {
     clientNotificationsSchema.parse(prefs);
@@ -273,9 +320,13 @@ export async function saveClientNotifications(prefs: ClientNotifications) {
 
       if (profile) {
         const onboarding = (profile.onboardingData ?? {}) as Record<string, unknown>;
+        // Ternary checks if interests is an array (it's stored as JSONB, could be
+        // any type), then .join(", ") flattens it to a comma string for Zoho Campaigns.
         const interests = Array.isArray(onboarding.interests)
           ? (onboarding.interests as string[]).join(", ")
           : undefined;
+        // Ternary validates that birthday is a non-empty string before passing to
+        // Zoho — JSONB fields may be null, missing, or an empty string.
         const birthday =
           typeof onboarding.birthday === "string" && onboarding.birthday.trim()
             ? onboarding.birthday
@@ -326,6 +377,12 @@ const clientPreferencesSchema = z.object({
   preferredRebookIntervalDays: z.number().int().positive().nullable(),
 });
 
+/**
+ * Upsert beauty/service preferences. Uses INSERT ... ON CONFLICT DO UPDATE
+ * (Postgres upsert) keyed on profileId — creates the row on first save,
+ * updates in-place on subsequent saves. This avoids a separate "check if
+ * exists" query.
+ */
 export async function saveClientPreferences(prefs: Omit<ClientPreferences, never>): Promise<void> {
   try {
     clientPreferencesSchema.parse(prefs);
@@ -400,15 +457,13 @@ export async function saveClientPreferences(prefs: Omit<ClientPreferences, never
  */
 export async function deleteClientAccount() {
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) throw new Error("Not authenticated");
+    const user = await getUser();
 
     trackEvent(user.id, "account_deleted");
 
-    // 1. Delete records that can be fully removed (CASCADE-eligible, no financial impact)
+    // Promise.all deletes 9 independent tables in parallel — none depend on each
+    // other and all use simple WHERE on the client's ID. Parallel execution
+    // minimizes total deletion time for CCPA compliance response deadlines.
     await Promise.all([
       db.delete(clientPreferences).where(eq(clientPreferences.profileId, user.id)),
       db.delete(loyaltyTransactions).where(eq(loyaltyTransactions.profileId, user.id)),
@@ -471,6 +526,8 @@ export async function deleteClientAccount() {
       await adminClient.auth.admin.deleteUser(user.id);
     } else {
       // Fallback: sign out only (auth user remains but profile is anonymized)
+      const { createClient } = await import("@/utils/supabase/server");
+      const supabase = await createClient();
       await supabase.auth.signOut();
     }
   } catch (err) {

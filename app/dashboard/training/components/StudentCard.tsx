@@ -1,3 +1,17 @@
+/**
+ * StudentCard — admin-facing card for a single enrolled student.
+ *
+ * Shows student name, status badge, program badge, enrollment date,
+ * session/payment progress bars, certification status, and an expandable
+ * session log. Used by `StudentsTab` on the admin Training dashboard.
+ *
+ * ## Progress calculations
+ * - `progressPct` = sessionsCompleted / sessionsTotal (0 if no sessions)
+ * - `paymentPct` = amountPaid / amountTotal (0 if no payment due)
+ * Both are rounded to the nearest integer for the progress bar width.
+ *
+ * @module training/components/StudentCard
+ */
 "use client";
 
 import { useState } from "react";
@@ -18,6 +32,7 @@ export function StudentCard({
   onDelete: () => void;
   pending: boolean;
 }) {
+  /** Whether the session log accordion is expanded. */
   const [expanded, setExpanded] = useState(false);
   const prog = PROGRAM_STYLE[student.program];
   const sts = studentStatusConfig(student.status);

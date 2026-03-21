@@ -1,3 +1,34 @@
+/**
+ * app/dashboard/assistants/actions.ts — Server actions for the Team / Assistants
+ * management page (`/dashboard/team`).
+ *
+ * Consumed by the Team page tabs:
+ * - **Roster tab**: CRUD for assistant profiles (create, update, toggle status, delete).
+ * - **Availability tab**: Weekly business-hours grid per staff member.
+ * - **Commissions tab**: All-time earnings breakdown by service revenue + tips.
+ * - **Payroll tab**: Current-month pay run with YTD totals for 1099 reporting.
+ * - **Pay Stub**: Per-assistant, per-month line-item breakdown of bookings.
+ *
+ * ## Auth
+ * Every exported function calls `requireAdmin` — only admin-role users can
+ * manage staff. Assistants see a read-only version via separate client components.
+ *
+ * ## Commission model
+ * Two modes: `percentage` (assistant earns X% of gross booking revenue) and
+ * `flat_fee` (assistant earns a fixed dollar amount per completed session).
+ * Tips are split separately via `tipSplitPercent`. The `calcServiceEarned`
+ * helper centralises this arithmetic so all views stay consistent.
+ *
+ * ## Data flow
+ * Staff data lives across two tables: `profiles` (shared identity fields) and
+ * `assistant_profiles` (professional details, commission settings). Mutations
+ * upsert `assistant_profiles` because admin-role users may not have one yet.
+ *
+ * ## Related files
+ * - db/schema/assistants.ts  — `assistant_profiles` table definition
+ * - db/schema/users.ts       — `profiles` table definition
+ * - app/dashboard/team/      — client components that call these actions
+ */
 "use server";
 
 import { revalidatePath } from "next/cache";
@@ -76,6 +107,16 @@ export type AvailabilityRow = {
 /*  Queries                                                            */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Fetch all non-client staff with their professional profiles and booking
+ * statistics. Feeds the Roster tab's table and the summary cards.
+ *
+ * Uses `ne(profiles.role, "client")` rather than `eq(role, "assistant")`
+ * so admin users who also take bookings appear in the team list.
+ *
+ * Booking stats are computed via lateral subqueries to avoid N+1 queries
+ * while keeping the main query a single round-trip.
+ */
 export async function getAssistants(): Promise<AssistantRow[]> {
   try {
     await getUser();
@@ -92,6 +133,7 @@ export async function getAssistants(): Promise<AssistantRow[]> {
         totalRevenue: sql<number>`coalesce(sum(${bookings.totalInCents}), 0)`.as("total_revenue"),
       })
       .from(bookings)
+      .where(eq(bookings.status, "completed"))
       .groupBy(bookings.staffId)
       .as("all_booking_stats");
 
@@ -102,7 +144,7 @@ export async function getAssistants(): Promise<AssistantRow[]> {
         thisMonthSessions: sql<number>`count(*)`.as("this_month_sessions"),
       })
       .from(bookings)
-      .where(gte(bookings.startsAt, startOfMonth))
+      .where(and(eq(bookings.status, "completed"), gte(bookings.startsAt, startOfMonth)))
       .groupBy(bookings.staffId)
       .as("month_booking_stats");
 
@@ -135,6 +177,10 @@ export async function getAssistants(): Promise<AssistantRow[]> {
       .leftJoin(monthBookingStats, eq(profiles.id, monthBookingStats.staffId))
       .orderBy(profiles.firstName);
 
+    // Transform each joined DB row into an AssistantRow. Spread copies all
+    // selected columns, then individual overrides apply defaults for nullable
+    // fields (assistant_profiles may not exist → LEFT JOIN returns nulls).
+    // Number() coerces SQL aggregate results (returned as strings by Postgres).
     return rows.map((r) => ({
       ...r,
       isAvailable: r.isAvailable ?? true,
@@ -152,6 +198,7 @@ export async function getAssistants(): Promise<AssistantRow[]> {
   }
 }
 
+/** Fetch weekly business-hours grid for all staff. Feeds the Availability tab. */
 export async function getAssistantAvailability(): Promise<AvailabilityRow[]> {
   try {
     await getUser();
@@ -170,6 +217,8 @@ export async function getAssistantAvailability(): Promise<AvailabilityRow[]> {
       .innerJoin(profiles, eq(businessHours.staffId, profiles.id))
       .orderBy(profiles.firstName, businessHours.dayOfWeek);
 
+    // Transform each business_hours row into an AvailabilityRow, building the
+    // staff display name from nullable first/last columns via .filter(Boolean).
     return rows.map((r) => ({
       staffId: r.staffId!,
       staffName: [r.staffFirstName, r.staffLastName].filter(Boolean).join(" "),
@@ -212,6 +261,13 @@ const commissionSettingsSchema = z.object({
 /*  Mutations                                                          */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Create a new assistant — inserts into both `profiles` and `assistant_profiles`.
+ *
+ * Uses `crypto.randomUUID()` for the profile ID rather than relying on a
+ * Supabase Auth signup, because admin-created assistants don't necessarily
+ * have a Supabase Auth account yet (they may be invited later).
+ */
 export async function createAssistant(input: AssistantInput): Promise<void> {
   try {
     assistantInputSchema.parse(input);
@@ -240,13 +296,20 @@ export async function createAssistant(input: AssistantInput): Promise<void> {
       startDate: new Date(),
     });
 
-    revalidatePath("/dashboard/assistants");
+    revalidatePath("/dashboard/team");
   } catch (err) {
     Sentry.captureException(err);
     throw err;
   }
 }
 
+/**
+ * Update an assistant's profile and professional details.
+ *
+ * Upserts `assistant_profiles` because admin-role users won't have a row
+ * until their first edit — the onboarding flow only creates one for
+ * users who sign up with role = "assistant".
+ */
 export async function updateAssistant(id: string, input: AssistantInput): Promise<void> {
   try {
     z.string().min(1).parse(id);
@@ -276,6 +339,9 @@ export async function updateAssistant(id: string, input: AssistantInput): Promis
         .set({
           title: input.title ?? null,
           specialties: input.specialties ?? null,
+          // Spread + ternary pattern: each field is conditionally included in the
+          // SET clause only if the caller provided it. Spreading an empty object {}
+          // when undefined is a no-op, so omitted fields are not overwritten to null.
           ...(input.commissionType !== undefined && { commissionType: input.commissionType }),
           ...(input.commissionRate !== undefined && {
             commissionRatePercent: input.commissionRate,
@@ -298,13 +364,21 @@ export async function updateAssistant(id: string, input: AssistantInput): Promis
       });
     }
 
-    revalidatePath("/dashboard/assistants");
+    revalidatePath("/dashboard/team");
   } catch (err) {
     Sentry.captureException(err);
     throw err;
   }
 }
 
+/**
+ * Cycle an assistant through active / on_leave / inactive.
+ *
+ * Two flags control visibility: `profiles.isActive` (account-level) and
+ * `assistant_profiles.isAvailable` (booking-level). "on_leave" keeps the
+ * account active but hides the assistant from the booking calendar.
+ * "inactive" disables both — the assistant disappears from all views.
+ */
 export async function toggleAssistantStatus(
   id: string,
   status: "active" | "on_leave" | "inactive",
@@ -334,13 +408,20 @@ export async function toggleAssistantStatus(
         .where(eq(assistantProfiles.profileId, id));
     }
 
-    revalidatePath("/dashboard/assistants");
+    revalidatePath("/dashboard/team");
   } catch (err) {
     Sentry.captureException(err);
     throw err;
   }
 }
 
+/**
+ * Update the full commission configuration for an assistant.
+ *
+ * Clears the irrelevant field when switching commission types: switching to
+ * "percentage" nulls out the flat fee, and vice versa — prevents stale
+ * values from being used if the type is toggled back later.
+ */
 export async function updateCommissionSettings(
   id: string,
   settings: {
@@ -367,22 +448,26 @@ export async function updateCommissionSettings(
         settings.commissionType === "percentage" ? (settings.commissionRate ?? null) : null,
       commissionFlatFeeInCents:
         settings.commissionType === "flat_fee" ? (settings.commissionFlatFee ?? null) : null,
+      // Spread conditionally includes tipSplitPercent only if provided.
       ...(settings.tipSplitPercent !== undefined && { tipSplitPercent: settings.tipSplitPercent }),
     };
 
     if (existing.length > 0) {
       await db.update(assistantProfiles).set(values).where(eq(assistantProfiles.profileId, id));
     } else {
+      // Spread merges commission values into the insert — profileId is the only
+      // required field not in `values`, so we add it explicitly.
       await db.insert(assistantProfiles).values({ profileId: id, ...values });
     }
 
-    revalidatePath("/dashboard/assistants");
+    revalidatePath("/dashboard/team");
   } catch (err) {
     Sentry.captureException(err);
     throw err;
   }
 }
 
+/** Quick-edit for commission percentage only — used by the inline rate editor on the Commissions tab. */
 export async function updateCommissionRate(id: string, rate: number): Promise<void> {
   try {
     z.string().min(1).parse(id);
@@ -407,19 +492,25 @@ export async function updateCommissionRate(id: string, rate: number): Promise<vo
       });
     }
 
-    revalidatePath("/dashboard/assistants");
+    revalidatePath("/dashboard/team");
   } catch (err) {
     Sentry.captureException(err);
     throw err;
   }
 }
 
+/**
+ * Hard-delete an assistant — cascades to `assistant_profiles` via FK.
+ *
+ * Bookings assigned to this assistant will have their `staff_id` set to null
+ * (FK on delete: set null), so historical booking data is preserved.
+ */
 export async function deleteAssistant(id: string): Promise<void> {
   try {
     z.string().min(1).parse(id);
     await getUser();
     await db.delete(profiles).where(eq(profiles.id, id));
-    revalidatePath("/dashboard/assistants");
+    revalidatePath("/dashboard/team");
   } catch (err) {
     Sentry.captureException(err);
     throw err;
@@ -430,6 +521,7 @@ export async function deleteAssistant(id: string): Promise<void> {
 /*  Commissions & Payroll                                              */
 /* ------------------------------------------------------------------ */
 
+/** Fallback when an assistant has no commission rate configured (60% of gross). */
 const DEFAULT_COMMISSION_RATE = 60;
 
 export type CommissionRow = {
@@ -488,6 +580,13 @@ export type PayrollSummary = {
   totalOwedInCents: number;
 };
 
+/**
+ * Centralised commission calculation used by Commissions, Payroll, and Pay Stub views.
+ *
+ * - `percentage`: assistant earns `rate`% of gross booking revenue.
+ * - `flat_fee`: assistant earns a fixed dollar amount per completed session,
+ *   regardless of the service price — simpler for hourly-style arrangements.
+ */
 function calcServiceEarned(
   commissionType: CommissionType,
   rate: number,
@@ -501,6 +600,16 @@ function calcServiceEarned(
   return Math.round((revenueInCents * rate) / 100);
 }
 
+/**
+ * Fetch all-time commission data for every staff member. Feeds the Commissions tab.
+ *
+ * Computes "paid out" as prior-month earnings — treating the boundary between
+ * months as the payout cutoff. This is a simplification; real payroll uses
+ * the Pay Stub action for authoritative per-period totals.
+ *
+ * Tips are tracked separately from service revenue because they have their
+ * own split percentage (e.g., assistant keeps 100% of tips by default).
+ */
 export async function getCommissionsData(): Promise<CommissionRow[]> {
   try {
     await getUser();
@@ -529,7 +638,7 @@ export async function getCommissionsData(): Promise<CommissionRow[]> {
       })
       .from(bookings)
       .innerJoin(payments, eq(payments.bookingId, bookings.id))
-      .where(eq(bookings.status, "completed"))
+      .where(and(eq(bookings.status, "completed"), eq(payments.status, "paid")))
       .groupBy(bookings.staffId)
       .as("all_time_tips");
 
@@ -553,7 +662,7 @@ export async function getCommissionsData(): Promise<CommissionRow[]> {
       })
       .from(bookings)
       .innerJoin(payments, eq(payments.bookingId, bookings.id))
-      .where(and(eq(bookings.status, "completed"), lt(bookings.startsAt, startOfThisMonth)))
+      .where(and(eq(bookings.status, "completed"), eq(payments.status, "paid"), lt(bookings.startsAt, startOfThisMonth)))
       .groupBy(bookings.staffId)
       .as("prior_tips");
 
@@ -582,6 +691,10 @@ export async function getCommissionsData(): Promise<CommissionRow[]> {
       .leftJoin(priorTips, eq(profiles.id, priorTips.staffId))
       .orderBy(profiles.firstName);
 
+    // Transform each joined row into a CommissionRow with computed earnings.
+    // Nullable fields default to safe values (LEFT JOINs return null when an
+    // assistant has no bookings or no assistant_profiles row).
+    // .filter(Boolean) on name parts handles null first/last names.
     return rows.map((r) => {
       const commissionType = (r.commissionType as CommissionType) ?? "percentage";
       const rate = r.rate ?? DEFAULT_COMMISSION_RATE;
@@ -607,11 +720,15 @@ export async function getCommissionsData(): Promise<CommissionRow[]> {
         Math.round((priorTips * tipSplitPercent) / 100);
       const tipEarnedInCents = Math.round((totalTips * tipSplitPercent) / 100);
 
+      // .filter(Boolean) drops null/empty name parts.
       const name = [r.firstName, r.lastName].filter(Boolean).join(" ");
 
       return {
         id: r.id,
         name,
+        // Build initials by splitting the name on spaces, .map() extracting each
+        // word's first character, .join() + .slice(0,2) to cap at 2 chars.
+        // Chain approach is cleaner than indexing for names with varying word counts.
         initials: name
           .trim()
           .split(" ")
@@ -637,6 +754,14 @@ export async function getCommissionsData(): Promise<CommissionRow[]> {
   }
 }
 
+/**
+ * Compute current-month payroll for all staff. Feeds the Payroll tab.
+ *
+ * Each row includes a YTD gross revenue figure for 1099 reporting — the
+ * IRS threshold is $600, so this helps the admin decide who needs a form.
+ *
+ * The period is always the current calendar month (1st through last day).
+ */
 export async function getPayrollData(): Promise<{
   rows: PayrollRow[];
   summary: PayrollSummary;
@@ -678,6 +803,7 @@ export async function getPayrollData(): Promise<{
       .where(
         and(
           eq(bookings.status, "completed"),
+          eq(payments.status, "paid"),
           gte(bookings.startsAt, startOfThisMonth),
           lte(bookings.startsAt, endOfThisMonth),
         ),
@@ -719,6 +845,8 @@ export async function getPayrollData(): Promise<{
       .leftJoin(ytdStats, eq(profiles.id, ytdStats.staffId))
       .orderBy(profiles.firstName);
 
+    // Transform each joined row into a PayrollRow, computing service and tip
+    // amounts owed this month. .filter(Boolean) on name parts handles nulls.
     const payrollRows: PayrollRow[] = rows.map((r) => {
       const commissionType = (r.commissionType as CommissionType) ?? "percentage";
       const rate = r.rate ?? DEFAULT_COMMISSION_RATE;
@@ -738,6 +866,7 @@ export async function getPayrollData(): Promise<{
 
       return {
         id: r.id,
+        // .filter(Boolean) drops null/empty name parts to avoid "null Smith" or "Jane ".
         name: [r.firstName, r.lastName].filter(Boolean).join(" "),
         role: r.title ?? null,
         commissionType,
@@ -754,6 +883,7 @@ export async function getPayrollData(): Promise<{
       };
     });
 
+    // .reduce() sums owedInCents across all assistants for the payroll summary card.
     const totalOwedInCents = payrollRows.reduce((s, r) => s + r.owedInCents, 0);
 
     const periodLabel = `${startOfThisMonth.toLocaleDateString("en-US", { month: "short", day: "numeric" })} – ${endOfThisMonth.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
@@ -800,6 +930,16 @@ export type PayStubData = {
   };
 };
 
+/**
+ * Generate a line-item pay stub for a single assistant in a given month.
+ *
+ * Each completed booking becomes one entry showing gross revenue, tip,
+ * and the assistant's share of each. Client names are abbreviated to
+ * "First L." for privacy when the stub is printed or exported.
+ *
+ * The `alias` on `profiles` is required because the same table appears
+ * twice in the query — once for the staff member and once for the client.
+ */
 export async function generatePayStub(
   assistantId: string,
   month: number,
@@ -869,6 +1009,9 @@ export async function generatePayStub(
       )
       .orderBy(bookings.startsAt);
 
+    // Transform each completed booking into a PayStubEntry with commission and
+    // tip calculations applied. Client name is abbreviated to "First L." for
+    // privacy when the stub is printed/exported.
     const entries: PayStubEntry[] = bookingRows.map((r, i) => {
       const gross = r.totalInCents;
       const tip = Number(r.tipInCents ?? 0);
@@ -893,6 +1036,8 @@ export async function generatePayStub(
       };
     });
 
+    // .reduce() accumulates all line-item amounts into period totals in a single
+    // pass. The accumulator object shape matches the PayStubData.totals type.
     const totals = entries.reduce(
       (acc, e) => ({
         sessions: acc.sessions + 1,
@@ -915,6 +1060,7 @@ export async function generatePayStub(
     const periodLabel = `${startOfPeriod.toLocaleDateString("en-US", { month: "long", year: "numeric" })}`;
 
     return {
+      // .filter(Boolean) drops null/empty name parts for clean display name.
       assistantName: [profileRow.firstName, profileRow.lastName].filter(Boolean).join(" "),
       role: profileRow.title ?? null,
       periodLabel,

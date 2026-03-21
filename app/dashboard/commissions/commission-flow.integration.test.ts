@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 /**
+ * @file commission-flow.integration.test.ts
  * Integration tests for the commission request flow.
  *
  * These tests verify the complete lifecycle of `submitCommissionRequest`,
@@ -14,6 +15,10 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 type MockRow = Record<string, unknown>;
 
+/**
+ * Creates a mock DB that tracks inserted/updated rows in memory.
+ * Test assertions read the _orders array to verify final state.
+ */
 function createStatefulDb() {
   const orders: MockRow[] = [];
 
@@ -90,14 +95,21 @@ function createStatefulDb() {
 /*  Shared mock refs                                                   */
 /* ------------------------------------------------------------------ */
 
+/** Stub for supabase auth.getUser — controls whether the request is authenticated. */
 const mockGetUser = vi.fn();
+/** Captures Resend sendEmail calls; resolves to true by default (email sent OK). */
 const mockSendEmail = vi.fn().mockResolvedValue(true);
+/** Captures revalidatePath calls so tests can verify correct cache invalidation. */
 const mockRevalidatePath = vi.fn();
 
 /* ------------------------------------------------------------------ */
 /*  Setup helper                                                       */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Registers all module mocks for the integration test using the
+ * stateful DB instance, so mutations accumulate across action calls.
+ */
 function setupMocks(db: ReturnType<typeof createStatefulDb>) {
   vi.doMock("@/db", () => ({ db }));
 

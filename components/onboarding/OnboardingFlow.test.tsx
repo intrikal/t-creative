@@ -1,4 +1,38 @@
+/**
+ * OnboardingFlow.test.tsx — Integration tests for the multi-step onboarding wizard.
+ *
+ * What: Tests the client and assistant onboarding flows end-to-end at the
+ *       component level — verifying step rendering, navigation (forward/back),
+ *       form pre-fill from Google OAuth, and button enable/disable gates.
+ *
+ * Why: The onboarding wizard is the first experience for every user. Regressions
+ *      here (broken navigation, missing pre-fill, stuck buttons) would block
+ *      signups entirely. These tests catch those issues before deploy.
+ *
+ * How: Heavy mocking — Framer Motion, React Icons, Next.js router, panels, and
+ *      the OnboardingShell are all replaced with minimal stubs. This isolates
+ *      the tests to OnboardingFlow's orchestration logic (step state, form state,
+ *      canAdvance gating) without depending on animation libraries or icon packs.
+ *
+ * Mock strategy:
+ * - Framer Motion → plain HTML elements (strips animation props)
+ * - React Icons → null components (avoids vitest Proxy hang)
+ * - OnboardingShell → minimal div with step counter + prev/next buttons
+ * - All panels → null (no visual output needed for navigation tests)
+ * - saveOnboardingData → resolved Promise (no network calls)
+ *
+ * Related files:
+ * - components/onboarding/OnboardingFlow.tsx — the component under test
+ */
+// render: mounts a React component into a virtual DOM for testing
+// screen: queries to find elements in rendered output (getByText, getByRole, etc.)
+// fireEvent: simulates user interactions (click, change, etc.)
 import { render, screen, fireEvent } from "@testing-library/react";
+// describe: groups related tests into a labeled block
+// it: defines a single test case
+// expect: creates an assertion to check a value matches expected condition
+// vi: Vitest's mock utility for creating fake functions
+// beforeEach: runs setup before every test (typically resets mocks)
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { OnboardingFlow } from "./OnboardingFlow";
 
@@ -6,6 +40,8 @@ import { OnboardingFlow } from "./OnboardingFlow";
 /*  Module mocks                                                        */
 /* ------------------------------------------------------------------ */
 
+// vi.mock("next/link"): replaces Next.js Link with a plain <a> tag so
+// link rendering works in the test DOM without Next.js router context
 vi.mock("next/link", () => ({
   default: ({
     children,
@@ -22,6 +58,8 @@ vi.mock("next/link", () => ({
   ),
 }));
 
+// vi.mock("next/navigation"): replaces Next.js router hooks — usePathname
+// returns a fixed path, useRouter returns no-op push/replace
 vi.mock("next/navigation", () => ({
   usePathname: () => "/onboarding",
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
@@ -162,15 +200,20 @@ vi.mock("react-icons/fa", () => ({
 }));
 vi.mock("react-icons", () => ({}));
 
+// vi.mock("@/components/TCLogo"): replaces the logo SVG with a test stub
 vi.mock("@/components/TCLogo", () => ({
   TCLogo: () => <svg data-testid="tc-logo" />,
 }));
 
+// vi.mock("@/app/onboarding/actions"): replaces the server action so
+// form submission resolves immediately without network calls
 vi.mock("@/app/onboarding/actions", () => ({
   saveOnboardingData: vi.fn().mockResolvedValue(undefined),
 }));
 
-// Mock panels barrel — removes all panel component dependencies (react-icons/pi, /fa, etc.)
+// vi.mock("./panels"): replaces all panel components with null stubs.
+// Removes transitive dependencies on react-icons/pi, /fa, etc. that
+// cause vitest Proxy issues. Tests only need the orchestration logic.
 vi.mock("./panels", () => {
   const n = () => null;
   return {
@@ -204,7 +247,10 @@ vi.mock("./panels", () => {
 vi.mock("./PanelSummary", () => ({ PanelSummary: () => null }));
 vi.mock("./PanelAssistantSummary", () => ({ PanelAssistantSummary: () => null }));
 
-// Minimal OnboardingShell that exposes the same nav interface the real one does
+// vi.mock("./OnboardingShell"): replaces the real shell with a minimal div
+// that renders a step counter, prev/next buttons with canAdvance gating,
+// and the step content. This isolates tests to OnboardingFlow's step
+// orchestration logic (which step to show, when to enable/disable nav).
 vi.mock("./OnboardingShell", () => ({
   OnboardingShell: ({
     step,
@@ -248,11 +294,17 @@ vi.mock("./OnboardingShell", () => ({
 /*  Tests                                                               */
 /* ------------------------------------------------------------------ */
 
+// Tests the OnboardingFlow multi-step wizard orchestration: step rendering,
+// forward/back navigation, OK button enable/disable gating based on form
+// state, Google OAuth name pre-fill, and whitespace-only validation
 describe("OnboardingFlow", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
+  // Client onboarding: name step rendering, input validation, step
+  // advancement via OK button and Next arrow, back navigation, and
+  // Google OAuth pre-fill of first/last name fields
   describe("client flow", () => {
     it("renders the name step first", () => {
       render(<OnboardingFlow role="client" />);
@@ -351,6 +403,8 @@ describe("OnboardingFlow", () => {
     });
   });
 
+  // Assistant onboarding: verifies the name step renders and that
+  // googleName is pre-filled into the first name field
   describe("assistant flow", () => {
     it("renders the name step first", () => {
       render(<OnboardingFlow role="assistant" email="a@test.com" googleName="Sam" />);

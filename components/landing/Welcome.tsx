@@ -1,7 +1,10 @@
 /**
  * Welcome — Introduces the founder with a portrait and studio welcome message.
  *
+ * Used on the landing page to put a face to the brand and summarize the service range.
  * Client Component — uses Framer Motion for scroll-triggered entrance animations.
+ *
+ * No props — founder info and copy are static.
  */
 "use client";
 

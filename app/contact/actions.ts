@@ -6,10 +6,19 @@
  */
 "use server";
 
+import { z } from "zod";
 import { db } from "@/db";
 import { inquiries } from "@/db/schema";
 import { trackEvent } from "@/lib/posthog";
 import { verifyTurnstileToken } from "@/lib/turnstile";
+
+const contactFormSchema = z.object({
+  name: z.string().min(1).max(200),
+  email: z.string().email().max(320),
+  interest: z.string().min(1),
+  message: z.string().min(1).max(5000),
+  turnstileToken: z.string().min(1),
+});
 
 type ServiceCategory = "lash" | "jewelry" | "crochet" | "consulting" | null;
 
@@ -26,6 +35,20 @@ const interestMap: Record<string, ServiceCategory> = {
   Other: null,
 };
 
+/**
+ * Processes a public contact form submission.
+ *
+ * 1. Validates the form fields with Zod.
+ * 2. Verifies the Cloudflare Turnstile bot-check token.
+ * 3. Maps the human-readable interest label (e.g. "Lash Extensions") to the
+ *    DB enum value (e.g. "lash") using `interestMap`.
+ * 4. Inserts a row:
+ *    INSERT INTO inquiries (name, email, interest, message, status)
+ *    VALUES (<name>, <email>, <category>, '[<interest>] <message>', 'new')
+ *    → the interest label is prefixed to the message so the admin can see the
+ *      original selection even though the DB stores the enum.
+ * 5. Fires a PostHog analytics event.
+ */
 export async function submitContactForm(data: {
   name: string;
   email: string;
@@ -33,6 +56,9 @@ export async function submitContactForm(data: {
   message: string;
   turnstileToken: string;
 }) {
+  const parsed = contactFormSchema.safeParse(data);
+  if (!parsed.success) throw new Error("Invalid form data. Please check your inputs.");
+
   const valid = await verifyTurnstileToken(data.turnstileToken);
   if (!valid) throw new Error("Bot check failed. Please try again.");
 

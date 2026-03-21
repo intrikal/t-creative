@@ -1,7 +1,26 @@
+/**
+ * Unit tests for the Zustand cart store and its derived selectors.
+ *
+ * Tests the core cart operations (add, remove, update quantity, clear)
+ * and the pure utility functions (cartTotalInCents, cartItemCount).
+ * No mocking needed — Zustand stores can be tested directly via
+ * getState()/setState() without rendering React components.
+ *
+ * Related files:
+ *   - stores/useCartStore.ts — the Zustand store under test
+ */
+
+// describe: groups related tests into a labeled block
+// it: defines a single test case
+// expect: creates an assertion to check a value matches expected condition
+// beforeEach: runs setup before every test (resets cart to empty state)
 import { describe, it, expect, beforeEach } from "vitest";
 import { useCartStore, cartTotalInCents, cartItemCount, type CartItem } from "./useCartStore";
 
+// Tests the Zustand cart store actions: addItem (with dedup/increment),
+// removeItem, updateQuantity (including removal at 0), and clearCart
 describe("useCartStore", () => {
+  // Reset cart to empty before each test to prevent state leaking
   beforeEach(() => {
     useCartStore.setState({ items: [] });
   });
@@ -108,6 +127,7 @@ describe("useCartStore", () => {
   });
 });
 
+// Tests the pure cartTotalInCents selector: sums (price * quantity) across items
 describe("cartTotalInCents", () => {
   it("returns 0 for empty cart", () => {
     expect(cartTotalInCents([])).toBe(0);
@@ -123,6 +143,7 @@ describe("cartTotalInCents", () => {
   });
 });
 
+// Tests the pure cartItemCount selector: sums quantities across all items
 describe("cartItemCount", () => {
   it("returns 0 for empty cart", () => {
     expect(cartItemCount([])).toBe(0);

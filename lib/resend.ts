@@ -14,11 +14,29 @@ import { eq } from "drizzle-orm";
 import { Resend } from "resend";
 import { db } from "@/db";
 import { syncLog, profiles } from "@/db/schema";
+import { getPublicBusinessProfile } from "@/app/dashboard/settings/settings-actions";
 
 const apiKey = process.env.RESEND_API_KEY;
 
-export const RESEND_FROM =
+/** Env-level fallback; overridden at runtime by BusinessProfile settings. */
+const RESEND_FROM_FALLBACK =
   process.env.RESEND_FROM_EMAIL || "T Creative <noreply@tcreativestudio.com>";
+
+/**
+ * Build the "From" header from the configured BusinessProfile.
+ * Falls back to env variable if the DB read fails.
+ */
+async function getResendFrom(): Promise<string> {
+  try {
+    const profile = await getPublicBusinessProfile();
+    return `${profile.emailSenderName} <${profile.emailFromAddress}>`;
+  } catch {
+    return RESEND_FROM_FALLBACK;
+  }
+}
+
+/** @deprecated Use getResendFrom() instead — kept for backwards compat. */
+export const RESEND_FROM = RESEND_FROM_FALLBACK;
 
 /** Whether Resend API key is configured. */
 export function isResendConfigured(): boolean {
@@ -28,6 +46,10 @@ export function isResendConfigured(): boolean {
 /**
  * Fetch a profile's email + notifyEmail preference.
  * Returns null if profile not found or email notifications disabled.
+ *
+ * Callers should check the return value before calling `sendEmail()` —
+ * this enforces the user's notification opt-out preference at the
+ * data layer so individual send sites don't need to check it.
  */
 export async function getEmailRecipient(
   profileId: string,
@@ -45,7 +67,14 @@ export async function getEmailRecipient(
   return { email: row.email, firstName: row.firstName };
 }
 
-/** Lazy-initialized Resend client (avoids constructor throw when key is missing). */
+/**
+ * Lazy-initialized Resend client.
+ *
+ * Unlike the Square SDK (which tolerates an empty token at construction),
+ * the Resend constructor throws if the API key is missing. Lazy init
+ * ensures the module can be imported without env vars set — the throw
+ * only happens at send time, guarded by `isResendConfigured()`.
+ */
 let _resend: Resend | null = null;
 function getResendClient(): Resend {
   if (!_resend) {
@@ -75,8 +104,9 @@ export async function sendEmail(params: {
   }
 
   try {
+    const from = await getResendFrom();
     const { data, error } = await getResendClient().emails.send({
-      from: RESEND_FROM,
+      from,
       to: params.to,
       subject: params.subject,
       react: params.react,

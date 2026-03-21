@@ -9,6 +9,7 @@ export type RecurringBookingConfirmationProps = {
   startsAt: string;
   durationMinutes: number;
   totalInCents: number;
+  businessName?: string;
 };
 
 export function RecurringBookingConfirmation({
@@ -17,9 +18,10 @@ export function RecurringBookingConfirmation({
   startsAt,
   durationMinutes,
   totalInCents,
+  businessName = "T Creative Studio",
 }: RecurringBookingConfirmationProps) {
   return (
-    <Layout preview={`Next appointment scheduled — ${serviceName}`}>
+    <Layout preview={`Next appointment scheduled — ${serviceName}`} businessName={businessName}>
       <Section style={content}>
         <Text style={heading}>Next Appointment Scheduled</Text>
         <Text style={paragraph}>

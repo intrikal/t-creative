@@ -1,3 +1,13 @@
+/**
+ * CommissionsTab — All-time commission tracker table.
+ *
+ * Shows each assistant's commission rate, session count, total revenue
+ * generated, tips received, total earned (service + tip), amount paid
+ * out, and outstanding balance. A footer row sums all columns.
+ *
+ * Balance > 0 is highlighted in amber — it represents money owed to
+ * the assistant that hasn't been disbursed yet.
+ */
 "use client";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -17,6 +27,8 @@ function commissionLabel(row: CommissionRow): string {
 }
 
 export function CommissionsTab({ data }: { data: CommissionRow[] }) {
+  // reduce: aggregate across all assistants to produce footer totals.
+  // Each metric sums the corresponding cents field for the whole team.
   const totalRevenue = data.reduce((s, r) => s + r.revenueInCents, 0);
   const totalTips = data.reduce((s, r) => s + r.totalTipsInCents, 0);
   const totalEarned = data.reduce((s, r) => s + r.earnedInCents + r.tipEarnedInCents, 0);

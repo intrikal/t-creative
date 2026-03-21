@@ -29,6 +29,15 @@ export function isZohoConfigured(): boolean {
 /*  Low-level API helper                                               */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Low-level wrapper around the Zoho CRM v7 REST API.
+ *
+ * Handles OAuth token injection and JSON parsing. Throws on non-2xx
+ * responses so callers can catch and log to syncLog.
+ *
+ * Token refresh is handled by `getZohoAccessToken()` in zoho-auth.ts
+ * (caches in memory, auto-refreshes when expired).
+ */
 async function zohoFetch(
   path: string,
   options: { method?: string; body?: Record<string, unknown> } = {},
@@ -55,6 +64,13 @@ async function zohoFetch(
 /*  Sync log helper                                                    */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Writes to `sync_log` for audit/debugging of CRM sync operations.
+ * All entries are tagged provider="zoho", direction="outbound".
+ *
+ * Wrapped in try/catch — a logging failure must never break the
+ * main CRM sync flow (defense-in-depth).
+ */
 async function logSync(entry: {
   status: "success" | "failed";
   entityType: string;
@@ -79,6 +95,13 @@ async function logSync(entry: {
 /*  Public API — all fire-and-forget, non-fatal                        */
 /* ------------------------------------------------------------------ */
 
+// Every public function below follows the same pattern:
+// 1. Early-return if Zoho is not configured (graceful degradation).
+// 2. Perform the API call inside try/catch.
+// 3. Log success/failure to sync_log.
+// 4. Capture exceptions to Sentry but never re-throw — CRM sync
+//    failures must never block the primary user flow (booking, payment, etc.).
+
 /**
  * Create or update a Zoho CRM Contact. Uses email as the dedup key via
  * Zoho's upsert endpoint. Stores the returned Zoho Contact ID back to
@@ -101,8 +124,11 @@ export async function upsertZohoContact(data: {
     const contactData: Record<string, unknown> = {
       Email: data.email,
       First_Name: data.firstName,
+      // Zoho CRM requires Last_Name — fall back to first name when absent.
       Last_Name: data.lastName || data.firstName,
     };
+    // Only set optional fields when present — Zoho upsert would
+    // overwrite existing values with null otherwise.
     if (data.phone) contactData.Phone = data.phone;
     if (data.source) contactData.Lead_Source = data.source;
     if (data.description) contactData.Description = data.description;
@@ -173,6 +199,7 @@ export async function createZohoDeal(data: {
       Deal_Name: data.dealName,
       Stage: data.stage,
     };
+    // Zoho Deals store amounts in dollars — convert from our cents-based system.
     if (data.amountInCents != null) dealData.Amount = data.amountInCents / 100;
     if (data.pipeline) dealData.Pipeline = data.pipeline;
     if (profile?.zohoContactId) {
@@ -187,7 +214,8 @@ export async function createZohoDeal(data: {
     const details = result.data as Array<{ details?: { id?: string } }> | undefined;
     const zohoDealId = details?.[0]?.details?.id;
 
-    // Store Zoho Deal ID on the booking if applicable
+    // Store Zoho Deal ID on the booking so `updateZohoDeal` can
+    // later update the deal stage without another lookup.
     if (zohoDealId && data.bookingId) {
       await db
         .update(bookings)

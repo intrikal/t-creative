@@ -19,6 +19,7 @@
 import { NextResponse } from "next/server";
 import { and, eq, gt, inArray, isNotNull, isNull, ne, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
+import { getPublicBusinessProfile } from "@/app/dashboard/settings/settings-actions";
 import { db } from "@/db";
 import { bookings, bookingSubscriptions, profiles, services, syncLog } from "@/db/schema";
 import { RecurringBookingConfirmation } from "@/emails/RecurringBookingConfirmation";
@@ -382,15 +383,17 @@ async function trySendRecurringConfirmation(
         hour: "numeric",
         minute: "2-digit",
       });
+      const bp = await getPublicBusinessProfile();
       await sendEmail({
         to: row.clientEmail,
-        subject: `Next appointment scheduled — ${row.serviceName} — T Creative`,
+        subject: `Next appointment scheduled — ${row.serviceName} — ${bp.businessName}`,
         react: RecurringBookingConfirmation({
           clientName: row.clientFirstName,
           serviceName: row.serviceName,
           startsAt: dateFormatted,
           durationMinutes,
           totalInCents,
+          businessName: bp.businessName,
         }),
         entityType: "recurring_booking_confirmation",
         localId: String(newBookingId),

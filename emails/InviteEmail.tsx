@@ -5,15 +5,16 @@ import { Layout } from "./components/Layout";
 
 export type InviteEmailProps = {
   inviteUrl: string;
+  businessName?: string;
 };
 
-export function InviteEmail({ inviteUrl }: InviteEmailProps) {
+export function InviteEmail({ inviteUrl, businessName = "T Creative Studio" }: InviteEmailProps) {
   return (
-    <Layout preview="You're invited to join T Creative Studio">
+    <Layout preview={`You're invited to join ${businessName}`} businessName={businessName}>
       <Section style={content}>
         <Text style={heading}>You&apos;re Invited!</Text>
         <Text style={paragraph}>
-          You&apos;ve been invited to join the T Creative Studio team as an assistant. Click the
+          You&apos;ve been invited to join the {businessName} team as an assistant. Click the
           button below to create your account and get started.
         </Text>
 

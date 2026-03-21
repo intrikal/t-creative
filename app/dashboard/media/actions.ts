@@ -10,28 +10,16 @@
  */
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import * as Sentry from "@sentry/nextjs";
 import { eq, desc, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import { mediaItems, profiles } from "@/db/schema";
+import { getUser } from "@/lib/auth";
 import { createClient } from "@/utils/supabase/server";
 
 const BUCKET = "media";
-
-/* ------------------------------------------------------------------ */
-/*  Auth guard                                                         */
-/* ------------------------------------------------------------------ */
-
-async function getUser() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
-  return user;
-}
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -65,6 +53,16 @@ export type MediaStats = {
 /*  Queries                                                            */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Fetches every media item in the system for the admin media library.
+ *
+ * SELECT  media_items.*, profiles.firstName, profiles.lastName
+ * FROM    media_items
+ * LEFT JOIN profiles ON media_items.clientId = profiles.id
+ *   → pulls the client's name so the admin can see who each photo belongs to.
+ *   → LEFT JOIN because some media items have no client (e.g. studio shots).
+ * ORDER BY media_items.createdAt DESC   ← newest uploads first
+ */
 export async function getMediaItems(): Promise<MediaRow[]> {
   try {
     await getUser();
@@ -119,6 +117,19 @@ export async function getMediaItems(): Promise<MediaRow[]> {
   }
 }
 
+/**
+ * Computes aggregate statistics across all media items in a single query.
+ *
+ * SELECT
+ *   count(*)                                        → total number of media items
+ *   count(*) FILTER (WHERE isPublished = true)      → how many are publicly visible
+ *   count(*) FILTER (WHERE isFeatured = true)       → how many are marked as featured
+ *   coalesce(sum(fileSizeBytes), 0)                 → total storage used in bytes
+ * FROM media_items
+ *
+ * No JOINs — all data lives in the media_items table.
+ * No WHERE clause — counts everything regardless of category or client.
+ */
 export async function getMediaStats(): Promise<MediaStats> {
   try {
     await getUser();
@@ -192,7 +203,9 @@ export async function uploadMedia(formData: FormData) {
       });
     }
 
+    revalidatePath("/dashboard/services");
     revalidatePath("/dashboard/media");
+    updateTag("portfolio");
   } catch (err) {
     Sentry.captureException(err);
     throw err;
@@ -203,6 +216,14 @@ export async function uploadMedia(formData: FormData) {
 /*  Mutations                                                          */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Toggles a media item's published state.
+ *
+ * UPDATE media_items
+ * SET    isPublished = <publish>, updatedAt = now()
+ *        -- if unpublishing, also SET isFeatured = false (can't feature an unpublished item)
+ * WHERE  id = <id>
+ */
 export async function togglePublish(id: number, publish: boolean) {
   try {
     z.number().int().positive().parse(id);
@@ -217,13 +238,23 @@ export async function togglePublish(id: number, publish: boolean) {
         updatedAt: new Date(),
       })
       .where(eq(mediaItems.id, id));
+    revalidatePath("/dashboard/services");
     revalidatePath("/dashboard/media");
+    updateTag("portfolio");
   } catch (err) {
     Sentry.captureException(err);
     throw err;
   }
 }
 
+/**
+ * Toggles a media item's featured state.
+ *
+ * UPDATE media_items
+ * SET    isFeatured = <feature>, updatedAt = now()
+ *        -- if featuring, also SET isPublished = true (featured implies published)
+ * WHERE  id = <id>
+ */
 export async function toggleFeatured(id: number, feature: boolean) {
   try {
     z.number().int().positive().parse(id);
@@ -238,7 +269,9 @@ export async function toggleFeatured(id: number, feature: boolean) {
         updatedAt: new Date(),
       })
       .where(eq(mediaItems.id, id));
+    revalidatePath("/dashboard/services");
     revalidatePath("/dashboard/media");
+    updateTag("portfolio");
   } catch (err) {
     Sentry.captureException(err);
     throw err;
@@ -251,6 +284,14 @@ const updateMediaItemSchema = z.object({
   category: z.enum(["lash", "jewelry", "crochet", "consulting"]).nullable().optional(),
 });
 
+/**
+ * Partially updates a media item's caption, title, and/or category.
+ *
+ * UPDATE media_items
+ * SET    caption = ?, title = ?, category = ?, updatedAt = now()
+ *        (only the fields provided in `data` are included in the SET clause)
+ * WHERE  id = <id>
+ */
 export async function updateMediaItem(
   id: number,
   data: { caption?: string; title?: string; category?: MediaCategory | null },
@@ -268,13 +309,26 @@ export async function updateMediaItem(
         updatedAt: new Date(),
       })
       .where(eq(mediaItems.id, id));
+    revalidatePath("/dashboard/services");
     revalidatePath("/dashboard/media");
+    updateTag("portfolio");
   } catch (err) {
     Sentry.captureException(err);
     throw err;
   }
 }
 
+/**
+ * Deletes a media item from both the database and Supabase Storage.
+ *
+ * Step 1 — Look up the storage path:
+ *   SELECT storagePath FROM media_items WHERE id = <id>
+ *
+ * Step 2 — Remove the file from the "media" Supabase Storage bucket.
+ *
+ * Step 3 — Delete the database row:
+ *   DELETE FROM media_items WHERE id = <id>
+ */
 export async function deleteMediaItem(id: number) {
   try {
     z.number().int().positive().parse(id);
@@ -294,7 +348,9 @@ export async function deleteMediaItem(id: number) {
       await db.delete(mediaItems).where(eq(mediaItems.id, id));
     }
 
+    revalidatePath("/dashboard/services");
     revalidatePath("/dashboard/media");
+    updateTag("portfolio");
   } catch (err) {
     Sentry.captureException(err);
     throw err;

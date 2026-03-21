@@ -14,6 +14,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTimeoutFlag } from "@/lib/hooks/use-timeout-flag";
 import { Trash2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -61,18 +62,32 @@ export function BusinessTab({
   initialFinancial: FinancialConfig;
   initialRevenueGoals: RevenueGoal[];
 }) {
+  /** Business profile fields (name, email, phone, etc.). */
   const [data, setData] = useState(initial);
+  /** Whether the profile save is in flight. */
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
+  /** Briefly true after profile save succeeds. */
+  const [saved, triggerSaved] = useTimeoutFlag(2000);
+  /** Financial config (estimated tax rate). */
   const [financial, setFinancial] = useState(initialFinancial);
+  /** Whether the financial config save is in flight. */
   const [savingFinancial, setSavingFinancial] = useState(false);
-  const [savedFinancial, setSavedFinancial] = useState(false);
+  /** Briefly true after financial save succeeds. */
+  const [savedFinancial, triggerSavedFinancial] = useTimeoutFlag(2000);
+  /**
+   * Revenue goals sorted chronologically by month string (YYYY-MM).
+   * Spread + sort on init so the display order is always ascending.
+   */
   const [goals, setGoals] = useState<RevenueGoal[]>(
     [...initialRevenueGoals].sort((a, b) => a.month.localeCompare(b.month)),
   );
+  /** Whether the revenue goals save is in flight. */
   const [savingGoals, setSavingGoals] = useState(false);
-  const [savedGoals, setSavedGoals] = useState(false);
+  /** Briefly true after goals save succeeds. */
+  const [savedGoals, triggerSavedGoals] = useTimeoutFlag(2000);
+  /** Month input for the "add goal" row (YYYY-MM format). */
   const [newMonth, setNewMonth] = useState("");
+  /** Dollar amount input for the "add goal" row. */
   const [newAmount, setNewAmount] = useState("");
 
   function update<K extends keyof BusinessProfile>(key: K, value: BusinessProfile[K]) {
@@ -83,8 +98,7 @@ export function BusinessTab({
     setSaving(true);
     try {
       await saveBusinessProfile(data);
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
+      triggerSaved();
     } finally {
       setSaving(false);
     }
@@ -94,13 +108,18 @@ export function BusinessTab({
     setSavingFinancial(true);
     try {
       await saveFinancialConfig(financial);
-      setSavedFinancial(true);
-      setTimeout(() => setSavedFinancial(false), 2000);
+      triggerSavedFinancial();
     } finally {
       setSavingFinancial(false);
     }
   }
 
+  /**
+   * addGoal — adds or replaces a revenue goal for the selected month.
+   * Filters out any existing goal for the same month (upsert semantics),
+   * appends the new goal, then re-sorts by month string. Uses
+   * crypto.randomUUID() for a temporary client-side ID until server save.
+   */
   function addGoal() {
     if (!newMonth || !newAmount) return;
     const amount = Number(newAmount);
@@ -115,6 +134,7 @@ export function BusinessTab({
     setNewAmount("");
   }
 
+  /** removeGoal — filters out a goal by ID from the local state array. */
   function removeGoal(id: string) {
     setGoals((prev) => prev.filter((g) => g.id !== id));
   }
@@ -123,8 +143,7 @@ export function BusinessTab({
     setSavingGoals(true);
     try {
       await saveRevenueGoals(goals);
-      setSavedGoals(true);
-      setTimeout(() => setSavedGoals(false), 2000);
+      triggerSavedGoals();
     } finally {
       setSavingGoals(false);
     }
@@ -138,6 +157,8 @@ export function BusinessTab({
     { label: "Location", key: "location" },
     { label: "Currency", key: "currency" },
     { label: "Booking Link", key: "bookingLink" },
+    { label: "Email Sender Name", key: "emailSenderName" },
+    { label: "Email From Address", key: "emailFromAddress" },
   ];
 
   return (

@@ -13,6 +13,7 @@ export const metadata: Metadata = {
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
+  if (user.profile?.role === "client") redirect("/dashboard");
 
   const { id } = await params;
   const data = await getClientDetail(id);

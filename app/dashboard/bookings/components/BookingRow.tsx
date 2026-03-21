@@ -1,3 +1,12 @@
+/**
+ * Single booking row for the admin Bookings table (BookingsPage).
+ * Displays date, client avatar, service, staff, price, and status badge.
+ * Hover reveals edit + overflow menu with quick-status, cancel, cancel-series,
+ * delete, payment link, and service-notes actions.
+ *
+ * Parent: app/dashboard/bookings/BookingsPage.tsx
+ * Helpers: ./helpers.ts (statusConfig, categoryDot, Booking type)
+ */
 "use client";
 
 import {
@@ -75,6 +84,14 @@ export function BookingRow({
         </p>
         {booking.notes && (
           <p className="text-[10px] text-muted/60 mt-0.5 truncate">{booking.notes}</p>
+        )}
+        {booking.tosAcceptedAt && (
+          <p
+            className="text-[10px] text-muted/50 mt-0.5"
+            title={`Policy v${booking.tosVersion ?? "?"} accepted at ${booking.tosAcceptedAt.toLocaleString()}`}
+          >
+            Policy accepted · v{booking.tosVersion ?? "?"}
+          </p>
         )}
       </div>
       <div className="hidden md:flex flex-col items-end gap-1 shrink-0">

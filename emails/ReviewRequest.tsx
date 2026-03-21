@@ -5,11 +5,16 @@ import { Layout } from "./components/Layout";
 export type ReviewRequestProps = {
   clientName: string;
   serviceName: string;
+  businessName?: string;
 };
 
-export function ReviewRequest({ clientName, serviceName }: ReviewRequestProps) {
+export function ReviewRequest({
+  clientName,
+  serviceName,
+  businessName = "T Creative Studio",
+}: ReviewRequestProps) {
   return (
-    <Layout preview={`How was your ${serviceName}?`}>
+    <Layout preview={`How was your ${serviceName}?`} businessName={businessName}>
       <Section style={content}>
         <Text style={heading}>How Was Your Experience?</Text>
         <Text style={paragraph}>

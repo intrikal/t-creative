@@ -1,9 +1,30 @@
+/**
+ * @file actions.test.ts
+ * @description Unit tests for aftercare/actions server actions (CRUD for aftercare
+ * sections & studio policies, plus seed defaults).
+ *
+ * Testing utilities used:
+ * - describe: Groups related test cases into logical blocks (one per action function).
+ * - it: Defines a single test case with a human-readable description.
+ * - expect: Makes assertions about values — the core of each test's pass/fail logic.
+ * - vi: Vitest's mock utility namespace (vi.fn, vi.doMock, vi.resetModules, etc.).
+ * - vi.fn(): Creates a mock function whose calls can be inspected and return value controlled.
+ * - vi.doMock(): Lazily registers a module mock effective on the next dynamic import().
+ * - vi.resetModules(): Clears the module registry so the next import() gets fresh mocks.
+ * - vi.clearAllMocks(): Resets call counts/args on every mock without removing implementation.
+ * - beforeEach: Runs before every `it` block to clear mocks and set default auth state.
+ */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 /* ------------------------------------------------------------------ */
 /*  Chainable DB mock helper                                           */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Creates a chainable mock that mimics Drizzle's query-builder API.
+ * Every method (from, where, leftJoin, ...) returns the same chain,
+ * and the chain is thenable — resolving to `rows` — so await works.
+ */
 function makeChain(rows: unknown[] = []) {
   const resolved = Promise.resolve(rows);
   const chain: any = {
@@ -24,9 +45,16 @@ function makeChain(rows: unknown[] = []) {
 /*  Shared mock refs                                                   */
 /* ------------------------------------------------------------------ */
 
+/** Stub for supabase auth.getUser — controls whether the request is authenticated. */
 const mockGetUser = vi.fn();
+/** Captures revalidatePath calls so tests can verify correct cache invalidation. */
 const mockRevalidatePath = vi.fn();
 
+/**
+ * Registers all module mocks needed by the actions under test.
+ * Accepts an optional custom db object; falls back to a default
+ * mock that returns empty result sets for all operations.
+ */
 function setupMocks(db: Record<string, unknown> | null = null) {
   const defaultDb = {
     select: vi.fn(() => makeChain([])),
@@ -252,11 +280,12 @@ describe("aftercare/actions", () => {
       expect(mockInsertValues).toHaveBeenCalledWith(expect.objectContaining({ sortOrder: 0 }));
     });
 
-    it("revalidates /dashboard/aftercare", async () => {
+    it("revalidates dashboard paths", async () => {
       vi.resetModules();
       setupMocks();
       const { createAftercareSection } = await import("./actions");
       await createAftercareSection({ title: "Test", dos: [], donts: [] });
+      expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/services");
       expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/aftercare");
     });
   });
@@ -300,11 +329,12 @@ describe("aftercare/actions", () => {
       );
     });
 
-    it("revalidates /dashboard/aftercare", async () => {
+    it("revalidates dashboard paths", async () => {
       vi.resetModules();
       setupMocks();
       const { updateAftercareSection } = await import("./actions");
       await updateAftercareSection(1, { title: "T", dos: [], donts: [] });
+      expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/services");
       expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/aftercare");
     });
   });
@@ -336,11 +366,12 @@ describe("aftercare/actions", () => {
       expect(mockDeleteWhere).toHaveBeenCalled();
     });
 
-    it("revalidates /dashboard/aftercare", async () => {
+    it("revalidates dashboard paths", async () => {
       vi.resetModules();
       setupMocks();
       const { deleteAftercareSection } = await import("./actions");
       await deleteAftercareSection(1);
+      expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/services");
       expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/aftercare");
     });
   });
@@ -382,11 +413,12 @@ describe("aftercare/actions", () => {
       );
     });
 
-    it("revalidates /dashboard/aftercare", async () => {
+    it("revalidates dashboard paths", async () => {
       vi.resetModules();
       setupMocks();
       const { createPolicy } = await import("./actions");
       await createPolicy({ title: "Test", content: "Content" });
+      expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/services");
       expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/aftercare");
     });
   });
@@ -426,11 +458,12 @@ describe("aftercare/actions", () => {
       );
     });
 
-    it("revalidates /dashboard/aftercare", async () => {
+    it("revalidates dashboard paths", async () => {
       vi.resetModules();
       setupMocks();
       const { updatePolicy } = await import("./actions");
       await updatePolicy(1, { title: "T", content: "C" });
+      expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/services");
       expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/aftercare");
     });
   });
@@ -462,11 +495,12 @@ describe("aftercare/actions", () => {
       expect(mockDeleteWhere).toHaveBeenCalled();
     });
 
-    it("revalidates /dashboard/aftercare", async () => {
+    it("revalidates dashboard paths", async () => {
       vi.resetModules();
       setupMocks();
       const { deletePolicy } = await import("./actions");
       await deletePolicy(1);
+      expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/services");
       expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/aftercare");
     });
   });

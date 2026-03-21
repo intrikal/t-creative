@@ -1,3 +1,23 @@
+/**
+ * Gift card transaction history dialog — shows all transactions for a single
+ * gift card (purchases, redemptions, refunds, adjustments) in a timeline.
+ *
+ * Fetches transaction history via getGiftCardHistory() on open, using the
+ * "loadedCardId !== card.id" render-time pattern to avoid re-fetching.
+ *
+ * Parent: app/dashboard/financial/components/GiftCardsTab.tsx
+ *
+ * State:
+ *   transactions  — GiftCardTxRow[] for this card
+ *   loading       — true while fetching
+ *   loadedCardId  — prevents re-fetch on re-render
+ *
+ * Key operations:
+ *   transactions.map() — renders each tx with icon (ArrowUpRight for credits,
+ *     ArrowDownLeft for debits), amount, balance-after, badge, and metadata.
+ *   TX_CONFIG — maps tx type strings to { label, icon, color } for display.
+ *   isCredit = tx.amount > 0 — determines green vs red styling for the amount.
+ */
 "use client";
 
 import { useState } from "react";

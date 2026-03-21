@@ -96,6 +96,8 @@ Row-level security is enforced on every table via Supabase RLS policies. The Nex
 
 ## Getting Started
 
+### Manual Setup
+
 ```bash
 git clone https://github.com/intrikal/t-creative.git
 cd t-creative
@@ -104,6 +106,25 @@ cp .env.example .env.local
 # Fill in values — see docs/INTEGRATION_SETUP.md
 npm run db:migrate
 npm run dev
+```
+
+### Docker Setup
+
+```bash
+git clone https://github.com/intrikal/t-creative.git
+cd t-creative
+cp .env.example .env.local
+# Fill in values — see docs/INTEGRATION_SETUP.md
+docker compose up
+```
+
+This starts Postgres 15, Redis 7, and the Next.js dev server with hot reload. The database is available at `localhost:5432` and the app at `localhost:3000`.
+
+To customize ports or environment variables, copy the override example:
+
+```bash
+cp docker-compose.override.yml.example docker-compose.override.yml
+# Edit as needed — Docker Compose merges it automatically
 ```
 
 See [docs/INTEGRATION_SETUP.md](docs/INTEGRATION_SETUP.md) for step-by-step instructions on configuring all third-party services.

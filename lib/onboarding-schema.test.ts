@@ -1,4 +1,12 @@
+// describe: groups related tests into a labeled block (like a folder for tests)
+// it/test: defines a single test case with a description and assertion function
+// expect: creates an assertion — checks that a value matches an expected condition
 import { describe, it, expect } from "vitest";
+// onboardingSchema: Zod schema for client onboarding form validation
+// assistantOnboardingSchema: Zod schema for assistant/staff onboarding form validation
+// adminOnboardingSchema: Zod schema for admin setup wizard validation
+// STEPS: client onboarding wizard step definitions (id, title)
+// ASSISTANT_STEPS: assistant onboarding wizard step definitions
 import {
   onboardingSchema,
   assistantOnboardingSchema,
@@ -7,10 +15,30 @@ import {
   ASSISTANT_STEPS,
 } from "./onboarding-schema";
 
+/**
+ * Tests for the three onboarding Zod schemas (client, assistant, admin) and
+ * their corresponding wizard step definitions.
+ *
+ * Covers:
+ *  - Client schema: valid submission, missing firstName, invalid email, invalid
+ *    interest, empty interests, birthday format, referral code pattern, source enum
+ *  - Assistant schema: valid submission, missing firstName, empty skills, invalid
+ *    experienceLevel, missing emergency contact fields, multiple skills, invalid email
+ *  - Admin schema: valid submission, missing firstName, invalid email, invalid
+ *    locationType, invalid bookingConfirmation, invalid waitlist value
+ *  - STEPS: correct count (6), each has id+title, contains required step IDs
+ *  - ASSISTANT_STEPS: correct count (7), each has id+title, contains required IDs
+ *
+ * No mocks — pure Zod schema validation tests.
+ */
+
 // ---------------------------------------------------------------------------
 // Fixtures — minimal valid inputs for each schema
+// These represent the "golden path" data that passes all validation rules.
+// Specific tests below mutate one field at a time to verify individual rules.
 // ---------------------------------------------------------------------------
 
+// A complete valid client onboarding submission — all required fields present with valid values
 const validClientData = {
   firstName: "Alice",
   lastName: "Smith",
@@ -41,6 +69,7 @@ const validClientData = {
   birthday: "",
 };
 
+// A complete valid assistant onboarding submission — includes emergency contact and policy fields
 const validAssistantData = {
   firstName: "Bea",
   preferredTitle: "",
@@ -74,8 +103,11 @@ const validAssistantData = {
   policyCompensation: true,
 };
 
+// Shared service slot config used across all 4 service categories in admin setup
 const serviceSlot = { enabled: true, price: "150", duration: "90", deposit: "50" };
 
+// A complete valid admin onboarding submission — includes studio config, services,
+// working hours, policies, and loyalty rewards settings
 const validAdminData = {
   firstName: "Trini",
   lastName: "Admin",
@@ -180,6 +212,7 @@ const validAdminData = {
 // Tests
 // ---------------------------------------------------------------------------
 
+// Tests for the client onboarding Zod schema — validates the multi-step form data
 describe("onboardingSchema (client)", () => {
   it("parses a fully valid client submission", () => {
     const result = onboardingSchema.safeParse(validClientData);
@@ -259,6 +292,7 @@ describe("onboardingSchema (client)", () => {
   });
 });
 
+// Tests for the assistant onboarding Zod schema — staff members join via invite link
 describe("assistantOnboardingSchema", () => {
   it("parses a fully valid assistant submission", () => {
     const result = assistantOnboardingSchema.safeParse(validAssistantData);
@@ -316,6 +350,7 @@ describe("assistantOnboardingSchema", () => {
   });
 });
 
+// Tests for the admin onboarding Zod schema — the initial studio setup wizard
 describe("adminOnboardingSchema", () => {
   it("parses a fully valid admin submission", () => {
     const result = adminOnboardingSchema.safeParse(validAdminData);
@@ -357,6 +392,7 @@ describe("adminOnboardingSchema", () => {
   });
 });
 
+// Tests for client wizard step definitions — drives the stepper UI component
 describe("STEPS", () => {
   it("has 6 steps", () => {
     expect(STEPS).toHaveLength(6);
@@ -380,6 +416,7 @@ describe("STEPS", () => {
   });
 });
 
+// Tests for assistant wizard step definitions — drives the staff onboarding stepper
 describe("ASSISTANT_STEPS", () => {
   it("has 7 steps", () => {
     expect(ASSISTANT_STEPS).toHaveLength(7);

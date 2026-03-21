@@ -1,3 +1,24 @@
+/**
+ * Tests for GET /api/cron/zoho-books — batch invoice sync to Zoho Books.
+ *
+ * Covers:
+ *  - Auth: missing or wrong x-cron-secret returns 401
+ *  - Not configured: Zoho Books env vars missing → 200 with skip message
+ *  - No-op: no unsynced entities → zero counts across all three categories
+ *  - Bookings: confirmed booking without zohoInvoiceId → creates invoice
+ *  - Orders: accepted order without zohoInvoiceId → creates invoice
+ *  - Enrollments: enrolled enrollment without zohoInvoiceId → creates invoice
+ *  - Error handling: createZohoBooksInvoice throws → increments failed counter,
+ *    captured by Sentry
+ *
+ * Mocks: db (select chain), createZohoBooksInvoice,
+ * isZohoBooksConfigured, Sentry.
+ */
+// describe: groups related tests into a labeled block (like a folder for tests)
+// it/test: defines a single test case with a description and assertion function
+// expect: creates an assertion — checks that a value matches an expected condition
+// vi: Vitest's mock utility — creates fake functions, spies on calls, and controls return values
+// beforeEach: runs a setup function before every test in the current describe block
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 /* ------------------------------------------------------------------ */

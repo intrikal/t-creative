@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { X, Check } from "lucide-react";
 import type { ContactRow } from "@/app/dashboard/messages/actions";
 import { getVisibleContacts, createThread } from "@/app/dashboard/messages/actions";
@@ -43,6 +43,9 @@ function ComposeForm({
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
   const [popoverOpen, setPopoverOpen] = useState(false);
+  const handlePopoverOpenChange = useCallback((open: boolean) => {
+    setPopoverOpen(open);
+  }, []);
 
   useEffect(() => {
     getVisibleContacts().then(setContacts);
@@ -105,7 +108,7 @@ function ComposeForm({
                 </button>
               </span>
             ))}
-            <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
+            <Popover open={popoverOpen} onOpenChange={handlePopoverOpenChange}>
               <PopoverTrigger asChild>
                 <button className="text-sm text-muted hover:text-foreground transition-colors px-1 py-0.5">
                   {selected.length === 0 ? "Select contacts..." : "+"}

@@ -2,9 +2,9 @@
  * Consulting — Server Component route wrapper with metadata.
  */
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
+import { getSiteData } from "@/lib/site-data";
 import { ConsultingPage } from "./ConsultingPage";
-
-export const revalidate = 86400;
 
 const BASE_URL = "https://tcreativestudio.com";
 
@@ -53,14 +53,24 @@ export const metadata: Metadata = {
   },
 };
 
-export default function Page() {
+export default async function Page() {
+  const { business, content } = await getSiteData();
+
+  if (!content.showConsultingPage) notFound();
+
   return (
     <>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(consultingJsonLd) }}
       />
-      <ConsultingPage />
+      <ConsultingPage
+        services={content.consultingServices}
+        benefits={content.consultingBenefits}
+        email={business.email}
+        footerTagline={content.footerTagline}
+        socialLinks={content.socialLinks}
+      />
     </>
   );
 }

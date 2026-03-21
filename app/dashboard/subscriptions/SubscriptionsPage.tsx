@@ -241,10 +241,12 @@ export function SubscriptionsPage({
   initialSubscriptions,
   clients,
   serviceOptions,
+  embedded,
 }: {
   initialSubscriptions: SubscriptionRow[];
   clients: { id: string; name: string }[];
   serviceOptions: { id: number; name: string; priceInCents: number }[];
+  embedded?: boolean;
 }) {
   const [isPending, startTransition] = useTransition();
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("All");
@@ -269,16 +271,18 @@ export function SubscriptionsPage({
   }
 
   return (
-    <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto w-full space-y-6">
+    <div className={embedded ? "space-y-6" : "p-4 md:p-6 lg:p-8 max-w-7xl mx-auto w-full space-y-6"}>
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
+        {!embedded && (
         <div>
           <h1 className="text-xl font-semibold text-foreground tracking-tight">Subscriptions</h1>
           <p className="text-sm text-muted mt-0.5">Pre-paid session packages</p>
         </div>
+        )}
         <button
           onClick={() => setCreateOpen(true)}
-          className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-accent text-white text-sm font-medium hover:bg-accent/90 transition-colors shrink-0"
+          className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-accent text-white text-sm font-medium hover:bg-accent/90 transition-colors shrink-0${embedded ? " ml-auto" : ""}`}
         >
           <Plus className="w-4 h-4" />
           New Package

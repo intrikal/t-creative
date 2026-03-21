@@ -1,4 +1,26 @@
+/**
+ * Component tests for BookingRequestDialog — the multi-step booking wizard.
+ *
+ * Tests the step-by-step flow: loading availability → pick date → pick time
+ * → confirm request. Uses a mocked Calendar component for deterministic
+ * date selection and a mocked Turnstile captcha for verification bypass.
+ *
+ * Related files:
+ *   - components/booking/BookingRequestDialog.tsx — the component under test
+ *   - app/dashboard/book/actions.ts — getStudioAvailability, checkIsAuthenticated
+ *   - app/dashboard/messages/actions.ts — createBookingRequest
+ */
+
+// render: mounts a React component into a virtual DOM for testing
+// screen: queries to find elements in rendered output (getByText, getByTestId, etc.)
+// fireEvent: simulates user interactions (click, change, etc.)
+// waitFor: retries assertions until they pass (for async rendering)
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+// describe: groups related tests into a labeled block
+// it: defines a single test case
+// expect: creates an assertion to check a value matches expected condition
+// vi: Vitest's mock utility for creating fake functions
+// beforeEach: runs setup before every test (typically resets mocks)
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { BookingRequestDialog } from "./BookingRequestDialog";
 import type { Service } from "./types";
@@ -7,6 +29,9 @@ import type { Service } from "./types";
 /*  Module mocks                                                        */
 /* ------------------------------------------------------------------ */
 
+// vi.mock("@/app/dashboard/book/actions"): replaces the booking actions so
+// tests get deterministic studio hours (Mon-Fri 9-5, weekends closed) and
+// always-authenticated state without hitting real APIs
 vi.mock("@/app/dashboard/book/actions", () => ({
   getStudioAvailability: vi.fn().mockResolvedValue({
     hours: [
@@ -24,17 +49,23 @@ vi.mock("@/app/dashboard/book/actions", () => ({
   checkIsAuthenticated: vi.fn().mockResolvedValue(true),
 }));
 
+// vi.mock("@/app/dashboard/messages/actions"): replaces the booking request
+// creation so no real messages are sent — returns a fake booking ID
 vi.mock("@/app/dashboard/messages/actions", () => ({
   createBookingRequest: vi.fn().mockResolvedValue({ id: 1 }),
 }));
 
+// vi.mock("@marsidev/react-turnstile"): replaces the Cloudflare Turnstile
+// captcha widget with a simple button that immediately succeeds on click
 vi.mock("@marsidev/react-turnstile", () => ({
   Turnstile: ({ onSuccess }: { onSuccess: (token: string) => void; [k: string]: unknown }) => (
     <button onClick={() => onSuccess("test-token")}>Verify captcha</button>
   ),
 }));
 
-// Mock the Calendar to allow simulating date selection
+// vi.mock("@/components/ui/calendar"): replaces the real calendar with a
+// minimal stub that exposes a "Pick Monday Jan 7" button. This makes date
+// selection deterministic — no need to navigate a real date picker.
 const MOCK_MONDAY = new Date(2030, 0, 7); // Monday January 7, 2030
 
 vi.mock("@/components/ui/calendar", () => ({
@@ -56,6 +87,8 @@ vi.mock("@/components/ui/calendar", () => ({
 /*  Test fixture                                                        */
 /* ------------------------------------------------------------------ */
 
+// Mock data: a lash extension service at $120 with a $30 deposit and
+// 90-minute duration — represents a typical bookable service
 const mockService: Service = {
   id: 1,
   category: "lash",
@@ -70,6 +103,9 @@ const mockService: Service = {
 /*  Tests                                                               */
 /* ------------------------------------------------------------------ */
 
+// Tests the BookingRequestDialog multi-step wizard: open/close behavior,
+// loading state, date selection → time slot display → confirmation step,
+// back navigation between steps, and close button handler
 describe("BookingRequestDialog", () => {
   beforeEach(() => {
     vi.clearAllMocks();

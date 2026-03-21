@@ -7,8 +7,24 @@
 
 "use client";
 
-import { useState, useMemo, useOptimistic, useTransition } from "react";
-import { ChevronLeft, ChevronRight, Plus, CalendarDays, MapPin, Users, Trash2 } from "lucide-react";
+import { useState, useMemo, useOptimistic, useTransition, useCallback, useReducer } from "react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Plus,
+  CalendarDays,
+  MapPin,
+  Users,
+  Trash2,
+  Sparkles,
+  GraduationCap,
+  PartyPopper,
+  Store,
+  Plane,
+  Briefcase,
+  Heart,
+  Clock,
+} from "lucide-react";
 import { Calendar as DatePicker } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { createBooking, updateBooking, deleteBooking } from "../bookings/actions";
@@ -43,6 +59,11 @@ import {
   fmtEventRange,
 } from "./components/helpers";
 import { MonthView } from "./components/MonthView";
+import { EventDialog } from "../events/components/EventDialog";
+import { emptyEventForm, formToInput } from "../events/components/helpers";
+import type { EventForm as EventFormType } from "../events/components/types";
+import { createEvent as createStudioEvent } from "../events/actions";
+import type { VenueRow } from "../events/actions";
 import { StaffView } from "./components/StaffView";
 import type {
   CalEvent,
@@ -119,8 +140,75 @@ function AvailabilityTab({
   timeOff: TimeOffRow[];
   lunchBreak: LunchBreak | null;
 }) {
-  const [days, setDays] = useState(() =>
-    [...businessHours]
+  type AvailDay = { id: number; dayOfWeek: number; isOpen: boolean; opensAt: string; closesAt: string };
+  type AvailState = {
+    days: AvailDay[];
+    hoursStatus: "idle" | "saving" | "saved";
+    lunch: LunchBreak;
+    lunchStatus: "idle" | "saving" | "saved";
+    blockedForm: {
+      open: boolean;
+      type: "day_off" | "vacation";
+      startDate: string;
+      endDate: string;
+      label: string;
+      isAdding: boolean;
+    };
+  };
+  type AvailAction =
+    | { type: "UPDATE_DAY"; index: number; field: string; value: unknown }
+    | { type: "SET_HOURS_STATUS"; status: "idle" | "saving" | "saved" }
+    | { type: "UPDATE_LUNCH"; lunch: Partial<AvailState["lunch"]> }
+    | { type: "SET_LUNCH_STATUS"; status: "idle" | "saving" | "saved" }
+    | { type: "OPEN_BLOCKED_FORM" }
+    | { type: "CLOSE_BLOCKED_FORM" }
+    | { type: "UPDATE_BLOCKED_FORM"; field: string; value: unknown }
+    | { type: "SET_ADDING"; value: boolean }
+    | { type: "RESET_BLOCKED_FORM" };
+
+  function availReducer(state: AvailState, action: AvailAction): AvailState {
+    switch (action.type) {
+      case "UPDATE_DAY":
+        return {
+          ...state,
+          days: state.days.map((d, i) =>
+            i === action.index ? { ...d, [action.field]: action.value } : d,
+          ),
+        };
+      case "SET_HOURS_STATUS":
+        return { ...state, hoursStatus: action.status };
+      case "UPDATE_LUNCH":
+        return { ...state, lunch: { ...state.lunch, ...action.lunch } };
+      case "SET_LUNCH_STATUS":
+        return { ...state, lunchStatus: action.status };
+      case "OPEN_BLOCKED_FORM":
+        return { ...state, blockedForm: { ...state.blockedForm, open: !state.blockedForm.open } };
+      case "CLOSE_BLOCKED_FORM":
+        return {
+          ...state,
+          blockedForm: { ...state.blockedForm, open: false, startDate: "", endDate: "", label: "" },
+        };
+      case "UPDATE_BLOCKED_FORM":
+        return { ...state, blockedForm: { ...state.blockedForm, [action.field]: action.value } };
+      case "SET_ADDING":
+        return { ...state, blockedForm: { ...state.blockedForm, isAdding: action.value } };
+      case "RESET_BLOCKED_FORM":
+        return {
+          ...state,
+          blockedForm: {
+            open: false,
+            type: "day_off",
+            startDate: "",
+            endDate: "",
+            label: "",
+            isAdding: false,
+          },
+        };
+    }
+  }
+
+  const [state, dispatch] = useReducer(availReducer, null, () => ({
+    days: [...businessHours]
       .sort((a, b) => a.dayOfWeek - b.dayOfWeek)
       .map((h) => ({
         id: h.id,
@@ -129,39 +217,38 @@ function AvailabilityTab({
         opensAt: h.opensAt ?? "09:00",
         closesAt: h.closesAt ?? "18:00",
       })),
-  );
-  const [hoursSaving, setHoursSaving] = useState(false);
-  const [hoursSaved, setHoursSaved] = useState(false);
+    hoursStatus: "idle" as const,
+    lunch: initialLunchBreak ?? { enabled: false, start: "12:00", end: "13:00" },
+    lunchStatus: "idle" as const,
+    blockedForm: {
+      open: false,
+      type: "day_off" as const,
+      startDate: "",
+      endDate: "",
+      label: "",
+      isAdding: false,
+    },
+  }));
 
-  const [lunch, setLunch] = useState<LunchBreak>(
-    initialLunchBreak ?? { enabled: false, start: "12:00", end: "13:00" },
-  );
-  const [lunchSaving, setLunchSaving] = useState(false);
-  const [lunchSaved, setLunchSaved] = useState(false);
+  const { days, hoursStatus, lunch, lunchStatus, blockedForm } = state;
 
   const [isBlockedPending, startBlockedTransition] = useTransition();
   const [blocked, addBlockedOptimistic] = useOptimistic<
     TimeOffRow[],
     { type: "add"; row: TimeOffRow } | { type: "delete"; id: number }
-  >(initialTimeOff, (state, action) => {
+  >(initialTimeOff, (s, action) => {
     switch (action.type) {
       case "add":
-        return [...state, action.row];
+        return [...s, action.row];
       case "delete":
-        return state.filter((b) => b.id !== action.id);
+        return s.filter((b) => b.id !== action.id);
     }
   });
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [addType, setAddType] = useState<"day_off" | "vacation">("day_off");
-  const [addStart, setAddStart] = useState("");
-  const [addEnd, setAddEnd] = useState("");
-  const [addLabel, setAddLabel] = useState("");
-  const [adding, setAdding] = useState(false);
 
   const openDays = days.filter((d) => d.isOpen);
 
   async function handleSaveHours() {
-    setHoursSaving(true);
+    dispatch({ type: "SET_HOURS_STATUS", status: "saving" });
     try {
       await saveBusinessHours(
         days.map((d) => ({
@@ -171,43 +258,44 @@ function AvailabilityTab({
           closesAt: d.isOpen ? d.closesAt : null,
         })),
       );
-      setHoursSaved(true);
-      setTimeout(() => setHoursSaved(false), 2000);
+      dispatch({ type: "SET_HOURS_STATUS", status: "saved" });
+      setTimeout(() => dispatch({ type: "SET_HOURS_STATUS", status: "idle" }), 2000);
     } finally {
-      setHoursSaving(false);
+      if (state.hoursStatus === "saving") {
+        dispatch({ type: "SET_HOURS_STATUS", status: "idle" });
+      }
     }
   }
 
   async function handleSaveLunch() {
-    setLunchSaving(true);
+    dispatch({ type: "SET_LUNCH_STATUS", status: "saving" });
     try {
       await saveLunchBreak(lunch);
-      setLunchSaved(true);
-      setTimeout(() => setLunchSaved(false), 2000);
+      dispatch({ type: "SET_LUNCH_STATUS", status: "saved" });
+      setTimeout(() => dispatch({ type: "SET_LUNCH_STATUS", status: "idle" }), 2000);
     } finally {
-      setLunchSaving(false);
+      if (state.lunchStatus === "saving") {
+        dispatch({ type: "SET_LUNCH_STATUS", status: "idle" });
+      }
     }
   }
 
   async function handleAddBlocked() {
-    if (!addStart) return;
-    setAdding(true);
+    if (!blockedForm.startDate) return;
+    dispatch({ type: "SET_ADDING", value: true });
     try {
       const row = await addTimeOff({
-        type: addType,
-        startDate: addStart,
-        endDate: addType === "day_off" ? addStart : addEnd || addStart,
-        label: addLabel || undefined,
+        type: blockedForm.type,
+        startDate: blockedForm.startDate,
+        endDate: blockedForm.type === "day_off" ? blockedForm.startDate : blockedForm.endDate || blockedForm.startDate,
+        label: blockedForm.label || undefined,
       });
-      setShowAddForm(false);
-      setAddStart("");
-      setAddEnd("");
-      setAddLabel("");
+      dispatch({ type: "RESET_BLOCKED_FORM" });
       startBlockedTransition(() => {
         addBlockedOptimistic({ type: "add", row });
       });
     } finally {
-      setAdding(false);
+      dispatch({ type: "SET_ADDING", value: false });
     }
   }
 
@@ -220,145 +308,161 @@ function AvailabilityTab({
 
   return (
     <div className="flex-1 overflow-auto p-4 md:p-6 lg:p-8">
-      <div className="max-w-2xl mx-auto space-y-6">
+      <div className="space-y-6">
         <div>
           <h2 className="text-base font-semibold text-foreground">Studio Availability</h2>
-          <p className="text-xs text-muted mt-0.5">
-            {openDays.length} day{openDays.length !== 1 ? "s" : ""} open per week
+          <p className="text-sm text-muted mt-1">
+            Set your weekly hours, lunch break, and blocked dates. These show on your calendar and booking page.
           </p>
         </div>
 
-        {/* Weekly Schedule */}
-        <div className="bg-background border border-border rounded-2xl overflow-hidden">
-          <div className="px-5 pt-4 pb-2">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
-              Weekly Schedule
-            </p>
-          </div>
-          <div className="px-5 pb-4 space-y-0.5">
-            {days.map((row, idx) => (
-              <div
-                key={row.dayOfWeek}
-                className="flex items-center gap-3 py-2.5 px-3 rounded-xl hover:bg-surface/60 transition-colors"
-              >
-                <span
-                  className={cn(
-                    "text-sm w-24 shrink-0 font-medium",
-                    row.isOpen ? "text-foreground" : "text-muted/50",
-                  )}
-                >
-                  {AVAIL_DAY_NAMES[row.dayOfWeek]}
-                </span>
-                <div className="flex-1 flex items-center gap-2">
-                  {row.isOpen ? (
-                    <>
-                      <TimeSelect
-                        value={row.opensAt}
-                        onChange={(v) =>
-                          setDays((prev) =>
-                            prev.map((d, i) => (i === idx ? { ...d, opensAt: v } : d)),
-                          )
-                        }
-                      />
-                      <span className="text-muted text-xs shrink-0">to</span>
-                      <TimeSelect
-                        value={row.closesAt}
-                        onChange={(v) =>
-                          setDays((prev) =>
-                            prev.map((d, i) => (i === idx ? { ...d, closesAt: v } : d)),
-                          )
-                        }
-                      />
-                    </>
-                  ) : (
-                    <span className="text-sm text-muted/40 italic">Closed</span>
-                  )}
-                </div>
-                <AvailToggle
-                  on={row.isOpen}
-                  onChange={() =>
-                    setDays((prev) =>
-                      prev.map((d, i) => (i === idx ? { ...d, isOpen: !d.isOpen } : d)),
-                    )
-                  }
-                />
-              </div>
-            ))}
-            <div className="flex justify-end pt-3 border-t border-border/50 mt-2">
-              <button
-                onClick={handleSaveHours}
-                disabled={hoursSaving}
-                className="px-4 py-2 rounded-lg bg-accent text-white text-sm font-medium hover:bg-accent/90 transition-colors flex items-center gap-1.5 disabled:opacity-60"
-              >
-                {hoursSaved ? "Saved!" : hoursSaving ? "Saving…" : "Save Hours"}
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Lunch Break */}
-        <div className="bg-background border border-border rounded-2xl overflow-hidden">
-          <div className="px-5 pt-4 pb-2">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
-              Lunch Break
-            </p>
-          </div>
-          <div className="px-5 pb-4 space-y-3">
-            <div className="flex items-center justify-between gap-4 py-0.5">
-              <div className="min-w-0">
-                <p className="text-sm text-foreground">Block lunch break</p>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {/* Left column: Weekly schedule */}
+          <div className="bg-background border border-border rounded-2xl overflow-hidden">
+            <div className="px-5 pt-4 pb-3 flex items-center justify-between">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
+                  Weekly Schedule
+                </p>
                 <p className="text-xs text-muted mt-0.5">
-                  Prevent bookings during your lunch window
+                  Toggle each day open or closed, then set your hours.
                 </p>
               </div>
-              <AvailToggle
-                on={lunch.enabled}
-                onChange={(v) => setLunch((prev) => ({ ...prev, enabled: v }))}
-              />
             </div>
-            {lunch.enabled && (
-              <div className="flex items-center gap-3 pl-1">
-                <TimeSelect
-                  value={lunch.start}
-                  onChange={(v) => setLunch((prev) => ({ ...prev, start: v }))}
-                />
-                <span className="text-muted text-xs shrink-0">to</span>
-                <TimeSelect
-                  value={lunch.end}
-                  onChange={(v) => setLunch((prev) => ({ ...prev, end: v }))}
-                />
+            <div className="px-5 pb-4 space-y-0.5">
+              {/* Column header */}
+              <div className="flex items-center gap-3 px-3 pb-1">
+                <span className="text-[10px] font-medium uppercase tracking-wide text-muted/60 w-24 shrink-0">Day</span>
+                <span className="flex-1 text-[10px] font-medium uppercase tracking-wide text-muted/60">Hours</span>
+                <span className="text-[10px] font-medium uppercase tracking-wide text-muted/60 w-10 text-center">Open</span>
               </div>
-            )}
-            <div className="flex justify-end pt-2 border-t border-border/50">
-              <button
-                onClick={handleSaveLunch}
-                disabled={lunchSaving}
-                className="px-4 py-2 rounded-lg bg-accent text-white text-sm font-medium hover:bg-accent/90 transition-colors flex items-center gap-1.5 disabled:opacity-60"
-              >
-                {lunchSaved ? "Saved!" : lunchSaving ? "Saving…" : "Save Lunch Break"}
-              </button>
+              {days.map((row, idx) => (
+                <div
+                  key={row.dayOfWeek}
+                  className={cn(
+                    "flex items-center gap-3 py-2.5 px-3 rounded-xl transition-colors",
+                    row.isOpen ? "hover:bg-surface/60" : "opacity-60",
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "text-sm w-24 shrink-0 font-medium",
+                      row.isOpen ? "text-foreground" : "text-muted/50 line-through",
+                    )}
+                  >
+                    {AVAIL_DAY_NAMES[row.dayOfWeek]}
+                  </span>
+                  <div className="flex-1 flex items-center gap-2">
+                    {row.isOpen ? (
+                      <>
+                        <TimeSelect
+                          value={row.opensAt}
+                          onChange={(v) =>
+                            dispatch({ type: "UPDATE_DAY", index: idx, field: "opensAt", value: v })
+                          }
+                        />
+                        <span className="text-muted text-xs shrink-0">to</span>
+                        <TimeSelect
+                          value={row.closesAt}
+                          onChange={(v) =>
+                            dispatch({ type: "UPDATE_DAY", index: idx, field: "closesAt", value: v })
+                          }
+                        />
+                      </>
+                    ) : (
+                      <span className="text-sm text-muted/40 italic">Closed</span>
+                    )}
+                  </div>
+                  <AvailToggle
+                    on={row.isOpen}
+                    onChange={() =>
+                      dispatch({ type: "UPDATE_DAY", index: idx, field: "isOpen", value: !row.isOpen })
+                    }
+                  />
+                </div>
+              ))}
+              <div className="flex justify-end pt-3 border-t border-border/50 mt-2">
+                <button
+                  onClick={handleSaveHours}
+                  disabled={hoursStatus === "saving"}
+                  className="px-4 py-2 rounded-lg bg-accent text-white text-sm font-medium hover:bg-accent/90 transition-colors flex items-center gap-1.5 disabled:opacity-60"
+                >
+                  {hoursStatus === "saved" ? "Saved!" : hoursStatus === "saving" ? "Saving…" : "Save Hours"}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Blocked Dates */}
-        <div className="bg-background border border-border rounded-2xl overflow-hidden">
-          <div className="px-5 pt-4 pb-2">
-            <div className="flex items-center justify-between">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
-                Blocked Dates
-              </p>
-              <button
-                onClick={() => setShowAddForm((v) => !v)}
-                className="flex items-center gap-1 text-xs text-muted hover:text-foreground transition-colors px-2 py-1 rounded-lg hover:bg-foreground/5"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                Add
-              </button>
+          {/* Right column: Lunch + Blocked */}
+          <div className="space-y-4">
+            {/* Lunch Break */}
+            <div className="bg-background border border-border rounded-2xl overflow-hidden">
+              <div className="px-5 pt-4 pb-2">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
+                  Lunch Break
+                </p>
+              </div>
+              <div className="px-5 pb-4 space-y-3">
+                <div className="flex items-center justify-between gap-4 py-0.5">
+                  <div className="min-w-0">
+                    <p className="text-sm text-foreground">Block lunch break</p>
+                    <p className="text-xs text-muted mt-0.5">
+                      Prevent bookings during your lunch window
+                    </p>
+                  </div>
+                  <AvailToggle
+                    on={lunch.enabled}
+                    onChange={(v) => dispatch({ type: "UPDATE_LUNCH", lunch: { enabled: v } })}
+                  />
+                </div>
+                {lunch.enabled && (
+                  <div className="flex items-center gap-3 pl-1">
+                    <TimeSelect
+                      value={lunch.start}
+                      onChange={(v) => dispatch({ type: "UPDATE_LUNCH", lunch: { start: v } })}
+                    />
+                    <span className="text-muted text-xs shrink-0">to</span>
+                    <TimeSelect
+                      value={lunch.end}
+                      onChange={(v) => dispatch({ type: "UPDATE_LUNCH", lunch: { end: v } })}
+                    />
+                  </div>
+                )}
+                <div className="flex justify-end pt-2 border-t border-border/50">
+                  <button
+                    onClick={handleSaveLunch}
+                    disabled={lunchStatus === "saving"}
+                    className="px-4 py-2 rounded-lg bg-accent text-white text-sm font-medium hover:bg-accent/90 transition-colors flex items-center gap-1.5 disabled:opacity-60"
+                  >
+                    {lunchStatus === "saved" ? "Saved!" : lunchStatus === "saving" ? "Saving…" : "Save Lunch Break"}
+                  </button>
+                </div>
+              </div>
             </div>
-          </div>
-          <div className="px-5 pb-4 space-y-3">
-            {showAddForm && (
+
+            {/* Blocked Dates */}
+            <div className="bg-background border border-border rounded-2xl overflow-hidden">
+              <div className="px-5 pt-4 pb-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
+                      Blocked Dates
+                    </p>
+                    <p className="text-xs text-muted mt-0.5">
+                      Days off and vacations — clients can&apos;t book these dates.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => dispatch({ type: "OPEN_BLOCKED_FORM" })}
+                    className="flex items-center gap-1 text-xs text-muted hover:text-foreground transition-colors px-2 py-1 rounded-lg hover:bg-foreground/5 shrink-0"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Add
+                  </button>
+                </div>
+              </div>
+              <div className="px-5 pb-4 space-y-3">
+            {blockedForm.open && (
               <div className="bg-surface border border-border rounded-xl p-4 space-y-4">
                 {/* Type toggle */}
                 <div className="flex gap-2">
@@ -366,12 +470,12 @@ function AvailabilityTab({
                     <button
                       key={t}
                       onClick={() => {
-                        setAddType(t);
-                        if (t === "day_off") setAddEnd("");
+                        dispatch({ type: "UPDATE_BLOCKED_FORM", field: "type", value: t });
+                        if (t === "day_off") dispatch({ type: "UPDATE_BLOCKED_FORM", field: "endDate", value: "" });
                       }}
                       className={cn(
                         "px-3 py-1.5 text-xs font-medium rounded-lg transition-colors",
-                        addType === t
+                        blockedForm.type === t
                           ? "bg-accent text-white"
                           : "bg-foreground/5 text-muted hover:text-foreground",
                       )}
@@ -383,13 +487,13 @@ function AvailabilityTab({
 
                 {/* Calendar picker */}
                 <div className="flex justify-center">
-                  {addType === "day_off" ? (
+                  {blockedForm.type === "day_off" ? (
                     <DatePicker
                       mode="single"
-                      selected={addStart ? parseDate(addStart) : undefined}
+                      selected={blockedForm.startDate ? parseDate(blockedForm.startDate) : undefined}
                       onSelect={(day) => {
-                        setAddStart(day ? fmtDateISO(day) : "");
-                        setAddEnd("");
+                        dispatch({ type: "UPDATE_BLOCKED_FORM", field: "startDate", value: day ? fmtDateISO(day) : "" });
+                        dispatch({ type: "UPDATE_BLOCKED_FORM", field: "endDate", value: "" });
                       }}
                       disabled={{ before: new Date() }}
                       className="!bg-transparent"
@@ -398,16 +502,16 @@ function AvailabilityTab({
                     <DatePicker
                       mode="range"
                       selected={
-                        addStart
+                        blockedForm.startDate
                           ? {
-                              from: parseDate(addStart),
-                              to: addEnd ? parseDate(addEnd) : undefined,
+                              from: parseDate(blockedForm.startDate),
+                              to: blockedForm.endDate ? parseDate(blockedForm.endDate) : undefined,
                             }
                           : undefined
                       }
                       onSelect={(range) => {
-                        setAddStart(range?.from ? fmtDateISO(range.from) : "");
-                        setAddEnd(range?.to ? fmtDateISO(range.to) : "");
+                        dispatch({ type: "UPDATE_BLOCKED_FORM", field: "startDate", value: range?.from ? fmtDateISO(range.from) : "" });
+                        dispatch({ type: "UPDATE_BLOCKED_FORM", field: "endDate", value: range?.to ? fmtDateISO(range.to) : "" });
                       }}
                       disabled={{ before: new Date() }}
                       className="!bg-transparent"
@@ -416,24 +520,24 @@ function AvailabilityTab({
                 </div>
 
                 {/* Selected date display + label */}
-                {addStart && (
+                {blockedForm.startDate && (
                   <div className="space-y-3">
                     <p className="text-sm text-foreground text-center">
-                      {addType === "day_off"
-                        ? parseDate(addStart).toLocaleDateString("en-US", {
+                      {blockedForm.type === "day_off"
+                        ? parseDate(blockedForm.startDate).toLocaleDateString("en-US", {
                             weekday: "short",
                             month: "short",
                             day: "numeric",
                             year: "numeric",
                           })
-                        : addEnd
-                          ? `${parseDate(addStart).toLocaleDateString("en-US", { month: "short", day: "numeric" })} – ${parseDate(addEnd).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`
-                          : `Starting ${parseDate(addStart).toLocaleDateString("en-US", { month: "short", day: "numeric" })} — select end date`}
+                        : blockedForm.endDate
+                          ? `${parseDate(blockedForm.startDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })} – ${parseDate(blockedForm.endDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`
+                          : `Starting ${parseDate(blockedForm.startDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })} — select end date`}
                     </p>
                     <input
                       type="text"
-                      value={addLabel}
-                      onChange={(e) => setAddLabel(e.target.value)}
+                      value={blockedForm.label}
+                      onChange={(e) => dispatch({ type: "UPDATE_BLOCKED_FORM", field: "label", value: e.target.value })}
                       placeholder="Label (optional) — e.g. Hawaii trip"
                       className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-1 focus:ring-accent/30"
                     />
@@ -443,28 +547,23 @@ function AvailabilityTab({
                 {/* Actions */}
                 <div className="flex gap-2 justify-end">
                   <button
-                    onClick={() => {
-                      setShowAddForm(false);
-                      setAddStart("");
-                      setAddEnd("");
-                      setAddLabel("");
-                    }}
+                    onClick={() => dispatch({ type: "CLOSE_BLOCKED_FORM" })}
                     className="px-3 py-1.5 text-xs font-medium text-muted rounded-lg hover:bg-foreground/5 transition-colors"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={handleAddBlocked}
-                    disabled={!addStart || (addType === "vacation" && !addEnd) || adding}
+                    disabled={!blockedForm.startDate || (blockedForm.type === "vacation" && !blockedForm.endDate) || blockedForm.isAdding}
                     className="px-3 py-1.5 text-xs font-medium bg-accent text-white rounded-lg hover:bg-accent/90 transition-colors disabled:opacity-60"
                   >
-                    {adding ? "Adding…" : addType === "day_off" ? "Block Day" : "Block Dates"}
+                    {blockedForm.isAdding ? "Adding…" : blockedForm.type === "day_off" ? "Block Day" : "Block Dates"}
                   </button>
                 </div>
               </div>
             )}
 
-            {blocked.length === 0 && !showAddForm && (
+            {blocked.length === 0 && !blockedForm.open && (
               <p className="text-sm text-muted/50 italic text-center py-4">
                 No blocked dates — your schedule is fully open.
               </p>
@@ -515,6 +614,8 @@ function AvailabilityTab({
             })}
           </div>
         </div>
+          </div>{/* end right column */}
+        </div>{/* end grid */}
       </div>
     </div>
   );
@@ -524,7 +625,10 @@ function AvailabilityTab({
 /*  EventsTab                                                          */
 /* ------------------------------------------------------------------ */
 
-function EventsTab({ events }: { events: EventRow[] }) {
+function EventsTab({ events, venues }: { events: EventRow[]; venues: VenueRow[] }) {
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [, startEventTransition] = useTransition();
+
   const upcoming = events.filter(
     (e) => e.status === "upcoming" || e.status === "confirmed" || e.status === "draft",
   );
@@ -532,6 +636,13 @@ function EventsTab({ events }: { events: EventRow[] }) {
 
   const totalGuests = upcoming.reduce((s, e) => s + e.guests.length, 0);
   const totalRevenue = upcoming.reduce((s, e) => s + (e.expectedRevenueInCents ?? 0), 0);
+
+  async function handleCreateEvent(form: EventFormType) {
+    setDialogOpen(false);
+    startEventTransition(async () => {
+      await createStudioEvent(formToInput(form));
+    });
+  }
 
   function EventCard({ ev }: { ev: EventRow }) {
     const typeCfg = EVENT_TYPE_CFG[ev.eventType] ?? EVENT_TYPE_CFG.workshop;
@@ -622,15 +733,85 @@ function EventsTab({ events }: { events: EventRow[] }) {
     );
   }
 
+  const EVENT_IDEAS = [
+    { icon: Store, label: "Pop-Up Shop", desc: "Sell jewelry, crochet, and products at a local market or venue" },
+    { icon: GraduationCap, label: "Workshop", desc: "Teach lash application, crochet basics, or 3D printing" },
+    { icon: Heart, label: "Bridal Party", desc: "Group lash sessions for brides and bridesmaids" },
+    { icon: PartyPopper, label: "Birthday Party", desc: "Private party bookings with custom services" },
+    { icon: Briefcase, label: "Corporate Event", desc: "Team-building or employee appreciation sessions" },
+    { icon: Plane, label: "Travel Pop-Up", desc: "Take your services on the road to a new city" },
+  ];
+
+  if (events.length === 0) {
+    return (
+      <div className="p-4 md:p-6 lg:p-8 space-y-6">
+        <div>
+          <h2 className="text-base font-semibold text-foreground">Events</h2>
+          <p className="text-sm text-muted mt-1">
+            Manage pop-ups, workshops, training days, and parties alongside your regular bookings.
+          </p>
+        </div>
+
+        <div className="bg-background border border-border rounded-2xl p-6 text-center space-y-4">
+          <div className="w-12 h-12 rounded-full bg-accent/10 flex items-center justify-center mx-auto">
+            <Sparkles className="w-6 h-6 text-accent" />
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold text-foreground">No events yet</h3>
+            <p className="text-xs text-muted mt-1 max-w-md mx-auto">
+              Track pop-ups, workshops, bridal parties, and other special bookings. Manage guests, staff, venues, and revenue all in one place.
+            </p>
+          </div>
+          <button
+            onClick={() => setDialogOpen(true)}
+            className="inline-flex items-center gap-1.5 px-4 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent/90 transition-colors"
+          >
+            <Plus className="w-4 h-4" /> Create Event
+          </button>
+        </div>
+
+        <div>
+          <p className="text-xs font-semibold text-muted uppercase tracking-wide mb-3">Event ideas for your studio</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+            {EVENT_IDEAS.map(({ icon: Icon, label, desc }) => (
+              <div key={label} className="bg-background border border-border rounded-xl p-4 flex items-start gap-3">
+                <div className="w-9 h-9 rounded-lg bg-surface flex items-center justify-center shrink-0">
+                  <Icon className="w-4.5 h-4.5 text-muted" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-foreground">{label}</p>
+                  <p className="text-xs text-muted mt-0.5 leading-relaxed">{desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <EventDialog
+          open={dialogOpen}
+          onClose={() => setDialogOpen(false)}
+          initial={emptyEventForm()}
+          venues={venues}
+          onSave={handleCreateEvent}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="p-4 md:p-6 lg:p-8 space-y-6">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h2 className="text-sm font-semibold text-foreground">Events</h2>
+          <h2 className="text-base font-semibold text-foreground">Events</h2>
           <p className="text-xs text-muted mt-0.5">
             Pop-ups, workshops, training days, and parties.
           </p>
         </div>
+        <button
+          onClick={() => setDialogOpen(true)}
+          className="flex items-center gap-1.5 px-3.5 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent/90 transition-colors shrink-0"
+        >
+          <Plus className="w-3.5 h-3.5" /> New Event
+        </button>
       </div>
 
       {/* Stats */}
@@ -653,12 +834,6 @@ function EventsTab({ events }: { events: EventRow[] }) {
         </div>
       </div>
 
-      {events.length === 0 && (
-        <div className="flex items-center justify-center py-12">
-          <p className="text-sm text-muted">No events yet. Create one from the Events page.</p>
-        </div>
-      )}
-
       {upcoming.length > 0 && (
         <div>
           <p className="text-xs font-semibold text-muted uppercase tracking-wide mb-3">Upcoming</p>
@@ -680,6 +855,14 @@ function EventsTab({ events }: { events: EventRow[] }) {
           </div>
         </div>
       )}
+
+      <EventDialog
+        open={dialogOpen}
+        onClose={() => setDialogOpen(false)}
+        initial={emptyEventForm()}
+        venues={venues}
+        onSave={handleCreateEvent}
+      />
     </div>
   );
 }
@@ -699,6 +882,8 @@ export function CalendarPage({
   timeOff,
   lunchBreak,
   events: initialEventRows,
+  venues,
+  eventStaff,
 }: {
   initialBookings: BookingRow[];
   clients: { id: string; name: string; phone: string | null }[];
@@ -714,6 +899,8 @@ export function CalendarPage({
   timeOff: TimeOffRow[];
   lunchBreak: LunchBreak | null;
   events: EventRow[];
+  venues: VenueRow[];
+  eventStaff: { id: string; name: string }[];
 }) {
   const staffMembers = useMemo(() => staffOptions.map((s) => s.name), [staffOptions]);
 
@@ -740,6 +927,9 @@ export function CalendarPage({
   const [calPageTab, setCalPageTab] = useState<CalPageTab>("calendar");
 
   const [selectedEvent, setSelectedEvent] = useState<CalEvent | null>(null);
+  const handleEventClick = useCallback((event: CalEvent) => {
+    setSelectedEvent(event);
+  }, []);
   const [formOpen, setFormOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<CalEvent | null>(null);
   const [formInitial, setFormInitial] = useState<FormState>(BLANK_FORM);
@@ -865,7 +1055,7 @@ export function CalendarPage({
             lunchBreak={lunchBreak}
           />
         ) : (
-          <EventsTab events={initialEventRows} />
+          <EventsTab events={initialEventRows} venues={venues} />
         )}
       </div>
     );
@@ -873,7 +1063,7 @@ export function CalendarPage({
 
   /* ---- Calendar tab ---- */
   return (
-    <div className="flex flex-col h-screen max-w-[1600px] mx-auto w-full px-4 md:px-6 lg:px-8 pt-4 md:pt-6 pb-4 gap-4">
+    <div className="flex flex-col h-full max-w-[1600px] mx-auto w-full px-4 md:px-6 lg:px-8 pt-4 md:pt-6 pb-4 gap-4">
       {/* ---- Tab bar ---- */}
       <div className="flex gap-1 border-b border-border -mx-4 md:-mx-6 lg:-mx-8 px-4 md:px-6 lg:px-8 shrink-0">
         {CAL_PAGE_TABS.map(({ id, label }) => (
@@ -952,7 +1142,7 @@ export function CalendarPage({
             cursor={cursor}
             events={events}
             onDayClick={handleDayClick}
-            onEventClick={setSelectedEvent}
+            onEventClick={handleEventClick}
             businessHours={businessHours}
             timeOff={timeOff}
             lunchBreak={lunchBreak}
@@ -962,7 +1152,7 @@ export function CalendarPage({
           <WeekView
             cursor={cursor}
             events={events}
-            onEventClick={setSelectedEvent}
+            onEventClick={handleEventClick}
             onSlotClick={handleSlotClick}
             businessHours={businessHours}
             timeOff={timeOff}
@@ -973,7 +1163,7 @@ export function CalendarPage({
           <DayView
             cursor={cursor}
             events={events}
-            onEventClick={setSelectedEvent}
+            onEventClick={handleEventClick}
             onSlotClick={handleSlotClick}
             businessHours={businessHours}
             timeOff={timeOff}
@@ -985,7 +1175,7 @@ export function CalendarPage({
             cursor={cursor}
             events={events}
             staffMembers={staffMembers}
-            onEventClick={setSelectedEvent}
+            onEventClick={handleEventClick}
             onSlotClick={handleSlotClick}
             businessHours={businessHours}
             timeOff={timeOff}
@@ -993,7 +1183,7 @@ export function CalendarPage({
           />
         )}
         {view === "agenda" && (
-          <AgendaView cursor={cursor} events={events} onEventClick={setSelectedEvent} />
+          <AgendaView cursor={cursor} events={events} onEventClick={handleEventClick} />
         )}
       </div>
 

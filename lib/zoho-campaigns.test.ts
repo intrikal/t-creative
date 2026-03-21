@@ -1,13 +1,40 @@
+// describe: groups related tests into a labeled block (like a folder for tests)
+// it/test: defines a single test case with a description and assertion function
+// expect: creates an assertion — checks that a value matches an expected condition
+// vi: Vitest's mock utility — creates fake functions, spies on calls, and controls return values
+// beforeEach: runs a setup function before every test in the current describe block
+// afterEach: runs a cleanup function after every test in the current describe block
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
+/**
+ * Tests for the Zoho Campaigns email marketing integration module.
+ *
+ * Covers:
+ *  - isZohoCampaignsConfigured: auth + list key required
+ *  - syncCampaignsSubscriber: no-op when unconfigured, sends correct fields,
+ *    stores contact key, omits optional fields, fire-and-forget on failure
+ *  - unsubscribeFromCampaigns: no-op when unconfigured/no email/missing profile,
+ *    calls listunsubscribe endpoint, fire-and-forget on failure
+ *
+ * Mocks: zoho-auth (OAuth), global fetch (Campaigns API), db (profile lookup + sync_log),
+ * db/schema, drizzle-orm, Sentry.
+ */
+
 // --- Persistent mock references ---
+// mockIsZohoAuthConfigured: controls whether Zoho OAuth layer reports as ready
 const mockIsZohoAuthConfigured = vi.fn();
+// mockGetZohoAccessToken: returns a fake bearer token for API calls
 const mockGetZohoAccessToken = vi.fn();
+// mockFetch: simulates Zoho Campaigns REST API endpoints
 const mockFetch = vi.fn();
+// mockDbLimit: controls the profile lookup result
 const mockDbLimit = vi.fn();
+// mockDbSetWhere: captures profile update calls (storing zohoCampaignsContactKey)
 const mockDbSetWhere = vi.fn();
+// mockDbInsertValues: captures sync_log writes
 const mockDbInsertValues = vi.fn();
 
+// Mock Zoho auth so tests don't need real OAuth credentials
 vi.mock("@/lib/zoho-auth", () => ({
   isZohoAuthConfigured: mockIsZohoAuthConfigured,
   getZohoAccessToken: mockGetZohoAccessToken,

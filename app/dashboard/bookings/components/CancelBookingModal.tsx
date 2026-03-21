@@ -14,12 +14,16 @@ export function CancelBookingModal({
   onConfirm,
   isPending,
   errorMsg,
+  cancelWindowHours = 48,
+  lateCancelFeePercent = 0,
 }: {
   booking: ClientBookingRow;
   onClose: () => void;
   onConfirm: (id: number) => void;
   isPending: boolean;
   errorMsg: string | null;
+  cancelWindowHours?: number;
+  lateCancelFeePercent?: number;
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-foreground/20 backdrop-blur-sm">
@@ -37,10 +41,20 @@ export function CancelBookingModal({
           <p className="text-xs text-muted">
             {booking.service} · {booking.date} at {booking.time}
           </p>
+          {/* Cancellation policy */}
+          <div className="text-xs text-muted bg-surface border border-border/60 rounded-lg px-3 py-2 space-y-1">
+            <p className="font-medium text-foreground">Cancellation policy</p>
+            <p>Free cancellation up to {cancelWindowHours} hours before your appointment.</p>
+            {lateCancelFeePercent > 0 && (
+              <p>
+                Cancellations within {cancelWindowHours} hours may incur a {lateCancelFeePercent}%
+                late-cancel fee.
+              </p>
+            )}
+          </div>
           {booking.depositPaid && (
-            <p className="text-xs text-[#7a5c10] bg-[#7a5c10]/8 border border-[#7a5c10]/20 rounded-lg px-3 py-2">
-              A deposit was collected for this booking. Our team will reach out regarding your
-              refund.
+            <p className="text-xs text-[#4e6b51] bg-[#4e6b51]/8 border border-[#4e6b51]/20 rounded-lg px-3 py-2">
+              A deposit was collected for this booking. A refund will be processed automatically.
             </p>
           )}
           {errorMsg && (

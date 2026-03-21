@@ -1,7 +1,10 @@
 /**
  * Training — Live certification programs with upcoming dates and CTAs.
  *
+ * Used on the landing page to showcase training programs and drive enrollment.
  * Client Component — links to the full /training page.
+ *
+ * No props — program data is static. Wrapped in SectionWrapper for scroll-anchor id.
  */
 "use client";
 
@@ -9,6 +12,9 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { SectionWrapper } from "@/components/ui/SectionWrapper";
 
+// Training program definitions — each includes title, zone color for the dot indicator,
+// format (In Person / Hybrid), next session date, price, and description.
+// Array structure enables .map() with index-based stagger delay.
 const programs = [
   {
     title: "Classic Lash Certification",
@@ -72,6 +78,8 @@ export function Training() {
         </motion.div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* .map() over programs to render cards in a 1x4 (mobile) or 2x2 (desktop) grid.
+              Stagger delay (i * 0.08) cascades the entrance animation top-left to bottom-right. */}
           {programs.map((program, i) => (
             <motion.div
               key={program.title}

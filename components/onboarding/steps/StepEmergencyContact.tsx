@@ -1,5 +1,43 @@
 "use client";
 
+/**
+ * StepEmergencyContact — step 4 of the assistant onboarding wizard.
+ *
+ * ## Responsibility
+ * Collects the assistant's emergency contact: name (required), phone (required),
+ * and relationship (optional). This information is required by HR before the
+ * assistant's first shift and is stored securely in the profile record.
+ *
+ * ## Validation
+ * The OK button is disabled until both `emergencyContactName` and
+ * `emergencyContactPhone` have non-empty trimmed values. This is enforced
+ * in two places:
+ * 1. The OK button reads both fields via nested `form.Field` render props
+ *    and computes `canContinue` from their trimmed lengths.
+ * 2. The Enter key handler reads both values from the form and only calls
+ *    `onNext()` when both are present.
+ *
+ * ## Phone auto-formatting
+ * `formatPhone()` transforms raw digits into US format: "4045550123" becomes
+ * "(404) 555-0123". The onChange strips all non-digits via `.replace(/\D/g, "")`
+ * and caps at 10 characters. Raw digits are what gets saved — formatting is
+ * presentation-only.
+ *
+ * ## Nested form.Field for OK button
+ * The OK button needs to read two fields simultaneously (name + phone) to
+ * compute `canContinue`. TanStack Form's `form.Field` only subscribes to one
+ * field at a time, so two are nested: the outer subscribes to name, the inner
+ * to phone. This is a common pattern when a button depends on multiple fields.
+ *
+ * ## Props
+ * @prop form — the TanStack Form instance (AssistantOnboardingForm)
+ * @prop onNext — advances to step 5 (portfolio & socials)
+ * @prop stepNum — displayed as the step badge number
+ *
+ * ## Related files
+ * - components/onboarding/panels/PanelEmergencyContact.tsx — paired right panel
+ * - components/onboarding/OnboardingFlow.tsx — renders this as step 4
+ */
 import { useEffect, useCallback, useRef } from "react";
 import { motion } from "framer-motion";
 import type { AssistantOnboardingForm } from "../OnboardingFlow";

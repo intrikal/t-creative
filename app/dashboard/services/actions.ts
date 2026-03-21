@@ -24,7 +24,7 @@
  */
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import * as Sentry from "@sentry/nextjs";
 import { eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -345,6 +345,9 @@ export async function seedServiceCatalog(): Promise<ServiceRow[]> {
     // These names are safe to delete — the real services have more specific names.
     const GENERIC_NAMES = ["Lash Extensions", "Permanent Jewelry", "Crochet", "Consulting"];
     const existing = await db.select({ id: services.id, name: services.name }).from(services);
+    // Filter to find placeholder services by name, then extract just the IDs.
+    // Two-step filter→map is clearer than a single reduce when the output is a
+    // simple flat array — no accumulator bookkeeping needed.
     const genericIds = existing.filter((s) => GENERIC_NAMES.includes(s.name)).map((s) => s.id);
 
     if (genericIds.length > 0) {
@@ -352,21 +355,30 @@ export async function seedServiceCatalog(): Promise<ServiceRow[]> {
     }
 
     // Only insert services whose name doesn't already exist (safe to re-run).
+    // Set gives O(1) lookup for the dedup check below — an array .includes()
+    // would be O(n) per catalog entry, making the overall check O(n*m).
     const existingNames = new Set(
+      // Filter out the generic IDs we just deleted, then map to names.
       existing.filter((s) => !genericIds.includes(s.id)).map((s) => s.name),
     );
+    // Keep only catalog entries whose name isn't already in the DB (idempotent).
     const toInsert = FULL_CATALOG.filter((c) => !existingNames.has(c.name));
 
     const rows = toInsert.length > 0 ? await db.insert(services).values(toInsert).returning() : [];
 
     revalidatePath("/dashboard/services");
-    revalidatePath("/services");
+    updateTag("services");
+    updateTag("booking-page");
     return rows;
   } catch (err) {
     Sentry.captureException(err);
     throw err;
   }
 }
+
+/* ------------------------------------------------------------------ */
+/*  Types & Validation                                                 */
+/* ------------------------------------------------------------------ */
 
 export type ServiceRow = typeof services.$inferSelect;
 
@@ -392,6 +404,11 @@ const serviceInputSchema = z.object({
   isActive: z.boolean(),
 });
 
+/* ------------------------------------------------------------------ */
+/*  Queries                                                            */
+/* ------------------------------------------------------------------ */
+
+/** Fetch all services ordered by category then sort order. Feeds the Services table. */
 export async function getServices(): Promise<ServiceRow[]> {
   try {
     await getUser();
@@ -402,6 +419,11 @@ export async function getServices(): Promise<ServiceRow[]> {
   }
 }
 
+/* ------------------------------------------------------------------ */
+/*  Mutations                                                          */
+/* ------------------------------------------------------------------ */
+
+/** Create a new service. Logs to audit trail and invalidates booking page cache. */
 export async function createService(input: ServiceInput): Promise<ServiceRow> {
   try {
     serviceInputSchema.parse(input);
@@ -430,7 +452,8 @@ export async function createService(input: ServiceInput): Promise<ServiceRow> {
     });
 
     revalidatePath("/dashboard/services");
-    revalidatePath("/services");
+    updateTag("services");
+    updateTag("booking-page");
     return row;
   } catch (err) {
     Sentry.captureException(err);
@@ -438,6 +461,7 @@ export async function createService(input: ServiceInput): Promise<ServiceRow> {
   }
 }
 
+/** Update a service's details. Invalidates both the admin view and public booking page. */
 export async function updateService(id: number, input: ServiceInput): Promise<ServiceRow> {
   try {
     z.number().int().positive().parse(id);
@@ -468,7 +492,8 @@ export async function updateService(id: number, input: ServiceInput): Promise<Se
     });
 
     revalidatePath("/dashboard/services");
-    revalidatePath("/services");
+    updateTag("services");
+    updateTag("booking-page");
     return row;
   } catch (err) {
     Sentry.captureException(err);
@@ -476,6 +501,11 @@ export async function updateService(id: number, input: ServiceInput): Promise<Se
   }
 }
 
+/**
+ * Hard-delete a service. Existing bookings referencing this service will
+ * have their `service_id` set to null (FK on delete: set null), preserving
+ * historical booking records.
+ */
 export async function deleteService(id: number): Promise<void> {
   try {
     z.number().int().positive().parse(id);
@@ -492,13 +522,18 @@ export async function deleteService(id: number): Promise<void> {
     });
 
     revalidatePath("/dashboard/services");
-    revalidatePath("/services");
+    updateTag("services");
+    updateTag("booking-page");
   } catch (err) {
     Sentry.captureException(err);
     throw err;
   }
 }
 
+/**
+ * Soft-toggle a service's visibility. Inactive services stay in the database
+ * (preserving booking history) but are hidden from the public booking page.
+ */
 export async function toggleServiceActive(id: number, isActive: boolean): Promise<void> {
   try {
     z.number().int().positive().parse(id);
@@ -506,7 +541,8 @@ export async function toggleServiceActive(id: number, isActive: boolean): Promis
     await getUser();
     await db.update(services).set({ isActive }).where(eq(services.id, id));
     revalidatePath("/dashboard/services");
-    revalidatePath("/services");
+    updateTag("services");
+    updateTag("booking-page");
   } catch (err) {
     Sentry.captureException(err);
     throw err;
@@ -536,6 +572,15 @@ export type AssistantServiceStats = {
   avgDuration: number;
 };
 
+/**
+ * Fetch all active services enriched with the logged-in assistant's performance data.
+ * Feeds the assistant's "My Services" view in the team portal.
+ *
+ * "Certified" means the assistant has completed at least one booking of that
+ * service type — the first completion date is used as the certification date.
+ * This is a practical proxy; formal certifications are tracked separately in
+ * the training module.
+ */
 export async function getAssistantServices(): Promise<{
   services: AssistantServiceRow[];
   stats: AssistantServiceStats;
@@ -543,6 +588,9 @@ export async function getAssistantServices(): Promise<{
   try {
     const user = await getUser();
 
+    // Promise.all runs both queries concurrently — fetching services and
+    // completed-booking aggregates are independent DB reads, so parallel
+    // execution halves the total round-trip time vs sequential awaits.
     const [allServices, completedServices] = await Promise.all([
       db
         .select()
@@ -560,6 +608,9 @@ export async function getAssistantServices(): Promise<{
         .groupBy(bookings.serviceId),
     ]);
 
+    // Build a Map keyed by serviceId for O(1) lookup when enriching each service
+    // below. Map constructor accepts [key, value] pairs, so .map() produces the
+    // tuple array directly — avoids a manual for-loop with .set() calls.
     const certMap = new Map(
       completedServices.map((r) => [
         r.serviceId,
@@ -567,6 +618,10 @@ export async function getAssistantServices(): Promise<{
       ]),
     );
 
+    // Transform DB rows into the UI-facing shape: convert cents→dollars,
+    // look up certification status from certMap, and format dates.
+    // .map() produces a 1:1 transformation — every active service becomes
+    // exactly one AssistantServiceRow.
     const mapped: AssistantServiceRow[] = allServices.map((s) => {
       const cert = certMap.get(s.id);
       return {
@@ -585,8 +640,14 @@ export async function getAssistantServices(): Promise<{
       };
     });
 
+    // Count certified services — filter is more readable than reduce for
+    // a simple boolean count (length of the filtered subset).
     const certifiedCount = mapped.filter((s) => s.certified).length;
+    // Separate services that have a duration so we can compute an average
+    // without null values skewing the denominator.
     const withDuration = mapped.filter((s) => s.durationMin != null);
+    // Compute average duration using reduce to sum all values in one pass.
+    // Ternary guards against division by zero when no services have a duration.
     const avgDuration =
       withDuration.length > 0
         ? Math.round(withDuration.reduce((sum, s) => sum + s.durationMin!, 0) / withDuration.length)

@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
-import { getPublishedProducts } from "./actions";
+import { getPublishedProducts } from "./queries";
 import { PublicShopPage } from "./PublicShopPage";
-
-export const revalidate = 3600;
 
 export const metadata: Metadata = {
   title: "Shop | Aftercare Products & Studio Merch | T Creative Studio",

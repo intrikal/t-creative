@@ -1,7 +1,26 @@
+/**
+ * @file DashboardSidebar.test.tsx
+ * @description Component tests for DashboardSidebar.
+ *
+ * Testing utilities used:
+ * - render: Mounts a React component into a virtual DOM (from @testing-library/react).
+ * - screen: Queries the rendered DOM for elements by text, role, test-id, etc.
+ * - fireEvent: Simulates user interactions (click, change, etc.) on DOM elements.
+ * - describe: Groups related test cases into logical blocks.
+ * - it: Defines a single test case.
+ * - expect: Makes assertions about values and DOM state.
+ * - vi: Vitest mock utility namespace.
+ * - vi.mock(): Statically replaces a module import with a mock before tests run.
+ *   Used here for Next.js modules (next/link, next/navigation) and UI components
+ *   that are not under test, so the component can render in isolation.
+ * - vi.clearAllMocks(): Resets mock state in beforeEach.
+ * - beforeEach: Runs before every test to reset state.
+ */
 import { render, screen, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { DashboardSidebar } from "./DashboardSidebar";
 
+/* Mock next/link — renders a plain <a> so link rendering can be tested without Next.js router. */
 vi.mock("next/link", () => ({
   default: ({
     children,
@@ -18,24 +37,29 @@ vi.mock("next/link", () => ({
   ),
 }));
 
+/* Mock next/navigation — stubs usePathname to return a fixed path for active-link highlighting. */
 vi.mock("next/navigation", () => ({
   usePathname: () => "/dashboard",
 }));
 
+/* Mock TCLogo — replaces with a simple SVG stub so the test focuses on sidebar logic. */
 vi.mock("@/components/TCLogo", () => ({
   TCLogo: () => <svg data-testid="tc-logo" />,
 }));
 
+/* Mock avatar components — lightweight stubs so the sidebar renders without the full UI library. */
 vi.mock("@/components/ui/avatar", () => ({
   Avatar: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   AvatarFallback: ({ children }: { children: React.ReactNode }) => <span>{children}</span>,
   AvatarImage: ({ src, alt }: { src: string; alt: string }) => <img src={src} alt={alt} />,
 }));
 
+/* Mock NotificationBell — renders null since notification behavior is tested separately. */
 vi.mock("./components/NotificationBell", () => ({
   NotificationBell: () => null,
 }));
 
+/** Default props shared across all DashboardSidebar render calls — represents a typical studio owner. */
 const baseProps = { userName: "Alex Studio", userAvatarUrl: null };
 
 describe("DashboardSidebar", () => {

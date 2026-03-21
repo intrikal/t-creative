@@ -7,6 +7,7 @@ export type LoyaltyPointsAwardedProps = {
   pointsEarned: number;
   reason: string;
   totalBalance: number;
+  businessName?: string;
 };
 
 export function LoyaltyPointsAwarded({
@@ -14,9 +15,10 @@ export function LoyaltyPointsAwarded({
   pointsEarned,
   reason,
   totalBalance,
+  businessName = "T Creative Studio",
 }: LoyaltyPointsAwardedProps) {
   return (
-    <Layout preview={`You earned ${pointsEarned} loyalty points!`}>
+    <Layout preview={`You earned ${pointsEarned} loyalty points!`} businessName={businessName}>
       <Section style={content}>
         <Text style={heading}>Points Earned!</Text>
         <Text style={paragraph}>Hey {clientName}, you just earned loyalty points!</Text>

@@ -30,9 +30,9 @@
  * is small enough to hold in memory (typically < 50 items for a single studio).
  */
 
-import { useState, useOptimistic, useTransition } from "react";
+import { type ReactNode, useState, useOptimistic, useTransition } from "react";
 import dynamic from "next/dynamic";
-import { Search, Plus, Tag, Package, FileText, ToggleLeft, Sparkles } from "lucide-react";
+import { Search, Plus, Tag, Package, FileText, HeartHandshake, Images, ToggleLeft, Sparkles } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import type { ServiceRow } from "./actions";
@@ -68,6 +68,8 @@ const SERVICES_TABS = [
   { id: "menu", label: "Menu", icon: Tag },
   { id: "bundles", label: "Bundles", icon: Package },
   { id: "forms", label: "Forms & Waivers", icon: FileText },
+  { id: "aftercare", label: "Aftercare", icon: HeartHandshake },
+  { id: "portfolio", label: "Portfolio", icon: Images },
 ] as const;
 type ServicesTab = (typeof SERVICES_TABS)[number]["id"];
 
@@ -88,10 +90,14 @@ export function ServicesPage({
   initialServices,
   initialBundles,
   initialForms,
+  aftercareContent,
+  portfolioContent,
 }: {
   initialServices: ServiceRow[];
   initialBundles: BundleRow[];
   initialForms: FormRow[];
+  aftercareContent?: ReactNode;
+  portfolioContent?: ReactNode;
 }) {
   /* ── Tab state ── */
   const [activeTab, setActiveTab] = useState<ServicesTab>("menu");
@@ -250,6 +256,12 @@ export function ServicesPage({
 
       {/* ── Forms tab ── */}
       {activeTab === "forms" && <FormsTab initialForms={initialForms} />}
+
+      {/* ── Aftercare tab ── */}
+      {activeTab === "aftercare" && aftercareContent}
+
+      {/* ── Portfolio tab ── */}
+      {activeTab === "portfolio" && portfolioContent}
 
       {/* ── Menu tab ── */}
       {activeTab === "menu" && (

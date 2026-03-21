@@ -6,20 +6,21 @@ export type BirthdayGreetingProps = {
   clientName: string;
   promoCode?: string;
   discountPercent?: number;
+  businessName?: string;
 };
 
 export function BirthdayGreeting({
   clientName,
   promoCode,
   discountPercent,
+  businessName = "T Creative Studio",
 }: BirthdayGreetingProps) {
   return (
-    <Layout preview={`Happy Birthday, ${clientName}!`}>
+    <Layout preview={`Happy Birthday, ${clientName}!`} businessName={businessName}>
       <Section style={content}>
         <Text style={heading}>Happy Birthday!</Text>
         <Text style={paragraph}>
-          Hey {clientName}, wishing you the happiest of birthdays from everyone at T Creative
-          Studio!
+          Hey {clientName}, wishing you the happiest of birthdays from everyone at {businessName}!
         </Text>
 
         {promoCode && discountPercent ? (
@@ -45,7 +46,7 @@ export function BirthdayGreeting({
           </Text>
         )}
 
-        <Text style={muted}>From all of us at T Creative Studio — have a wonderful day!</Text>
+        <Text style={muted}>From all of us at {businessName} — have a wonderful day!</Text>
       </Section>
     </Layout>
   );

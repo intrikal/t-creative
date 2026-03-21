@@ -1,3 +1,10 @@
+/**
+ * ProductCard — Grid card representing a single marketplace product.
+ *
+ * Shows the product name, category badge, status badge, price,
+ * stock indicator, and action buttons (edit, delete, toggle active).
+ * The toggle button flips between active/inactive without opening a dialog.
+ */
 "use client";
 
 import { Tag, ToggleLeft, ToggleRight, Pencil, Trash2 } from "lucide-react";

@@ -13,6 +13,8 @@ import { useSprings, animated, to as interpolate } from "@react-spring/web";
 import { useDrag } from "@use-gesture/react";
 import { motion, useScroll, useTransform } from "framer-motion";
 
+// Photo paths for the card stack — ordered bottom-to-top (last item renders on top).
+// Array structure enables useSprings to create one spring per card and bind to map indices.
 const PHOTOS = [
   "/images/trini-4.jpg",
   "/images/trini-3.jpg",
@@ -20,7 +22,9 @@ const PHOTOS = [
   "/images/trini.jpg", // top card last
 ];
 
-// Resting stack position for each card
+// Resting stack position for each card — slight y offset (i * -4) and random rotation
+// give the pile a natural, scattered look. Math.random() is intentional here:
+// it runs once per card on initial render, giving each card a unique tilt.
 const to = (i: number) => ({
   x: 0,
   y: i * -4,
@@ -29,28 +33,50 @@ const to = (i: number) => ({
   delay: i * 80,
 });
 
-// Cards fly in from above on mount
+// Cards fly in from y:-1000 (above viewport) with scale 1.5 on mount — dramatic entrance.
 const from = () => ({ x: 0, rot: 0, scale: 1.5, y: -1000 });
 
-// 3D perspective tilt — the signature feel from the CodeSandbox
+// Template literal builds a CSS transform string from rotation and scale spring values.
+// perspective(1200px) + rotateX(8deg) creates a slight isometric tilt that makes the
+// card stack feel three-dimensional. rotateY and rotateZ respond to drag movement.
 const trans = (r: number, s: number) =>
   `perspective(1200px) rotateX(8deg) rotateY(${r / 14}deg) rotateZ(${r}deg) scale(${s})`;
 
+/**
+ * CardStack — Draggable card stack interaction using react-spring + use-gesture.
+ * Users drag cards off-screen to reveal the one beneath. Once all cards are swiped,
+ * the stack resets after a 600ms delay. No props — reads from module-level PHOTOS array.
+ */
 function CardStack() {
+  // gone: Set tracking which card indices have been swiped away.
+  // useState with initializer function (lazy init) creates the Set once and persists it
+  // across renders without re-creating. Set chosen over array for O(1) .has() lookups.
   const [gone] = useState(() => new Set<number>());
 
+  // useSprings creates one spring per photo. Each spring holds x, y, rot, scale values.
+  // Spread ...to(i) sets the resting position; from: from() sets the initial fly-in state.
   const [springs, api] = useSprings(PHOTOS.length, (i) => ({
     ...to(i),
     from: from(),
   }));
 
+  // useDrag binds drag gesture handlers to each card. Destructuring extracts:
+  // - args: [index] — the card index passed via bind(i) in the JSX
+  // - active — whether the user is currently dragging
+  // - movement: [mx] — horizontal pixel displacement from drag start
+  // - direction: [xDir] — drag direction (-1 = left, 1 = right)
+  // - velocity: [vx] — drag speed for flick detection
   const bind = useDrag(
     ({ args: [index], active, movement: [mx], direction: [xDir], velocity: [vx] }) => {
+      // Flick detection: velocity > 0.2 means the card was swiped fast enough to dismiss.
       const trigger = vx > 0.2;
+      // Direction normalized to -1 or 1 for calculating the off-screen exit position.
       const dir = xDir < 0 ? -1 : 1;
 
       if (!active && trigger) gone.add(index);
 
+      // api.start updates springs — only the dragged card (index === i) gets new values.
+      // Ternary chain for x: gone cards fly off-screen, active drags follow cursor, resting = 0.
       api.start((i) => {
         if (index !== i) return;
         const isGone = gone.has(index);
@@ -92,6 +118,10 @@ function CardStack() {
         transition={{ duration: 0.8, delay: 0.9, ease: "easeOut" }}
       />
 
+      {/* springs.map() renders one animated layer per photo. Each spring provides
+          x, y, rot, scale values. interpolate([rot, scale], trans) combines rotation
+          and scale into a single CSS transform string via the trans() helper.
+          bind(i) passes the card index to the drag handler for per-card targeting. */}
       {springs.map(({ x, y, rot, scale }, i) => (
         <animated.div key={i} className="absolute inset-0" style={{ x, y, zIndex: i }}>
           <animated.div
@@ -125,11 +155,14 @@ function CardStack() {
 // ─── Section ─────────────────────────────────────────────────────────────────
 
 export function Founder() {
+  // useRef for scroll-linked parallax on the section.
   const sectionRef = useRef<HTMLElement>(null);
   const { scrollYProgress } = useScroll({
     target: sectionRef,
     offset: ["start end", "end start"],
   });
+  // Subtle 8% scale increase on scroll — adds depth without being distracting.
+  // Currently defined but applied via the brand's scroll system (may be wired to a future image element).
   const imgScale = useTransform(scrollYProgress, [0, 1], [1.0, 1.08]);
 
   return (

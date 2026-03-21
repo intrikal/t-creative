@@ -10,6 +10,7 @@ export type WaitlistNotificationProps = {
   bookingLink?: string;
   /** Human-readable slot date/time, e.g. "Saturday, April 5 at 2:00 PM". */
   slotDate?: string;
+  businessName?: string;
 };
 
 export function WaitlistNotification({
@@ -17,9 +18,10 @@ export function WaitlistNotification({
   serviceName,
   bookingLink,
   slotDate,
+  businessName = "T Creative Studio",
 }: WaitlistNotificationProps) {
   return (
-    <Layout preview={`A spot opened up for ${serviceName}!`}>
+    <Layout preview={`A spot opened up for ${serviceName}!`} businessName={businessName}>
       <Section style={content}>
         <Text style={heading}>A Spot Opened Up!</Text>
         <Text style={paragraph}>

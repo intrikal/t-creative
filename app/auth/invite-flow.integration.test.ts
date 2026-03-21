@@ -1,3 +1,8 @@
+// describe: groups related tests into a labeled block
+// it: defines a single test case
+// expect: creates an assertion to check a value matches expected condition
+// vi: Vitest's mock utility for creating fake functions
+// beforeEach: runs setup before every test (typically resets mocks)
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 /**
@@ -17,6 +22,9 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 type MockRow = Record<string, unknown>;
 
+// createStatefulDb builds an in-memory DB tracking profile rows.
+// Uses a selectQueue so tests can pre-load exactly which rows each
+// sequential SELECT returns (e.g., profile role lookup for auth check).
 function createStatefulDb() {
   const _profiles: MockRow[] = [];
 
@@ -90,15 +98,19 @@ function createStatefulDb() {
 /*  Shared external mocks                                              */
 /* ------------------------------------------------------------------ */
 
-const mockGetUser = vi.fn();
-const mockSendEmail = vi.fn().mockResolvedValue(true);
-const mockCreateInviteToken = vi.fn().mockResolvedValue("test-token-jwt");
-const mockVerifyInviteToken = vi.fn();
+// Shared mock handles for external dependencies
+const mockGetUser = vi.fn();                                          // Supabase auth.getUser
+const mockSendEmail = vi.fn().mockResolvedValue(true);                // email delivery
+const mockCreateInviteToken = vi.fn().mockResolvedValue("test-token-jwt"); // JWT invite token generation
+const mockVerifyInviteToken = vi.fn();                                // JWT invite token verification
 
 /* ------------------------------------------------------------------ */
 /*  Per-test setup helper                                              */
 /* ------------------------------------------------------------------ */
 
+// setupMocks registers all vi.doMock() replacements: DB, schema, Drizzle
+// operators, Supabase auth, email service, invite token helpers, and the
+// invite email template. Called after vi.resetModules() in each test.
 function setupMocks(db: ReturnType<typeof createStatefulDb>) {
   vi.doMock("@/db", () => ({ db }));
 
@@ -144,6 +156,7 @@ function setupMocks(db: ReturnType<typeof createStatefulDb>) {
 /*  Request factory                                                    */
 /* ------------------------------------------------------------------ */
 
+// Factory to create a POST Request object for the /api/invites route handler
 function makePost(body: unknown) {
   return new Request("https://example.com/api/invites", {
     method: "POST",
@@ -156,6 +169,10 @@ function makePost(body: unknown) {
 /*  Tests                                                              */
 /* ------------------------------------------------------------------ */
 
+// End-to-end integration tests for the invite API route. Tests the full
+// flow: auth check → admin role verification → token generation → email send.
+// Each test seeds the stateful DB with a profile row to control the
+// getCurrentUser result (admin vs client vs missing).
 describe("POST /api/invites — invite flow integration", () => {
   beforeEach(() => {
     vi.clearAllMocks();

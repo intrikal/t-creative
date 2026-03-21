@@ -1,17 +1,47 @@
+/**
+ * Client-facing bookings page — shows a client their appointment history,
+ * upcoming bookings, mini calendar, and actions to reschedule/cancel/review.
+ *
+ * Parent: app/dashboard/bookings/page.tsx (client role)
+ *
+ * State:
+ *   expanded          — which booking card is expanded (accordion, one at a time)
+ *   bookings          — local copy of booking data for optimistic updates
+ *   reviewTarget      — booking open in the review modal
+ *   cancelTarget/Error — booking open in the cancel modal + error message
+ *   rescheduleTarget/Error — booking open in the reschedule modal + error
+ *   selectedDate      — date filter from the mini calendar (ISO string or null)
+ *   showCalSubscribe  — toggles the calendar subscription modal
+ *   isPending         — useTransition pending flag for server action calls
+ *
+ * Key operations:
+ *   allUpcoming = bookings.filter(...) — confirmed + pending bookings
+ *   allCompleted = bookings.filter(...) — completed bookings for stats
+ *   upcoming/past — further filtered by selectedDate if set
+ *   allCompleted.reduce((s, b) => s + b.price, 0) — total spent stat
+ *
+ *   handleSubmitReview — optimistic: marks reviewLeft=true immediately,
+ *     then fires submitClientReview server action in a transition
+ *   handleCancelBooking — optimistic: sets status="cancelled" immediately,
+ *     reverts on error by mapping back to previous status
+ *   handleRescheduleBooking — on success, optimistically updates the
+ *     booking's startsAtISO, date, and time with formatted strings,
+ *     and resets status to "pending"
+ */
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useCallback } from "react";
 import { CalendarDays, Rss, X } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { ClientBookingRow, ClientBookingsData } from "./client-actions";
 import { submitClientReview, cancelClientBooking, rescheduleClientBooking } from "./client-actions";
-import { fmtDateLabel } from "./components/client-helpers";
-import { BookingsMiniCal } from "./components/BookingsMiniCal";
 import { BookingCard } from "./components/BookingCard";
+import { BookingsMiniCal } from "./components/BookingsMiniCal";
 import { CalendarSubscribeModal } from "./components/CalendarSubscribeModal";
-import { ReviewModal } from "./components/ReviewModal";
 import { CancelBookingModal } from "./components/CancelBookingModal";
+import { fmtDateLabel } from "./components/client-helpers";
 import { RescheduleModal } from "./components/RescheduleModal";
+import { ReviewModal } from "./components/ReviewModal";
 
 /* ------------------------------------------------------------------ */
 /*  Main export                                                         */
@@ -28,6 +58,18 @@ export function ClientBookingsPage({ data }: { data: ClientBookingsData }) {
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [showCalSubscribe, setShowCalSubscribe] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const handleSelectDate = useCallback((date: string | null) => {
+    setSelectedDate(date);
+  }, []);
+  const handleReschedule = useCallback((booking: ClientBookingRow) => {
+    setRescheduleTarget(booking);
+  }, []);
+  const handleCancel = useCallback((booking: ClientBookingRow) => {
+    setCancelTarget(booking);
+  }, []);
+  const handleReview = useCallback((booking: ClientBookingRow) => {
+    setReviewTarget(booking);
+  }, []);
 
   const allUpcoming = bookings.filter((b) => ["confirmed", "pending"].includes(b.status));
   const allCompleted = bookings.filter((b) => b.status === "completed");
@@ -152,7 +194,7 @@ export function ClientBookingsPage({ data }: { data: ClientBookingsData }) {
       </div>
 
       {/* Calendar */}
-      <BookingsMiniCal bookings={bookings} selected={selectedDate} onSelect={setSelectedDate} />
+      <BookingsMiniCal bookings={bookings} selected={selectedDate} onSelect={handleSelectDate} />
 
       {/* Active date filter */}
       {selectedDate && (
@@ -186,9 +228,10 @@ export function ClientBookingsPage({ data }: { data: ClientBookingsData }) {
                 booking={b}
                 isExpanded={expanded === b.id}
                 onToggle={() => setExpanded(expanded === b.id ? null : b.id)}
-                onReschedule={setRescheduleTarget}
-                onCancel={setCancelTarget}
-                onReview={setReviewTarget}
+                onReschedule={handleReschedule}
+                onCancel={handleCancel}
+                onReview={handleReview}
+                cancelWindowHours={data.policy.cancelWindowHours}
               />
             ))}
           </CardContent>
@@ -208,9 +251,10 @@ export function ClientBookingsPage({ data }: { data: ClientBookingsData }) {
                 booking={b}
                 isExpanded={expanded === b.id}
                 onToggle={() => setExpanded(expanded === b.id ? null : b.id)}
-                onReschedule={setRescheduleTarget}
-                onCancel={setCancelTarget}
-                onReview={setReviewTarget}
+                onReschedule={handleReschedule}
+                onCancel={handleCancel}
+                onReview={handleReview}
+                cancelWindowHours={data.policy.cancelWindowHours}
               />
             ))}
           </CardContent>
@@ -265,6 +309,8 @@ export function ClientBookingsPage({ data }: { data: ClientBookingsData }) {
           onConfirm={handleCancelBooking}
           isPending={isPending}
           errorMsg={cancelError}
+          cancelWindowHours={data.policy.cancelWindowHours}
+          lateCancelFeePercent={data.policy.lateCancelFeePercent}
         />
       )}
 

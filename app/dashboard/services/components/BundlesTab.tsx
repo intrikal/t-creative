@@ -61,6 +61,11 @@ function BundleFormDialog({
   // Keep component out of the DOM when closed so state resets on re-open.
   if (!open) return null;
 
+  /**
+   * toggleService — adds or removes a service name from the bundle's included list.
+   * Uses .includes() to check membership, .filter() to remove, or spread to add.
+   * This creates the chip-toggle UX in the service picker.
+   */
   function toggleService(name: string) {
     setForm((prev) => ({
       ...prev,
@@ -203,8 +208,11 @@ export function BundlesTab({
   initialBundles: BundleRow[];
   serviceNames: string[];
 }) {
+  /** Local bundles list, initialized by mapping DB rows to UI-friendly objects via dbToBundle. */
   const [bundles, setBundles] = useState<Bundle[]>(() => initialBundles.map(dbToBundle));
+  /** Whether the BundleFormDialog is open (create or edit mode). */
   const [bundleFormOpen, setBundleFormOpen] = useState(false);
+  /** The bundle being edited (null = create mode). */
   const [editBundle, setEditBundle] = useState<Bundle | null>(null);
 
   async function handleToggleActive(id: number) {
@@ -270,6 +278,7 @@ export function BundlesTab({
       {/* Bundle cards grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
         {bundles.map((b) => {
+          // Calculate dollar and percentage savings for the discount badge
           const savings = b.originalPrice - b.bundlePrice;
           const pct = b.originalPrice > 0 ? Math.round((savings / b.originalPrice) * 100) : 0;
           return (

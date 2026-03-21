@@ -2,23 +2,6 @@ import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { getCurrentUser } from "@/lib/auth";
 import { calendarUrl } from "@/lib/calendar-token";
-import { getAssistantSettings } from "./assistant-settings-actions";
-import { AssistantSettingsPage } from "./AssistantSettingsPage";
-import { getClientSettings } from "./client-settings-actions";
-import { ClientSettingsPage } from "./ClientSettingsPage";
-import { getBusinessHours, getTimeOff, getLunchBreak } from "./hours-actions";
-import {
-  getBookingRules,
-  getBusinessProfile,
-  getFinancialConfig,
-  getRevenueGoals,
-  getLoyaltyConfig,
-  getNotificationPrefs,
-  getPolicies,
-  getReminders,
-  getSquareConnectionStatus,
-} from "./settings-actions";
-import { SettingsPage } from "./SettingsPage";
 
 export const metadata: Metadata = {
   title: "Settings — T Creative Studio",
@@ -31,41 +14,57 @@ export default async function Page() {
   if (!user) redirect("/login");
 
   if (user.profile?.role === "client") {
+    const [{ getClientSettings }, { ClientSettingsPage }] = await Promise.all([
+      import("./client-settings-actions"),
+      import("./ClientSettingsPage"),
+    ]);
     const data = await getClientSettings();
     return <ClientSettingsPage data={data} />;
   }
 
   if (user.profile?.role === "assistant") {
+    const [{ getAssistantSettings }, { AssistantSettingsPage }] = await Promise.all([
+      import("./assistant-settings-actions"),
+      import("./AssistantSettingsPage"),
+    ]);
     const data = await getAssistantSettings();
     return <AssistantSettingsPage data={data} />;
   }
 
   const [
+    { getBusinessHours, getTimeOff, getLunchBreak },
+    { getServiceCategories },
+    { getAdminSettingsBundle, getSquareConnectionStatus },
+    { SettingsPage },
+    { getLegalDoc, seedLegalDefaults },
+  ] = await Promise.all([
+    import("./hours-actions"),
+    import("./service-categories-actions"),
+    import("./settings-actions"),
+    import("./SettingsPage"),
+    import("../legal/actions"),
+  ]);
+
+  await seedLegalDefaults();
+
+  const [
     initialHours,
     initialTimeOff,
     initialLunchBreak,
-    initialBusiness,
-    initialPolicies,
-    initialLoyalty,
-    initialNotifications,
-    initialFinancial,
-    initialRevenueGoals,
-    initialBookingRules,
-    initialReminders,
+    settingsBundle,
+    initialCategories,
     squareStatus,
+    initialPrivacy,
+    initialTerms,
   ] = await Promise.all([
     getBusinessHours(),
     getTimeOff(),
     getLunchBreak(),
-    getBusinessProfile(),
-    getPolicies(),
-    getLoyaltyConfig(),
-    getNotificationPrefs(),
-    getFinancialConfig(),
-    getRevenueGoals(),
-    getBookingRules(),
-    getReminders(),
+    getAdminSettingsBundle(),
+    getServiceCategories(),
     getSquareConnectionStatus(),
+    getLegalDoc("privacy_policy"),
+    getLegalDoc("terms_of_service"),
   ]);
 
   return (
@@ -73,16 +72,21 @@ export default async function Page() {
       initialHours={initialHours}
       initialTimeOff={initialTimeOff}
       initialLunchBreak={initialLunchBreak}
-      initialBusiness={initialBusiness}
-      initialPolicies={initialPolicies}
-      initialLoyalty={initialLoyalty}
-      initialNotifications={initialNotifications}
-      initialFinancial={initialFinancial}
-      initialRevenueGoals={initialRevenueGoals}
-      initialBookingRules={initialBookingRules}
-      initialReminders={initialReminders}
+      initialBusiness={settingsBundle.businessProfile}
+      initialPolicies={settingsBundle.policies}
+      initialLoyalty={settingsBundle.loyalty}
+      initialNotifications={settingsBundle.notifications}
+      initialFinancial={settingsBundle.financial}
+      initialRevenueGoals={settingsBundle.revenueGoals}
+      initialBookingRules={settingsBundle.bookingRules}
+      initialReminders={settingsBundle.reminders}
+      initialSiteContent={settingsBundle.siteContent}
+      initialInventory={settingsBundle.inventory}
+      initialCategories={initialCategories}
       squareStatus={squareStatus}
       calendarUrl={calendarUrl(user.id)}
+      initialPrivacy={initialPrivacy}
+      initialTerms={initialTerms}
     />
   );
 }

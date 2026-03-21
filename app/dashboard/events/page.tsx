@@ -1,9 +1,6 @@
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { getCurrentUser } from "@/lib/auth";
-import { getEvents, getClientEvents, getVenues, getStaffForEvents } from "./actions";
-import { ClientEventsPage } from "./ClientEventsPage";
-import { EventsPage } from "./EventsPage";
 
 export const metadata: Metadata = {
   title: "Events — T Creative Studio",
@@ -16,11 +13,20 @@ export default async function Page() {
   if (!user) redirect("/login");
 
   if (user.profile?.role === "client") {
+    const [{ getClientEvents }, { ClientEventsPage }] = await Promise.all([
+      import("./actions"),
+      import("./ClientEventsPage"),
+    ]);
     const events = await getClientEvents();
     return <ClientEventsPage events={events} />;
   }
 
   // Admin and assistant both see the full events management view
+  const [{ getEvents, getVenues, getStaffForEvents }, { EventsPage }] = await Promise.all([
+    import("./actions"),
+    import("./EventsPage"),
+  ]);
+
   const [events, venues, staffList] = await Promise.all([
     getEvents(),
     getVenues(),

@@ -6,7 +6,7 @@
 
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import { HOUR_H, DAY_START, DAY_END, TOTAL_HOURS, GRID_H, GRID_TOP_PAD } from "./constants";
 import { EventBlock } from "./EventBlock";
@@ -18,15 +18,22 @@ export function DayColumn({
   onSelect,
   onSlotClick,
   availability,
+  isToday,
 }: {
   events: CalEvent[];
   onSelect: (e: CalEvent) => void;
   onSlotClick?: (h: number) => void;
   availability?: DayAvailability;
+  isToday?: boolean;
 }) {
+  /** Events positioned with overlap layout (column index + total columns). */
   const laid = useMemo(() => layoutDay(events), [events]);
 
-  // Compute overlay blocks for unavailable time
+  /**
+   * Compute overlay blocks for unavailable time ranges (closed hours, lunch).
+   * Returns pixel-positioned rectangles that render as semi-transparent overlays
+   * on top of the time grid. Each block has a type (closed/lunch) for styling.
+   */
   const overlays = useMemo(() => {
     if (!availability) return [];
     const blocks: { top: number; height: number; label?: string; type: "closed" | "lunch" }[] = [];
@@ -127,6 +134,51 @@ export function DayColumn({
           onSelect={onSelect}
         />
       ))}
+      {/* Current time indicator */}
+      {isToday && <NowLine />}
+    </div>
+  );
+}
+
+/**
+ * NowLine — horizontal red line + time badge indicating the current time.
+ * Only renders when the current time falls within the visible grid range
+ * (DAY_START to DAY_END). Updates every 60 seconds via setInterval.
+ */
+function NowLine() {
+  /** Current time as minutes-since-midnight, updated every 60s. */
+  const [nowMin, setNowMin] = useState(() => {
+    const d = new Date();
+    return d.getHours() * 60 + d.getMinutes();
+  });
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      const d = new Date();
+      setNowMin(d.getHours() * 60 + d.getMinutes());
+    }, 60_000);
+    return () => clearInterval(id);
+  }, []);
+
+  const inRange = nowMin >= DAY_START * 60 && nowMin < DAY_END * 60;
+  if (!inRange) return null;
+
+  const nowTop = ((nowMin - DAY_START * 60) / 60) * HOUR_H + GRID_TOP_PAD;
+  const h = Math.floor(nowMin / 60);
+  const m = nowMin % 60;
+  const h12 = h % 12 || 12;
+  const ampm = h < 12 ? "am" : "pm";
+
+  return (
+    <div
+      className="absolute left-0 right-0 z-20 pointer-events-none"
+      style={{ top: `${nowTop}px` }}
+    >
+      <div className="absolute -left-[5px] -top-[5px] w-[10px] h-[10px] rounded-full bg-red-500" />
+      <div className="absolute left-0 right-0 h-[2px] bg-red-500" />
+      <div className="absolute -left-[58px] -top-[9px] bg-red-500 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded">
+        {`${h12}:${String(m).padStart(2, "0")}${ampm}`}
+      </div>
     </div>
   );
 }

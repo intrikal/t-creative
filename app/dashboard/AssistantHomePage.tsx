@@ -1,6 +1,7 @@
 "use client";
 
 import type React from "react";
+import { useState } from "react";
 import Link from "next/link";
 import {
   CalendarDays,
@@ -19,7 +20,10 @@ import {
   Inbox,
   CalendarX,
   BookMarked,
+  Plus,
+  Check,
 } from "lucide-react";
+import { submitTimeOffRequest } from "@/app/dashboard/settings/assistant-settings-actions";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -75,6 +79,18 @@ export interface AssistantStats {
   avgRating: string | null;
 }
 
+export interface TimeOffEntry {
+  id: number;
+  startDate: string;
+  endDate: string;
+  reason: string;
+  status: "pending" | "approved" | "denied";
+  isPartial: boolean;
+  partialStartTime?: string;
+  partialEndTime?: string;
+  submittedOn: string;
+}
+
 interface AssistantHomePageProps {
   firstName: string;
   avatarUrl: string | null;
@@ -82,6 +98,7 @@ interface AssistantHomePageProps {
   stats: AssistantStats;
   recentMessages: RecentMessage[];
   enrollments: AssistantEnrollment[];
+  timeOffEntries: TimeOffEntry[];
 }
 
 /* ------------------------------------------------------------------ */
@@ -267,6 +284,279 @@ function BookingRow({ booking }: { booking: TodayBooking }) {
 }
 
 /* ------------------------------------------------------------------ */
+/*  My Availability sub-component                                       */
+/* ------------------------------------------------------------------ */
+
+function formatDateShort(dateStr: string): string {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function statusBadge(status: TimeOffEntry["status"]) {
+  switch (status) {
+    case "approved":
+      return {
+        label: "Approved",
+        className: "bg-[#4e6b51]/10 text-[#4e6b51] border-[#4e6b51]/20",
+      };
+    case "denied":
+      return { label: "Denied", className: "bg-red-400/10 text-red-400 border-red-400/20" };
+    case "pending":
+      return {
+        label: "Pending",
+        className: "bg-[#7a5c10]/10 text-[#7a5c10] border-[#7a5c10]/20",
+      };
+  }
+}
+
+function MyAvailabilitySection({ entries }: { entries: TimeOffEntry[] }) {
+  const [showForm, setShowForm] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [localEntries, setLocalEntries] = useState<TimeOffEntry[]>(entries);
+
+  // Form state
+  const [requestType, setRequestType] = useState<"full_day" | "partial">("full_day");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [startTime, setStartTime] = useState("09:00");
+  const [endTime, setEndTime] = useState("17:00");
+  const [reason, setReason] = useState("");
+
+  const inputClass =
+    "px-3 py-2 text-sm bg-surface border border-border rounded-lg text-foreground focus:outline-none focus:ring-1 focus:ring-accent/30 transition";
+
+  async function handleSubmit() {
+    if (!from) return;
+    setSubmitting(true);
+    try {
+      await submitTimeOffRequest({
+        from,
+        to: requestType === "full_day" ? to || from : from,
+        reason,
+        requestType,
+        startTime: requestType === "partial" ? startTime : undefined,
+        endTime: requestType === "partial" ? endTime : undefined,
+      });
+
+      // Optimistically add to local list
+      const newEntry: TimeOffEntry = {
+        id: Date.now(),
+        startDate: from,
+        endDate: requestType === "full_day" ? to || from : from,
+        reason: reason || "Time off request",
+        status: "pending",
+        isPartial: requestType === "partial",
+        partialStartTime: requestType === "partial" ? startTime : undefined,
+        partialEndTime: requestType === "partial" ? endTime : undefined,
+        submittedOn: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+      };
+      setLocalEntries((prev) => [newEntry, ...prev]);
+
+      // Reset form
+      setShowForm(false);
+      setFrom("");
+      setTo("");
+      setReason("");
+      setRequestType("full_day");
+      setStartTime("09:00");
+      setEndTime("17:00");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Card className="gap-0">
+      <CardHeader className="pb-0 pt-5">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-sm font-semibold">My Availability</CardTitle>
+          <button
+            onClick={() => setShowForm((v) => !v)}
+            className="flex items-center gap-1 text-xs text-muted hover:text-foreground transition-colors px-2 py-1 rounded-lg hover:bg-foreground/5"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Request Time Off
+          </button>
+        </div>
+      </CardHeader>
+      <CardContent className="px-5 pb-5 pt-3 space-y-3">
+        {/* Request form */}
+        {showForm && (
+          <div className="bg-surface border border-border rounded-xl p-4 space-y-3">
+            {/* Type selector */}
+            <div className="flex gap-2">
+              {(["full_day", "partial"] as const).map((t) => (
+                <button
+                  key={t}
+                  onClick={() => setRequestType(t)}
+                  className={cn(
+                    "px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors",
+                    requestType === t
+                      ? "bg-accent text-white border-accent"
+                      : "bg-surface text-muted border-border hover:border-foreground/20",
+                  )}
+                >
+                  {t === "full_day" ? "Full Day" : "Partial Day"}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex flex-wrap gap-3">
+              {/* Date fields */}
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] font-medium text-muted uppercase tracking-wide">
+                  {requestType === "partial" ? "Date" : "Start Date"}
+                </label>
+                <input
+                  type="date"
+                  value={from}
+                  onChange={(e) => setFrom(e.target.value)}
+                  className={inputClass}
+                />
+              </div>
+
+              {requestType === "full_day" && (
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-medium text-muted uppercase tracking-wide">
+                    End Date
+                  </label>
+                  <input
+                    type="date"
+                    value={to}
+                    min={from}
+                    onChange={(e) => setTo(e.target.value)}
+                    className={inputClass}
+                  />
+                </div>
+              )}
+
+              {requestType === "partial" && (
+                <>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[10px] font-medium text-muted uppercase tracking-wide">
+                      Start Time
+                    </label>
+                    <input
+                      type="time"
+                      value={startTime}
+                      onChange={(e) => setStartTime(e.target.value)}
+                      className={inputClass}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[10px] font-medium text-muted uppercase tracking-wide">
+                      End Time
+                    </label>
+                    <input
+                      type="time"
+                      value={endTime}
+                      onChange={(e) => setEndTime(e.target.value)}
+                      className={inputClass}
+                    />
+                  </div>
+                </>
+              )}
+
+              <div className="flex flex-col gap-1 flex-1 min-w-[160px]">
+                <label className="text-[10px] font-medium text-muted uppercase tracking-wide">
+                  Reason (optional)
+                </label>
+                <input
+                  type="text"
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  placeholder="e.g. Doctor appointment"
+                  className={inputClass}
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                onClick={handleSubmit}
+                disabled={!from || submitting}
+                className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium bg-accent text-white rounded-lg hover:bg-accent/90 transition-colors disabled:opacity-60"
+              >
+                <Check className="w-3 h-3" />
+                {submitting ? "Submitting…" : "Submit Request"}
+              </button>
+              <button
+                onClick={() => setShowForm(false)}
+                className="px-3 py-1.5 text-xs font-medium text-muted rounded-lg hover:bg-foreground/5 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Existing time-off entries */}
+        {localEntries.length === 0 && !showForm ? (
+          <div className="flex flex-col items-center justify-center py-8 text-center">
+            <CalendarDays className="w-8 h-8 text-foreground/15 mb-2" />
+            <p className="text-sm text-muted/60 font-medium">No upcoming time off</p>
+            <p className="text-xs text-muted/40 mt-0.5">
+              Submit a request to block your availability.
+            </p>
+          </div>
+        ) : (
+          localEntries.map((entry) => {
+            const badge = statusBadge(entry.status);
+            const dateLabel =
+              entry.startDate === entry.endDate
+                ? formatDateShort(entry.startDate)
+                : `${formatDateShort(entry.startDate)} – ${formatDateShort(entry.endDate)}`;
+
+            return (
+              <div
+                key={entry.id}
+                className="flex items-center justify-between gap-3 py-2.5 px-3 rounded-xl bg-surface/60"
+              >
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span
+                      className={cn(
+                        "text-[10px] font-semibold px-1.5 py-0.5 rounded-full border shrink-0",
+                        badge.className,
+                      )}
+                    >
+                      {badge.label}
+                    </span>
+                    {entry.isPartial && (
+                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-purple-50 text-purple-600 shrink-0">
+                        Partial
+                      </span>
+                    )}
+                    {entry.reason && (
+                      <span className="text-sm font-medium text-foreground truncate">
+                        {entry.reason}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted mt-0.5">
+                    {dateLabel}
+                    {entry.isPartial && entry.partialStartTime && entry.partialEndTime && (
+                      <span className="ml-1.5">
+                        · {entry.partialStartTime} – {entry.partialEndTime}
+                      </span>
+                    )}
+                  </p>
+                </div>
+                <span className="text-[10px] text-muted/50 shrink-0">{entry.submittedOn}</span>
+              </div>
+            );
+          })
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  Main export                                                         */
 /* ------------------------------------------------------------------ */
 
@@ -277,6 +567,7 @@ export function AssistantHomePage({
   stats,
   recentMessages,
   enrollments,
+  timeOffEntries,
 }: AssistantHomePageProps) {
   const today = new Date().toLocaleDateString("en-US", {
     weekday: "long",
@@ -467,6 +758,9 @@ export function AssistantHomePage({
           </CardContent>
         </Card>
       </div>
+
+      {/* ── My Availability ─────────────────────────────────────────── */}
+      <MyAvailabilitySection entries={timeOffEntries} />
 
       {/* ── Training & certifications ───────────────────────────────── */}
       <Card className="gap-0">

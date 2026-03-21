@@ -12,6 +12,7 @@ export type CorporateEventInquiryProps = {
   headcount: number;
   preferredDate?: string;
   details?: string;
+  businessName?: string;
 };
 
 export function CorporateEventInquiry({
@@ -24,9 +25,10 @@ export function CorporateEventInquiry({
   headcount,
   preferredDate,
   details,
+  businessName = "T Creative Studio",
 }: CorporateEventInquiryProps) {
   return (
-    <Layout preview={`New corporate event inquiry — ${companyName}`}>
+    <Layout preview={`New corporate event inquiry — ${companyName}`} businessName={businessName}>
       <Section style={content}>
         <Text style={heading}>New Corporate Event Inquiry</Text>
         <Text style={paragraph}>

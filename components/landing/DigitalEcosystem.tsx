@@ -1,13 +1,18 @@
 /**
  * DigitalEcosystem — Four-quadrant feature grid showcasing booking, portal, messaging, and marketplace.
  *
+ * Used on the landing page to communicate the platform's integrated ecosystem.
  * Client Component — uses Framer Motion for staggered scroll-reveal of each feature tile.
+ *
+ * No props — content is static. Wrapped in SectionWrapper for consistent section spacing/id.
  */
 "use client";
 
 import { motion } from "framer-motion";
 import { SectionWrapper } from "@/components/ui/SectionWrapper";
 
+// Static feature definitions — each represents a core platform capability.
+// Array over hardcoded JSX so the grid can be .map()'d with consistent stagger logic.
 const features = [
   {
     title: "Booking",
@@ -51,6 +56,9 @@ export function DigitalEcosystem() {
         </motion.div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-0 border border-foreground/10">
+          {/* .map() over features to render 4 tiles with staggered animation (delay: i * 0.1).
+              Array-driven rendering keeps the stagger delay calculation uniform and avoids
+              duplicating the motion.div markup for each feature. */}
           {features.map((feature, i) => (
             <motion.div
               key={feature.title}

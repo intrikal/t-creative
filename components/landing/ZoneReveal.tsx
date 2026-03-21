@@ -26,6 +26,9 @@ interface TransformationArc {
   stat: { value: string; label: string };
 }
 
+// Four transformation arcs — one per business vertical. Each arc has three phases
+// (raw → process → result) plus a stat. Array structure enables .map() in ZoneReveal
+// and shared TransformationBand component for all four zones.
 const ARCS: TransformationArc[] = [
   {
     id: "lash",
@@ -93,16 +96,30 @@ const ARCS: TransformationArc[] = [
   },
 ];
 
+/**
+ * TransformationBand — Scroll-pinned horizontal slider showing one zone's transformation arc.
+ *
+ * Props:
+ * - arc: TransformationArc data for one business vertical (raw, process, result, stat)
+ *
+ * The band is 250vh tall and sticky-pins a viewport-height container. As the user scrolls,
+ * three full-width panels slide horizontally (Raw → Process → Result) using scroll-driven transforms.
+ */
 function TransformationBand({ arc }: { arc: TransformationArc }) {
+  // useRef for scroll measurement on this 250vh band.
   const ref = useRef<HTMLDivElement>(null);
+  // Look up zone config (color, heading, CTA) from the shared ZONES registry.
   const zone = ZONES[arc.id];
 
+  // useScroll provides 0→1 progress over this band's scroll range.
   const { scrollYProgress } = useScroll({
     target: ref,
     offset: ["start start", "end start"],
   });
 
-  // Horizontal slide: 0% = Raw visible, 50% = Process, 100% = Result
+  // useTransform maps scroll progress to horizontal translateX.
+  // Three stops: 0% (Raw visible), -33.33% (Process), -66.66% (Result).
+  // Percentage-based so it scales with viewport width.
   const slideX = useTransform(
     scrollYProgress,
     [0, 0.4, 0.7, 1],
@@ -187,6 +204,9 @@ function TransformationBand({ arc }: { arc: TransformationArc }) {
                 >
                   {/* Grid lines — structure being applied */}
                   <div className="absolute inset-0 grid grid-cols-3 grid-rows-3">
+                    {/* Array.from({ length: 9 }) creates a 9-element array for the 3x3 grid.
+                        Array.from over a literal array because the elements are identical —
+                        we only need the index for keying. Visualizes "structure being applied." */}
                     {Array.from({ length: 9 }).map((_, i) => (
                       <div key={i} className="border border-foreground/[0.04]" />
                     ))}
@@ -247,6 +267,8 @@ function TransformationBand({ arc }: { arc: TransformationArc }) {
 export function ZoneReveal() {
   return (
     <section aria-label="Services">
+      {/* .map() over ARCS renders one TransformationBand per zone. Each band is self-contained
+          with its own 250vh scroll range, so the four zones stack vertically for ~1000vh total. */}
       {ARCS.map((arc) => (
         <TransformationBand key={arc.id} arc={arc} />
       ))}

@@ -20,6 +20,7 @@ import { revalidatePath } from "next/cache";
 import { eq, and, sql, inArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { z } from "zod";
+import { getPublicBusinessProfile } from "@/app/dashboard/settings/settings-actions";
 import { db } from "@/db";
 import { payments, bookings, services, profiles, syncLog } from "@/db/schema";
 import { PaymentLinkEmail } from "@/emails/PaymentLinkEmail";
@@ -132,6 +133,16 @@ const bookingClient = alias(profiles, "bookingClient");
 export async function getBookingsForPayment(): Promise<BookingForPayment[]> {
   await getUser();
 
+  const paidSums = db
+    .select({
+      bookingId: payments.bookingId,
+      totalPaid: sql<number>`coalesce(sum(${payments.amountInCents}), 0)`.as("total_paid"),
+    })
+    .from(payments)
+    .where(inArray(payments.status, ["paid", "partially_refunded"]))
+    .groupBy(payments.bookingId)
+    .as("paid_sums");
+
   const rows = await db
     .select({
       id: bookings.id,
@@ -143,16 +154,12 @@ export async function getBookingsForPayment(): Promise<BookingForPayment[]> {
       startsAt: bookings.startsAt,
       totalInCents: bookings.totalInCents,
       discountInCents: bookings.discountInCents,
-      paidSum: sql<number>`coalesce((
-        select sum(p.amount_in_cents)
-        from payments p
-        where p.booking_id = ${bookings.id}
-          and p.status in ('paid', 'partially_refunded')
-      ), 0)`,
+      paidSum: sql<number>`coalesce(${paidSums.totalPaid}, 0)`,
     })
     .from(bookings)
     .innerJoin(bookingClient, eq(bookings.clientId, bookingClient.id))
     .innerJoin(services, eq(bookings.serviceId, services.id))
+    .leftJoin(paidSums, eq(bookings.id, paidSums.bookingId))
     .where(inArray(bookings.status, ["confirmed", "in_progress", "completed"]))
     .orderBy(bookings.startsAt);
 
@@ -360,9 +367,10 @@ export async function processRefund(input: RefundInput): Promise<RefundResult> {
         square_other: "Square",
       };
 
+      const bp = await getPublicBusinessProfile();
       await sendEmail({
         to: recipient.email,
-        subject: `Refund processed — $${(input.amountInCents / 100).toFixed(2)} — T Creative`,
+        subject: `Refund processed — $${(input.amountInCents / 100).toFixed(2)} — ${bp.businessName}`,
         react: RefundNotification({
           clientName: recipient.firstName,
           refundAmountInCents: input.amountInCents,
@@ -371,6 +379,7 @@ export async function processRefund(input: RefundInput): Promise<RefundResult> {
             (payment.method ? methodLabels[payment.method] : null) ?? payment.method ?? "Unknown",
           reason: input.reason,
           serviceName,
+          businessName: bp.businessName,
         }),
         entityType: "refund_notification",
         localId: String(payment.id),
@@ -483,15 +492,17 @@ export async function createPaymentLink(input: {
       .where(eq(bookings.id, input.bookingId));
 
     if (linkClient?.email && linkClient.notifyEmail) {
+      const bp = await getPublicBusinessProfile();
       await sendEmail({
         to: linkClient.email,
-        subject: `${input.type === "deposit" ? "Deposit" : "Payment"} link — ${serviceName} — T Creative`,
+        subject: `${input.type === "deposit" ? "Deposit" : "Payment"} link — ${serviceName} — ${bp.businessName}`,
         react: PaymentLinkEmail({
           clientName: linkClient.firstName,
           serviceName,
           amountInCents: input.amountInCents,
           type: input.type,
           paymentUrl: url,
+          businessName: bp.businessName,
         }),
         entityType: "payment_link_delivery",
         localId: String(booking.id),

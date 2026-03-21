@@ -12,22 +12,30 @@ import { format } from "date-fns";
 import { and, eq, gte, lte, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { bookings, profiles, services, syncLog } from "@/db/schema";
+import { getPublicBusinessProfile, getPublicRemindersConfig } from "@/app/dashboard/settings/settings-actions";
 import { BookingReminder } from "@/emails/BookingReminder";
 import { sendEmail } from "@/lib/resend";
 import { sendSms } from "@/lib/twilio";
 
 type ReminderWindow = { label: string; hoursUntil: number; minHours: number; maxHours: number };
 
-const REMINDER_WINDOWS: ReminderWindow[] = [
-  { label: "24h", hoursUntil: 24, minHours: 23, maxHours: 25 },
-  { label: "48h", hoursUntil: 48, minHours: 47, maxHours: 49 },
-];
-
 export async function GET(request: Request) {
   const secret = request.headers.get("x-cron-secret");
   if (secret !== process.env.CRON_SECRET) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const [remindersConfig, businessProfile] = await Promise.all([
+    getPublicRemindersConfig(),
+    getPublicBusinessProfile(),
+  ]);
+  const businessName = businessProfile.businessName;
+  const REMINDER_WINDOWS: ReminderWindow[] = remindersConfig.bookingReminderHours.map((h) => ({
+    label: `${h}h`,
+    hoursUntil: h,
+    minHours: h - 1,
+    maxHours: h + 1,
+  }));
 
   const now = new Date();
   let totalSent = 0;
@@ -94,7 +102,7 @@ export async function GET(request: Request) {
               startsAt: startsAtFormatted,
               durationMinutes: booking.durationMinutes,
               totalInCents: booking.totalInCents,
-              location: booking.location ?? "T Creative Studio",
+              location: booking.location ?? businessName,
               hoursUntil: window.hoursUntil,
             }),
             entityType: emailEntityType,
@@ -123,7 +131,7 @@ export async function GET(request: Request) {
         if (!existingSms) {
           const success = await sendSms({
             to: booking.clientPhone,
-            body: `Hi ${booking.clientFirstName}! Reminder: your ${booking.serviceName} appt at T Creative is ${startsAtFormatted}. See you soon! Reply STOP to opt out.`,
+            body: `Hi ${booking.clientFirstName}! Reminder: your ${booking.serviceName} appt at ${businessName} is ${startsAtFormatted}. See you soon! Reply STOP to opt out.`,
             entityType: smsEntityType,
             localId,
           });

@@ -1,3 +1,23 @@
+/**
+ * Tests for GET /api/cron/campaigns — Zoho Campaigns batch sync.
+ *
+ * Covers:
+ *  - Auth: missing or wrong x-cron-secret returns 401
+ *  - Not configured: Zoho Campaigns env vars missing → 200 with skip message
+ *  - No-op: no unsynced profiles → zero counts, no sync calls
+ *  - Happy path: two unsynced profiles → syncs both, extracts interests
+ *    and birthday from onboardingData JSON
+ *  - Error handling: syncCampaignsSubscriber throws → increments failed counter,
+ *    captured by Sentry
+ *
+ * Mocks: db (select chain), syncCampaignsSubscriber,
+ * isZohoCampaignsConfigured, Sentry.
+ */
+// describe: groups related tests into a labeled block (like a folder for tests)
+// it/test: defines a single test case with a description and assertion function
+// expect: creates an assertion — checks that a value matches an expected condition
+// vi: Vitest's mock utility — creates fake functions, spies on calls, and controls return values
+// beforeEach: runs a setup function before every test in the current describe block
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 /* ------------------------------------------------------------------ */

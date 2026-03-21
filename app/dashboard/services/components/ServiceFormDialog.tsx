@@ -24,7 +24,7 @@
  * local `services` array — no re-fetch required.
  */
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { Check, ChevronsUpDown } from "lucide-react";
 import {
   Command,
@@ -66,8 +66,14 @@ export function ServiceFormDialog({
   initial: ServiceFormData | null;
   onSave: (data: ServiceFormData) => void;
 }) {
+  /** Controlled form state for all service fields (name, category, price, etc.). */
   const [form, setForm] = useState<ServiceFormData>(initial ?? BLANK_SERVICE_FORM);
+  /** Whether the category combobox popover is open. */
   const [catOpen, setCatOpen] = useState(false);
+  /** Memoized handler to avoid re-creating the popover's onOpenChange callback. */
+  const handleCatOpenChange = useCallback((open: boolean) => {
+    setCatOpen(open);
+  }, []);
 
   // Early return keeps the component out of the DOM when closed (saves memory, resets state).
   if (!open) return null;
@@ -98,7 +104,7 @@ export function ServiceFormDialog({
             />
           </Field>
           <Field label="Category" required>
-            <Popover open={catOpen} onOpenChange={setCatOpen}>
+            <Popover open={catOpen} onOpenChange={handleCatOpenChange}>
               <PopoverTrigger asChild>
                 <button
                   type="button"

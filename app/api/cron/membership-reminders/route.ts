@@ -14,6 +14,7 @@
 import { NextResponse } from "next/server";
 import { format } from "date-fns";
 import { and, eq, gte, lte } from "drizzle-orm";
+import { getPublicBusinessProfile } from "@/app/dashboard/settings/settings-actions";
 import { db } from "@/db";
 import { membershipPlans, membershipSubscriptions, profiles, syncLog } from "@/db/schema";
 import { MembershipReminder } from "@/emails/MembershipReminder";
@@ -33,12 +34,8 @@ export async function GET(request: Request) {
   const now = new Date();
 
   // Find memberships whose cycleEndsAt is 3–4 days from now.
-  const windowStart = new Date(
-    now.getTime() + REMINDER_DAYS_BEFORE * 24 * 60 * 60 * 1000,
-  );
-  const windowEnd = new Date(
-    windowStart.getTime() + WINDOW_HOURS * 60 * 60 * 1000,
-  );
+  const windowStart = new Date(now.getTime() + REMINDER_DAYS_BEFORE * 24 * 60 * 60 * 1000);
+  const windowEnd = new Date(windowStart.getTime() + WINDOW_HOURS * 60 * 60 * 1000);
 
   const candidates = await db
     .select({
@@ -62,6 +59,8 @@ export async function GET(request: Request) {
         lte(membershipSubscriptions.cycleEndsAt, windowEnd),
       ),
     );
+
+  const bp = await getPublicBusinessProfile();
 
   // Look up the studio slug for booking URLs.
   const [adminProfile] = await db
@@ -111,9 +110,7 @@ export async function GET(request: Request) {
       (candidate.cycleEndsAt.getTime() - now.getTime()) / (24 * 60 * 60 * 1000),
     );
     const cycleEndsFormatted = format(candidate.cycleEndsAt, "MMMM d");
-    const bookingUrl = slug
-      ? `${baseUrl}/book/${slug}`
-      : `${baseUrl}/dashboard/book`;
+    const bookingUrl = slug ? `${baseUrl}/book/${slug}` : `${baseUrl}/dashboard/book`;
 
     const hasUnusedFills = candidate.fillsRemainingThisCycle > 0;
     const subject = hasUnusedFills
@@ -131,6 +128,7 @@ export async function GET(request: Request) {
         cycleEndsAt: cycleEndsFormatted,
         daysUntilReset,
         bookingUrl,
+        businessName: bp.businessName,
       }),
       entityType: "membership_cycle_reminder",
       localId,

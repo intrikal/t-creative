@@ -1,24 +1,44 @@
+/**
+ * Event server actions — queries and mutations for the Events feature.
+ *
+ * Consumed by:
+ *   - app/dashboard/events/EventsPage.tsx (admin event list)
+ *   - app/dashboard/events/ClientEventsPage.tsx (client-facing view)
+ *   - app/dashboard/calendar/ (calendar grid and event creation)
+ *
+ * All exported functions are Next.js server actions ("use server").
+ * Admin actions gate on requireAdmin; client actions gate on requireAuth.
+ * Every mutation calls revalidatePath(PATH) so the events dashboard
+ * picks up changes without a full page reload.
+ */
 "use server";
 
 import { revalidatePath } from "next/cache";
 import * as Sentry from "@sentry/nextjs";
-import { eq, desc, ne, sql, and, inArray } from "drizzle-orm";
+import { eq, desc, sql, and, inArray, gte, lte } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import { events, eventGuests, eventStaff, eventVenues, profiles } from "@/db/schema";
+import { getPublicBusinessProfile } from "@/app/dashboard/settings/settings-actions";
 import { EventInviteEmail } from "@/emails/EventInviteEmail";
 import { trackEvent } from "@/lib/posthog";
 import { sendEmail } from "@/lib/resend";
 import { requireAdmin, getUser as requireAuth } from "@/lib/auth";
 
+/** Revalidation target — Next.js busts the RSC cache for this path after every mutation. */
 const PATH = "/dashboard/events";
 
+/** Alias: all actions in this file require admin unless noted otherwise. */
 const getUser = requireAdmin;
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Narrow string-union types mirroring the DB enums.
+ * These are re-exported so UI components avoid importing the schema directly.
+ */
 export type EventType =
   | "bridal"
   | "pop_up"
@@ -37,6 +57,7 @@ export type VenueType =
   | "pop_up_venue"
   | "corporate_venue";
 
+/** Shape returned by getVenues — flat row with no relations. */
 export type VenueRow = {
   id: number;
   name: string;
@@ -48,6 +69,7 @@ export type VenueRow = {
   isActive: boolean;
 };
 
+/** Write payload for createVenue / updateVenue. */
 export type VenueInput = {
   name: string;
   address?: string | null;
@@ -57,6 +79,7 @@ export type VenueInput = {
   defaultTravelFeeInCents?: number | null;
 };
 
+/** Staff assignment row with denormalized name from profiles. */
 export type EventStaffRow = {
   id: number;
   staffId: string;
@@ -65,6 +88,7 @@ export type EventStaffRow = {
   notes: string | null;
 };
 
+/** Guest row — tracks name, chosen service, and payment status. */
 export type EventGuestRow = {
   id: number;
   name: string;
@@ -72,6 +96,11 @@ export type EventGuestRow = {
   paid: boolean;
 };
 
+/**
+ * Composite event row returned by getEvents / getClientEvents.
+ * Includes denormalized venue name and nested guest + staff arrays
+ * so the UI can render a full event card without extra fetches.
+ */
 export type EventRow = {
   id: number;
   title: string;
@@ -94,7 +123,11 @@ export type EventRow = {
   services: string | null;
   internalNotes: string | null;
   description: string | null;
-  /** Corporate event fields — admin only (billingEmail/poNumber hidden from clients). */
+  /**
+   * Corporate event fields — admin only.
+   * billingEmail and poNumber are nulled out in getClientEvents
+   * to prevent leaking billing details to the client-facing view.
+   */
   companyName: string | null;
   billingEmail: string | null;
   poNumber: string | null;
@@ -102,6 +135,7 @@ export type EventRow = {
   staffAssignments: EventStaffRow[];
 };
 
+/** Write payload for createEvent / updateEvent (partial for updates). */
 export type EventInput = {
   title: string;
   eventType: EventType;
@@ -131,6 +165,11 @@ export type EventInput = {
 /*  Zod schemas                                                        */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Runtime validation schemas — mirror the DB enums and column constraints.
+ * Every mutation validates input before touching the database so callers
+ * get a clear Zod error rather than a Postgres constraint violation.
+ */
 const venueTypeEnum = z.enum([
   "studio",
   "client_home",
@@ -195,6 +234,7 @@ const guestInputSchema = z.object({
 /*  Venue queries                                                      */
 /* ------------------------------------------------------------------ */
 
+/** Returns all saved venues (active and inactive) for the venue management dialog. */
 export async function getVenues(): Promise<VenueRow[]> {
   try {
     await getUser();
@@ -213,6 +253,9 @@ export async function getVenues(): Promise<VenueRow[]> {
       .from(eventVenues)
       .orderBy(eventVenues.name);
 
+    // Narrow Drizzle's wide string type for venueType back to the strict
+    // VenueType union. Spread copies all fields, overriding just the one
+    // that needs the type assertion.
     return rows.map((r) => ({ ...r, venueType: r.venueType as VenueType }));
   } catch (err) {
     Sentry.captureException(err);
@@ -224,6 +267,7 @@ export async function getVenues(): Promise<VenueRow[]> {
 /*  Venue mutations                                                    */
 /* ------------------------------------------------------------------ */
 
+/** Creates a reusable venue record. Returns the new venue id. */
 export async function createVenue(data: VenueInput): Promise<number> {
   try {
     venueInputSchema.parse(data);
@@ -249,12 +293,18 @@ export async function createVenue(data: VenueInput): Promise<number> {
   }
 }
 
+/**
+ * Partial-updates a venue. Also handles soft-delete via the isActive flag
+ * so historical events still reference the venue name.
+ */
 export async function updateVenue(id: number, data: Partial<VenueInput> & { isActive?: boolean }) {
   try {
     z.number().int().positive().parse(id);
     venueInputSchema.partial().extend({ isActive: z.boolean().optional() }).parse(data);
     await getUser();
 
+    /* Build a sparse SET clause — only touch columns the caller supplied,
+       so an update to parkingInfo alone won't null out the address. */
     const set: Record<string, unknown> = {};
     if (data.name !== undefined) set.name = data.name;
     if (data.address !== undefined) set.address = data.address;
@@ -274,12 +324,29 @@ export async function updateVenue(id: number, data: Partial<VenueInput> & { isAc
 }
 
 /* ------------------------------------------------------------------ */
-/*  Query                                                              */
+/*  Event queries                                                      */
 /* ------------------------------------------------------------------ */
 
-export async function getEvents(): Promise<EventRow[]> {
+/**
+ * Returns all events (admin view) with optional date-range filtering.
+ *
+ * Uses a two-phase query strategy:
+ *   1. Fetch event rows with a LEFT JOIN to eventVenues for the venue name.
+ *   2. Batch-fetch guests and staff for the returned event ids via inArray.
+ *
+ * This avoids an N+1 problem — instead of querying guests per event,
+ * we pull them all in one shot and group in memory.
+ */
+export async function getEvents(opts?: {
+  startDate?: Date;
+  endDate?: Date;
+}): Promise<EventRow[]> {
   try {
     await getUser();
+
+    const conditions = [];
+    if (opts?.startDate) conditions.push(gte(events.startsAt, opts.startDate));
+    if (opts?.endDate) conditions.push(lte(events.startsAt, opts.endDate));
 
     const rows = await db
       .select({
@@ -309,34 +376,51 @@ export async function getEvents(): Promise<EventRow[]> {
         poNumber: events.poNumber,
       })
       .from(events)
+      /* LEFT JOIN: events may have a saved venue or a free-text location. */
       .leftJoin(eventVenues, eq(events.venueId, eventVenues.id))
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
       .orderBy(desc(events.startsAt));
 
-    // Fetch guests and staff assignments for all events in parallel
-    const [allGuests, allStaffRows] = await Promise.all([
-      db
-        .select({
-          id: eventGuests.id,
-          eventId: eventGuests.eventId,
-          name: eventGuests.name,
-          service: eventGuests.service,
-          paid: eventGuests.paid,
-        })
-        .from(eventGuests),
-      db
-        .select({
-          id: eventStaff.id,
-          eventId: eventStaff.eventId,
-          staffId: eventStaff.staffId,
-          firstName: profiles.firstName,
-          lastName: profiles.lastName,
-          role: eventStaff.role,
-          notes: eventStaff.notes,
-        })
-        .from(eventStaff)
-        .innerJoin(profiles, eq(eventStaff.staffId, profiles.id)),
-    ]);
+    /* Phase 2: batch-load guests and staff for all returned events.
+       Guard against empty eventIds — Postgres inArray([]) would error. */
+    // Extract event IDs for the batch guest/staff fetch below.
+    const eventIds = rows.map((r) => r.id);
+    // Promise.all fetches guests and staff assignments concurrently for all
+    // events in one shot — avoids an N+1 query problem (one query per event).
+    // Ternary guards against empty eventIds: Postgres inArray([]) would error.
+    const [allGuests, allStaffRows] =
+      eventIds.length > 0
+        ? await Promise.all([
+            db
+              .select({
+                id: eventGuests.id,
+                eventId: eventGuests.eventId,
+                name: eventGuests.name,
+                service: eventGuests.service,
+                paid: eventGuests.paid,
+              })
+              .from(eventGuests)
+              .where(inArray(eventGuests.eventId, eventIds)),
+            db
+              .select({
+                id: eventStaff.id,
+                eventId: eventStaff.eventId,
+                staffId: eventStaff.staffId,
+                firstName: profiles.firstName,
+                lastName: profiles.lastName,
+                role: eventStaff.role,
+                notes: eventStaff.notes,
+              })
+              .from(eventStaff)
+              /* INNER JOIN profiles to denormalize the staff display name.
+                 If a profile is deleted, the cascade on eventStaff removes
+                 the row, so an inner join is safe (no orphans). */
+              .innerJoin(profiles, eq(eventStaff.staffId, profiles.id))
+              .where(inArray(eventStaff.eventId, eventIds)),
+          ])
+        : [[], []];
 
+    /* Group guests and staff into Maps keyed by eventId for O(1) lookup. */
     const guestsByEvent = new Map<number, EventGuestRow[]>();
     for (const g of allGuests) {
       const list = guestsByEvent.get(g.eventId) ?? [];
@@ -350,6 +434,8 @@ export async function getEvents(): Promise<EventRow[]> {
       list.push({
         id: s.id,
         staffId: s.staffId,
+        // Build display name from first + last, filtering out null/empty parts.
+        // filter(Boolean) handles cases where lastName is null (single-name staff).
         staffName: [s.firstName, s.lastName].filter(Boolean).join(" "),
         role: s.role,
         notes: s.notes,
@@ -357,6 +443,11 @@ export async function getEvents(): Promise<EventRow[]> {
       staffByEvent.set(s.eventId, list);
     }
 
+    /* Serialize dates to ISO strings and narrow Drizzle's wide string
+       types back to our strict union types for the UI layer. */
+    // Spread each row to copy all 20+ fields, then override dates (to ISO strings),
+    // enum types (to strict unions), and attach the pre-grouped guests/staff arrays.
+    // Map lookups are O(1) per event thanks to the Maps built above.
     return rows.map((r) => ({
       ...r,
       eventType: r.eventType as EventType,
@@ -377,6 +468,13 @@ export async function getEvents(): Promise<EventRow[]> {
 /*  Client query — events where the client is the host                 */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Client-facing variant of getEvents — scoped to events.hostId = user.id.
+ *
+ * Uses requireAuth (not requireAdmin) so any logged-in client can view
+ * their own events. Sensitive admin fields (internalNotes, billingEmail,
+ * poNumber) are explicitly nulled out before returning.
+ */
 export async function getClientEvents(): Promise<EventRow[]> {
   try {
     const user = await requireAuth();
@@ -410,7 +508,9 @@ export async function getClientEvents(): Promise<EventRow[]> {
       .where(eq(events.hostId, user.id))
       .orderBy(desc(events.startsAt));
 
+    // Extract event IDs for batch-fetching guests and staff below.
     const eventIds = rows.map((r) => r.id);
+    // Ternary: guard against empty eventIds — Postgres inArray([]) would error.
     const allGuests =
       eventIds.length > 0
         ? await db
@@ -422,11 +522,11 @@ export async function getClientEvents(): Promise<EventRow[]> {
               paid: eventGuests.paid,
             })
             .from(eventGuests)
+            .where(inArray(eventGuests.eventId, eventIds))
         : [];
 
     const guestsByEvent = new Map<number, EventGuestRow[]>();
     for (const g of allGuests) {
-      if (!eventIds.includes(g.eventId)) continue;
       const list = guestsByEvent.get(g.eventId) ?? [];
       list.push({ id: g.id, name: g.name, service: g.service, paid: g.paid });
       guestsByEvent.set(g.eventId, list);
@@ -456,6 +556,7 @@ export async function getClientEvents(): Promise<EventRow[]> {
       list.push({
         id: s.id,
         staffId: s.staffId,
+        // Build display name, filtering out null/empty name parts.
         staffName: [s.firstName, s.lastName].filter(Boolean).join(" "),
         role: s.role,
         notes: s.notes,
@@ -463,6 +564,10 @@ export async function getClientEvents(): Promise<EventRow[]> {
       staffByEvent.set(s.eventId, list);
     }
 
+    // Spread each event row, override dates/types, null out admin-only fields,
+    // and attach guest/staff arrays. Spread copies all shared fields, then
+    // explicit nulls for internalNotes/billingEmail/poNumber prevent leaking
+    // sensitive admin data to the client-facing view.
     return rows.map((r) => ({
       ...r,
       eventType: r.eventType as EventType,
@@ -483,12 +588,16 @@ export async function getClientEvents(): Promise<EventRow[]> {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Mutations                                                          */
+/*  Event mutations                                                    */
 /* ------------------------------------------------------------------ */
 
 /**
  * Resolves location/address from a saved venue when venueId is provided.
  * Returns the denormalized values to store on the event row.
+ *
+ * Why denormalize? The event card and email templates need a display
+ * name and address without joining through eventVenues every time.
+ * When venueId is null the caller's free-text fallbacks are used instead.
  */
 async function resolveVenueLocation(
   venueId: number | null | undefined,
@@ -506,6 +615,7 @@ async function resolveVenueLocation(
   return { location: venue.name, address: venue.address };
 }
 
+/** Creates a new event. The authenticated admin becomes the host. Returns the new event id. */
 export async function createEvent(data: EventInput): Promise<number> {
   try {
     eventInputSchema.parse(data);
@@ -555,12 +665,20 @@ export async function createEvent(data: EventInput): Promise<number> {
   }
 }
 
+/**
+ * Partial-updates an event. Only supplied fields are written.
+ *
+ * Status transitions: when status changes to "completed" or "cancelled",
+ * the corresponding timestamp (completedAt / cancelledAt) is set
+ * so the dashboard can show when the transition happened.
+ */
 export async function updateEvent(id: number, data: Partial<EventInput>) {
   try {
     z.number().int().positive().parse(id);
     eventInputSchema.partial().parse(data);
     const user = await getUser();
 
+    /* Sparse SET — same pattern as updateVenue to avoid clobbering untouched fields. */
     const set: Record<string, unknown> = {};
     if (data.title !== undefined) set.title = data.title;
     if (data.eventType !== undefined) set.eventType = data.eventType;
@@ -584,7 +702,8 @@ export async function updateEvent(id: number, data: Partial<EventInput>) {
     if (data.billingEmail !== undefined) set.billingEmail = data.billingEmail;
     if (data.poNumber !== undefined) set.poNumber = data.poNumber;
 
-    // Resolve location from venue if venueId is being updated
+    /* Re-resolve denormalized location when any location-related field changes,
+       so the event card stays in sync with the venue record. */
     if (data.venueId !== undefined || data.location !== undefined || data.address !== undefined) {
       const { location, address } = await resolveVenueLocation(
         data.venueId,
@@ -595,6 +714,7 @@ export async function updateEvent(id: number, data: Partial<EventInput>) {
       set.address = address;
     }
 
+    /* Record terminal-state timestamps for audit / reporting. */
     if (data.status === "completed") set.completedAt = new Date();
     if (data.status === "cancelled") set.cancelledAt = new Date();
 
@@ -607,6 +727,7 @@ export async function updateEvent(id: number, data: Partial<EventInput>) {
   }
 }
 
+/** Hard-deletes an event. Guests and staff assignments cascade via FK. */
 export async function deleteEvent(id: number) {
   try {
     z.number().int().positive().parse(id);
@@ -624,6 +745,7 @@ export async function deleteEvent(id: number) {
 /*  Guest mutations                                                    */
 /* ------------------------------------------------------------------ */
 
+/** Adds a guest to an event's attendee list. Returns the new guest id. */
 export async function addGuest(
   eventId: number,
   guest: { name: string; service?: string; paid?: boolean },
@@ -651,6 +773,7 @@ export async function addGuest(
   }
 }
 
+/** Removes a guest by id. */
 export async function removeGuest(guestId: number) {
   try {
     z.number().int().positive().parse(guestId);
@@ -663,6 +786,7 @@ export async function removeGuest(guestId: number) {
   }
 }
 
+/** Flips a guest's paid flag in-place using a SQL NOT expression to avoid a read-then-write. */
 export async function toggleGuestPaid(guestId: number) {
   try {
     z.number().int().positive().parse(guestId);
@@ -718,6 +842,8 @@ export async function sendEventRsvpInvite(eventId: number): Promise<{ url: strin
     if (!existing) {
       await db
         .update(events)
+        // Spread existing metadata to preserve any other keys, then add/overwrite
+        // just the rsvpToken. This is non-destructive — other metadata fields survive.
         .set({ metadata: { ...(event.metadata ?? {}), rsvpToken: token } })
         .where(eq(events.id, eventId));
     }
@@ -734,15 +860,17 @@ export async function sendEventRsvpInvite(eventId: number): Promise<{ url: strin
       minute: "2-digit",
     });
 
+    const bp = await getPublicBusinessProfile();
     await sendEmail({
       to: event.contactEmail,
-      subject: `You're invited — ${event.title} — T Creative Studio`,
+      subject: `You're invited — ${event.title} — ${bp.businessName}`,
       react: EventInviteEmail({
         eventTitle: event.title,
         eventDate,
         eventLocation: event.location,
         services: event.services,
         rsvpUrl,
+        businessName: bp.businessName,
       }),
       entityType: "event_invite",
       localId: String(eventId),
@@ -762,29 +890,11 @@ export async function sendEventRsvpInvite(eventId: number): Promise<{ url: strin
 
 /**
  * Returns all non-client profiles for the staff assignment selector.
- * Reuses the same pattern as bookings' getStaffForSelect.
+ * Delegates to the shared getStaffForSelect to avoid a duplicate query.
  */
 export async function getStaffForEvents(): Promise<{ id: string; name: string }[]> {
-  try {
-    await getUser();
-    const rows = await db
-      .select({
-        id: profiles.id,
-        firstName: profiles.firstName,
-        lastName: profiles.lastName,
-      })
-      .from(profiles)
-      .where(ne(profiles.role, "client"))
-      .orderBy(profiles.firstName);
-
-    return rows.map((r) => ({
-      id: r.id,
-      name: [r.firstName, r.lastName].filter(Boolean).join(" "),
-    }));
-  } catch (err) {
-    Sentry.captureException(err);
-    throw err;
-  }
+  const { getStaffForSelect } = await import("../bookings/select-actions");
+  return getStaffForSelect();
 }
 
 /* ------------------------------------------------------------------ */
@@ -797,6 +907,7 @@ const staffAssignmentSchema = z.object({
   notes: z.string().optional(),
 });
 
+/** Assigns a staff member to an event. Returns the new assignment id. */
 export async function assignStaff(
   eventId: number,
   data: { staffId: string; role?: string; notes?: string },
@@ -824,6 +935,7 @@ export async function assignStaff(
   }
 }
 
+/** Updates the role or notes on an existing staff assignment. */
 export async function updateStaffAssignment(
   assignmentId: number,
   data: { role?: string; notes?: string },
@@ -844,6 +956,7 @@ export async function updateStaffAssignment(
   }
 }
 
+/** Removes a staff assignment by id. */
 export async function removeStaffAssignment(assignmentId: number) {
   try {
     z.number().int().positive().parse(assignmentId);

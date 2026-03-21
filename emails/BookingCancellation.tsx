@@ -26,7 +26,7 @@ export function BookingCancellation({
     refundDecision && refundDecision !== "no_deposit";
 
   return (
-    <Layout preview={`Booking cancelled — ${serviceName}`}>
+    <Layout preview={`Booking cancelled — ${serviceName}`} businessName={businessName}>
       <Section style={content}>
         <Text style={heading}>Booking Cancelled</Text>
         <Text style={paragraph}>Hey {clientName}, your appointment has been cancelled.</Text>

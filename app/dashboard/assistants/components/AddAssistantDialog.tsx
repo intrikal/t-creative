@@ -1,3 +1,11 @@
+/**
+ * AddAssistantDialog — Form dialog for onboarding a new assistant.
+ *
+ * Collects name, role, contact info, status, specialties, certifications,
+ * commission type (percentage vs flat-fee), commission rate, and tip-split
+ * percentage. All monetary values are stored in cents on the backend; the
+ * form accepts human-friendly dollar amounts and converts on save.
+ */
 "use client";
 
 import { useState } from "react";

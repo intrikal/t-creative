@@ -1,6 +1,14 @@
+/**
+ * ProductDialog — Create/edit dialog for a marketplace product.
+ *
+ * Renders fields for name, category, status, description, pricing type,
+ * price(s), stock, tags, and an optional service link. The pricing fields
+ * adapt dynamically: "custom quote" hides price inputs; "range" shows
+ * both min and max; "fixed" / "starting at" show a single input.
+ */
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, Field, Input, Textarea, Select, DialogFooter } from "@/components/ui/dialog";
 import type { ProductForm } from "./helpers";
 
@@ -21,11 +29,23 @@ export function ProductDialog({
   saving: boolean;
   serviceOptions?: ServiceOption[];
 }) {
+  /** form: local draft of product fields, reset whenever the dialog opens */
   const [form, setForm] = useState<ProductForm>(initial);
+
+  // Reset draft from parent's `initial` each time the dialog opens,
+  // so stale values from a previous edit session don't leak through
+  useEffect(() => {
+    if (open) setForm(initial);
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // set: curried updater — returns an onChange handler for any field.
+  // Spread merges the changed field into the current draft immutably.
   const set =
     (field: keyof ProductForm) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
       setForm((f) => ({ ...f, [field]: e.target.value }));
+  // valid: name is always required; price is required unless the
+  // pricing type is "custom_quote" (admin will quote manually)
   const valid =
     form.name.trim() !== "" && (form.pricingType === "custom_quote" || form.price !== "");
 
@@ -37,7 +57,7 @@ export function ProductDialog({
       description="Add or update a product in your marketplace."
       size="md"
     >
-      <div className="space-y-4" key={String(open)}>
+      <div className="space-y-4">
         <Field label="Product name" required>
           <Input value={form.name} onChange={set("name")} placeholder="e.g. Lash Aftercare Kit" />
         </Field>

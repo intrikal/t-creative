@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 /**
+ * @file review-rating-flow.integration.test.ts
  * Integration tests for the review rating flow.
  *
  * These tests verify the complete lifecycle of `approveReview`,
@@ -15,6 +16,10 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 type MockRow = Record<string, unknown>;
 
+/**
+ * Creates a mock DB that tracks review rows in memory.
+ * Test assertions read _reviews to verify final state after mutations.
+ */
 function createStatefulDb() {
   const _reviews: MockRow[] = [];
 
@@ -79,13 +84,16 @@ function createStatefulDb() {
 /*  Shared mock refs                                                   */
 /* ------------------------------------------------------------------ */
 
+/** Stub for supabase auth.getUser. */
 const mockGetUser = vi.fn();
+/** Captures revalidatePath calls. */
 const mockRevalidatePath = vi.fn();
 
 /* ------------------------------------------------------------------ */
 /*  Setup helper                                                       */
 /* ------------------------------------------------------------------ */
 
+/** Registers all module mocks using the stateful DB instance. */
 function setupMocks(db: ReturnType<typeof createStatefulDb>) {
   vi.doMock("@/db", () => ({ db }));
 

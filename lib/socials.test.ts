@@ -1,10 +1,30 @@
+// describe: groups related tests into a labeled block (like a folder for tests)
+// it/test: defines a single test case with a description and assertion function
+// expect: creates an assertion — checks that a value matches an expected condition
+// vi: Vitest's mock utility — creates fake functions, spies on calls, and controls return values
+import { FaInstagram, FaLinkedinIn } from "react-icons/fa";
 import { describe, it, expect, vi } from "vitest";
+
+/**
+ * Tests for the socials data module — static social media link definitions.
+ *
+ * Covers:
+ *  - Non-empty array export
+ *  - Every entry has label, href, icon, description
+ *  - All hrefs are valid absolute URLs
+ *  - Instagram entries: correct accounts with canonical trailing-slash URLs
+ *  - LinkedIn entry: points to correct profile
+ *  - Shape: icon is truthy, no duplicate hrefs
+ *
+ * Mocks: react-icons/fa (string stubs since we only test data shape, not rendering).
+ */
 
 /* ------------------------------------------------------------------ */
 /*  Mocks                                                              */
 /* ------------------------------------------------------------------ */
 
-// react-icons components are not needed for testing the data shape.
+// Mock react-icons — we only test the data shape, not icon rendering.
+// String stubs satisfy the import without pulling in React JSX.
 vi.mock("react-icons/fa", () => ({
   FaInstagram: "FaInstagram",
   FaLinkedinIn: "FaLinkedinIn",
@@ -50,7 +70,7 @@ describe("lib/socials", () => {
 
     it("all Instagram hrefs point to instagram.com", async () => {
       const { socials } = await import("./socials");
-      const instagram = socials.filter((s) => s.icon === "FaInstagram");
+      const instagram = socials.filter((s) => s.icon === FaInstagram);
       for (const s of instagram) {
         expect(s.href).toContain("instagram.com");
       }
@@ -105,7 +125,7 @@ describe("lib/socials", () => {
 
     it("LinkedIn href points to linkedin.com", async () => {
       const { socials } = await import("./socials");
-      const entry = socials.find((s) => s.icon === "FaLinkedinIn");
+      const entry = socials.find((s) => s.icon === FaLinkedinIn);
       expect(entry).toBeDefined();
       expect(entry!.href).toContain("linkedin.com");
     });

@@ -1,6 +1,19 @@
+/**
+ * StudentDialog — modal for enrolling a new student in a training program.
+ *
+ * Used by the admin Training dashboard. Form fields: client selector,
+ * program selector, enrollment status, and amount paid.
+ *
+ * ## Reset-on-open strategy
+ * The useEffect watches `open` and resets all form fields to defaults
+ * when the dialog opens. This ensures stale data from a previous open
+ * does not persist.
+ *
+ * @module training/components/StudentDialog
+ */
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, Field, Input, Select, DialogFooter } from "@/components/ui/dialog";
 import type { ProgramRow, ClientOption, StudentStatus, EnrollmentFormData } from "../actions";
 
@@ -19,16 +32,30 @@ export function StudentDialog({
   clients: ClientOption[];
   saving: boolean;
 }) {
+  /** Selected client UUID for the enrollment. */
   const [clientId, setClientId] = useState(clients[0]?.id ?? "");
+  /** Selected program ID. */
   const [programId, setProgramId] = useState<number>(programs[0]?.id ?? 0);
+  /** Enrollment status — defaults to "active" (immediately enrolled). */
   const [status, setStatus] = useState<StudentStatus>("active");
+  /** Dollar amount already paid by the student. */
   const [amountPaid, setAmountPaid] = useState("0");
+
+  // Reset form fields when dialog opens so previous entries don't persist.
+  useEffect(() => {
+    if (open) {
+      setClientId(clients[0]?.id ?? "");
+      setProgramId(programs[0]?.id ?? 0);
+      setStatus("active");
+      setAmountPaid("0");
+    }
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const selectedProg = programs.find((p) => p.id === programId) ?? programs[0];
 
   return (
     <Dialog open={open} onClose={onClose} title="Add Student" size="md">
-      <div className="space-y-4" key={String(open)}>
+      <div className="space-y-4">
         <Field label="Client" required>
           <Select value={clientId} onChange={(e) => setClientId(e.target.value)}>
             {clients.length === 0 && <option value="">No clients available</option>}

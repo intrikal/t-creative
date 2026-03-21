@@ -1,16 +1,70 @@
 /**
- * AboutPage — Client Component rendering the About page content.
+ * AboutPage — Client Component rendering the public /about page.
  *
- * Displays founder bio, four service pillars, social links, and location CTA.
+ * Composed of four sections:
+ *   1. Hero — Dark-background split layout with the founder's photo and bio.
+ *   2. Service pillars — 2x2 grid of the four core offerings.
+ *   3. Social links — Grid of external profile cards.
+ *   4. Location CTA — "Get in Touch" call-to-action with the studio's city.
+ *
+ * All text content (owner name, bio, location, email, social links) is
+ * passed in via props from the Server Component so the data can come from
+ * the CMS / site-settings table without this file importing server-only
+ * modules.
+ *
+ * This is a Client Component ("use client") because it uses Framer Motion
+ * for scroll-triggered entry animations (whileInView) which rely on
+ * browser Intersection Observer APIs unavailable during SSR.
  */
 "use client";
 
 import Image from "next/image";
 import { motion } from "framer-motion";
+import { FaInstagram, FaLinkedinIn } from "react-icons/fa";
 import { Footer } from "@/components/landing/Footer";
-import { socials } from "@/lib/socials";
+import { socials as defaultSocials } from "@/lib/socials";
 
-export function AboutPage() {
+const platformIcons: Record<string, React.ComponentType<{ size?: number }>> = {
+  Instagram: FaInstagram,
+  LinkedIn: FaLinkedinIn,
+};
+
+export function AboutPage({
+  ownerName,
+  bio,
+  location,
+  email,
+  footerTagline,
+  socialLinks,
+}: {
+  ownerName?: string;
+  bio?: string;
+  location?: string;
+  email?: string;
+  footerTagline?: string;
+  socialLinks?: { platform: string; handle: string; url: string }[];
+}) {
+  // Transform CMS-sourced social links into the internal {label, href, icon,
+  // description} shape used by the social cards grid. Resolves platform name
+  // to a React icon component, falling back to FaInstagram for unknown platforms.
+  // Falls back to hardcoded defaultSocials when no CMS data is provided.
+  const socials = socialLinks
+    ? socialLinks.map((s) => ({
+        label: s.handle,
+        href: s.url,
+        icon: platformIcons[s.platform] ?? FaInstagram,
+        description: s.platform,
+      }))
+    : defaultSocials;
+
+  const bioParagraphs = (
+    bio ??
+    "A creative entrepreneur passionate about helping others feel confident and beautiful. With expertise spanning lash artistry, permanent jewelry design, handcrafted crochet, and business consulting, I bring intention and care to every creation.\n\nBased in the San Francisco Bay Area, I combine artistic vision with business acumen to transform both looks and businesses. I also work as an HR professional, bringing strategic expertise to help companies build better teams and processes."
+  // Split the bio text on double-newlines to produce one string per paragraph.
+  // This lets us wrap each paragraph in its own <p> tag with independent spacing,
+  // rather than using a single block with CSS white-space or dangerouslySetInnerHTML.
+  ).split("\n\n");
+
   return (
     <>
       <main id="main-content" className="pt-16">
@@ -26,19 +80,16 @@ export function AboutPage() {
                 About
               </span>
               <h1 className="text-4xl md:text-5xl font-light tracking-tight mb-6">
-                Hi, I&apos;m Trini.
+                Hi, I&apos;m {ownerName ?? "Trini"}.
               </h1>
-              <p className="text-base text-background/70 leading-relaxed mb-4">
-                A creative entrepreneur passionate about helping others feel confident and
-                beautiful. With expertise spanning lash artistry, permanent jewelry design,
-                handcrafted crochet, and business consulting, I bring intention and care to every
-                creation.
-              </p>
-              <p className="text-base text-background/70 leading-relaxed">
-                Based in the San Francisco Bay Area, I combine artistic vision with business acumen
-                to transform both looks and businesses. I also work as an HR professional, bringing
-                strategic expertise to help companies build better teams and processes.
-              </p>
+              {bioParagraphs.map((p, i) => (
+                <p
+                  key={i}
+                  className={`text-base text-background/70 leading-relaxed ${i < bioParagraphs.length - 1 ? "mb-4" : ""}`}
+                >
+                  {p}
+                </p>
+              ))}
             </motion.div>
 
             <motion.div
@@ -50,7 +101,7 @@ export function AboutPage() {
               <div className="w-72 h-72 md:w-80 md:h-96 rounded-sm overflow-hidden relative shadow-2xl">
                 <Image
                   src="/images/trini.jpg"
-                  alt="Trini Lam — Founder & Creative Director of T Creative Studio"
+                  alt={`${ownerName ?? "Trini Lam"} — Founder & Creative Director of T Creative Studio`}
                   fill
                   className="object-cover"
                   priority
@@ -79,6 +130,10 @@ export function AboutPage() {
             </motion.div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              {/* Render the four service pillar cards from a literal array. Using
+                  an inline array + .map() keeps the data co-located with the JSX
+                  rather than extracting a separate constant, since these values are
+                  static and only used here. The index drives staggered animation delay. */}
               {[
                 {
                   title: "Lash Extensions",
@@ -146,6 +201,8 @@ export function AboutPage() {
             </motion.div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+              {/* Render each social link as an animated card with icon, handle, and
+                  platform description. Staggered animation via index-based delay. */}
               {socials.map((s, i) => {
                 const Icon = s.icon;
                 return (
@@ -190,7 +247,7 @@ export function AboutPage() {
                 Location
               </span>
               <h2 className="text-3xl md:text-4xl font-light tracking-tight text-foreground mb-6">
-                Serving San Jose &amp; the Bay Area
+                Serving {location ?? "San Jose"} &amp; the Bay Area
               </h2>
               <p className="text-base text-muted leading-relaxed mb-10">
                 Whether you&apos;re looking for beauty services, custom crochet work, or business
@@ -206,7 +263,7 @@ export function AboutPage() {
           </div>
         </section>
       </main>
-      <Footer />
+      <Footer email={email} tagline={footerTagline} socialLinks={socialLinks} />
     </>
   );
 }

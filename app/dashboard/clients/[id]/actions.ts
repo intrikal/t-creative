@@ -1,3 +1,35 @@
+/**
+ * actions.ts — Server actions for the Client Detail page (`/dashboard/clients/[id]`).
+ *
+ * ## Responsibility
+ * Provides a single `getClientDetail` function that loads the full 360-degree
+ * view of a client: profile, beauty preferences, booking history, payment
+ * ledger, service records (lash maps, adhesive notes), loyalty transactions,
+ * message threads, and signed form submissions.
+ *
+ * ## Consumer
+ * - `app/dashboard/clients/[id]/page.tsx` — client detail page (all tabs)
+ *
+ * ## Query strategy
+ * All eight data sections are fetched via `Promise.all` to run in parallel.
+ * This avoids a waterfall of sequential queries — the page load time equals
+ * the slowest single query rather than the sum of all eight.
+ *
+ * The profile query is run first (outside Promise.all) because a missing
+ * profile means the client doesn't exist and we can short-circuit before
+ * firing the remaining seven queries.
+ *
+ * ## Integration context
+ * This file is read-only — no mutations. Data that originated from Square
+ * payments or Zoho CRM syncs is already stored locally; this file only reads
+ * from local tables. The `onboardingData` JSONB field may contain data
+ * originally captured from public onboarding forms.
+ *
+ * ## Related files
+ * - `app/dashboard/clients/actions.ts` — list-level queries and CRM mutations
+ * - `db/schema/client-preferences.ts`  — `client_preferences` table definition
+ * - `db/schema/service-records.ts`     — `service_records` table (lash mapping data)
+ */
 "use server";
 
 import * as Sentry from "@sentry/nextjs";
@@ -16,25 +48,13 @@ import {
   formSubmissions,
   clientForms,
 } from "@/db/schema";
-import { createClient as createSupabaseClient } from "@/utils/supabase/server";
+import { getUser } from "@/lib/auth";
 
 /* ------------------------------------------------------------------ */
-/*  Auth guard                                                         */
+/*  Types — shapes returned to the client detail page tabs             */
 /* ------------------------------------------------------------------ */
 
-async function getUser() {
-  const supabase = await createSupabaseClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
-  return user;
-}
-
-/* ------------------------------------------------------------------ */
-/*  Types                                                              */
-/* ------------------------------------------------------------------ */
-
+/** Core CRM profile data shown in the detail page header and "Overview" tab. */
 export type ClientProfile = {
   id: string;
   firstName: string;
@@ -52,6 +72,7 @@ export type ClientProfile = {
   onboardingData: Record<string, unknown> | null;
 };
 
+/** Single booking row for the "Appointments" tab — includes joined service and staff names. */
 export type ClientBookingRow = {
   id: number;
   serviceName: string;
@@ -67,6 +88,7 @@ export type ClientBookingRow = {
   location: string | null;
 };
 
+/** Single payment row for the "Payments" tab — may originate from Square sync. */
 export type ClientPaymentRow = {
   id: number;
   bookingId: number;
@@ -79,6 +101,12 @@ export type ClientPaymentRow = {
   createdAt: Date;
 };
 
+/**
+ * Service record for the "Service History" tab — captures lash-tech-specific
+ * documentation (lash mapping, curl type, adhesive, retention notes) recorded
+ * after each appointment. Critical for continuity across visits when a
+ * different technician handles the client.
+ */
 export type ClientServiceRecordRow = {
   id: number;
   bookingId: number;
@@ -99,6 +127,11 @@ export type ClientServiceRecordRow = {
   createdAt: Date;
 };
 
+/**
+ * Beauty/health preferences — long-lived defaults vs. per-visit service records.
+ * These represent the client's general preferences (e.g. "prefers C-curl"),
+ * while service records capture what was actually applied at each appointment.
+ */
 export type ClientPreferencesData = {
   preferredLashStyle: string | null;
   preferredCurlType: string | null;
@@ -117,6 +150,7 @@ export type ClientPreferencesData = {
   preferredRebookIntervalDays: number | null;
 };
 
+/** Individual loyalty transaction for the "Loyalty" tab ledger view. */
 export type ClientLoyaltyRow = {
   id: string;
   points: number;
@@ -125,6 +159,12 @@ export type ClientLoyaltyRow = {
   createdAt: Date;
 };
 
+/**
+ * Message thread summary for the "Messages" tab. Includes correlated
+ * subquery counts for total and unread messages per thread — done as
+ * scalar subqueries rather than GROUP BY to avoid complicating the
+ * outer query with aggregation.
+ */
 export type ClientThreadRow = {
   id: number;
   subject: string;
@@ -135,6 +175,7 @@ export type ClientThreadRow = {
   unreadCount: number;
 };
 
+/** Signed form/waiver row for the "Forms" tab — joined with form metadata. */
 export type ClientFormSubmissionRow = {
   id: number;
   formName: string;
@@ -144,6 +185,11 @@ export type ClientFormSubmissionRow = {
   data: Record<string, unknown> | null;
 };
 
+/**
+ * Aggregate payload returned by `getClientDetail` — contains every section
+ * the detail page needs. Delivered as a single server action response so
+ * the page renders in one pass rather than streaming partial states.
+ */
 export type ClientDetailData = {
   profile: ClientProfile;
   preferences: ClientPreferencesData | null;
@@ -157,13 +203,32 @@ export type ClientDetailData = {
 };
 
 /* ------------------------------------------------------------------ */
-/*  Main query                                                         */
+/*  Main query — full 360-degree client detail fetch                   */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Load everything the client detail page needs in a single call.
+ *
+ * Execution flow:
+ *   1. Fetch the profile row (short-circuit to null if client doesn't exist).
+ *   2. Fire 9 parallel queries via Promise.all: referrer name, referral count,
+ *      preferences, bookings, payments, service records, loyalty transactions,
+ *      message threads, and form submissions.
+ *   3. Assemble and return the composite `ClientDetailData` payload.
+ *
+ * The bookings query filters out soft-deleted bookings (`deletedAt IS NULL`)
+ * while payments and service records are kept regardless — a refunded payment
+ * on a cancelled booking is still financially relevant.
+ *
+ * Staff name joins use LEFT JOIN (not INNER) because some bookings may be
+ * unassigned (pending staff allocation) or the staff profile may have been
+ * deactivated.
+ */
 export async function getClientDetail(clientId: string): Promise<ClientDetailData | null> {
   try {
     await getUser();
 
+    // Referrer subquery alias — prepared but only used if profile has a referredBy value
     const referrer = db
       .select({
         id: profiles.id,
@@ -195,7 +260,7 @@ export async function getClientDetail(clientId: string): Promise<ClientDetailDat
 
     if (!profileRow) return null;
 
-    // Fetch referrer name and referral count in parallel with other queries
+    // Staff alias for booking/service-record joins — reused across multiple queries
     const staffAlias = db
       .select({
         id: profiles.id,
@@ -205,6 +270,11 @@ export async function getClientDetail(clientId: string): Promise<ClientDetailDat
       .from(profiles)
       .as("staff_alias");
 
+    // Promise.all fires 9 independent queries in parallel — referrer name,
+    // referral count, preferences, bookings, payments, service records, loyalty,
+    // threads, and form submissions share no data dependency. This reduces the
+    // detail page load time from the sum of all queries to the slowest single one.
+    // Destructuring assigns each result to a named variable for readability.
     const [
       referrerResult,
       referralCountResult,
@@ -217,6 +287,9 @@ export async function getClientDetail(clientId: string): Promise<ClientDetailDat
       formSubsResult,
     ] = await Promise.all([
       // Referrer name
+      // Ternary: only query the referrer's name if referredBy is set — otherwise
+      // resolve to an empty array to avoid a wasted DB round-trip. This keeps
+      // the referrer query inside Promise.all so it runs in parallel with the rest.
       profileRow.referredBy
         ? db
             .select({ firstName: profiles.firstName })
@@ -376,6 +449,9 @@ export async function getClientDetail(clientId: string): Promise<ClientDetailDat
     };
 
     const prefs = prefsResult[0] ?? null;
+    // Ternary: if a preferences row exists, map it into the ClientPreferencesData
+    // shape; otherwise return null. The 1:1 table may not have a row yet if the
+    // client hasn't saved beauty preferences.
     const preferences: ClientPreferencesData | null = prefs
       ? {
           preferredLashStyle: prefs.preferredLashStyle,
@@ -396,11 +472,18 @@ export async function getClientDetail(clientId: string): Promise<ClientDetailDat
         }
       : null;
 
+    // Compute balance client-side by summing all transaction points (credits are
+    // positive, redemptions are negative) — avoids a separate aggregate query.
+    // .reduce() sums all loyalty transaction points (credits positive, redemptions
+    // negative) to compute the current balance — avoids a separate SQL aggregate query.
     const loyaltyBalance = loyaltyResult.reduce((sum, r) => sum + r.points, 0);
 
     return {
       profile,
       preferences,
+      // .map() transforms each booking DB row into a ClientBookingRow, building
+      // the staff display name from separate first/last columns via .filter(Boolean)
+      // to handle null names from the LEFT JOIN (unassigned or deactivated staff).
       bookings: bookingsResult.map((b) => ({
         id: b.id,
         serviceName: b.serviceName,
@@ -416,6 +499,9 @@ export async function getClientDetail(clientId: string): Promise<ClientDetailDat
         location: b.location,
       })),
       payments: paymentsResult,
+      // .map() transforms each service record DB row into a ClientServiceRecordRow,
+      // building staff name the same way as bookings above — .filter(Boolean)
+      // handles null name parts from the LEFT JOIN on the staff profile.
       serviceRecords: serviceRecordsResult.map((sr) => ({
         id: sr.id,
         bookingId: sr.bookingId,
@@ -437,6 +523,9 @@ export async function getClientDetail(clientId: string): Promise<ClientDetailDat
       })),
       loyaltyTransactions: loyaltyResult,
       loyaltyBalance,
+      // .map() with spread copies all thread fields, then overrides messageCount
+      // and unreadCount with Number() — the scalar subqueries return string types
+      // from Postgres that need coercion to numbers for the TypeScript interface.
       threads: threadsResult.map((t) => ({
         ...t,
         messageCount: Number(t.messageCount),

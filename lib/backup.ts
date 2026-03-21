@@ -84,8 +84,18 @@ export interface BackupManifest {
 /*  Group builder helper                                               */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Build a BackupTableGroup from a map of table names to their row arrays.
+ * Computes per-table counts and the group total for the summary section.
+ *
+ * @param tables - Map of table name to its full row dump (e.g. { profiles: [...] }).
+ * @returns A BackupTableGroup with totalRows and per-table count/rows.
+ */
 function makeGroup(tables: Record<string, unknown[]>): BackupTableGroup {
   const result: BackupTableGroup = { totalRows: 0, tables: {} };
+  // Object.entries() iterates the table-name → row-array pairs, computing
+  // per-table counts and accumulating a group total. Using Object.entries()
+  // because the input is a plain Record and we need both key and value.
   for (const [name, rows] of Object.entries(tables)) {
     result.tables[name] = { count: rows.length, rows };
     result.totalRows += rows.length;
@@ -105,6 +115,10 @@ function makeGroup(tables: Record<string, unknown[]>): BackupTableGroup {
 export async function createBackupManifest(): Promise<BackupManifest> {
   // All groups fetched concurrently — each Promise.all within a group is also
   // parallel, so total wall-clock time ≈ slowest single query.
+  // Outer Promise.all runs all 17 domain groups in parallel. Each group is itself
+  // a Promise.all of its constituent table queries. This two-level parallelism
+  // means total wall-clock time equals the single slowest table query, not the sum.
+  // Destructuring assigns each resolved group to a named variable for clarity.
   const [
     identityRows,
     servicesRows,
@@ -341,6 +355,9 @@ export async function createBackupManifest(): Promise<BackupManifest> {
   /* ── Build summary (one row-count per group for quick health check) ── */
   const summary: Record<string, number> = {};
   let grandTotal = 0;
+  // Object.entries() iterates each domain group to build a summary Record of
+  // group-name → row-count, plus a running grand total. This flat summary
+  // enables quick integrity checks without traversing the nested group structure.
   for (const [name, group] of Object.entries(groups)) {
     summary[name] = group.totalRows;
     grandTotal += group.totalRows;
@@ -360,14 +377,18 @@ export async function createBackupManifest(): Promise<BackupManifest> {
 /*  S3-compatible upload                                               */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Result returned by `uploadBackupToStorage()` after a successful S3 PUT.
+ * Used by the admin backup UI to show upload confirmation with size stats.
+ */
 export interface UploadResult {
-  /** Full S3 object key the backup was stored under. */
+  /** Full S3 object key the backup was stored under (e.g. "backups/2026/03/15/backup-...json.gz"). */
   key: string;
-  /** Byte size of the compressed payload. */
+  /** Byte size of the gzip-compressed payload that was uploaded. */
   compressedBytes: number;
-  /** Byte size of the raw JSON before compression. */
+  /** Byte size of the raw JSON before compression (useful for compression ratio display). */
   rawBytes: number;
-  /** ISO 8601 timestamp. */
+  /** ISO 8601 timestamp of when the backup was created (same as manifest.createdAt). */
   uploadedAt: string;
 }
 
@@ -409,11 +430,15 @@ export async function uploadBackupToStorage(manifest: BackupManifest): Promise<U
   const client = new S3Client({
     region,
     credentials: { accessKeyId, secretAccessKey },
+    // Spread operator conditionally merges the endpoint config — only present for
+    // non-AWS providers (R2, Backblaze). For AWS S3, the spread of {} is a no-op.
     ...(endpoint ? { endpoint, forcePathStyle: false } : {}),
   });
 
   /* Build dated key: backups/2026/03/15/backup-1742054400000.json.gz */
   const now = new Date(manifest.createdAt);
+  // Build "YYYY/MM/DD" path segments from UTC date parts and .join("/") them
+  // into a date-based S3 key prefix for easy browsing in the storage console.
   const datePath = [
     String(now.getUTCFullYear()),
     String(now.getUTCMonth() + 1).padStart(2, "0"),

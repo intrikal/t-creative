@@ -1,7 +1,26 @@
+// describe: groups related tests into a labeled block (like a folder for tests)
+// it/test: defines a single test case with a description and assertion function
+// expect: creates an assertion — checks that a value matches an expected condition
 import { describe, it, expect } from "vitest";
+// generateWaiverToken: creates a signed, time-limited token embedding bookingId + clientId
+// verifyWaiverToken: validates the token's signature and expiry, returns the payload or null
 import { generateWaiverToken, verifyWaiverToken } from "./waiver-token";
 
+/**
+ * Tests for the waiver token module — HMAC-signed tokens used in
+ * pre-appointment waiver form links.
+ *
+ * Covers:
+ *  - Round-trip: generate → verify returns original payload
+ *  - Tampered token → null
+ *  - Expired token → null
+ *  - Malformed token (no dot) → null
+ *  - Empty string → null
+ *
+ * No external mocks — uses the real crypto module with the test env secret.
+ */
 describe("waiver-token", () => {
+  // Round-trip test: the payload should survive generate → verify intact
   it("generates a valid token that can be verified", () => {
     const payload = { bookingId: 42, clientId: "client-1" };
     const token = generateWaiverToken(payload);
@@ -9,6 +28,7 @@ describe("waiver-token", () => {
     expect(result).toEqual(payload);
   });
 
+  // Token integrity check — any modification to the signature invalidates it
   it("returns null for tampered token", () => {
     const token = generateWaiverToken({ bookingId: 1, clientId: "c1" });
     const tampered = token.slice(0, -3) + "xxx";

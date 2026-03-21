@@ -5,6 +5,7 @@ import { ExportButton } from "@/components/ExportButton";
 import { cn } from "@/lib/utils";
 
 const FINANCIAL_TABS = [
+  "Revenue",
   "Transactions",
   "Invoices",
   "Expenses",
@@ -15,6 +16,7 @@ type FinancialTab = (typeof FINANCIAL_TABS)[number];
 
 export function FinancialShell({
   overview,
+  revenue,
   transactions,
   invoices,
   expenses,
@@ -22,6 +24,7 @@ export function FinancialShell({
   promotions,
 }: {
   overview: ReactNode;
+  revenue: ReactNode;
   transactions: ReactNode;
   invoices: ReactNode;
   expenses: ReactNode;
@@ -29,7 +32,7 @@ export function FinancialShell({
   promotions: ReactNode;
 }) {
   const [range, setRange] = useState("7d");
-  const [tab, setTab] = useState<FinancialTab>("Transactions");
+  const [tab, setTab] = useState<FinancialTab>("Revenue");
 
   return (
     <div className="p-4 md:p-6 lg:p-8 space-y-6">
@@ -82,6 +85,7 @@ export function FinancialShell({
       </div>
 
       {/* Tab content — all pre-rendered, show/hide via CSS */}
+      <div style={{ display: tab === "Revenue" ? "block" : "none" }}>{revenue}</div>
       <div style={{ display: tab === "Transactions" ? "block" : "none" }}>{transactions}</div>
       <div style={{ display: tab === "Invoices" ? "block" : "none" }}>{invoices}</div>
       <div style={{ display: tab === "Expenses" ? "block" : "none" }}>{expenses}</div>

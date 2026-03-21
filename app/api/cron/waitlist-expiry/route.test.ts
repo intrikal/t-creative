@@ -1,3 +1,32 @@
+/**
+ * Tests for GET /api/cron/waitlist-expiry — advance waitlist queue after
+ * claim token expiry.
+ *
+ * Covers:
+ *  - Auth: missing or wrong x-cron-secret returns 401
+ *  - Empty waitlist: no expired "notified" entries → zero counts,
+ *    notifyNextWaitlistEntry never called
+ *  - Token clearing: expired entry → update sets status="expired",
+ *    claimToken=null, claimTokenExpiresAt=null
+ *  - Queue advancement: expired entry with future offeredSlotStartsAt →
+ *    calls notifyNextWaitlistEntry with serviceId and slot details,
+ *    returns advanced=1
+ *  - Past slot: offeredSlotStartsAt in the past → skips re-offering,
+ *    returns skippedPastSlots=1
+ *  - Null slot: offeredSlotStartsAt is null → skips, skippedPastSlots=1
+ *  - Mixed entries: 2 entries (1 future, 1 past) → expired=2, advanced=1,
+ *    skippedPastSlots=1
+ *  - Error resilience: notifyNextWaitlistEntry throws on first entry →
+ *    continues processing second entry (both attempted)
+ *
+ * Mocks: db (select/update chains), notifyNextWaitlistEntry,
+ * drizzle-orm operators, Sentry.
+ */
+// describe: groups related tests into a labeled block (like a folder for tests)
+// it/test: defines a single test case with a description and assertion function
+// expect: creates an assertion — checks that a value matches an expected condition
+// vi: Vitest's mock utility — creates fake functions, spies on calls, and controls return values
+// beforeEach: runs a setup function before every test in the current describe block
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 /* ------------------------------------------------------------------ */

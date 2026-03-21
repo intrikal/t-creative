@@ -9,17 +9,32 @@
 "use client";
 
 import { useState } from "react";
-import { Card, CardContent } from "@/components/ui/card";
+import { useTimeoutFlag } from "@/lib/hooks/use-timeout-flag";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import type { RemindersConfig } from "../settings-actions";
 import { saveReminders } from "../settings-actions";
-import { Toggle, StatefulSaveButton } from "./shared";
+import { Toggle, FieldRow, StatefulSaveButton, NUM_INPUT_CLASS } from "./shared";
 
 export function RemindersTab({ initial }: { initial: RemindersConfig }) {
+  /** Reminder step configurations (label, timing, email/sms/active toggles). */
   const [reminders, setReminders] = useState(initial.items);
+  /** Days after a visit to send a fill/rebook reminder. */
+  const [fillReminderDays, setFillReminderDays] = useState(initial.fillReminderDays);
+  /** Hours after appointment completion to send a review request. */
+  const [reviewRequestDelayHours, setReviewRequestDelayHours] = useState(initial.reviewRequestDelayHours);
+  /** Comma-separated hour values for booking reminder windows (e.g. "24, 48"). */
+  const [bookingReminderHours, setBookingReminderHours] = useState(initial.bookingReminderHours.join(", "));
+  /** Whether the save action is in flight. */
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
+  /** Briefly true after a successful save; auto-resets via useTimeoutFlag. */
+  const [saved, triggerSaved] = useTimeoutFlag(2000);
 
+  /**
+   * toggleField — flips a single boolean (email, sms, or active) on a reminder step.
+   * Uses .map() to produce a new array with only the matched reminder changed,
+   * and a computed property key so one function handles all three toggle types.
+   */
   function toggleField(id: number, field: "email" | "sms" | "active") {
     setReminders((prev) => prev.map((r) => (r.id === id ? { ...r, [field]: !r[field] } : r)));
   }
@@ -27,9 +42,19 @@ export function RemindersTab({ initial }: { initial: RemindersConfig }) {
   async function handleSave() {
     setSaving(true);
     try {
-      await saveReminders({ items: reminders });
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
+      // Parse the comma-separated hours string into an array of positive integers.
+      // Invalid entries (NaN, <= 0) are filtered out; falls back to [24, 48] if empty.
+      const parsedHours = bookingReminderHours
+        .split(",")
+        .map((s) => parseInt(s.trim(), 10))
+        .filter((n) => !isNaN(n) && n > 0);
+      await saveReminders({
+        items: reminders,
+        fillReminderDays,
+        reviewRequestDelayHours,
+        bookingReminderHours: parsedHours.length > 0 ? parsedHours : [24, 48],
+      });
+      triggerSaved();
     } finally {
       setSaving(false);
     }
@@ -43,6 +68,41 @@ export function RemindersTab({ initial }: { initial: RemindersConfig }) {
           Configure your client communication sequence. SMS is powered by Square.
         </p>
       </div>
+      <Card className="gap-0">
+        <CardHeader className="pb-0 pt-5 px-5">
+          <CardTitle className="text-[10px] font-semibold uppercase tracking-wide text-muted">
+            Cron Timing
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="px-5 pb-5 pt-3 space-y-4">
+          <FieldRow label="Fill reminder (days after visit)">
+            <input
+              type="number"
+              value={fillReminderDays}
+              onChange={(e) => setFillReminderDays(parseInt(e.target.value, 10) || 18)}
+              className={NUM_INPUT_CLASS}
+            />
+          </FieldRow>
+          <FieldRow label="Review request delay (hours)">
+            <input
+              type="number"
+              value={reviewRequestDelayHours}
+              onChange={(e) => setReviewRequestDelayHours(parseInt(e.target.value, 10) || 24)}
+              className={NUM_INPUT_CLASS}
+            />
+          </FieldRow>
+          <FieldRow label="Booking reminder windows (hours, comma-separated)">
+            <input
+              type="text"
+              value={bookingReminderHours}
+              onChange={(e) => setBookingReminderHours(e.target.value)}
+              placeholder="24, 48"
+              className={NUM_INPUT_CLASS}
+            />
+          </FieldRow>
+        </CardContent>
+      </Card>
+
       <Card className="gap-0">
         <CardContent className="px-5 pb-5 pt-5">
           <div className="grid grid-cols-[1fr_60px_60px_56px] gap-x-4 mb-3 pb-2 border-b border-border/60 items-center">

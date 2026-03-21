@@ -6,11 +6,17 @@ export type BookingNoShowProps = {
   clientName: string;
   serviceName: string;
   bookingDate: string;
+  businessName?: string;
 };
 
-export function BookingNoShow({ clientName, serviceName, bookingDate }: BookingNoShowProps) {
+export function BookingNoShow({
+  clientName,
+  serviceName,
+  bookingDate,
+  businessName = "T Creative Studio",
+}: BookingNoShowProps) {
   return (
-    <Layout preview={`Missed appointment — ${serviceName}`}>
+    <Layout preview={`Missed appointment — ${serviceName}`} businessName={businessName}>
       <Section style={content}>
         <Text style={heading}>Missed Appointment</Text>
         <Text style={paragraph}>Hey {clientName}, it looks like you missed your appointment.</Text>

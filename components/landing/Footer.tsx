@@ -1,14 +1,30 @@
 /**
  * Footer — Site-wide footer with brand info, navigation columns, and social links.
  *
+ * Used at the bottom of the landing page (and potentially other pages).
  * Client Component — uses Framer Motion for fade-in on scroll.
+ *
+ * Props (all optional):
+ * - email: contact email override from admin settings
+ * - tagline: brand description override
+ * - socialLinks: social media links from admin dashboard (platform, handle, url)
  */
 "use client";
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { socials } from "@/lib/socials";
+import { FaInstagram, FaLinkedinIn } from "react-icons/fa";
+import { socials as defaultSocials } from "@/lib/socials";
 
+// Maps platform names to icon components. Record<string, ComponentType> chosen for O(1)
+// lookups by platform name when rendering admin-configured social links.
+const platformIcons: Record<string, React.ComponentType<{ size?: number }>> = {
+  Instagram: FaInstagram,
+  LinkedIn: FaLinkedinIn,
+};
+
+// Static navigation columns — Services and Studio links.
+// Array of {title, links[]} structure enables .map() for rendering both columns uniformly.
 const columns = [
   {
     title: "Services",
@@ -32,7 +48,27 @@ const columns = [
   },
 ];
 
-export function Footer() {
+export function Footer({
+  email,
+  tagline,
+  socialLinks,
+}: {
+  email?: string;
+  tagline?: string;
+  socialLinks?: { platform: string; handle: string; url: string }[];
+} = {}) {
+  // Ternary: if admin-configured socialLinks are provided, .map() transforms them into
+  // the shape expected by the render loop (label, href, icon component, description).
+  // platformIcons[s.platform] ?? FaInstagram falls back to Instagram icon for unknown platforms.
+  // If no socialLinks prop, uses the default socials from lib/socials.
+  const socials = socialLinks
+    ? socialLinks.map((s) => ({
+        label: s.handle,
+        href: s.url,
+        icon: platformIcons[s.platform] ?? FaInstagram,
+        description: s.platform,
+      }))
+    : defaultSocials;
   return (
     <motion.footer
       className="py-16 md:py-24 px-6 border-t border-foreground/5"
@@ -49,15 +85,18 @@ export function Footer() {
               T Creative Studio
             </p>
             <p className="text-sm text-muted leading-relaxed max-w-sm mb-2">
-              Lash extensions, crochet hair, permanent jewelry, custom craft, 3D printing, and
-              business consulting. Structure makes beautiful things.
+              {tagline ??
+                "Lash extensions, crochet hair, permanent jewelry, custom craft, 3D printing, and business consulting. Structure makes beautiful things."}
             </p>
             <p className="text-xs text-muted/60 mb-4">
               San Jose · Bay Area · Certifications &amp; training available.
             </p>
-            <p className="text-sm text-muted mb-6">hello@tcreativestudio.com</p>
+            <p className="text-sm text-muted mb-6">{email ?? "hello@tcreativestudio.com"}</p>
             {/* Social icons row */}
             <div className="flex gap-3">
+              {/* .map() over socials to render icon buttons. Destructuring the icon component
+                  into a capitalized `Icon` variable so it can be used as a JSX element.
+                  Each social link opens in a new tab with noopener noreferrer for security. */}
               {socials.map((s) => {
                 const Icon = s.icon;
                 return (
@@ -77,7 +116,8 @@ export function Footer() {
             </div>
           </div>
 
-          {/* Link columns */}
+          {/* .map() over columns to render nav link groups. Nested .map() on col.links
+              renders individual links within each column. */}
           {columns.map((col) => (
             <div key={col.title}>
               <p className="text-xs tracking-widest uppercase text-foreground mb-4">{col.title}</p>

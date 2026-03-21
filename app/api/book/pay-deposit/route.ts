@@ -27,10 +27,10 @@ import { Resend } from "resend";
 import { db } from "@/db";
 import { bookings, bookingAddOns, payments, profiles, services, syncLog } from "@/db/schema";
 import { logAction } from "@/lib/audit";
+import { rruleToCadenceLabel } from "@/lib/cadence";
 import { trackEvent } from "@/lib/posthog";
 import { RESEND_FROM, isResendConfigured } from "@/lib/resend";
 import { isSquareConfigured, createSquarePayment } from "@/lib/square";
-import { rruleToCadenceLabel } from "@/lib/cadence";
 import { verifyTurnstileToken } from "@/lib/turnstile";
 import { createClient } from "@/utils/supabase/server";
 
@@ -55,6 +55,8 @@ export async function POST(request: Request) {
     referencePhotoUrls,
     idempotencyKey,
     selectedAddOns,
+    tosAccepted,
+    tosVersion,
     // Guest fields
     name: guestName,
     email: guestEmail,
@@ -73,10 +75,16 @@ export async function POST(request: Request) {
     phone?: string;
     turnstileToken?: string;
     selectedAddOns?: { name: string; priceInCents: number }[];
+    tosAccepted?: boolean;
+    tosVersion?: string;
   };
 
   if (!sourceId || !serviceId || !preferredDate || !idempotencyKey) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+  }
+
+  if (tosAccepted !== true) {
+    return NextResponse.json({ error: "Policy acceptance is required" }, { status: 400 });
   }
 
   // ── Determine user identity ──
@@ -163,6 +171,8 @@ export async function POST(request: Request) {
         durationMinutes: service.durationMinutes ?? 60,
         totalInCents: service.priceInCents ?? 0,
         recurrenceRule: recurrenceRule || null,
+        tosAcceptedAt: new Date(),
+        tosVersion: tosVersion || null,
         clientNotes,
       })
       .returning({ id: bookings.id });

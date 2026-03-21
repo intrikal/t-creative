@@ -11,6 +11,7 @@ export type BookingReminderProps = {
   totalInCents: number;
   location: string;
   hoursUntil: number;
+  businessName?: string;
 };
 
 export function BookingReminder({
@@ -21,11 +22,12 @@ export function BookingReminder({
   totalInCents,
   location,
   hoursUntil,
+  businessName = "T Creative Studio",
 }: BookingReminderProps) {
   const timeLabel = hoursUntil <= 24 ? "tomorrow" : `in ${Math.round(hoursUntil / 24)} days`;
 
   return (
-    <Layout preview={`Reminder: ${serviceName} ${timeLabel}`}>
+    <Layout preview={`Reminder: ${serviceName} ${timeLabel}`} businessName={businessName}>
       <Section style={content}>
         <Text style={heading}>Appointment Reminder</Text>
         <Text style={paragraph}>

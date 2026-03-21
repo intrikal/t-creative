@@ -36,6 +36,18 @@ export function isZohoCampaignsConfigured(): boolean {
  * from Zoho CRM. Most endpoints accept form-encoded params with
  * `resfmt=JSON` and return `{ status, message, code }`.
  */
+/**
+ * Low-level helper to call the Zoho Campaigns REST API (v1.1).
+ *
+ * POSTs form-encoded params to `campaigns.zoho.com/api/v1.1{path}` with
+ * the shared Zoho OAuth2 bearer token. Automatically appends `resfmt=JSON`
+ * so all responses come back as JSON.
+ *
+ * @param path - API path after the version prefix (e.g. "/json/listsubscribe").
+ * @param params - Key-value params to send as form-encoded body fields.
+ * @returns Parsed JSON response (typically { status, message, code }).
+ * @throws On HTTP errors (non-2xx status) with the raw response body.
+ */
 async function campaignsFetch(
   path: string,
   params: Record<string, string>,
@@ -65,6 +77,15 @@ async function campaignsFetch(
 /*  Sync log helper                                                    */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Write a sync audit row to the `sync_log` table.
+ *
+ * INSERTs a row with provider="zoho", direction="outbound" plus the
+ * caller-supplied fields. Non-fatal — failures are swallowed so sync
+ * logging never breaks the subscriber sync itself.
+ *
+ * @param entry - Sync event details (status, entity type, IDs, messages).
+ */
 async function logSync(entry: {
   status: "success" | "failed";
   entityType: string;
@@ -88,15 +109,29 @@ async function logSync(entry: {
 /*  Public API — all fire-and-forget, non-fatal                        */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Data required to add or update a subscriber in Zoho Campaigns.
+ * Assembled by the caller (onboarding action, profile update action)
+ * from the profiles table and passed here for sync.
+ */
 export type CampaignsSubscriberData = {
+  /** Local profiles.id UUID — used to write back the Zoho contact key. */
   profileId: string;
+  /** Subscriber email — becomes the "Contact Email" field in Zoho. */
   email: string;
+  /** Subscriber first name — maps to Zoho "First Name" field. */
   firstName: string;
+  /** Subscriber last name — falls back to firstName if omitted. */
   lastName?: string;
+  /** Whether this client is a VIP — synced as a custom "VIP" field in Zoho. */
   isVip?: boolean;
+  /** How the client discovered T Creative (e.g. "instagram", "referral"). */
   source?: string | null;
+  /** Comma-separated tags for segmentation in Zoho Campaigns. */
   tags?: string | null;
+  /** Service interests (e.g. "lash,jewelry") for targeted campaign filtering. */
   interests?: string;
+  /** Client birthday in MM/DD format for birthday email automations. */
   birthday?: string;
 };
 
@@ -160,7 +195,16 @@ export async function syncCampaignsSubscriber(data: CampaignsSubscriberData): Pr
 
 /**
  * Unsubscribe a contact from the Zoho Campaigns mailing list.
- * Call when `notifyMarketing` is toggled off.
+ * Call when `notifyMarketing` is toggled off in profile settings.
+ *
+ * Query details:
+ * - SELECTs email and zohoCampaignsContactKey from `profiles` WHERE id = profileId.
+ * - Calls Zoho Campaigns `/json/listunsubscribe` with the contact's email.
+ * - Logs the result to `sync_log`.
+ *
+ * Non-fatal — errors are caught and sent to Sentry but never propagated.
+ *
+ * @param profileId - The profiles.id UUID of the client to unsubscribe.
  */
 export async function unsubscribeFromCampaigns(profileId: string): Promise<void> {
   if (!isZohoCampaignsConfigured()) return;

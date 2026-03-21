@@ -8,7 +8,9 @@
  * @see {@link ./actions.ts} — server actions (data fetching + mutations)
  * @see {@link ./InquiriesPage.tsx} — client component rendering the UI
  */
+import { redirect } from "next/navigation";
 import type { Metadata } from "next";
+import { getCurrentUser } from "@/lib/auth";
 import { getInquiries, getProductInquiries } from "./actions";
 import { InquiriesPage } from "./InquiriesPage";
 
@@ -19,6 +21,10 @@ export const metadata: Metadata = {
 };
 
 export default async function Page() {
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+  if (user.profile?.role === "client") redirect("/dashboard");
+
   const [initialInquiries, initialProductInquiries] = await Promise.all([
     getInquiries(),
     getProductInquiries(),

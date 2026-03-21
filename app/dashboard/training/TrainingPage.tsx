@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useCallback } from "react";
 import { Plus, Lock } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -35,14 +35,19 @@ export function TrainingPage({
   initialStudents,
   stats,
   clients,
+  embedded,
 }: {
   initialPrograms: ProgramRow[];
   initialStudents: StudentRow[];
   stats: TrainingStats;
   clients: ClientOption[];
+  embedded?: boolean;
 }) {
   const [tab, setTab] = useState<"students" | "programs">("students");
   const [filter, setFilter] = useState<"all" | StudentStatus>("all");
+  const handleFilterChange = useCallback((f: "all" | StudentStatus) => {
+    setFilter(f);
+  }, []);
   const [isPending, startTransition] = useTransition();
   const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -113,25 +118,42 @@ export function TrainingPage({
   }
 
   return (
-    <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto w-full space-y-6">
+    <div className={cn("max-w-7xl mx-auto w-full space-y-6", embedded ? "" : "p-4 md:p-6 lg:p-8")}>
       {/* Header */}
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-semibold text-foreground tracking-tight">Training</h1>
-          <p className="text-sm text-muted mt-0.5">Programs, students, and certifications</p>
+      {!embedded && (
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-xl font-semibold text-foreground tracking-tight">Training</h1>
+            <p className="text-sm text-muted mt-0.5">Programs, students, and certifications</p>
+          </div>
+          <button
+            onClick={() =>
+              tab === "students"
+                ? setStudentDialogOpen(true)
+                : setProgramDialog({ open: true, program: null })
+            }
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent/90 transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            {tab === "students" ? "Add Student" : "Add Program"}
+          </button>
         </div>
-        <button
-          onClick={() =>
-            tab === "students"
-              ? setStudentDialogOpen(true)
-              : setProgramDialog({ open: true, program: null })
-          }
-          className="flex items-center gap-1.5 px-3.5 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent/90 transition-colors"
-        >
-          <Plus className="w-3.5 h-3.5" />
-          {tab === "students" ? "Add Student" : "Add Program"}
-        </button>
-      </div>
+      )}
+      {embedded && (
+        <div className="flex justify-end">
+          <button
+            onClick={() =>
+              tab === "students"
+                ? setStudentDialogOpen(true)
+                : setProgramDialog({ open: true, program: null })
+            }
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent/90 transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            {tab === "students" ? "Add Student" : "Add Program"}
+          </button>
+        </div>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -212,7 +234,7 @@ export function TrainingPage({
         <StudentsTab
           students={initialStudents}
           filter={filter}
-          setFilter={setFilter}
+          onFilterChange={handleFilterChange}
           waitlistCount={stats.waitlistStudents}
           pendingIds={pendingIds}
           onDelete={handleDeleteStudent}

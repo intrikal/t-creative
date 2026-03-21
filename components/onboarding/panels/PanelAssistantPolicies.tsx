@@ -1,5 +1,34 @@
 "use client";
 
+/**
+ * PanelAssistantPolicies — right-side reference panel for StepAssistantPolicies (step 7).
+ *
+ * What: Displays the full text of each policy agreement alongside the toggle
+ *       buttons on the left side. Four policies are shown in a stacked card:
+ *       A. Client photo consent, B. Confidentiality, C. Studio conduct,
+ *       D. Compensation acknowledgment. A footer note reassures the assistant
+ *       that the policies protect everyone involved.
+ *
+ * Why: Separating the detailed policy text into the right panel keeps the left
+ *      side (toggles) clean and scannable, while giving the assistant easy
+ *      access to what each agreement actually means. This split mirrors the
+ *      client flow's PanelWaiver pattern.
+ *
+ * How: This is a static component with no props — the policy text is defined
+ *      in POLICY_DETAILS at module level. Each entry maps to a card row with
+ *      an icon, letter badge, label, and detail text. The `.map()` iterates
+ *      the array to render each row with staggered entrance animations.
+ *
+ * POLICY_DETAILS array:
+ *      Each object contains: icon (React component), letter (A-D matching the
+ *      keyboard shortcut in the step), label (section header), and detail
+ *      (the full explanation text). Defined at module level so it's created
+ *      once and shared across renders.
+ *
+ * Related files:
+ * - components/onboarding/steps/StepAssistantPolicies.tsx — paired left-side step
+ * - components/onboarding/OnboardingFlow.tsx — renders this as the panel for step 7
+ */
 import { motion } from "framer-motion";
 import { LuCamera, LuLock, LuSparkles, LuBanknote } from "react-icons/lu";
 import { Card, CardContent } from "@/components/ui/card";

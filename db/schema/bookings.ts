@@ -143,6 +143,14 @@ export const bookings = pgTable(
       onDelete: "set null",
     }),
 
+    /* ------ Terms of service acceptance ------ */
+
+    /** When the client accepted the cancellation/TOS policy during booking. */
+    tosAcceptedAt: timestamp("tos_accepted_at", { withTimezone: true }),
+
+    /** Version string of the policy the client accepted (e.g. '2025-01'). */
+    tosVersion: text("tos_version"),
+
     /** Soft-delete timestamp. Non-null means the booking has been removed from view. */
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
 
@@ -165,6 +173,8 @@ export const bookings = pgTable(
     // Composite indexes for analytics queries that filter on both columns
     index("bookings_starts_at_status_idx").on(t.startsAt, t.status),
     index("bookings_client_starts_at_idx").on(t.clientId, t.startsAt),
+    index("bookings_deleted_at_idx").on(t.deletedAt),
+    index("bookings_staff_starts_status_idx").on(t.staffId, t.startsAt, t.status),
   ],
 );
 

@@ -1,11 +1,25 @@
 /**
- * PublicShopPage — Browse products from the database.
- * Supports add-to-cart for fixed-price items, inquiry links for custom quotes,
- * and dual-listed items that are also bookable as services.
+ * PublicShopPage — Public-facing product catalog rendered at /shop.
+ *
+ * Displays a grid of ShopProduct cards fetched from the database (passed in
+ * via props from a Server Component). Each card shows an image, category
+ * badge, description, and a context-sensitive action:
+ *   - Fixed-price items: "Add to Cart" (stored in a Zustand cart store)
+ *   - Variable/quote items: "Inquire" link to /contact
+ *   - Dual-listed (also a bookable service): additional "Book" link
+ *   - Out-of-stock items: greyed out with no action
+ *
+ * Includes a slide-in CartDrawer component and a floating cart button
+ * that appears when items have been added.
+ *
+ * This is a Client Component ("use client") because it reads/writes the
+ * Zustand cart store (client-side state), manages the cart-drawer open/close
+ * toggle, and uses Framer Motion for entry animations.
  */
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { Footer } from "@/components/landing/Footer";
@@ -16,6 +30,8 @@ import type { ShopProduct } from "./actions";
 /*  Helpers                                                            */
 /* ------------------------------------------------------------------ */
 
+// Renders a human-readable price string based on the product's pricing type.
+// Falls through to "Contact for quote" when no price data is available.
 function formatPrice(product: ShopProduct): string {
   if (product.pricingType === "contact_for_quote") return "Contact for quote";
   if (product.pricingType === "price_range" && product.priceMinInCents && product.priceMaxInCents) {
@@ -29,6 +45,8 @@ function formatPrice(product: ShopProduct): string {
   return "Contact for quote";
 }
 
+// Only fixed-price, in-stock items can be added to the cart — variable
+// pricing or out-of-stock items get an "Inquire" link instead.
 function canAddToCart(product: ShopProduct): boolean {
   return (
     product.pricingType === "fixed_price" &&
@@ -41,6 +59,8 @@ function canAddToCart(product: ShopProduct): boolean {
 /*  Cart Drawer                                                        */
 /* ------------------------------------------------------------------ */
 
+// Slide-in drawer that renders the current cart contents from the Zustand
+// store. Supports quantity adjustments, item removal, and links to checkout.
 function CartDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { items, removeItem, updateQuantity, clearCart } = useCartStore();
   const total = cartTotalInCents(items);
@@ -75,17 +95,24 @@ function CartDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
                 <p className="text-sm text-muted text-center py-12">Your cart is empty.</p>
               ) : (
                 <div className="space-y-4">
+                  {/* Render each cart item with image, title, price, quantity
+                      controls, and a remove button. Keyed by productId since
+                      each product appears at most once in the cart. */}
                   {items.map((item) => (
                     <div
                       key={item.productId}
                       className="flex gap-4 py-3 border-b border-foreground/5"
                     >
                       {item.imageUrl ? (
-                        <img
-                          src={item.imageUrl}
-                          alt={item.title}
-                          className="w-16 h-16 object-cover bg-surface"
-                        />
+                        <div className="relative w-16 h-16 bg-surface">
+                          <Image
+                            src={item.imageUrl}
+                            alt={item.title}
+                            fill
+                            sizes="64px"
+                            className="object-cover"
+                          />
+                        </div>
                       ) : (
                         <div className="w-16 h-16 bg-surface flex items-center justify-center">
                           <div className="w-3 h-3 rounded-full bg-muted/30" />
@@ -157,11 +184,16 @@ function CartDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
 /* ------------------------------------------------------------------ */
 
 export function PublicShopPage({ products }: { products: ShopProduct[] }) {
+  // Whether the cart drawer is visible. Separate from the Zustand store
+  // because drawer visibility is purely UI state, not persisted data.
   const [cartOpen, setCartOpen] = useState(false);
   const { items, addItem } = useCartStore();
   const count = cartItemCount(items);
 
-  // Derive categories from products
+  // Derive unique category names from the product list. Uses Set to deduplicate
+  // and Array.from() to convert back to an array. This is computed on each
+  // render (cheap — product count is small) rather than passed as a separate
+  // prop, keeping the data source as the single source of truth.
   const categories = Array.from(new Set(products.map((p) => p.category)));
 
   return (
@@ -207,6 +239,8 @@ export function PublicShopPage({ products }: { products: ShopProduct[] }) {
               </p>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {/* Render one animated card per product. The index drives a staggered
+                    delay for a cascading fade-in effect as the grid enters the viewport. */}
                 {products.map((product, i) => (
                   <motion.div
                     key={product.id}
@@ -218,11 +252,13 @@ export function PublicShopPage({ products }: { products: ShopProduct[] }) {
                   >
                     {/* Product image */}
                     {product.imageUrl ? (
-                      <div className="w-full aspect-[4/3] overflow-hidden bg-surface">
-                        <img
+                      <div className="relative w-full aspect-[4/3] overflow-hidden bg-surface">
+                        <Image
                           src={product.imageUrl}
                           alt={product.title}
-                          className="w-full h-full object-cover"
+                          fill
+                          sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                          className="object-cover"
                         />
                       </div>
                     ) : (

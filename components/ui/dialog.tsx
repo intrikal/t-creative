@@ -1,3 +1,12 @@
+/**
+ * dialog.tsx — Custom modal dialog system for the dashboard.
+ *
+ * Provides a portal-rendered Dialog with backdrop blur, Escape-to-close,
+ * body scroll lock, and size variants. Also exports form field primitives
+ * (Field, Input, Textarea, Select) and a DialogFooter with cancel/confirm
+ * buttons. These are used by every dashboard form dialog (products,
+ * supplies, assistants, bookings, etc.) for consistent layout and a11y.
+ */
 "use client";
 
 import { useEffect, useId, useRef, type ReactNode } from "react";

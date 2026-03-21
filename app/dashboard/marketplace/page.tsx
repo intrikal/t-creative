@@ -8,8 +8,9 @@
  * @see {@link ./actions.ts} — server actions
  * @see {@link ./MarketplacePage.tsx} — client component
  */
+import { redirect } from "next/navigation";
 import type { Metadata } from "next";
-import { requireAdmin } from "@/lib/auth";
+import { getCurrentUser } from "@/lib/auth";
 import { getServicesForSelect } from "@/app/dashboard/bookings/select-actions";
 import { getProducts, getSupplies, getMarketplaceStats } from "./actions";
 import { MarketplacePage } from "./MarketplacePage";
@@ -21,7 +22,10 @@ export const metadata: Metadata = {
 };
 
 export default async function Page() {
-  await requireAdmin();
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+  if (user.profile?.role !== "admin") redirect("/dashboard");
+
   const [products, supplies, stats, services] = await Promise.all([
     getProducts(),
     getSupplies(),

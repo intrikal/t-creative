@@ -18,7 +18,7 @@
 "use server";
 
 import * as Sentry from "@sentry/nextjs";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
@@ -82,6 +82,7 @@ export async function createAddOn(serviceId: number, input: AddOnInput): Promise
       .returning();
     trackEvent(user.id, "addon_created", { serviceId, name: input.name });
     revalidatePath("/dashboard/services");
+    updateTag("booking-page");
     return row;
   } catch (err) {
     Sentry.captureException(err);
@@ -105,6 +106,7 @@ export async function updateAddOn(id: number, input: AddOnInput): Promise<AddOnR
       .where(eq(serviceAddOns.id, id))
       .returning();
     revalidatePath("/dashboard/services");
+    updateTag("booking-page");
     return row;
   } catch (err) {
     Sentry.captureException(err);
@@ -119,6 +121,7 @@ export async function deleteAddOn(id: number): Promise<void> {
     await db.delete(serviceAddOns).where(eq(serviceAddOns.id, id));
     trackEvent(user.id, "addon_deleted", { addonId: id });
     revalidatePath("/dashboard/services");
+    updateTag("booking-page");
   } catch (err) {
     Sentry.captureException(err);
     throw err;
@@ -132,6 +135,7 @@ export async function toggleAddOnActive(id: number, isActive: boolean): Promise<
     await getUser();
     await db.update(serviceAddOns).set({ isActive }).where(eq(serviceAddOns.id, id));
     revalidatePath("/dashboard/services");
+    updateTag("booking-page");
   } catch (err) {
     Sentry.captureException(err);
     throw err;

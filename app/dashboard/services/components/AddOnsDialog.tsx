@@ -45,10 +45,15 @@ const BLANK_ADDON: AddOnFormState = { name: "", price: 0, minutes: 0 };
  * @param onClose - Called when the user closes the dialog (Done button or backdrop).
  */
 export function AddOnsDialog({ service, onClose }: { service: Service; onClose: () => void }) {
+  /** Local list of add-ons for this service, fetched on mount. */
   const [addOns, setAddOns] = useState<AddOnRow[]>([]);
+  /** Whether the inline create/edit form is visible. */
   const [showForm, setShowForm] = useState(false);
+  /** The add-on being edited (null = creating a new one). */
   const [editTarget, setEditTarget] = useState<AddOnRow | null>(null);
+  /** Inline form state for the add-on name, price, and extra minutes. */
   const [form, setForm] = useState<AddOnFormState>(BLANK_ADDON);
+  /** Whether the save action is in flight. */
   const [saving, setSaving] = useState(false);
 
   // Fetch add-ons for this service when the dialog mounts.

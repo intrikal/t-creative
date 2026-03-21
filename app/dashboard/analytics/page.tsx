@@ -1,3 +1,5 @@
+import { redirect } from "next/navigation";
+import { getCurrentUser } from "@/lib/auth";
 import { AnalyticsShell } from "./AnalyticsShell";
 import { AppointmentGapSectionWrapper } from "./sections/AppointmentGapSectionWrapper";
 import { BookingsSectionWrapper } from "./sections/BookingsSectionWrapper";
@@ -32,6 +34,10 @@ export default async function Page({
 }: {
   searchParams: Promise<{ range?: string }>;
 }) {
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+  if (user.profile?.role !== "admin") redirect("/dashboard");
+
   const { range: rawRange } = await searchParams;
   const range: Range = VALID_RANGES.includes(rawRange as Range)
     ? (rawRange as Range)

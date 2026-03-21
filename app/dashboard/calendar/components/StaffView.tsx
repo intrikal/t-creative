@@ -8,7 +8,7 @@
 import { useMemo } from "react";
 import { GRID_H } from "./constants";
 import { DayColumn } from "./DayColumn";
-import { fmtDate, getDayAvailability } from "./helpers";
+import { fmtDate, isToday, getDayAvailability } from "./helpers";
 import { ScrollGrid } from "./ScrollGrid";
 import { TimeRuler, HourLines } from "./TimeRuler";
 import type { CalEvent, BusinessHourRow, TimeOffRow, LunchBreak } from "./types";
@@ -34,6 +34,11 @@ export function StaffView({
 }) {
   const ds = fmtDate(cursor);
 
+  /**
+   * Partition today's events into per-staff buckets.
+   * Pre-populates empty arrays for all staff so columns always render,
+   * then assigns each event whose date matches and has a staff field.
+   */
   const byStaff = useMemo(() => {
     const map: Record<string, CalEvent[]> = {};
     for (const s of staffMembers) map[s] = [];
@@ -75,6 +80,7 @@ export function StaffView({
                 onSelect={onEventClick}
                 onSlotClick={(h) => onSlotClick(ds, h, s)}
                 availability={getDayAvailability(cursor, businessHours, timeOff, lunchBreak)}
+                isToday={isToday(ds)}
               />
             ))}
           </div>

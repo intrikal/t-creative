@@ -13,7 +13,7 @@
  */
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { TrendingUp, DollarSign, CreditCard, TrendingDown } from "lucide-react";
 import { ExportButton } from "@/components/ExportButton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -107,6 +107,9 @@ export function FinancialPage({
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const [paymentLinkBooking, setPaymentLinkBooking] = useState<BookingForPayment | null>(null);
   const [refundPayment, setRefundPayment] = useState<PaymentRow | null>(null);
+  const handleRefund = useCallback((payment: PaymentRow) => {
+    setRefundPayment(payment);
+  }, []);
 
   const maxBar = Math.max(...weeklyRevenue.map((b) => b.amount), 1);
   const gridLines = [2000, 1500, 1000, 500].filter((g) => g <= maxBar * 1.1);
@@ -372,7 +375,7 @@ export function FinancialPage({
 
       {/* Active tab content */}
       {tab === "Transactions" && (
-        <TransactionsTab payments={payments} onRefund={setRefundPayment} />
+        <TransactionsTab payments={payments} onRefund={handleRefund} />
       )}
       {tab === "Invoices" && (
         <InvoicesTab invoices={invoices} onNewInvoice={() => setModal("invoice")} />

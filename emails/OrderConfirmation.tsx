@@ -11,6 +11,7 @@ export type OrderConfirmationProps = {
   totalInCents: number;
   fulfillmentMethod: "pickup_cash" | "pickup_online" | "ship_standard" | "ship_express";
   paymentUrl?: string;
+  businessName?: string;
 };
 
 export function OrderConfirmation({
@@ -20,9 +21,10 @@ export function OrderConfirmation({
   totalInCents,
   fulfillmentMethod,
   paymentUrl,
+  businessName = "T Creative Studio",
 }: OrderConfirmationProps) {
   return (
-    <Layout preview={`Order ${orderNumber} confirmed`}>
+    <Layout preview={`Order ${orderNumber} confirmed`} businessName={businessName}>
       <Section style={content}>
         <Text style={heading}>Order Confirmed</Text>
         <Text style={paragraph}>

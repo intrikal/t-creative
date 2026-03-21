@@ -7,9 +7,12 @@
  * @module lib/zoho-auth
  */
 
+// OAuth2 credentials — set in .env. The refresh token is obtained once via
+// Zoho's self-client flow (API Console → Generate Code → Exchange for tokens).
 const clientId = process.env.ZOHO_CLIENT_ID;
 const clientSecret = process.env.ZOHO_CLIENT_SECRET;
 const refreshToken = process.env.ZOHO_REFRESH_TOKEN;
+/** Zoho's centralised OAuth endpoint — same for CRM, Campaigns, and all products. */
 const accountsUrl = "https://accounts.zoho.com";
 
 /** Whether the base Zoho OAuth2 credentials are configured. */
@@ -17,13 +20,24 @@ export function isZohoAuthConfigured(): boolean {
   return !!(clientId && clientSecret && refreshToken);
 }
 
+// In-memory token cache. Shared across all Zoho modules within the same
+// Node.js process. Survives between requests in long-lived server environments
+// (e.g. `next start`) but resets on cold starts in serverless (Vercel).
 let _accessToken: string | null = null;
 let _tokenExpiresAt = 0;
 
 /**
- * Returns a valid Zoho access token, refreshing if expired.
- * Zoho access tokens last ~1 hour; the refresh token is long-lived.
- * The token is scoped to all Zoho products the refresh token was granted for.
+ * Returns a valid Zoho access token, refreshing via OAuth2 if the cached
+ * token is expired or missing.
+ *
+ * POSTs to `accounts.zoho.com/oauth/v2/token` with grant_type=refresh_token
+ * and the stored client credentials. Zoho returns { access_token, expires_in }.
+ *
+ * The cached token is expired 5 minutes early (line 52) to avoid race
+ * conditions where a request starts with a token that expires mid-flight.
+ *
+ * @returns A valid Zoho OAuth2 access token string.
+ * @throws If credentials are missing or the Zoho token endpoint returns an error.
  */
 export async function getZohoAccessToken(): Promise<string> {
   if (_accessToken && Date.now() < _tokenExpiresAt) {

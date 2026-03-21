@@ -73,6 +73,7 @@ export function DayView({
               onSelect={onEventClick}
               onSlotClick={(h) => onSlotClick(ds, h)}
               availability={avail}
+              isToday={today}
             />
           </div>
         </div>

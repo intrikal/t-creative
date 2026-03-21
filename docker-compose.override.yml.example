@@ -1,0 +1,18 @@
+# docker-compose.override.yml.example
+#
+# Copy this file to docker-compose.override.yml for local customizations.
+# Docker Compose merges it automatically — no extra flags needed.
+#
+#   cp docker-compose.override.yml.example docker-compose.override.yml
+
+services:
+  db:
+    ports:
+      - "5433:5432" # change host port to avoid conflicts
+
+  app:
+    environment:
+      # Override any env var without touching .env.local
+      NEXT_PUBLIC_SITE_URL: http://localhost:3001
+    ports:
+      - "3001:3000"

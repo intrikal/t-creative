@@ -3,6 +3,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   experimental: {
+    useCache: true,
     optimizePackageImports: [
       "recharts",
       "lucide-react",
@@ -47,6 +48,15 @@ const nextConfig: NextConfig = {
     return [
       { source: "/client", destination: "/dashboard", permanent: true },
       { source: "/client/:path*", destination: "/dashboard/:path*", permanent: true },
+      // Consolidated dashboard pages
+      { source: "/dashboard/revenue", destination: "/dashboard/financial", permanent: true },
+      { source: "/dashboard/expenses", destination: "/dashboard/financial", permanent: true },
+      { source: "/dashboard/memberships", destination: "/dashboard/bookings", permanent: true },
+      { source: "/dashboard/subscriptions", destination: "/dashboard/bookings", permanent: true },
+      { source: "/dashboard/assistants", destination: "/dashboard/team", permanent: false },
+      { source: "/dashboard/staff", destination: "/dashboard/team", permanent: true },
+      { source: "/dashboard/legal", destination: "/dashboard/settings", permanent: true },
+      { source: "/dashboard/media", destination: "/dashboard/services", permanent: true },
     ];
   },
   async headers() {

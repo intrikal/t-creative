@@ -1,3 +1,8 @@
+// describe: groups related tests into a labeled block
+// it: defines a single test case
+// expect: creates an assertion to check a value matches expected condition
+// vi: Vitest's mock utility for creating fake functions
+// beforeEach: runs setup before every test (typically resets mocks)
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 /**
@@ -15,6 +20,9 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 type MockRow = Record<string, unknown>;
 
+// createStatefulDb builds an in-memory DB tracking profiles and loyalty
+// transaction rows. Batch inserts (pointsRows array) are supported for
+// the loyalty transaction batch insert pattern used in saveOnboardingData.
 function createStatefulDb() {
   const _profiles: MockRow[] = [];
   const _loyalty: MockRow[] = [];
@@ -100,15 +108,20 @@ function createStatefulDb() {
 /*  Shared external mocks (declared once, reset each test)             */
 /* ------------------------------------------------------------------ */
 
-const mockGetUser = vi.fn();
-const mockSendEmail = vi.fn().mockResolvedValue(true);
-const mockDeleteCookie = vi.fn();
-const mockGetCookie = vi.fn().mockReturnValue(undefined);
+// Shared mock handles for external dependencies
+const mockGetUser = vi.fn();                                  // Supabase auth.getUser
+const mockSendEmail = vi.fn().mockResolvedValue(true);        // email delivery service
+const mockDeleteCookie = vi.fn();                              // Next.js cookie deletion
+const mockGetCookie = vi.fn().mockReturnValue(undefined);     // Next.js cookie read (e.g., referral cookie)
 
 /* ------------------------------------------------------------------ */
 /*  Per-test setup helper                                              */
 /* ------------------------------------------------------------------ */
 
+// setupMocks registers all vi.doMock() replacements: DB, schema (profiles +
+// loyaltyTransactions + assistant/service schemas), Drizzle operators,
+// Supabase auth, email, PostHog, Zoho CRM/Campaigns, Next.js cache/cookies,
+// Sentry, and email template components. Called after vi.resetModules().
 function setupMocks(db: ReturnType<typeof createStatefulDb>) {
   vi.doMock("@/db", () => ({ db }));
 
@@ -205,6 +218,9 @@ function setupMocks(db: ReturnType<typeof createStatefulDb>) {
 /*  Minimal valid client input factory                                 */
 /* ------------------------------------------------------------------ */
 
+// Factory for a minimal valid client onboarding form submission.
+// Represents a new client named Jane Doe found via Instagram, with
+// no allergies, weekday morning availability, and no referral code.
 function makeClientInput(overrides: Partial<Record<string, unknown>> = {}) {
   return {
     firstName: "Jane",
@@ -213,7 +229,7 @@ function makeClientInput(overrides: Partial<Record<string, unknown>> = {}) {
     phone: "",
     source: "instagram" as const,
     notifications: { sms: false, email: false, marketing: false },
-    interests: ["lash"] as const,
+    interests: ["lash"] as ("lash" | "jewelry" | "crochet" | "consulting")[],
     allergies: {
       adhesive: false,
       latex: false,
@@ -242,6 +258,11 @@ function makeClientInput(overrides: Partial<Record<string, unknown>> = {}) {
 /*  Tests                                                              */
 /* ------------------------------------------------------------------ */
 
+// End-to-end integration tests for the client onboarding path focused on
+// loyalty point transactions: profile_complete bonus, referral bonuses
+// (both referrer and referee), double-award prevention, and birthday bonus.
+// Each test seeds the stateful DB with specific referrer data and asserts
+// on final loyalty transaction rows.
 describe("saveOnboardingData (client) — referral & loyalty integration", () => {
   beforeEach(() => {
     vi.clearAllMocks();

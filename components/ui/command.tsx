@@ -1,3 +1,11 @@
+/**
+ * command.tsx — Styled command palette components wrapping cmdk.
+ *
+ * Exports Command, CommandInput, CommandList, CommandEmpty, CommandGroup,
+ * CommandItem, CommandShortcut, and CommandSeparator — all thin styling
+ * wrappers around the cmdk primitives. Used for search/filter interfaces
+ * (e.g. client lookup, service search).
+ */
 "use client";
 
 import * as React from "react";

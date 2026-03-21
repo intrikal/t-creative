@@ -24,6 +24,8 @@ interface WorkItem {
   category: Exclude<Category, "All">;
 }
 
+// Static portfolio items — each has a unique id for AnimatePresence keying,
+// a caption, gradient color, and category for filtering. Typed as WorkItem[].
 const WORK: WorkItem[] = [
   { id: "w1", caption: "Volume Set — Special Event", color: "#C4907A", category: "Lash" },
   { id: "w2", caption: "Permanent Bracelet — Gold Chain", color: "#D4A574", category: "Jewelry" },
@@ -38,14 +40,32 @@ const WORK: WorkItem[] = [
 
 const CATEGORIES: Category[] = ["All", "Lash", "Skin", "Jewelry", "Craft"];
 
-/** Loupe interaction — circular magnification follows cursor on hover */
+/**
+ * WorkCard — Single portfolio item with loupe (magnification circle) interaction on hover.
+ *
+ * Props:
+ * - item: WorkItem data (id, caption, color, category)
+ * - delay: entrance animation delay for stagger effect (default 0)
+ *
+ * Uses layout animation (Framer motion layout) so cards smoothly reposition when filtering.
+ */
 function WorkCard({ item, delay = 0 }: { item: WorkItem; delay?: number }) {
+  // useRef tracks the card DOM rect for mouse position calculations.
   const cardRef = useRef<HTMLDivElement>(null);
+  // loupePos: tracks the loupe circle's position as a percentage of card dimensions.
+  // Object with x,y rather than two separate states to batch the update in one setState call.
   const [loupePos, setLoupePos] = useState({ x: 50, y: 50 });
+  // isHovering: controls loupe visibility. Boolean toggle rather than CSS-only because
+  // the loupe needs JS mouse position data that CSS :hover cannot provide.
   const [isHovering, setIsHovering] = useState(false);
 
+  // useCallback memoizes the mouse handler to avoid creating a new function on every render,
+  // which would cause unnecessary re-binds of the onMouseMove listener. The empty dependency
+  // array is safe because cardRef is stable and setBLoupePos uses the functional form implicitly.
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (!cardRef.current) return;
+    // Convert absolute mouse coordinates to percentage-based position within the card.
+    // Percentage-based so the loupe position is resolution-independent.
     const rect = cardRef.current.getBoundingClientRect();
     const x = ((e.clientX - rect.left) / rect.width) * 100;
     const y = ((e.clientY - rect.top) / rect.height) * 100;
@@ -73,7 +93,8 @@ function WorkCard({ item, delay = 0 }: { item: WorkItem; delay?: number }) {
         }}
       />
 
-      {/* Loupe effect — circular magnified area following cursor */}
+      {/* Conditional render: loupe circle only mounts when hovering.
+          Unmounting when not hovering avoids rendering an invisible positioned element. */}
       {isHovering && (
         <div
           className="absolute pointer-events-none transition-opacity duration-200"
@@ -111,7 +132,10 @@ function WorkCard({ item, delay = 0 }: { item: WorkItem; delay?: number }) {
 }
 
 export function EditorialPortfolio() {
+  // useRef for Framer Motion scroll measurement on this section.
   const sectionRef = useRef<HTMLElement>(null);
+  // activeCategory: tracks which filter tab is selected. "All" shows everything.
+  // useState rather than URL params because filter state is ephemeral — no need to persist in URL.
   const [activeCategory, setActiveCategory] = useState<Category>("All");
 
   const { scrollYProgress } = useScroll({
@@ -119,11 +143,19 @@ export function EditorialPortfolio() {
     offset: ["start end", "end start"],
   });
 
+  // useTransform: centre column drifts upward by 48px on scroll for asymmetric parallax.
   const centreY = useTransform(scrollYProgress, [0, 1], ["0px", "-48px"]);
 
+  // Ternary: "All" returns the full array; any other category uses .filter() to keep only
+  // matching items. Filter approach chosen over separate arrays per category to maintain
+  // a single source of truth in the WORK array.
   const filtered =
     activeCategory === "All" ? WORK : WORK.filter((w) => w.category === activeCategory);
 
+  // Three .filter() calls distribute items into columns using modulo index (i % 3).
+  // This creates a round-robin distribution (item 0 → col1, item 1 → col2, item 2 → col3,
+  // item 3 → col1, ...) ensuring columns stay roughly equal height. Filter over chunk/slice
+  // because items may be removed by category filter and we want balanced columns regardless.
   const col1 = filtered.filter((_, i) => i % 3 === 0);
   const col2 = filtered.filter((_, i) => i % 3 === 1);
   const col3 = filtered.filter((_, i) => i % 3 === 2);
@@ -159,10 +191,16 @@ export function EditorialPortfolio() {
           viewport={{ once: true }}
           transition={{ duration: 0.6, delay: 0.2 }}
         >
+          {/* .map() over CATEGORIES to render filter buttons with a shared layoutId underline.
+              The layoutId="portfolio-filter-underline" animates the underline sliding between
+              the active button — Framer Motion's layout animation handles the position/width
+              interpolation automatically. */}
           {CATEGORIES.map((cat) => (
             <button
               key={cat}
               onClick={() => setActiveCategory(cat)}
+              // Ternary: active category gets full opacity text; inactive categories are muted
+              // with hover brightening — visual feedback for which filter is selected.
               className={`relative px-4 py-2 text-[10px] tracking-[0.2em] uppercase transition-colors duration-300 ${
                 activeCategory === cat
                   ? "text-background"
@@ -170,6 +208,8 @@ export function EditorialPortfolio() {
               }`}
             >
               {cat}
+              {/* Conditional render: underline only renders under the active tab.
+                  layoutId ensures Framer Motion animates it sliding between tabs. */}
               {activeCategory === cat && (
                 <motion.div
                   layoutId="portfolio-filter-underline"
@@ -185,7 +225,10 @@ export function EditorialPortfolio() {
         <LayoutGroup>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
             <div className="flex flex-col gap-3 md:gap-4">
+              {/* AnimatePresence mode="popLayout" enables exit animations when items are
+                  filtered out while keeping remaining items from jumping positions. */}
               <AnimatePresence mode="popLayout">
+                {/* .map() renders filtered items for column 1 with staggered entrance delay. */}
                 {col1.map((item, i) => (
                   <WorkCard key={item.id} item={item} delay={i * 0.06} />
                 ))}

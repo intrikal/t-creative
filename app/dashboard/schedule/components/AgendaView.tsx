@@ -1,3 +1,11 @@
+/**
+ * AgendaView — Chronological day-grouped appointment list for one month.
+ *
+ * Groups appointments by date, sorted by time within each day. Each day
+ * header shows a date badge (highlighted for today), a horizontal rule,
+ * and the day's total revenue. Clicking an appointment opens the detail
+ * dialog via onApptClick.
+ */
 "use client";
 
 import { useMemo } from "react";
@@ -28,6 +36,9 @@ export function AgendaView({
   const fromDate = fmtDate(new Date(cursor.getFullYear(), cursor.getMonth(), 1));
   const toDate = fmtDate(new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0));
 
+  // Memo: filter to current month, sort by date then time, then group
+  // into per-day buckets. Using a sequential push (not .reduce) because
+  // the data is pre-sorted and grouping is more readable imperatively.
   const grouped = useMemo(() => {
     const filtered = appointments
       .filter((a) => a.date >= fromDate && a.date <= toDate)
@@ -82,6 +93,7 @@ export function AgendaView({
                 </div>
                 <div className="flex-1 border-t border-border" />
                 <span className="text-xs text-muted font-medium">
+                  {/* reduce: sum prices for the day's revenue display */}
                   {MONTH_NAMES[d.getMonth()]} · ${appts.reduce((s, a) => s + a.price, 0)}
                 </span>
               </div>

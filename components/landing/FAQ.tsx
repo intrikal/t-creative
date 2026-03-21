@@ -2,6 +2,9 @@
  * FAQ — Frequently asked questions to reduce booking friction.
  *
  * Client Component — uses React state for accordion open/close.
+ * Accepts entries + policies as props for dynamic content from the admin dashboard.
+ * Supports {depositPercent}, {cancelWindowHours}, {lateCancelFeePercent},
+ * {noShowFeePercent} tokens in answers, interpolated from policies.
  */
 "use client";
 
@@ -9,34 +12,73 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronDown } from "lucide-react";
 
-const QUESTIONS = [
+interface PolicyValues {
+  depositPercent: number;
+  cancelWindowHours: number;
+  lateCancelFeePercent: number;
+  noShowFeePercent: number;
+}
+
+/**
+ * Replaces {placeholder} tokens in answer text with actual policy values.
+ * Chained .replace() calls with regex /g flag for global replacement.
+ * String.replace chosen over a template engine because there are only 4 known tokens —
+ * a full template parser would be overkill. String() coerces numbers to strings for insertion.
+ */
+function interpolatePolicies(text: string, policies: PolicyValues): string {
+  return text
+    .replace(/\{depositPercent\}/g, String(policies.depositPercent))
+    .replace(/\{cancelWindowHours\}/g, String(policies.cancelWindowHours))
+    .replace(/\{lateCancelFeePercent\}/g, String(policies.lateCancelFeePercent))
+    .replace(/\{noShowFeePercent\}/g, String(policies.noShowFeePercent));
+}
+
+// Default FAQ entries used when no admin-configured entries are provided.
+// Each has a question and answer. Answers may contain {placeholder} tokens
+// that get interpolated with policy values when the policies prop is provided.
+const FALLBACK_QUESTIONS = [
   {
-    q: "Where are you located?",
-    a: "T Creative Studio is based in San Jose, California, serving the greater Bay Area. For events and pop-ups, we travel to your location.",
+    question: "Where are you located?",
+    answer:
+      "T Creative Studio is based in San Jose, California, serving the greater Bay Area. For events and pop-ups, we travel to your location.",
   },
   {
-    q: "Do I need to pay a deposit?",
-    a: "Yes — a 25% deposit is required to confirm your appointment. The remaining balance is due at the time of service. Deposits are processed securely through Square.",
+    question: "Do I need to pay a deposit?",
+    answer:
+      "Yes — a 25% deposit is required to confirm your appointment. The remaining balance is due at the time of service. Deposits are processed securely through Square.",
   },
   {
-    q: "What's the cancellation policy?",
-    a: "We require at least 48 hours notice for cancellations. Late cancellations are subject to a 50% fee, and no-shows are charged the full service amount.",
+    question: "What's the cancellation policy?",
+    answer:
+      "We require at least 48 hours notice for cancellations. Late cancellations are subject to a 50% fee, and no-shows are charged the full service amount.",
   },
   {
-    q: "Can I book for a group or event?",
-    a: "Absolutely. We offer private lash parties (up to 6 guests), permanent jewelry pop-ups at your venue, bridal packages, and corporate team events. Reach out through the contact form to get started.",
+    question: "Can I book for a group or event?",
+    answer:
+      "Absolutely. We offer private lash parties (up to 6 guests), permanent jewelry pop-ups at your venue, bridal packages, and corporate team events. Reach out through the contact form to get started.",
   },
   {
-    q: "Do you offer training and certifications?",
-    a: "Yes — we run certification programs for lash extensions, permanent jewelry welding, and beauty business consulting. Each program includes hands-on training, materials, and a certificate of completion.",
+    question: "Do you offer training and certifications?",
+    answer:
+      "Yes — we run certification programs for lash extensions, permanent jewelry welding, and beauty business consulting. Each program includes hands-on training, materials, and a certificate of completion.",
   },
   {
-    q: "How do I prepare for my appointment?",
-    a: "Come with a clean face (no eye makeup for lash services). We'll send you a confirmation email with specific prep instructions for your service. If you have allergies or sensitivities, let us know when booking.",
+    question: "How do I prepare for my appointment?",
+    answer:
+      "Come with a clean face (no eye makeup for lash services). We'll send you a confirmation email with specific prep instructions for your service. If you have allergies or sensitivities, let us know when booking.",
   },
 ];
 
+/**
+ * FAQItem — Single accordion item with animated expand/collapse.
+ *
+ * Props:
+ * - question: the FAQ question text (button label)
+ * - answer: the answer text (revealed on click)
+ */
 function FAQItem({ question, answer }: { question: string; answer: string }) {
+  // open: boolean tracking whether this accordion item is expanded.
+  // Local state (not lifted) because each FAQ item toggles independently.
   const [open, setOpen] = useState(false);
 
   return (
@@ -52,6 +94,8 @@ function FAQItem({ question, answer }: { question: string; answer: string }) {
           className={`w-4 h-4 text-muted shrink-0 transition-transform duration-300 ${open ? "rotate-180" : ""}`}
         />
       </button>
+      {/* AnimatePresence enables the height collapse animation on exit.
+          Conditional render: answer content only mounts when open is true. */}
       <AnimatePresence>
         {open && (
           <motion.div
@@ -69,7 +113,22 @@ function FAQItem({ question, answer }: { question: string; answer: string }) {
   );
 }
 
-export function FAQ() {
+/**
+ * FAQ — Accordion FAQ section.
+ *
+ * Props (all optional):
+ * - entries: FAQ question/answer pairs from admin dashboard. Falls back to FALLBACK_QUESTIONS.
+ * - policies: business policy values for token interpolation in answers (deposit %, cancel window, etc.)
+ */
+export function FAQ({
+  entries,
+  policies,
+}: {
+  entries?: { question: string; answer: string }[];
+  policies?: PolicyValues;
+}) {
+  // Nullish coalescing: use admin-provided entries or fall back to hardcoded defaults.
+  const questions = entries ?? FALLBACK_QUESTIONS;
   return (
     <section className="py-28 md:py-40 px-6 bg-background" aria-label="FAQ">
       <div className="mx-auto max-w-3xl">
@@ -92,8 +151,15 @@ export function FAQ() {
           viewport={{ once: true }}
           transition={{ duration: 0.6, delay: 0.2 }}
         >
-          {QUESTIONS.map((item) => (
-            <FAQItem key={item.q} question={item.q} answer={item.a} />
+          {/* .map() renders one FAQItem per question. key={item.question} uses the question
+              text as a stable key since questions are unique. Ternary on policies: if policy
+              values are provided, interpolate tokens in the answer; otherwise use raw text. */}
+          {questions.map((item) => (
+            <FAQItem
+              key={item.question}
+              question={item.question}
+              answer={policies ? interpolatePolicies(item.answer, policies) : item.answer}
+            />
           ))}
         </motion.div>
       </div>

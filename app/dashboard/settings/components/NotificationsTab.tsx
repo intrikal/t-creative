@@ -21,10 +21,18 @@ import { saveNotificationPrefs } from "../settings-actions";
 import { Toggle, StatefulSaveButton } from "./shared";
 
 export function NotificationsTab({ initial }: { initial: NotificationPrefs }) {
+  /** Local copy of notification preference items for optimistic editing. */
   const [prefs, setPrefs] = useState(initial.items);
+  /** Whether the save action is in flight. */
   const [saving, setSaving] = useState(false);
+  /** Briefly true after a successful save to show "Saved!" feedback. */
   const [saved, setSaved] = useState(false);
 
+  /**
+   * toggle — flips a single email/sms boolean for a preference row.
+   * Uses .map() to produce a new array with only the targeted item changed,
+   * using a computed property key ([channel]) so one function handles both channels.
+   */
   function toggle(idx: number, channel: "email" | "sms") {
     setPrefs((prev) => prev.map((p, i) => (i === idx ? { ...p, [channel]: !p[channel] } : p)));
   }

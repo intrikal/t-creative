@@ -1,12 +1,5 @@
-import type { Metadata } from "next";
-import { StaffPage } from "./StaffPage";
-
-export const metadata: Metadata = {
-  title: "Staff — T Creative Studio",
-  description: "Manage assistants and shift schedules.",
-  robots: { index: false, follow: false },
-};
+import { redirect } from "next/navigation";
 
 export default function Page() {
-  return <StaffPage />;
+  redirect("/dashboard/team");
 }

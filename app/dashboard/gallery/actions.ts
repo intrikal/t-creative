@@ -1,3 +1,16 @@
+/**
+ * app/dashboard/gallery/actions.ts — Server actions for the client Gallery page.
+ *
+ * Returns two lists for the logged-in client:
+ *   1. "Portfolio" — all published media items (the public lookbook everyone sees).
+ *   2. "My Photos" — every media item tagged to this specific client, including
+ *      unpublished ones awaiting consent.
+ *
+ * Also provides a consent action so the client can approve a before/after photo
+ * for public display.
+ *
+ * @module dashboard/gallery/actions
+ */
 "use server";
 
 import { revalidatePath } from "next/cache";
@@ -6,20 +19,8 @@ import { eq, and, desc, asc, or } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import { mediaItems } from "@/db/schema";
+import { getUser } from "@/lib/auth";
 import { createClient } from "@/utils/supabase/server";
-
-/* ------------------------------------------------------------------ */
-/*  Auth guard                                                         */
-/* ------------------------------------------------------------------ */
-
-async function getUser() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
-  return user;
-}
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -66,6 +67,14 @@ export async function getClientGallery(): Promise<ClientGalleryData> {
       clientConsentGiven: mediaItems.clientConsentGiven,
     } as const;
 
+    // ── Query 1: Published portfolio ────────────────────────────────────
+    // SELECT  id, type, category, title, caption, publicUrl,
+    //         beforeStoragePath, isFeatured, clientConsentGiven
+    // FROM    media_items
+    // WHERE   isPublished = true              ← only publicly visible items
+    // ORDER BY sortOrder ASC, createdAt DESC  ← manual sort order first, then newest
+    //
+    // No JOINs — all data is in media_items.
     // 1. Published portfolio items (the public lookbook)
     const portfolioRows = await db
       .select(cols)
@@ -73,6 +82,13 @@ export async function getClientGallery(): Promise<ClientGalleryData> {
       .where(eq(mediaItems.isPublished, true))
       .orderBy(asc(mediaItems.sortOrder), desc(mediaItems.createdAt));
 
+    // ── Query 2: This client's photos ───────────────────────────────────
+    // SELECT  (same columns as above)
+    // FROM    media_items
+    // WHERE   clientId = <current user>       ← photos linked to this specific client
+    // ORDER BY createdAt DESC                 ← newest first
+    //
+    // Includes unpublished items so the client can see photos pending their consent.
     // 2. Photos tagged to this client — all of them, including pending consent
     const myPhotoRows = await db
       .select(cols)
@@ -117,6 +133,13 @@ export async function getClientGallery(): Promise<ClientGalleryData> {
  * Approves a before/after photo for public portfolio display.
  * Sets clientConsentGiven = true and publishes the item.
  * Only works on media items tagged to the logged-in client.
+ *
+ * UPDATE media_items
+ * SET    clientConsentGiven = true,
+ *        isPublished = true,            ← auto-publish upon consent
+ *        updatedAt = now()
+ * WHERE  id = <mediaItemId>
+ *   AND  clientId = <current user>      ← security: only the tagged client can consent
  */
 export async function grantPhotoConsent(mediaItemId: number): Promise<void> {
   try {

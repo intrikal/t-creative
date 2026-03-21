@@ -1,9 +1,30 @@
+/**
+ * @file client-actions.test.ts
+ * @description Unit tests for aftercare/client-actions server actions.
+ *
+ * Testing utilities used:
+ * - describe: Groups related test cases into logical blocks (one per action function).
+ * - it: Defines a single test case with a human-readable description.
+ * - expect: Makes assertions about values — the core of each test's pass/fail logic.
+ * - vi: Vitest's mock utility namespace (vi.fn, vi.doMock, vi.resetModules, etc.).
+ * - vi.fn(): Creates a mock function whose calls can be inspected and return value controlled.
+ * - vi.doMock(): Lazily registers a module mock effective on the next dynamic import().
+ *   Used instead of vi.mock() because each test calls vi.resetModules() + re-imports.
+ * - vi.resetModules(): Clears the module registry so the next import() gets fresh mocks.
+ * - vi.clearAllMocks(): Resets call counts/args on every mock without removing implementation.
+ * - beforeEach: Runs before every `it` block to clear mocks and set default auth state.
+ */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 /* ------------------------------------------------------------------ */
 /*  Chainable DB mock helper                                           */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Creates a chainable mock that mimics Drizzle's query-builder API.
+ * Every method (from, where, leftJoin, ...) returns the same chain,
+ * and the chain is thenable — resolving to `rows` — so await works.
+ */
 function makeChain(rows: unknown[] = []) {
   const resolved = Promise.resolve(rows);
   const chain: any = {
@@ -24,8 +45,14 @@ function makeChain(rows: unknown[] = []) {
 /*  Shared mock refs                                                   */
 /* ------------------------------------------------------------------ */
 
+/** Stub for supabase auth.getUser — controls whether the request is authenticated. */
 const mockGetUser = vi.fn();
 
+/**
+ * Registers all module mocks needed by the actions under test.
+ * Accepts an optional custom db object; falls back to a default
+ * mock that returns empty result sets for all operations.
+ */
 function setupMocks(db: Record<string, unknown> | null = null) {
   const defaultDb = {
     select: vi.fn(() => makeChain([])),

@@ -15,6 +15,10 @@ import { cn } from "@/lib/utils";
 import type { ClientBookingRow } from "../client-actions";
 import { statusConfig, CAT_DOT } from "./client-helpers";
 
+function hoursUntilBooking(startsAtISO: string): number {
+  return (new Date(startsAtISO).getTime() - Date.now()) / (1000 * 60 * 60);
+}
+
 export function BookingCard({
   booking,
   isExpanded,
@@ -22,6 +26,7 @@ export function BookingCard({
   onReschedule,
   onCancel,
   onReview,
+  cancelWindowHours = 48,
 }: {
   booking: ClientBookingRow;
   isExpanded: boolean;
@@ -29,18 +34,16 @@ export function BookingCard({
   onReschedule: (booking: ClientBookingRow) => void;
   onCancel: (booking: ClientBookingRow) => void;
   onReview: (booking: ClientBookingRow) => void;
+  cancelWindowHours?: number;
 }) {
   const sts = statusConfig(booking.status);
-  const hoursUntil = (new Date(booking.startsAtISO).getTime() - Date.now()) / (1000 * 60 * 60);
   const isCancellable =
-    (booking.status === "pending" || booking.status === "confirmed") && hoursUntil >= 24;
+    (booking.status === "pending" || booking.status === "confirmed") &&
+    hoursUntilBooking(booking.startsAtISO) >= cancelWindowHours;
 
   return (
     <div className="border-b border-border/40 last:border-0">
-      <button
-        className="w-full text-left hover:bg-surface/60 transition-colors"
-        onClick={onToggle}
-      >
+      <button className="w-full text-left hover:bg-surface/60 transition-colors" onClick={onToggle}>
         <div className="flex items-center gap-3 px-5 py-3.5">
           <span
             className={cn("w-1.5 h-1.5 rounded-full shrink-0 mt-0.5", CAT_DOT[booking.category])}

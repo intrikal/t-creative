@@ -2,9 +2,8 @@
  * Contact — Server Component route wrapper with metadata.
  */
 import type { Metadata } from "next";
+import { getSiteData } from "@/lib/site-data";
 import { ContactPage } from "./ContactPage";
-
-export const revalidate = 86400;
 
 export const metadata: Metadata = {
   title: "Contact | T Creative Studio",
@@ -26,6 +25,14 @@ export const metadata: Metadata = {
   },
 };
 
-export default function Page() {
-  return <ContactPage />;
+export default async function Page() {
+  const { business, content } = await getSiteData();
+  return (
+    <ContactPage
+      location={business.location}
+      email={business.email}
+      footerTagline={content.footerTagline}
+      socialLinks={content.socialLinks}
+    />
+  );
 }

@@ -1,9 +1,20 @@
+/**
+ * @file actions.test.ts
+ * @description Unit tests for inquiries/actions (service inquiries, product
+ * inquiries, status updates, replies, quote sending).
+ *
+ * Testing utilities: describe, it, expect, vi, vi.doMock, vi.resetModules,
+ * vi.clearAllMocks, beforeEach.
+ */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 /* ------------------------------------------------------------------ */
 /*  Chainable DB mock helper                                           */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Creates a chainable mock that mimics Drizzle's query-builder API.
+ */
 function makeChain(rows: unknown[] = []) {
   const resolved = Promise.resolve(rows);
   const chain: any = {
@@ -24,11 +35,16 @@ function makeChain(rows: unknown[] = []) {
 /*  Shared mock refs                                                   */
 /* ------------------------------------------------------------------ */
 
+/** Stub for supabase auth.getUser. */
 const mockGetUser = vi.fn();
+/** Captures PostHog trackEvent calls. */
 const mockTrackEvent = vi.fn();
+/** Captures Resend sendEmail calls; resolves to true by default. */
 const mockSendEmail = vi.fn().mockResolvedValue(true);
+/** Captures revalidatePath calls. */
 const mockRevalidatePath = vi.fn();
 
+/** Registers all module mocks; accepts optional custom db object. */
 function setupMocks(db: Record<string, unknown> | null = null) {
   const defaultDb = {
     select: vi.fn(() => makeChain([])),

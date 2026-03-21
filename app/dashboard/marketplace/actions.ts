@@ -14,12 +14,16 @@ import { revalidatePath } from "next/cache";
 import * as Sentry from "@sentry/nextjs";
 import { eq, desc, sql, asc } from "drizzle-orm";
 import { z } from "zod";
+import {
+  getPublicBusinessProfile,
+  getPublicInventoryConfig,
+} from "@/app/dashboard/settings/settings-actions";
 import { db } from "@/db";
 import { products, orders, supplies, profiles } from "@/db/schema";
 import { CommissionQuote } from "@/emails/CommissionQuote";
 import { OrderStatusUpdate } from "@/emails/OrderStatusUpdate";
-import { sendEmail, getEmailRecipient } from "@/lib/resend";
 import { requireAdmin } from "@/lib/auth";
+import { sendEmail, getEmailRecipient } from "@/lib/resend";
 
 const PATH = "/dashboard/marketplace";
 
@@ -33,10 +37,30 @@ const getUser = requireAdmin;
 /*  Types                                                              */
 /* ------------------------------------------------------------------ */
 
+/**
+ * UI-facing product category strings. These map 1:1 to the free-form
+ * `category` varchar on the products table — not the 4 service-zone enums.
+ */
 export type ProductCategory = "lash-supplies" | "jewelry" | "crochet" | "aftercare" | "merch";
+
+/**
+ * UI pricing model. Mapped to/from the DB's `pricing_type` enum via
+ * PRICING_MAP / PRICING_REVERSE because the DB uses snake_case enum
+ * values while the UI uses shorter labels.
+ */
 export type PricingType = "fixed" | "starting_at" | "range" | "custom_quote";
+
+/**
+ * Derived status — not stored directly. Computed from `isPublished` +
+ * `availability` in `deriveStatus()` so the UI has a single status badge.
+ */
 export type ProductStatus = "active" | "inactive" | "out_of_stock";
 
+/**
+ * Shape returned to the Products tab grid. Prices are in dollars
+ * (not cents) because the UI never needs sub-cent precision and
+ * converting here avoids repeated `/100` in every cell renderer.
+ */
 export type ProductRow = {
   id: number;
   name: string;
@@ -52,6 +76,7 @@ export type ProductRow = {
   serviceId: number | null;
 };
 
+/** Shape returned to the Supplies tab grid. Dates pre-formatted for display. */
 export type SupplyRow = {
   id: number;
   name: string;
@@ -62,6 +87,7 @@ export type SupplyRow = {
   lastRestocked: string | null;
 };
 
+/** Aggregate counts for the stat cards at the top of the Marketplace dashboard. */
 export type MarketplaceStats = {
   activeCount: number;
   totalProducts: number;
@@ -74,7 +100,11 @@ export type MarketplaceStats = {
 /*  Mapping helpers                                                    */
 /* ------------------------------------------------------------------ */
 
-const LOW_STOCK_THRESHOLD = 5;
+/**
+ * Default low-stock threshold. Overridden at runtime from the
+ * admin inventory settings so Trini can tune it without a deploy.
+ */
+let LOW_STOCK_THRESHOLD = 5;
 
 /** DB pricing enum → UI string */
 const PRICING_MAP: Record<string, PricingType> = {
@@ -92,12 +122,22 @@ const PRICING_REVERSE: Record<PricingType, string> = {
   custom_quote: "contact_for_quote",
 };
 
+/**
+ * Collapse two DB fields into a single UI status. The DB stores
+ * `isPublished` and `availability` separately because they serve
+ * different purposes (visibility vs. stock state), but the product
+ * grid only shows one badge per row.
+ */
 function deriveStatus(isPublished: boolean, availability: string): ProductStatus {
   if (!isPublished) return "inactive";
   if (availability === "out_of_stock") return "out_of_stock";
   return "active";
 }
 
+/**
+ * Append a timestamp to guarantee uniqueness — two products with
+ * the same title (e.g. "Custom Blanket") won't collide on slug.
+ */
 function slugify(title: string): string {
   return (
     title
@@ -112,10 +152,20 @@ function slugify(title: string): string {
 /*  Queries                                                            */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Fetch every product with its completed-order count for the Products tab.
+ *
+ * Products and sales are queried in parallel to avoid a sequential
+ * round-trip. Sales are aggregated from the orders table (status =
+ * "completed") and joined client-side via a Map because the ORM
+ * doesn't support left-join aggregation cleanly with Drizzle.
+ */
 export async function getProducts(): Promise<ProductRow[]> {
   try {
     await getUser();
 
+    // Promise.all runs the products query and sales aggregation concurrently —
+    // they're independent reads, so parallel execution cuts total latency in half.
     const [rows, salesRows] = await Promise.all([
       db
         .select({
@@ -145,10 +195,17 @@ export async function getProducts(): Promise<ProductRow[]> {
         .groupBy(orders.productId),
     ]);
 
+    // Build a Map<productId, salesCount> for O(1) lookup when enriching each
+    // product row below. Filter out null productIds (orphaned orders), then
+    // map to [key, value] tuples for the Map constructor. A Map is preferred
+    // over an object here because product IDs are numbers, not strings.
     const salesMap = new Map(
       salesRows.filter((r) => r.productId !== null).map((r) => [r.productId!, Number(r.count)]),
     );
 
+    // Transform each DB product row into the UI-facing ProductRow shape:
+    // map pricing types, convert cents→dollars, derive status, parse tags.
+    // .map() gives a 1:1 conversion — every product becomes one grid row.
     return rows.map((r) => {
       const pt = PRICING_MAP[r.pricingType] ?? "fixed";
       let price = 0;
@@ -161,6 +218,7 @@ export async function getProducts(): Promise<ProductRow[]> {
         price = (r.priceInCents ?? r.priceMinInCents ?? 0) / 100;
       }
 
+      /* Only show stock count for inventory-tracked items; made-to-order products have no stock concept. */
       const needsStock = r.availability === "in_stock" || r.availability === "pre_order";
 
       return {
@@ -173,6 +231,10 @@ export async function getProducts(): Promise<ProductRow[]> {
         priceMax,
         stock: needsStock ? r.stockCount : undefined,
         status: deriveStatus(r.isPublished, r.availability),
+        // Parse the comma-separated tags string into a clean string array.
+        // split→map(trim)→filter(Boolean) handles whitespace and trailing
+        // commas (e.g. "foo, bar, " → ["foo", "bar"]). Ternary guards
+        // against null tags producing [""] from "".split(",").
         tags: r.tags
           ? r.tags
               .split(",")
@@ -189,6 +251,7 @@ export async function getProducts(): Promise<ProductRow[]> {
   }
 }
 
+/** Fetch all craft supplies for the Supplies tab, sorted by category then name. */
 export async function getSupplies(): Promise<SupplyRow[]> {
   try {
     await getUser();
@@ -198,6 +261,9 @@ export async function getSupplies(): Promise<SupplyRow[]> {
       .from(supplies)
       .orderBy(asc(supplies.category), asc(supplies.name));
 
+    // Transform supply DB rows to SupplyRow shape, formatting the restock
+    // date for display. .map() is a 1:1 conversion — every supply row becomes
+    // one grid row.
     return rows.map((r) => ({
       id: r.id,
       name: r.name,
@@ -218,10 +284,21 @@ export async function getSupplies(): Promise<SupplyRow[]> {
   }
 }
 
+/**
+ * Aggregate counts for the dashboard stat cards (Active, Total, Sales,
+ * Low Stock, Out of Stock). Uses Postgres `filter (where ...)` to compute
+ * all counts in a single table scan instead of multiple queries.
+ */
 export async function getMarketplaceStats(): Promise<MarketplaceStats> {
   try {
     await getUser();
 
+    /* Pull the admin-configured threshold so stats match the Inventory tab. */
+    const inventoryConfig = await getPublicInventoryConfig();
+    LOW_STOCK_THRESHOLD = inventoryConfig.lowStockThreshold;
+
+    // Promise.all runs product stats and sales count concurrently — they
+    // query different tables and don't depend on each other's results.
     const [[productStats], [salesStats]] = await Promise.all([
       db
         .select({
@@ -256,6 +333,7 @@ export async function getMarketplaceStats(): Promise<MarketplaceStats> {
 /*  Product mutations                                                  */
 /* ------------------------------------------------------------------ */
 
+/** Inbound shape from the "Create / Edit Product" modal form. */
 export type ProductFormData = {
   name: string;
   category: ProductCategory;
@@ -282,6 +360,11 @@ const ProductFormSchema = z.object({
   serviceId: z.number().int().positive().nullish(),
 });
 
+/**
+ * Insert a new product. Infers `productType` from whether stock is
+ * provided: if the form includes a stock value it's ready-made
+ * inventory; otherwise it's custom/made-to-order.
+ */
 export async function createProduct(form: ProductFormData) {
   try {
     ProductFormSchema.parse(form);
@@ -323,6 +406,7 @@ export async function createProduct(form: ProductFormData) {
   }
 }
 
+/** Update an existing product. Does not re-generate the slug to preserve existing URLs. */
 export async function updateProduct(id: number, form: ProductFormData) {
   try {
     z.number().int().positive().parse(id);
@@ -367,6 +451,7 @@ export async function updateProduct(id: number, form: ProductFormData) {
   }
 }
 
+/** Hard-delete a product. Orders referencing it use `onDelete: "set null"` so they survive. */
 export async function deleteProduct(id: number) {
   try {
     z.number().int().positive().parse(id);
@@ -379,6 +464,7 @@ export async function deleteProduct(id: number) {
   }
 }
 
+/** Toggle published/unpublished. Used by the status switch on each product row. */
 export async function toggleProductStatus(id: number) {
   try {
     z.number().int().positive().parse(id);
@@ -403,6 +489,11 @@ export async function toggleProductStatus(id: number) {
   }
 }
 
+/**
+ * Increment or decrement stock by `delta`. Clamps to zero — negative
+ * inventory is never allowed. Automatically flips availability to
+ * "out_of_stock" when count hits 0, and back to "in_stock" otherwise.
+ */
 export async function adjustProductStock(id: number, delta: number) {
   try {
     z.number().int().positive().parse(id);
@@ -437,6 +528,7 @@ export async function adjustProductStock(id: number, delta: number) {
 /*  Supply mutations                                                   */
 /* ------------------------------------------------------------------ */
 
+/** Inbound shape from the "Create / Edit Supply" modal form. */
 export type SupplyFormData = {
   name: string;
   category: string;
@@ -453,6 +545,7 @@ const SupplyFormSchema = z.object({
   reorder: z.number().int().nonnegative(),
 });
 
+/** Insert a new craft supply. Sets `lastRestockedAt` only if initial stock > 0. */
 export async function createSupply(form: SupplyFormData) {
   try {
     SupplyFormSchema.parse(form);
@@ -474,6 +567,7 @@ export async function createSupply(form: SupplyFormData) {
   }
 }
 
+/** Update supply details. Does not touch `lastRestockedAt` — use `adjustSupplyStock` for that. */
 export async function updateSupply(id: number, form: SupplyFormData) {
   try {
     z.number().int().positive().parse(id);
@@ -499,6 +593,7 @@ export async function updateSupply(id: number, form: SupplyFormData) {
   }
 }
 
+/** Hard-delete a supply row. No soft-delete — supplies have no downstream references. */
 export async function deleteSupply(id: number) {
   try {
     z.number().int().positive().parse(id);
@@ -511,6 +606,11 @@ export async function deleteSupply(id: number) {
   }
 }
 
+/**
+ * Adjust supply stock by `delta`. Only positive deltas update
+ * `lastRestockedAt` — decrements (usage) shouldn't reset the
+ * restock date shown in the Supplies tab.
+ */
 export async function adjustSupplyStock(id: number, delta: number) {
   try {
     z.number().int().positive().parse(id);
@@ -528,6 +628,9 @@ export async function adjustSupplyStock(id: number, delta: number) {
         .update(supplies)
         .set({
           stockCount: newStock,
+          // Conditional spread: only update lastRestockedAt for positive deltas
+          // (restocking). Decrements (usage) should not reset the restock date.
+          // Spreading an empty object is a no-op that omits the field.
           ...(delta > 0 ? { lastRestockedAt: new Date() } : {}),
           updatedAt: new Date(),
         })
@@ -545,6 +648,13 @@ export async function adjustSupplyStock(id: number, delta: number) {
 /*  Order status mutations                                             */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Order lifecycle: inquiry → quoted → accepted → in_progress →
+ * ready_for_pickup → completed. "cancelled" is a terminal state
+ * reachable from any step. Customer-facing emails fire on
+ * "quoted" (CommissionQuote), "ready_for_pickup", and "completed"
+ * (OrderStatusUpdate).
+ */
 export type OrderStatus =
   | "inquiry"
   | "quoted"
@@ -578,6 +688,9 @@ export async function quoteCommission(
     .set({
       quotedInCents: amountInCents,
       status: "quoted",
+      // Conditional spreads: only include optional fields when provided.
+      // This avoids setting columns to null/undefined when the admin didn't
+      // supply them, preserving any existing values in the DB row.
       ...(options.estimatedCompletionAt
         ? { estimatedCompletionAt: options.estimatedCompletionAt }
         : {}),
@@ -586,7 +699,7 @@ export async function quoteCommission(
     })
     .where(eq(orders.id, id));
 
-  // Reload order for email data
+  /* Best-effort email — separate try/catch so the quote is saved even if Resend fails. */
   try {
     const [order] = await db
       .select({
@@ -606,9 +719,10 @@ export async function quoteCommission(
       .where(eq(profiles.id, order.clientId));
 
     if (profile?.email) {
+      const bp = await getPublicBusinessProfile();
       await sendEmail({
         to: profile.email,
-        subject: `Your commission quote is ready — T Creative`,
+        subject: `Your commission quote is ready — ${bp.businessName}`,
         react: CommissionQuote({
           clientName: profile.firstName,
           orderNumber: order.orderNumber,
@@ -622,6 +736,7 @@ export async function quoteCommission(
               })
             : undefined,
           notes: options.notes,
+          businessName: bp.businessName,
         }),
         entityType: "commission_quote",
         localId: String(id),
@@ -634,6 +749,14 @@ export async function quoteCommission(
   revalidatePath(PATH);
 }
 
+/**
+ * Transition an order to a new status. Terminal states ("completed",
+ * "cancelled") stamp their respective timestamp columns so the
+ * dashboard can show when an order was finished or dropped.
+ *
+ * Emails are sent only for customer-visible milestones (pickup
+ * ready, completed) — intermediate status changes are internal.
+ */
 export async function updateOrderStatus(id: number, status: OrderStatus): Promise<void> {
   try {
     z.number().int().positive().parse(id);
@@ -666,6 +789,12 @@ export async function updateOrderStatus(id: number, status: OrderStatus): Promis
   }
 }
 
+/**
+ * Best-effort email dispatch for order status changes. Wrapped in
+ * try/catch so a Resend outage never blocks the status update itself.
+ * Uses `getEmailRecipient` to resolve the client's current email from
+ * their profile (handles cases where email changed after order creation).
+ */
 async function trySendOrderStatusEmail(
   orderId: number,
   status: "ready_for_pickup" | "completed",
@@ -682,12 +811,15 @@ async function trySendOrderStatusEmail(
 
     if (!order) return;
 
-    const recipient = await getEmailRecipient(order.clientId);
+    const [recipient, bp] = await Promise.all([
+      getEmailRecipient(order.clientId),
+      getPublicBusinessProfile(),
+    ]);
     if (!recipient) return;
 
     const subjectMap = {
-      ready_for_pickup: `Order ${order.orderNumber} ready for pickup — T Creative`,
-      completed: `Order ${order.orderNumber} completed — T Creative`,
+      ready_for_pickup: `Order ${order.orderNumber} ready for pickup — ${bp.businessName}`,
+      completed: `Order ${order.orderNumber} completed — ${bp.businessName}`,
     };
 
     await sendEmail({
@@ -698,6 +830,7 @@ async function trySendOrderStatusEmail(
         orderNumber: order.orderNumber,
         productTitle: order.title,
         status,
+        businessName: bp.businessName,
       }),
       entityType: "order_status_update",
       localId: String(orderId),

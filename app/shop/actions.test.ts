@@ -1,15 +1,40 @@
+/**
+ * Unit tests for shop actions: product queries, order placement, wishlist
+ * management, and gift card lookup.
+ *
+ * Uses two mocking strategies:
+ *   1. Top-level vi.mock() for the placeOrder tests (module-scope mocks)
+ *   2. vi.doMock() + vi.resetModules() via setupShopMocks() for all other
+ *      tests — this forces fresh module imports per test so module-level
+ *      state (db singleton, cached queries) doesn't leak between tests.
+ *
+ * Related files:
+ *   - app/shop/actions.ts — server actions under test (placeOrder, getClientOrders, wishlist, lookupGiftCard)
+ *   - app/shop/queries.ts — getPublishedProducts query under test
+ */
+
+// describe: groups related tests into a labeled block
+// it: defines a single test case
+// expect: creates an assertion to check a value matches expected condition
+// vi: Vitest's mock utility for creating fake functions
+// beforeEach: runs setup before every test (typically resets mocks)
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 /* ------------------------------------------------------------------ */
 /*  Mocks                                                              */
 /* ------------------------------------------------------------------ */
 
+// vi.fn(): creates a mock function that records how it was called —
+// these track individual DB operations so tests can assert which queries ran
 const mockSelectWhere = vi.fn();
 const mockInsertValues = vi.fn();
 const mockInsertReturning = vi.fn();
 const mockUpdateSet = vi.fn();
 const mockUpdateWhere = vi.fn();
 
+// vi.mock("@/db"): replaces the Drizzle database module with a fake that
+// chains select/insert/update calls through the mock functions above,
+// so tests never hit a real database
 vi.mock("@/db", () => ({
   db: {
     select: () => ({
@@ -45,6 +70,9 @@ vi.mock("@/db", () => ({
   },
 }));
 
+// vi.mock("@/db/schema"): replaces schema table references with plain
+// string column maps — Drizzle uses these for query building, but tests
+// only need the column name strings for equality checks
 vi.mock("@/db/schema", () => ({
   products: { id: "id", isPublished: "isPublished", stockCount: "stockCount" },
   orders: { id: "id", clientId: "clientId", productId: "productId", status: "status" },
@@ -52,14 +80,20 @@ vi.mock("@/db/schema", () => ({
   syncLog: {},
 }));
 
+// vi.mock("@/lib/resend"): replaces the email service so tests don't
+// send real emails — returns a resolved promise to simulate success
 vi.mock("@/lib/resend", () => ({
   sendEmail: vi.fn().mockResolvedValue(true),
 }));
 
+// vi.mock("next/cache"): replaces Next.js cache invalidation — the real
+// revalidatePath triggers ISR revalidation which doesn't exist in tests
 vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
 }));
 
+// vi.mock("@/utils/supabase/server"): replaces Supabase auth client so
+// tests get a fake authenticated user ("user-123") without real OAuth
 vi.mock("@/utils/supabase/server", () => ({
   createClient: vi.fn(() => ({
     auth: {
@@ -70,6 +104,8 @@ vi.mock("@/utils/supabase/server", () => ({
   })),
 }));
 
+// vi.mock("@/lib/square"): replaces Square payment integration — disabled
+// by default (isSquareConfigured → false) so order tests skip payment link creation
 vi.mock("@/lib/square", () => ({
   isSquareConfigured: vi.fn(() => false),
   createSquareOrderPaymentLink: vi.fn(),
@@ -83,6 +119,9 @@ vi.mock("@/lib/square", () => ({
 /*  Chainable DB mock helper (for additional tests below)             */
 /* ------------------------------------------------------------------ */
 
+// makeChain builds a thenable object that mimics Drizzle's chainable
+// query API (from/where/leftJoin/orderBy/limit) and resolves to `rows`.
+// This lets tests control exactly what data the DB "returns" per query.
 function makeChain(rows: unknown[] = []) {
   const resolved = Promise.resolve(rows);
   const chain: any = {
@@ -102,6 +141,10 @@ function makeChain(rows: unknown[] = []) {
 const mockGetUser = vi.fn();
 const mockRevalidatePath2 = vi.fn();
 
+// setupShopMocks: re-registers all module mocks via vi.doMock() after
+// vi.resetModules() clears previous registrations. This ensures each test
+// gets a completely fresh module graph with isolated mock state.
+// Accepts an optional custom db object to override the default mock DB.
 function setupShopMocks(db: Record<string, unknown> | null = null) {
   const defaultDb = {
     select: vi.fn(() => makeChain([])),
@@ -192,6 +235,8 @@ function setupShopMocks(db: Record<string, unknown> | null = null) {
 /*  getPublishedProducts                                               */
 /* ------------------------------------------------------------------ */
 
+// Tests the query that fetches published shop products and transforms
+// the raw DB rows (e.g., splitting comma-separated tags into arrays)
 describe("getPublishedProducts", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -201,7 +246,7 @@ describe("getPublishedProducts", () => {
   it("returns empty array when no products exist", async () => {
     vi.resetModules();
     setupShopMocks();
-    const { getPublishedProducts } = await import("./actions");
+    const { getPublishedProducts } = await import("./queries");
     const result = await getPublishedProducts();
     expect(result).toEqual([]);
   });
@@ -236,7 +281,7 @@ describe("getPublishedProducts", () => {
       update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn() })) })),
       delete: vi.fn(() => ({ where: vi.fn() })),
     });
-    const { getPublishedProducts } = await import("./actions");
+    const { getPublishedProducts } = await import("./queries");
     const result = await getPublishedProducts();
     expect(result[0].tags).toEqual(["serum", "lash", "aftercare"]);
   });
@@ -271,7 +316,7 @@ describe("getPublishedProducts", () => {
       update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn() })) })),
       delete: vi.fn(() => ({ where: vi.fn() })),
     });
-    const { getPublishedProducts } = await import("./actions");
+    const { getPublishedProducts } = await import("./queries");
     const result = await getPublishedProducts();
     expect(result[0].tags).toEqual([]);
   });
@@ -281,6 +326,8 @@ describe("getPublishedProducts", () => {
 /*  getClientOrders                                                    */
 /* ------------------------------------------------------------------ */
 
+// Tests the action that fetches a client's order history, verifying
+// auth gating, empty-state handling, and date serialization
 describe("getClientOrders", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -339,6 +386,7 @@ describe("getClientOrders", () => {
 /*  getWishlistProductIds / addToWishlist / removeFromWishlist         */
 /* ------------------------------------------------------------------ */
 
+// Tests wishlist read — fetching saved product IDs for the current user
 describe("getWishlistProductIds", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -375,6 +423,7 @@ describe("getWishlistProductIds", () => {
   });
 });
 
+// Tests wishlist write — adding a product, deduplication, and cache revalidation
 describe("addToWishlist", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -432,6 +481,7 @@ describe("addToWishlist", () => {
   });
 });
 
+// Tests wishlist deletion — removing a product and cache revalidation
 describe("removeFromWishlist", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -475,6 +525,8 @@ describe("removeFromWishlist", () => {
 /*  lookupGiftCard                                                     */
 /* ------------------------------------------------------------------ */
 
+// Tests gift card validation: code lookup, status checks (active, redeemed,
+// expired, zero balance), and successful return of card details
 describe("lookupGiftCard", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -594,6 +646,10 @@ describe("lookupGiftCard", () => {
 
 /* ------------------------------------------------------------------ */
 
+// Tests the placeOrder server action end-to-end: cart validation,
+// product availability checks, fulfillment method handling, stock
+// decrement, and error cases (unpublished, out of stock, quote-only,
+// insufficient stock)
 describe("placeOrder", () => {
   let placeOrder: typeof import("./actions").placeOrder;
 
@@ -673,12 +729,15 @@ describe("placeOrder", () => {
     placeOrder = mod.placeOrder;
   });
 
+  // Validates that an empty cart is rejected before any DB operations
   it("returns error for empty cart", async () => {
     const result = await placeOrder({ items: [], fulfillmentMethod: "pickup_cash" });
     expect(result.success).toBe(false);
     expect(result.error).toBe("Cart is empty");
   });
 
+  // Verifies the happy path: valid product → order created with
+  // pickup_cash fulfillment, accepted status, and no payment URL
   it("creates order with pickup_cash fulfillment method", async () => {
     // Mock: product lookup returns a valid product
     mockSelectWhere.mockReturnValueOnce([
@@ -709,6 +768,7 @@ describe("placeOrder", () => {
     expect(orderData.status).toBe("accepted");
   });
 
+  // Verifies pickup_online falls back gracefully when Square is disabled
   it("creates order with pickup_online and no Square configured", async () => {
     mockSelectWhere.mockReturnValueOnce([
       {
@@ -733,6 +793,7 @@ describe("placeOrder", () => {
     expect(result.paymentUrl).toBeUndefined();
   });
 
+  // Draft products should not be orderable even if they exist in the DB
   it("returns error for unpublished product", async () => {
     mockSelectWhere.mockReturnValueOnce([
       {
@@ -755,6 +816,7 @@ describe("placeOrder", () => {
     expect(result.error).toContain("no longer available");
   });
 
+  // Out-of-stock products should be rejected at order time
   it("returns error for out of stock product", async () => {
     mockSelectWhere.mockReturnValueOnce([
       {
@@ -777,6 +839,7 @@ describe("placeOrder", () => {
     expect(result.error).toContain("out of stock");
   });
 
+  // Products with contact_for_quote pricing can't be added to cart
   it("returns error for contact_for_quote product", async () => {
     mockSelectWhere.mockReturnValueOnce([
       {
@@ -799,6 +862,7 @@ describe("placeOrder", () => {
     expect(result.error).toContain("requires a quote");
   });
 
+  // Prevents overselling by checking requested quantity against stockCount
   it("returns error when requesting more than available stock", async () => {
     mockSelectWhere.mockReturnValueOnce([
       {
@@ -821,6 +885,8 @@ describe("placeOrder", () => {
     expect(result.error).toContain("Only 2");
   });
 
+  // Verifies the stock decrement side effect — stockCount should
+  // decrease by the ordered quantity after a successful order
   it("decrements stock for in_stock items", async () => {
     mockSelectWhere.mockReturnValueOnce([
       {

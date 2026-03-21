@@ -6,13 +6,14 @@ import { Layout } from "./components/Layout";
 export type WelcomeEmailProps = {
   clientName: string;
   dashboardUrl: string;
+  businessName?: string;
 };
 
-export function WelcomeEmail({ clientName, dashboardUrl }: WelcomeEmailProps) {
+export function WelcomeEmail({ clientName, dashboardUrl, businessName = "T Creative Studio" }: WelcomeEmailProps) {
   return (
-    <Layout preview="Welcome to T Creative Studio!">
+    <Layout preview={`Welcome to ${businessName}!`} businessName={businessName}>
       <Section style={content}>
-        <Text style={heading}>Welcome to T Creative!</Text>
+        <Text style={heading}>Welcome to {businessName}!</Text>
         <Text style={paragraph}>
           Hey {clientName}, thanks for joining! Your account is all set up.
         </Text>

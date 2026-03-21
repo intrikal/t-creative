@@ -1,6 +1,14 @@
+/**
+ * WaitlistDialog — Public-facing modal for joining a service waitlist.
+ *
+ * Checks authentication status on open: if the visitor is a logged-in
+ * client, name/email fields are hidden (the backend uses their profile).
+ * Guest visitors must provide name + email and pass a Cloudflare Turnstile
+ * challenge before submitting. After success, shows a confirmation screen.
+ */
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Turnstile } from "@marsidev/react-turnstile";
 import { X, Clock, Sparkles, Send } from "lucide-react";
 import { checkIsAuthenticated } from "@/app/dashboard/book/actions";
@@ -16,15 +24,22 @@ export function WaitlistDialog({
   open: boolean;
   onClose: () => void;
 }) {
+  /** isGuest: null until auth check completes, true for anonymous visitors */
   const [isGuest, setIsGuest] = useState<boolean | null>(null);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [datePreference, setDatePreference] = useState("");
   const [notes, setNotes] = useState("");
+  /** submitting: true while the POST is in-flight — disables the button */
   const [submitting, setSubmitting] = useState(false);
+  /** submitted: flips to the success confirmation screen */
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState("");
+  /** turnstileToken: Cloudflare challenge token, required for guest submissions */
   const [turnstileToken, setTurnstileToken] = useState("");
+  const handleTurnstileSuccess = useCallback((token: string) => {
+    setTurnstileToken(token);
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -82,7 +97,7 @@ export function WaitlistDialog({
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={handleClose} />
 
-      <div className="relative w-full max-w-sm mx-4 bg-white rounded-2xl shadow-2xl overflow-hidden">
+      <div className="relative w-full max-w-sm mx-2 sm:mx-4 bg-white rounded-2xl shadow-2xl overflow-hidden">
         {/* Header */}
         <div className="px-6 pt-6 pb-4 border-b border-stone-100">
           <div className="flex items-start justify-between gap-3">
@@ -98,7 +113,7 @@ export function WaitlistDialog({
             <button
               onClick={handleClose}
               aria-label="Close"
-              className="p-1.5 rounded-lg hover:bg-stone-100 text-stone-400 transition-colors"
+              className="p-2.5 rounded-lg hover:bg-stone-100 text-stone-400 transition-colors"
             >
               <X className="w-4 h-4" />
             </button>
@@ -170,14 +185,20 @@ export function WaitlistDialog({
               {isGuest && (
                 <Turnstile
                   siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY!}
-                  onSuccess={setTurnstileToken}
+                  onSuccess={handleTurnstileSuccess}
                   onExpire={() => setTurnstileToken("")}
                   options={{ theme: "light", size: "flexible" }}
                 />
               )}
 
               {error && (
-                <p role="alert" aria-live="polite" className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>
+                <p
+                  role="alert"
+                  aria-live="polite"
+                  className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2"
+                >
+                  {error}
+                </p>
               )}
 
               <button

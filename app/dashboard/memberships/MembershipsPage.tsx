@@ -1,9 +1,9 @@
 "use client";
 
-/** MembershipsPage — Lash Club recurring subscriptions management with Members and Plans tabs. */
+/** MembershipsPage — Lash Club memberships and session packs management. */
 
-import { useState } from "react";
-import { CreditCard, ShieldCheck } from "lucide-react";
+import { type ReactNode, useState } from "react";
+import { CreditCard, PackageCheck, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { MembershipPlan, MembershipRow } from "./actions";
 import { MembersTab } from "./components/MembersTab";
@@ -13,25 +13,32 @@ export function MembershipsPage({
   initialMemberships,
   plans,
   clients,
+  sessionPacksContent,
+  embedded,
 }: {
   initialMemberships: MembershipRow[];
   plans: MembershipPlan[];
   clients: { id: string; name: string }[];
+  sessionPacksContent?: ReactNode;
+  embedded?: boolean;
 }) {
-  const [tab, setTab] = useState<"members" | "plans">("members");
+  const [tab, setTab] = useState<"members" | "plans" | "session-packs">("members");
 
   const TABS = [
-    { id: "members" as const, label: "Members", icon: CreditCard },
+    { id: "members" as const, label: "Lash Club", icon: CreditCard },
     { id: "plans" as const, label: "Plans", icon: ShieldCheck },
+    { id: "session-packs" as const, label: "Session Packs", icon: PackageCheck },
   ];
 
   return (
-    <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto w-full space-y-6">
+    <div className={cn("max-w-7xl mx-auto w-full space-y-6", embedded ? "" : "p-4 md:p-6 lg:p-8")}>
       {/* Header */}
-      <div>
-        <h1 className="text-xl font-semibold text-foreground tracking-tight">Memberships</h1>
-        <p className="text-sm text-muted mt-0.5">Lash Club recurring subscriptions</p>
-      </div>
+      {!embedded && (
+        <div>
+          <h1 className="text-xl font-semibold text-foreground tracking-tight">Memberships</h1>
+          <p className="text-sm text-muted mt-0.5">Session packs and Lash Club subscriptions</p>
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-border pb-0">
@@ -52,11 +59,11 @@ export function MembershipsPage({
         ))}
       </div>
 
-      {tab === "members" ? (
+      {tab === "members" && (
         <MembersTab memberships={initialMemberships} plans={plans} clients={clients} />
-      ) : (
-        <PlansTab plans={plans} />
       )}
+      {tab === "plans" && <PlansTab plans={plans} />}
+      {tab === "session-packs" && sessionPacksContent}
     </div>
   );
 }

@@ -1,0 +1,2 @@
+CREATE INDEX "inquiries_created_at_idx" ON "inquiries" USING btree ("created_at");--> statement-breakpoint
+CREATE INDEX "products_published_sort_idx" ON "products" USING btree ("is_published","sort_order");

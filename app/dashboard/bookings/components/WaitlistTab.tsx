@@ -1,6 +1,35 @@
+/**
+ * Waitlist tab for the admin Bookings page. Two sections:
+ *   1. Pending booking requests — bookings with status "pending" shown in a table
+ *      with Book / Remove actions.
+ *   2. True waitlist — entries from the `waitlist` table, loaded on mount via
+ *      getWaitlist(). Supports adding new entries via AddWaitlistDialog,
+ *      marking entries as "notified", and removing entries.
+ *
+ * Parent: app/dashboard/bookings/BookingsPage.tsx
+ *
+ * State:
+ *   waitlistEntries — rows from the waitlist DB table, loaded on mount
+ *   addDialogOpen   — controls visibility of the AddWaitlistDialog
+ *
+ * Key operations:
+ *   activeEntries = waitlistEntries.filter(...)
+ *     — filters to "waiting" or "notified" entries so completed/expired don't show
+ *   handleNotify       — marks a waitlist entry as "notified" and sends email
+ *   handleRemoveEntry  — deletes the row from DB, then optimistically removes from local state
+ *   refreshWaitlist    — re-fetches all waitlist entries after mutations
+ *
+ * Sub-component: AddWaitlistDialog
+ *   Form for adding a client to the waitlist with service, date range,
+ *   time preference, and notes. Calls addToWaitlist server action on save.
+ *
+ *   State: clientId, serviceId, dateStart, dateEnd, timePreference, notes, saving
+ *   handleSave — validates required fields, calls addToWaitlist, triggers refresh
+ *   clients.map() / serviceOptions.map() — populate the select dropdowns
+ */
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Phone, Trash2, Plus, Bell, Calendar } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -145,14 +174,12 @@ export function WaitlistTab({
   serviceOptions: { id: number; name: string; category: string }[];
 }) {
   const [waitlistEntries, setWaitlistEntries] = useState<WaitlistRow[]>([]);
-  const [loaded, setLoaded] = useState(false);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
 
-  // Load waitlist entries on first render
-  if (!loaded) {
-    setLoaded(true);
+  // Load waitlist entries on mount
+  useEffect(() => {
     getWaitlist().then(setWaitlistEntries);
-  }
+  }, []);
 
   function refreshWaitlist() {
     getWaitlist().then(setWaitlistEntries);

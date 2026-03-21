@@ -1,3 +1,24 @@
+/**
+ * Tests for POST /api/invites — admin-only assistant invite link generator.
+ *
+ * Covers:
+ *  - Auth: unauthenticated (403), no profile (403), non-admin roles
+ *    including client and assistant (403)
+ *  - Validation: missing email (400), non-string email (400)
+ *  - Happy path: returns inviteUrl containing the generated token and site URL
+ *  - Integration: createInviteToken called with correct email, sendEmail
+ *    called with invite email template
+ *  - Resilience: email send failure → still returns inviteUrl (non-fatal)
+ *  - Env fallback: missing NEXT_PUBLIC_SITE_URL → URL uses localhost:3000
+ *
+ * Mocks: getCurrentUser (auth), createInviteToken, sendEmail,
+ * InviteEmail component, settings-actions (businessProfile).
+ */
+// describe: groups related tests into a labeled block (like a folder for tests)
+// it/test: defines a single test case with a description and assertion function
+// expect: creates an assertion — checks that a value matches an expected condition
+// vi: Vitest's mock utility — creates fake functions, spies on calls, and controls return values
+// beforeEach: runs a setup function before every test in the current describe block
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 /* ------------------------------------------------------------------ */

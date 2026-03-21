@@ -1,3 +1,31 @@
+/**
+ * Tests for GET /api/cron/fill-reminders — lash fill reminder email sender.
+ *
+ * Covers:
+ *  - Auth: missing or wrong CRON_SECRET returns 401
+ *  - Core sending: eligible client (completed lash booking 18 days ago,
+ *    notifyEmail + notifyMarketing enabled) receives fill reminder email
+ *  - Counts: two eligible candidates → sent=2, matched=2
+ *  - Dedup (sync_log): existing reminder entry → skipped, no email sent
+ *  - Preference checks: notifyEmail=false → skipped; notifyMarketing=false → skipped
+ *  - Upcoming booking check: client already has a future lash booking → skipped
+ *  - Rebooking URL: email includes one-click link with service ID pre-filled
+ *  - Mixed results: first send succeeds, second fails → sent=1, failed=1
+ *
+ * The route performs 6 sequential queries per candidate (candidates,
+ * admin profile, sync_log dedup, upcoming lash check, booking history
+ * for pattern analysis, staff name lookup). The setupDbMock helper
+ * configures a stateful mock that routes each db.select() call to the
+ * correct return value based on invocation order.
+ *
+ * Mocks: db (stateful select chain factory), sendEmail, FillReminder
+ * component, settings-actions (remindersConfig), Sentry.
+ */
+// describe: groups related tests into a labeled block (like a folder for tests)
+// it/test: defines a single test case with a description and assertion function
+// expect: creates an assertion — checks that a value matches an expected condition
+// vi: Vitest's mock utility — creates fake functions, spies on calls, and controls return values
+// beforeEach: runs a setup function before every test in the current describe block
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 /* ------------------------------------------------------------------ */

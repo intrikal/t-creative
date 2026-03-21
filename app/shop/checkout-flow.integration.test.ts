@@ -1,3 +1,8 @@
+// describe: groups related tests into a labeled block
+// it: defines a single test case
+// expect: creates an assertion to check a value matches expected condition
+// vi: Vitest's mock utility for creating fake functions
+// beforeEach: runs setup before every test (typically resets mocks)
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 /**
@@ -15,11 +20,19 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 /*  Shared mock handles (declared before any doMock calls)             */
 /* ------------------------------------------------------------------ */
 
+// Shared mock handle for the email service — declared before doMock so
+// the same fn reference is accessible in both setup and assertions
 const mockSendEmail = vi.fn().mockResolvedValue(true);
 
 /* ------------------------------------------------------------------ */
 /*  Stateful mock DB                                                   */
 /* ------------------------------------------------------------------ */
+
+// createStatefulDb builds an in-memory fake database that tracks inserts
+// and updates across tables (_orders, _products, _giftCards, etc.).
+// Unlike simple vi.fn() mocks, this preserves state across chained calls
+// within a single test, allowing assertions on final DB state rather than
+// just which methods were called.
 
 type MockRow = Record<string, unknown>;
 
@@ -152,6 +165,16 @@ function createStatefulDb() {
 /*  Mock setup helper                                                  */
 /* ------------------------------------------------------------------ */
 
+// setupMocks registers all module-level mocks via vi.doMock() (not vi.mock())
+// so they apply after vi.resetModules() clears the module cache. Each external
+// dependency is replaced:
+//   - @/db: uses the stateful mock DB passed in
+//   - @/db/schema: provides column name strings for Drizzle query building
+//   - drizzle-orm: stubs query operators (eq, and, desc, etc.)
+//   - @/utils/supabase/server: fakes an authenticated user ("client-1")
+//   - @/lib/square, easypost, zoho, etc.: disabled integrations
+//   - @/lib/resend: captures email sends for assertion
+//   - next/cache: stubs revalidatePath
 function setupMocks(db: ReturnType<typeof createStatefulDb>) {
   vi.doMock("@/db", () => ({ db }));
 
@@ -308,6 +331,10 @@ function setupMocks(db: ReturnType<typeof createStatefulDb>) {
 /*  Tests                                                              */
 /* ------------------------------------------------------------------ */
 
+// End-to-end integration tests for placeOrder: verifies the full flow from
+// product lookup through order creation, stock decrement, gift card application,
+// and confirmation email. Each test creates a fresh stateful DB and seeds it
+// with specific product/gift card/profile data, then asserts on final DB state.
 describe("placeOrder — checkout flow integration", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -315,6 +342,7 @@ describe("placeOrder — checkout flow integration", () => {
   });
 
   /* ---------------------------------------------------------------- */
+  // Happy path: valid product + pickup_cash → order row created with correct title
   it("placeOrder creates an order for a valid in-stock product", async () => {
     vi.resetModules();
     const db = createStatefulDb();
@@ -348,6 +376,7 @@ describe("placeOrder — checkout flow integration", () => {
   });
 
   /* ---------------------------------------------------------------- */
+  // Verifies the inventory side effect: stockCount should decrease after order
   it("placeOrder decrements stock count for in-stock item", async () => {
     vi.resetModules();
     const db = createStatefulDb();
@@ -378,6 +407,7 @@ describe("placeOrder — checkout flow integration", () => {
   });
 
   /* ---------------------------------------------------------------- */
+  // Cart validation: empty items array should fail before any DB writes
   it("placeOrder returns error when cart is empty", async () => {
     vi.resetModules();
     const db = createStatefulDb();
@@ -395,6 +425,7 @@ describe("placeOrder — checkout flow integration", () => {
   });
 
   /* ---------------------------------------------------------------- */
+  // Availability check: out_of_stock products should be rejected
   it("placeOrder returns error when product is out of stock", async () => {
     vi.resetModules();
     const db = createStatefulDb();
@@ -425,6 +456,8 @@ describe("placeOrder — checkout flow integration", () => {
   });
 
   /* ---------------------------------------------------------------- */
+  // Gift card integration: verifies discount = min(balance, total), and
+  // the card's balance is decremented to zero in the stateful DB
   it("placeOrder applies gift card discount and decrements balance", async () => {
     vi.resetModules();
     const db = createStatefulDb();
@@ -469,6 +502,8 @@ describe("placeOrder — checkout flow integration", () => {
   });
 
   /* ---------------------------------------------------------------- */
+  // Email integration: when a profile exists with an email, a confirmation
+  // email should be sent to that address after a successful order
   it("placeOrder sends a confirmation email after order placed", async () => {
     vi.resetModules();
     const db = createStatefulDb();

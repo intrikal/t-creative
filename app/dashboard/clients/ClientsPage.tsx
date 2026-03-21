@@ -1,3 +1,16 @@
+/**
+ * ClientsPage — Dashboard view for managing the studio's client list.
+ *
+ * Renders the /dashboard/clients route with two tabs: a filterable client
+ * directory (search, source, lifecycle stage, VIP toggle) and a loyalty
+ * program tab. Supports CRUD operations on clients with optimistic UI
+ * updates so the list feels instant even while server actions are in flight.
+ *
+ * This is a Client Component ("use client") because it relies on
+ * interactive state: search/filter inputs, optimistic list mutations via
+ * useOptimistic, and dialog open/close management — none of which can
+ * execute in a Server Component.
+ */
 "use client";
 
 import { useState, useOptimistic, useTransition } from "react";
@@ -78,39 +91,71 @@ export function ClientsPage({
   initialLoyalty: LoyaltyRow[];
   initialRewards?: LoyaltyRewardRow[];
 }) {
+  // Raw DB rows loaded so far — grows as the user clicks "Load more" for
+  // cursor-based pagination. Kept as raw rows so mapClientRow can derive
+  // display-friendly Client objects on every render.
   const [allRows, setAllRows] = useState(initialClients);
+  // Whether the server reported more rows beyond the current page.
   const [hasMore, setHasMore] = useState(initialHasMore);
+  // Loading spinner guard for the "Load more" button.
   const [loadingMore, setLoadingMore] = useState(false);
+  // Transform raw DB rows into display-friendly Client objects on every render
+  // so derived fields (initials, formatted dates, etc.) stay current after
+  // optimistic updates mutate allRows.
   const mappedClients = allRows.map(mapClientRow);
+  // Build Map<clientId, totalSpent> for O(1) lookups when computing loyalty
+  // tier thresholds — avoids scanning the client array per loyalty row.
   const totalSpentMap = new Map(mappedClients.map((c) => [c.id, c.totalSpent]));
+  // Transform each loyalty DB row into a display-friendly LoyaltyEntry, using
+  // totalSpentMap to inject the client's total spend for tier calculation.
   const mappedLoyalty = initialLoyalty.map((r) => mapLoyaltyRow(r, totalSpentMap));
 
+  // useTransition wraps server-action calls so the UI stays responsive and
+  // isPending can drive disabled states on buttons while mutations settle.
   const [isPending, startTransition] = useTransition();
+  // Optimistic client list — lets the user see edits/deletes immediately
+  // while the server action runs in the background via startTransition.
   const [clients, addOptimistic] = useOptimistic<
     Client[],
     { type: "update"; id: string; data: Partial<Client> } | { type: "delete"; id: string }
   >(mappedClients, (state, action) => {
     switch (action.type) {
       case "update":
+        // .map() with spread operator to shallow-merge optimistic changes into
+        // the matching client while preserving all other fields unchanged.
+        // Spread is used here (vs Object.assign) for immutability — React needs
+        // a new object reference to detect the state change.
         return state.map((c) => (c.id === action.id ? { ...c, ...action.data } : c));
       case "delete":
+        // .filter() removes the deleted client from the optimistic list —
+        // React will roll back if the server action fails.
         return state.filter((c) => c.id !== action.id);
     }
   });
-  const [search, setSearch] = useState("");
-  const [sourceFilter, setSourceFilter] = useState("All");
-  const [stageFilter, setStageFilter] = useState<LifecycleStage | "all">("all");
-  const [vipOnly, setVipOnly] = useState(false);
-  const [activeTab, setActiveTab] = useState<ClientsTab>("clients");
+  // --- Filter state ---
+  // Each filter is a separate useState so toggling one does not reset the
+  // others. They combine with AND logic in the `filtered` derivation below.
+  const [search, setSearch] = useState(""); // Free-text name/email filter
+  const [sourceFilter, setSourceFilter] = useState("All"); // Acquisition channel pill
+  const [stageFilter, setStageFilter] = useState<LifecycleStage | "all">("all"); // Lifecycle stage pill
+  const [vipOnly, setVipOnly] = useState(false); // VIP-only toggle
+  const [activeTab, setActiveTab] = useState<ClientsTab>("clients"); // Top-level tab: "clients" | "loyalty"
 
-  // Dialog state
-  const [formOpen, setFormOpen] = useState(false);
-  const [editTarget, setEditTarget] = useState<Client | null>(null);
-  const [formInitial, setFormInitial] = useState<ClientFormState>(BLANK_FORM);
-  const [deleteTarget, setDeleteTarget] = useState<Client | null>(null);
-  const [prefsTarget, setPrefsTarget] = useState<Client | null>(null);
-  const [waiversTarget, setWaiversTarget] = useState<Client | null>(null);
+  // --- Dialog state ---
+  // Each dialog is controlled by a separate piece of state because they are
+  // independent: form dialog, delete confirmation, preferences sheet, and
+  // waivers sheet can each open/close without affecting the others.
+  const [formOpen, setFormOpen] = useState(false); // Add/Edit form dialog visibility
+  const [editTarget, setEditTarget] = useState<Client | null>(null); // Client being edited, null = adding new
+  const [formInitial, setFormInitial] = useState<ClientFormState>(BLANK_FORM); // Pre-filled form values for edit mode
+  const [deleteTarget, setDeleteTarget] = useState<Client | null>(null); // Client pending delete confirmation
+  const [prefsTarget, setPrefsTarget] = useState<Client | null>(null); // Client whose preferences sheet is open
+  const [waiversTarget, setWaiversTarget] = useState<Client | null>(null); // Client whose waivers sheet is open
 
+  // .filter() applies all active filters with AND logic — a client must match
+  // every active filter to appear. This runs on every render but the client
+  // list is small enough (< 1000) that memoization would add complexity
+  // without meaningful performance gain.
   const filtered = clients.filter((c) => {
     const matchSearch =
       !search ||
@@ -122,18 +167,27 @@ export function ClientsPage({
     return matchSearch && matchSource && matchVip && matchStage;
   });
 
+  // .filter() counts VIP clients for the stat card.
   const vipCount = clients.filter((c) => c.vip).length;
+  // .reduce() sums totalSpent across all clients for the revenue stat card.
+  // Using reduce instead of a for-loop for conciseness — array is small.
   const totalRevenue = clients.reduce((s, c) => s + c.totalSpent, 0);
   const avgSpend = clients.length ? Math.round(totalRevenue / clients.length) : 0;
 
+  // Reset form to blank and open the dialog in "add" mode.
   const openAdd = () => {
     setEditTarget(null);
     setFormInitial(BLANK_FORM);
     setFormOpen(true);
   };
 
+  // Pre-fill the form with the selected client's data and open in "edit" mode.
+  // Splits the full name back into first/last so the two-field form works.
   const openEdit = (c: Client) => {
     setEditTarget(c);
+    // Destructuring with rest syntax to split "Jane Doe Smith" into
+    // firstName="Jane" and rest=["Doe", "Smith"], then rejoin the rest as lastName.
+    // This handles multi-word last names (e.g., "Van Der Berg").
     const [firstName, ...rest] = c.name.split(" ");
     setFormInitial({
       firstName: firstName ?? "",
@@ -150,6 +204,10 @@ export function ClientsPage({
     setFormOpen(true);
   };
 
+  // Persist a new or edited client. Closes the dialog first, then applies an
+  // optimistic update so the card reflects changes immediately. The actual
+  // server action (createClient / updateClient) runs inside startTransition
+  // so React can reconcile once the mutation settles.
   const handleSave = async (f: ClientFormState) => {
     const input = {
       firstName: f.firstName.trim(),
@@ -164,6 +222,7 @@ export function ClientsPage({
     };
 
     if (editTarget) {
+      // .filter(Boolean) drops empty strings so a blank lastName doesn't produce a trailing space.
       const name = [input.firstName, input.lastName].filter(Boolean).join(" ");
       const optimisticData: Partial<Client> = {
         name,
@@ -175,6 +234,9 @@ export function ClientsPage({
         lifecycleStage: input.lifecycleStage,
         notes: input.internalNotes,
         tags: input.tags,
+        // Ternary: if tags exist, split the comma-separated string into an array
+        // of ServiceCategory values via .split() → .map(trim+lowercase) → .filter(Boolean)
+        // to strip empty entries from trailing commas. Otherwise, default to empty array.
         services: input.tags
           ? (input.tags
               .split(",")
@@ -196,6 +258,8 @@ export function ClientsPage({
     }
   };
 
+  // Optimistically remove the client from the list, then call the server
+  // action. If the server call fails, React will roll back the optimistic state.
   const handleDelete = async () => {
     if (!deleteTarget) return;
     const targetId = deleteTarget.id;
@@ -206,10 +270,14 @@ export function ClientsPage({
     });
   };
 
+  // Cursor-based pagination: fetch the next page of clients starting at the
+  // current offset, append to allRows, and update the hasMore flag.
   async function loadMore() {
     setLoadingMore(true);
     try {
       const { rows, hasMore: more } = await fetchClients({ offset: allRows.length });
+      // Spread operator appends the new page of rows to the existing array,
+      // creating a new array reference so React detects the state change.
       setAllRows((prev) => [...prev, ...rows]);
       setHasMore(more);
     } finally {
@@ -237,6 +305,7 @@ export function ClientsPage({
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-border -mt-2">
+        {/* Destructuring { id, label } from each tab config object for cleaner JSX */}
         {CLIENTS_TABS.map(({ id, label }) => (
           <button
             key={id}
@@ -384,6 +453,7 @@ export function ClientsPage({
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+              {/* .map() renders a ClientCard for each filtered client */}
               {filtered.map((client) => (
                 <ClientCard
                   key={client.id}

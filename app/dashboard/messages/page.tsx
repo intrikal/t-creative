@@ -3,10 +3,6 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { profiles } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
-import { getThreads } from "./actions";
-import { AssistantMessagesPage } from "./AssistantMessagesPage";
-import { ClientMessagesPage } from "./ClientMessagesPage";
-import { MessagesPage } from "./MessagesPage";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -19,7 +15,8 @@ async function getClientList() {
   const rows = await db
     .select({ id: profiles.id, firstName: profiles.firstName, lastName: profiles.lastName })
     .from(profiles)
-    .where(eq(profiles.role, "client"));
+    .where(eq(profiles.role, "client"))
+    .limit(500);
   return rows.map((r) => ({
     id: r.id,
     name: `${r.firstName ?? ""} ${r.lastName ?? ""}`.trim() || "Unknown",
@@ -31,14 +28,23 @@ export default async function Page() {
   if (!user) redirect("/login");
 
   if (user.profile?.role === "client") {
-    return <ClientMessagesPage />;
+    const { ClientMessagesPage } = await import("./ClientMessagesPage");
+    return <ClientMessagesPage currentUserId={user.id} />;
   }
 
   if (user.profile?.role === "assistant") {
+    const [{ getThreads }, { AssistantMessagesPage }] = await Promise.all([
+      import("./actions"),
+      import("./AssistantMessagesPage"),
+    ]);
     const threads = await getThreads();
-    return <AssistantMessagesPage initialThreads={threads} />;
+    return <AssistantMessagesPage initialThreads={threads} currentUserId={user.id} />;
   }
 
+  const [{ getThreads }, { MessagesPage }] = await Promise.all([
+    import("./actions"),
+    import("./MessagesPage"),
+  ]);
   const [threads, clients] = await Promise.all([getThreads(), getClientList()]);
-  return <MessagesPage initialThreads={threads} clients={clients} />;
+  return <MessagesPage initialThreads={threads} clients={clients} currentUserId={user.id} />;
 }

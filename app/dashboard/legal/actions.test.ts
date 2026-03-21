@@ -1,9 +1,20 @@
+/**
+ * @file actions.test.ts
+ * @description Unit tests for legal/actions (get/save legal documents,
+ * seed defaults, Sentry error capture).
+ *
+ * Testing utilities: describe, it, expect, vi, vi.doMock, vi.resetModules,
+ * vi.clearAllMocks, beforeEach.
+ */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 /* ------------------------------------------------------------------ */
 /*  Chainable DB mock helper                                           */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Creates a chainable mock that mimics Drizzle's query-builder API.
+ */
 function makeChain(rows: unknown[] = []) {
   const resolved = Promise.resolve(rows);
   const chain: any = {
@@ -24,10 +35,14 @@ function makeChain(rows: unknown[] = []) {
 /*  Shared mock refs                                                   */
 /* ------------------------------------------------------------------ */
 
+/** Stub for supabase auth.getUser. */
 const mockGetUser = vi.fn();
+/** Captures Sentry captureException calls for error-reporting assertions. */
 const mockCaptureException = vi.fn();
+/** Captures revalidatePath calls. */
 const mockRevalidatePath = vi.fn();
 
+/** Registers all module mocks; accepts optional custom db object. */
 function setupMocks(db: Record<string, unknown> | null = null) {
   const defaultDb = {
     select: vi.fn(() => makeChain([])),
@@ -255,21 +270,21 @@ describe("legal/actions", () => {
       expect(mockInsertValues).toHaveBeenCalledWith(expect.objectContaining({ sortOrder: 1 }));
     });
 
-    it("revalidates /dashboard/legal and /privacy for privacy_policy", async () => {
+    it("revalidates /dashboard/settings and /privacy for privacy_policy", async () => {
       vi.resetModules();
       setupMocks();
       const { saveLegalDoc } = await import("./actions");
       await saveLegalDoc("privacy_policy", input);
-      expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/legal");
+      expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/settings");
       expect(mockRevalidatePath).toHaveBeenCalledWith("/privacy");
     });
 
-    it("revalidates /dashboard/legal and /terms for terms_of_service", async () => {
+    it("revalidates /dashboard/settings and /terms for terms_of_service", async () => {
       vi.resetModules();
       setupMocks();
       const { saveLegalDoc } = await import("./actions");
       await saveLegalDoc("terms_of_service", input);
-      expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/legal");
+      expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/settings");
       expect(mockRevalidatePath).toHaveBeenCalledWith("/terms");
     });
   });

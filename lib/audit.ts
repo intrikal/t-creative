@@ -19,21 +19,43 @@ import { headers } from "next/headers";
 import { db } from "@/db";
 import { auditLog } from "@/db/schema";
 
+/**
+ * Enumerated action verbs stored in the `action` column of `audit_log`.
+ * Kept as a union type (not a Drizzle enum) so new actions can be added
+ * without a DB migration — the column is a plain varchar.
+ */
 type AuditAction = "create" | "update" | "delete" | "status_change" | "login" | "export";
 
 interface LogActionInput {
-  /** User who performed the action. Omit for system-initiated actions. */
+  /** User who performed the action (profiles.id UUID). Omit for system-initiated actions (cron jobs, webhooks). */
   actorId?: string | null;
+  /** What kind of mutation occurred. */
   action: AuditAction;
+  /** Table or domain the entity belongs to (e.g. "booking", "review", "profile"). */
   entityType: string;
+  /** Primary key of the affected row, stringified. */
   entityId: string;
+  /** Human-readable summary shown in the admin audit log viewer. */
   description?: string;
+  /** Arbitrary JSON blob for before/after diffs, old/new status, etc. */
   metadata?: Record<string, unknown>;
 }
 
 /**
- * Write an audit log entry. Captures IP and user-agent from request headers
- * automatically. Non-fatal — catches and logs errors.
+ * Write a single row to the `audit_log` table.
+ *
+ * Automatically captures the client's IP address (from `x-forwarded-for`
+ * or `x-real-ip` headers) and user-agent string. When called outside a
+ * request context (e.g. from a cron job), those fields are null.
+ *
+ * INSERTs into `audit_log` with columns: actorId, action, entityType,
+ * entityId, description, metadata (JSONB), ipAddress, userAgent.
+ *
+ * Non-fatal — any error (DB down, missing columns, etc.) is sent to
+ * Sentry but never propagated, so audit logging can never break a
+ * user-facing mutation.
+ *
+ * @param input - The audit event details to record.
  */
 export async function logAction(input: LogActionInput): Promise<void> {
   try {

@@ -43,14 +43,16 @@
  */
 
 import { notFound } from "next/navigation";
-import { sql, eq, and } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import type { Metadata } from "next";
 import { BookingPage } from "@/components/booking/BookingPage";
 import { db } from "@/db";
-import { profiles, services, reviews, serviceAddOns } from "@/db/schema";
+import { profiles } from "@/db/schema";
+import { SITE_URL } from "@/lib/site-config";
+import { getBookingPageData } from "../queries";
 
-/** Canonical base URL used for metadata and JSON-LD. Must match production domain. */
-const BASE_URL = "https://tcreativestudio.com";
+/** Canonical base URL used for metadata and JSON-LD. */
+const BASE_URL = SITE_URL;
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -136,18 +138,11 @@ export default async function BookSlugPage({ params, searchParams }: Props) {
   const sp = await searchParams;
   const prefillServiceId = typeof sp.service === "string" ? Number(sp.service) : null;
 
-  // ── 1. Fetch the admin profile ────────────────────────────────────────────
-  const [profileRow] = await db
-    .select({
-      firstName: profiles.firstName,
-      avatarUrl: profiles.avatarUrl,
-      onboardingData: profiles.onboardingData,
-    })
-    .from(profiles)
-    .where(sql`lower(replace(trim(${profiles.onboardingData}->>'studioName'), ' ', '')) = ${slug}`)
-    .limit(1);
+  // ── 1. Fetch cached booking data ─────────────────────────────────────────
+  const bookingData = await getBookingPageData(slug);
+  if (!bookingData) notFound();
 
-  if (!profileRow) notFound();
+  const { profileRow, activeServices, featuredReviews, reviewStats, allAddOns } = bookingData;
 
   // ── 2. Deserialise JSONB sub-objects ─────────────────────────────────────
   // Each sub-object is typed narrowly. The `?? {}` fallback ensures we never
@@ -202,67 +197,7 @@ export default async function BookSlugPage({ params, searchParams }: Props) {
     },
   };
 
-  // ── 4. Parallel data fetch ────────────────────────────────────────────────
-  // All four queries run concurrently. Total latency ≈ slowest query, not sum.
-  const [activeServices, featuredReviews, reviewStats, allAddOns] = await Promise.all([
-    // Services: only active rows, sorted by admin-configured sort_order.
-    db
-      .select({
-        id: services.id,
-        category: services.category,
-        name: services.name,
-        priceInCents: services.priceInCents,
-        depositInCents: services.depositInCents,
-        durationMinutes: services.durationMinutes,
-        description: services.description,
-      })
-      .from(services)
-      .where(eq(services.isActive, true))
-      .orderBy(services.sortOrder),
-
-    // Featured reviews: approved + explicitly flagged as featured, capped at 6
-    // to keep the testimonials section scannable without paginating.
-    db
-      .select({
-        id: reviews.id,
-        rating: reviews.rating,
-        body: reviews.body,
-        serviceName: reviews.serviceName,
-        clientFirstName: profiles.firstName,
-      })
-      .from(reviews)
-      .innerJoin(profiles, eq(reviews.clientId, profiles.id))
-      .where(and(eq(reviews.status, "approved"), eq(reviews.isFeatured, true)))
-      .limit(6),
-
-    // Aggregate stats: total approved reviews + rounded average rating.
-    // `::int` and `::numeric` casts ensure Drizzle returns JS number, not string.
-    db
-      .select({
-        count: sql<number>`count(*)::int`,
-        avg: sql<number>`round(avg(rating)::numeric, 1)`,
-      })
-      .from(reviews)
-      .where(eq(reviews.status, "approved"))
-      .then((r) => r[0] ?? { count: 0, avg: 0 }),
-
-    // Add-ons: all active add-ons across all services in one query.
-    // Grouping by service_id happens in JS (step 5) rather than SQL to avoid
-    // a GROUP BY + JSON_AGG pattern that complicates the Drizzle query builder.
-    db
-      .select({
-        id: serviceAddOns.id,
-        serviceId: serviceAddOns.serviceId,
-        name: serviceAddOns.name,
-        description: serviceAddOns.description,
-        priceInCents: serviceAddOns.priceInCents,
-        additionalMinutes: serviceAddOns.additionalMinutes,
-      })
-      .from(serviceAddOns)
-      .where(eq(serviceAddOns.isActive, true)),
-  ]);
-
-  // ── 5. Group add-ons by service ID ───────────────────────────────────────
+  // ── 4. Group add-ons by service ID ───────────────────────────────────────
   // Produces { [serviceId]: ServiceAddOn[] } so ServiceCard can do an O(1)
   // lookup rather than filtering the full array for each card render.
   const addOnsByService = allAddOns.reduce<Record<number, typeof allAddOns>>((acc, addOn) => {

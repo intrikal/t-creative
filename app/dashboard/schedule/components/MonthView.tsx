@@ -1,3 +1,12 @@
+/**
+ * MonthView — Traditional calendar grid with appointment chips.
+ *
+ * Renders a 7-column grid of day cells for the current month (plus
+ * leading/trailing days from adjacent months). Each cell shows up to 3
+ * appointment chips colour-coded by service category; overflow is
+ * indicated as "+N more". Clicking a chip opens the detail dialog;
+ * clicking a day cell navigates to that day's agenda.
+ */
 "use client";
 
 import { useMemo } from "react";
@@ -22,6 +31,8 @@ export function MonthView({
   const month = cursor.getMonth();
   const grid = useMemo(() => getMonthGrid(year, month), [year, month]);
 
+  // Memo: index appointments by date string for O(1) lookup per cell.
+  // Avoids repeated .filter() calls across potentially 42 grid cells.
   const byDate = useMemo(() => {
     const map: Record<string, AppointmentRow[]> = {};
     for (const a of appointments) {
@@ -72,6 +83,8 @@ export function MonthView({
                 {day.getDate()}
               </span>
               <div className="space-y-0.5">
+                {/* slice: show at most MAX (3) appointment chips per cell
+                    to prevent overflow; excess is shown as "+N more" below */}
                 {dayAppts.slice(0, MAX).map((a) => {
                   const c = CATEGORY_COLORS[a.category];
                   return (

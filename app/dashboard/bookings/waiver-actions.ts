@@ -7,22 +7,17 @@
 "use server";
 
 import { eq, and, inArray } from "drizzle-orm";
+import {
+  getPublicBookingRules,
+  getPublicBusinessProfile,
+} from "@/app/dashboard/settings/settings-actions";
 import { db } from "@/db";
 import { bookings, services, clientForms, formSubmissions } from "@/db/schema";
 import { WaiverRequired } from "@/emails/WaiverRequired";
+import { getUser } from "@/lib/auth";
 import { trackEvent } from "@/lib/posthog";
 import { getEmailRecipient, sendEmail } from "@/lib/resend";
 import { generateWaiverToken } from "@/lib/waiver-token";
-import { createClient } from "@/utils/supabase/server";
-
-async function getUser() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
-  return user;
-}
 
 export type MissingWaiver = {
   formId: number;
@@ -118,9 +113,15 @@ export async function sendWaiverLink(bookingId: number): Promise<boolean> {
   const recipient = await getEmailRecipient(booking.clientId);
   if (!recipient) throw new Error("Client has no email or notifications disabled");
 
-  const token = generateWaiverToken({ bookingId, clientId: booking.clientId });
+  const bookingRules = await getPublicBookingRules();
+  const token = generateWaiverToken(
+    { bookingId, clientId: booking.clientId },
+    bookingRules.waiverTokenExpiryDays,
+  );
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://tcreativestudio.com";
   const waiverUrl = `${baseUrl}/waivers/${token}`;
+
+  const bp = await getPublicBusinessProfile();
 
   const sent = await sendEmail({
     to: recipient.email,
@@ -137,6 +138,7 @@ export async function sendWaiverLink(bookingId: number): Promise<boolean> {
         minute: "2-digit",
       }),
       waiverUrl,
+      businessName: bp.businessName,
     }),
     entityType: "waiver_required",
     localId: String(bookingId),

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { ChevronLeft, ChevronRight, List, CalendarDays, CalendarRange, Clock } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -31,6 +31,9 @@ export function AssistantSchedulePage({
   const [view, setView] = useState<View>("list");
   const [cursor, setCursor] = useState(() => new Date());
   const [selected, setSelected] = useState<AppointmentRow | null>(null);
+  const handleApptClick = useCallback((appt: AppointmentRow) => {
+    setSelected(appt);
+  }, []);
 
   const todayLabel = new Date().toLocaleDateString("en-US", {
     weekday: "short",
@@ -145,7 +148,7 @@ export function AssistantSchedulePage({
           <ListView
             appointments={initialAppointments}
             todayLabel={todayLabel}
-            onApptClick={setSelected}
+            onApptClick={handleApptClick}
           />
         )}
         {view === "month" && (
@@ -153,7 +156,7 @@ export function AssistantSchedulePage({
             cursor={cursor}
             todayKey={todayKey}
             appointments={initialAppointments}
-            onApptClick={setSelected}
+            onApptClick={handleApptClick}
             onDayClick={handleDayClick}
           />
         )}
@@ -162,7 +165,7 @@ export function AssistantSchedulePage({
             cursor={cursor}
             todayKey={todayKey}
             appointments={initialAppointments}
-            onApptClick={setSelected}
+            onApptClick={handleApptClick}
           />
         )}
         {view === "agenda" && (
@@ -170,7 +173,7 @@ export function AssistantSchedulePage({
             cursor={cursor}
             todayKey={todayKey}
             appointments={initialAppointments}
-            onApptClick={setSelected}
+            onApptClick={handleApptClick}
           />
         )}
       </div>

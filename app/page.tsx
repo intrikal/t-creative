@@ -21,6 +21,7 @@
  */
 
 import { desc, eq } from "drizzle-orm";
+import type { Metadata } from "next";
 import { ChatWidgetLoader } from "@/components/chat/ChatWidgetLoader";
 import { CallToAction } from "@/components/landing/CallToAction";
 import { EditorialPortfolio } from "@/components/landing/EditorialPortfolio";
@@ -40,8 +41,33 @@ import { TrainingTeaser } from "@/components/landing/TrainingTeaser";
 import { TrustBar } from "@/components/landing/TrustBar";
 import { db } from "@/db";
 import { instagramPosts } from "@/db/schema";
+import { getFeaturedReviews } from "@/lib/public-reviews";
+import { getSiteData } from "@/lib/site-data";
 
 const BASE_URL = "https://tcreativestudio.com";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const { business, content } = await getSiteData();
+  return {
+    title: business.businessName,
+    description: content.seoDescription,
+    alternates: {
+      canonical: "/",
+    },
+    openGraph: {
+      title: business.businessName,
+      description: content.seoDescription,
+      url: BASE_URL,
+      siteName: business.businessName,
+      type: "website",
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: business.businessName,
+      description: content.seoDescription,
+    },
+  };
+}
 
 const eventServicesJsonLd = {
   "@context": "https://schema.org",
@@ -115,6 +141,11 @@ const eventServicesJsonLd = {
 };
 
 export default async function Home() {
+  const [{ business, content, policies }, featuredReviews] = await Promise.all([
+    getSiteData(),
+    getFeaturedReviews(),
+  ]);
+
   // Fetch cached Instagram posts (non-blocking — empty array if table is empty)
   const igPosts = await db
     .select({
@@ -146,21 +177,29 @@ export default async function Home() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(eventServicesJsonLd) }}
       />
       <main id="main-content">
-        <Hero />
+        <Hero
+          headline={content.heroHeadline}
+          subheadline={content.heroSubheadline}
+          ctaText={content.heroCtaText}
+        />
         <TrustBar />
         <Services />
         <HowItWorks />
         <StudioDiorama />
         <Stats />
         <EditorialPortfolio />
-        <Events />
+        <Events eventDescriptions={content.eventDescriptions} />
         <TrainingTeaser />
         <FeaturedProducts />
         <InstagramFeed posts={igPostsSerialized} />
-        <Testimonials />
-        <FAQ />
+        <Testimonials reviews={featuredReviews} />
+        <FAQ entries={content.faqEntries} policies={policies} />
         <CallToAction />
-        <Footer />
+        <Footer
+          email={business.email}
+          tagline={content.footerTagline}
+          socialLinks={content.socialLinks}
+        />
 
         {/* Sticky mobile booking CTA */}
         <StickyMobileCTA />

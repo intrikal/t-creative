@@ -172,6 +172,7 @@ export const shifts = pgTable(
     index("shifts_assistant_idx").on(t.assistantId),
     index("shifts_starts_at_idx").on(t.startsAt),
     index("shifts_status_idx").on(t.status),
+    index("shifts_assistant_starts_idx").on(t.assistantId, t.startsAt),
   ],
 );
 

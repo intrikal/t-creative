@@ -1,3 +1,8 @@
+// describe: groups related tests into a labeled block
+// it: defines a single test case
+// expect: creates an assertion to check a value matches expected condition
+// vi: Vitest's mock utility for creating fake functions and spying on calls
+// beforeEach: runs setup before every test (typically resets mocks)
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 /* ------------------------------------------------------------------ */
@@ -38,17 +43,13 @@ const mockNotifyWaitlist = vi.fn().mockResolvedValue(undefined);
 const mockCalendarUrl = vi.fn((id: string) => `webcal://example.com/calendar/${id}`);
 const mockRevalidatePath = vi.fn();
 
-function setupMocks(db: Record<string, unknown> | null = null) {
-  const defaultDb = {
-    select: vi.fn(() => makeChain([])),
-    insert: vi.fn(() => ({
-      values: vi.fn(() => ({ returning: vi.fn().mockResolvedValue([{ id: 1 }]) })),
-    })),
-    update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn() })) })),
-    delete: vi.fn(() => ({ where: vi.fn() })),
-  };
-
-  vi.doMock("@/db", () => ({ db: db ?? defaultDb }));
+function setupMocks(overrides: Record<string, unknown> | null = null) {
+  // Use Object.assign (not spread) so that the `transaction` closure's `self`
+  // reference still points at the same object after overrides are applied.
+  // A spread creates a new object, leaving `self` pointing to the old defaults.
+  const resolvedDb = makeDefaultDb();
+  if (overrides) Object.assign(resolvedDb, overrides);
+  vi.doMock("@/db", () => ({ db: resolvedDb }));
   vi.doMock("@/db/schema", () => ({
     bookings: {
       id: "id",
@@ -89,6 +90,45 @@ function setupMocks(db: Record<string, unknown> | null = null) {
       source: "source",
       status: "status",
     },
+    settings: { key: "key", value: "value" },
+    payments: {
+      id: "id",
+      bookingId: "bookingId",
+      clientId: "clientId",
+      squarePaymentId: "squarePaymentId",
+      amountInCents: "amountInCents",
+      refundedInCents: "refundedInCents",
+      status: "status",
+      refundedAt: "refundedAt",
+    },
+    notifications: {
+      profileId: "profileId",
+      type: "type",
+      channel: "channel",
+      status: "status",
+      title: "title",
+      body: "body",
+      relatedEntityType: "relatedEntityType",
+      relatedEntityId: "relatedEntityId",
+    },
+    businessHours: {
+      staffId: "staffId",
+      dayOfWeek: "dayOfWeek",
+      isOpen: "isOpen",
+      opensAt: "opensAt",
+      closesAt: "closesAt",
+    },
+    timeOff: { staffId: "staffId", startDate: "startDate", endDate: "endDate" },
+    syncLog: {
+      provider: "provider",
+      direction: "direction",
+      status: "status",
+      entityType: "entityType",
+      localId: "localId",
+      remoteId: "remoteId",
+      message: "message",
+      errorMessage: "errorMessage",
+    },
   }));
   vi.doMock("drizzle-orm", () => ({
     eq: vi.fn((...args: unknown[]) => ({ type: "eq", args })),
@@ -99,6 +139,9 @@ function setupMocks(db: Record<string, unknown> | null = null) {
       { join: vi.fn(() => ({ type: "sql_join" })) },
     ),
     isNull: vi.fn((...args: unknown[]) => ({ type: "isNull", args })),
+    isNotNull: vi.fn((...args: unknown[]) => ({ type: "isNotNull", args })),
+    inArray: vi.fn((...args: unknown[]) => ({ type: "inArray", args })),
+    ne: vi.fn((...args: unknown[]) => ({ type: "ne", args })),
   }));
   vi.doMock("drizzle-orm/pg-core", () => ({
     alias: vi.fn((_table: unknown, name: string) => ({
@@ -122,6 +165,36 @@ function setupMocks(db: Record<string, unknown> | null = null) {
   vi.doMock("@/lib/waitlist-notify", () => ({
     notifyWaitlistForCancelledBooking: mockNotifyWaitlist,
   }));
+  vi.doMock("@/lib/square", () => ({
+    squareClient: { refunds: { refundPayment: vi.fn().mockResolvedValue({}) } },
+    isSquareConfigured: vi.fn(() => false),
+  }));
+  vi.doMock("@/lib/resend", () => ({
+    sendEmail: vi.fn().mockResolvedValue(true),
+    getEmailRecipient: vi.fn().mockResolvedValue(null),
+  }));
+  vi.doMock("@/emails/BookingCancellation", () => ({
+    BookingCancellation: vi.fn(() => null),
+  }));
+  vi.doMock("@/emails/BookingReschedule", () => ({
+    BookingReschedule: vi.fn(() => null),
+  }));
+}
+
+function makeDefaultDb() {
+  const self: Record<string, unknown> = {
+    select: vi.fn(() => makeChain([])),
+    insert: vi.fn(() => ({
+      values: vi.fn(() => ({ returning: vi.fn().mockResolvedValue([{ id: 1 }]) })),
+    })),
+    update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn() })) })),
+    delete: vi.fn(() => ({ where: vi.fn() })),
+    execute: vi.fn().mockResolvedValue({ rows: [] }),
+    transaction: vi.fn(async (fn: (tx: unknown) => Promise<void>) => {
+      await fn(self);
+    }),
+  };
+  return self;
 }
 
 /* ------------------------------------------------------------------ */
@@ -168,7 +241,8 @@ describe("client-actions", () => {
       setupMocks({
         select: vi.fn(() => {
           selectCount++;
-          if (selectCount === 1) {
+          // count 1 = getCurrentUser() profile fetch — return empty (profile: null is OK)
+          if (selectCount === 2) {
             return makeChain([
               {
                 id: 1,
@@ -353,9 +427,10 @@ describe("client-actions", () => {
       setupMocks({
         select: vi.fn(() => {
           selectCount++;
-          if (selectCount === 1) return makeChain([{ clientId: "user-1", serviceId: 2 }]);
-          if (selectCount === 2) return makeChain([{ name: "Lash Extensions" }]);
-          if (selectCount === 3) return makeChain([{ id: 99 }]); // existing review
+          // count 1 = getCurrentUser() profile fetch
+          if (selectCount === 2) return makeChain([{ clientId: "user-1", serviceId: 2 }]);
+          if (selectCount === 3) return makeChain([{ name: "Lash Extensions" }]);
+          if (selectCount === 4) return makeChain([{ id: 99 }]); // existing review
           return makeChain([]);
         }),
         insert: vi.fn(() => ({
@@ -377,8 +452,9 @@ describe("client-actions", () => {
       setupMocks({
         select: vi.fn(() => {
           selectCount++;
-          if (selectCount === 1) return makeChain([{ clientId: "user-1", serviceId: 2 }]);
-          if (selectCount === 2) return makeChain([{ name: "Lash Extensions" }]);
+          // count 1 = getCurrentUser() profile fetch
+          if (selectCount === 2) return makeChain([{ clientId: "user-1", serviceId: 2 }]);
+          if (selectCount === 3) return makeChain([{ name: "Lash Extensions" }]);
           return makeChain([]); // no existing review
         }),
         insert: vi.fn(() => ({ values: mockInsertValues })),
@@ -407,8 +483,9 @@ describe("client-actions", () => {
       setupMocks({
         select: vi.fn(() => {
           selectCount++;
-          if (selectCount === 1) return makeChain([{ clientId: "user-1", serviceId: 2 }]);
-          if (selectCount === 2) return makeChain([{ name: "Lash" }]);
+          // count 1 = getCurrentUser() profile fetch
+          if (selectCount === 2) return makeChain([{ clientId: "user-1", serviceId: 2 }]);
+          if (selectCount === 3) return makeChain([{ name: "Lash" }]);
           return makeChain([]);
         }),
         insert: vi.fn(() => ({ values: mockInsertValues })),
@@ -426,8 +503,9 @@ describe("client-actions", () => {
       setupMocks({
         select: vi.fn(() => {
           selectCount++;
-          if (selectCount === 1) return makeChain([{ clientId: "user-1", serviceId: 2 }]);
-          if (selectCount === 2) return makeChain([{ name: "Lash Extensions" }]);
+          // count 1 = getCurrentUser() profile fetch
+          if (selectCount === 2) return makeChain([{ clientId: "user-1", serviceId: 2 }]);
+          if (selectCount === 3) return makeChain([{ name: "Lash Extensions" }]);
           return makeChain([]);
         }),
         insert: vi.fn(() => ({ values: vi.fn() })),
@@ -449,8 +527,9 @@ describe("client-actions", () => {
       setupMocks({
         select: vi.fn(() => {
           selectCount++;
-          if (selectCount === 1) return makeChain([{ clientId: "user-1", serviceId: 2 }]);
-          if (selectCount === 2) return makeChain([{ name: "Lash Extensions" }]);
+          // count 1 = getCurrentUser() profile fetch
+          if (selectCount === 2) return makeChain([{ clientId: "user-1", serviceId: 2 }]);
+          if (selectCount === 3) return makeChain([{ name: "Lash Extensions" }]);
           return makeChain([]);
         }),
         insert: vi.fn(() => ({ values: vi.fn() })),
@@ -472,8 +551,9 @@ describe("client-actions", () => {
       setupMocks({
         select: vi.fn(() => {
           selectCount++;
-          if (selectCount === 1) return makeChain([{ clientId: "user-1", serviceId: 2 }]);
-          if (selectCount === 2) return makeChain([{ name: "Lash" }]);
+          // count 1 = getCurrentUser() profile fetch
+          if (selectCount === 2) return makeChain([{ clientId: "user-1", serviceId: 2 }]);
+          if (selectCount === 3) return makeChain([{ name: "Lash" }]);
           return makeChain([]);
         }),
         insert: vi.fn(() => ({ values: vi.fn() })),
@@ -523,7 +603,7 @@ describe("client-actions", () => {
             {
               clientId: "other-user",
               status: "confirmed",
-              startsAt: new Date(Date.now() + 48 * 60 * 60 * 1000),
+              startsAt: new Date(Date.now() + 96 * 60 * 60 * 1000),
               serviceName: "Lash",
             },
           ]),
@@ -548,7 +628,7 @@ describe("client-actions", () => {
             {
               clientId: "user-1",
               status: "completed",
-              startsAt: new Date(Date.now() + 48 * 60 * 60 * 1000),
+              startsAt: new Date(Date.now() + 96 * 60 * 60 * 1000),
               serviceName: "Lash",
             },
           ]),
@@ -565,28 +645,28 @@ describe("client-actions", () => {
       );
     });
 
-    it("throws when appointment is within 24 hours", async () => {
+    it("throws when appointment is within the cancellation window", async () => {
       vi.resetModules();
-      setupMocks({
-        select: vi.fn(() =>
-          makeChain([
-            {
-              clientId: "user-1",
-              status: "confirmed",
-              startsAt: new Date(Date.now() + 60 * 60 * 1000), // 1 hour from now
-              serviceName: "Lash",
-            },
-          ]),
-        ),
-        insert: vi.fn(() => ({
-          values: vi.fn(() => ({ returning: vi.fn().mockResolvedValue([{ id: 1 }]) })),
-        })),
-        update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn() })) })),
-        delete: vi.fn(() => ({ where: vi.fn() })),
-      });
+      const db = makeDefaultDb();
+      (db.select as ReturnType<typeof vi.fn>).mockReturnValue(
+        makeChain([
+          {
+            clientId: "user-1",
+            status: "confirmed",
+            startsAt: new Date(Date.now() + 60 * 60 * 1000), // 1 hour from now
+            serviceName: "Lash",
+          },
+        ]),
+      );
+      (db.transaction as ReturnType<typeof vi.fn>).mockImplementation(
+        async (fn: (tx: unknown) => Promise<void>) => {
+          await fn(db);
+        },
+      );
+      setupMocks(db);
       const { rescheduleClientBooking } = await import("./client-actions");
       await expect(rescheduleClientBooking(1, "2026-06-01T10:00:00Z")).rejects.toThrow(
-        "within 24 hours",
+        "cannot be rescheduled within",
       );
     });
 
@@ -598,7 +678,7 @@ describe("client-actions", () => {
             {
               clientId: "user-1",
               status: "confirmed",
-              startsAt: new Date(Date.now() + 48 * 60 * 60 * 1000),
+              startsAt: new Date(Date.now() + 96 * 60 * 60 * 1000),
               serviceName: "Lash",
             },
           ]),
@@ -621,7 +701,7 @@ describe("client-actions", () => {
             {
               clientId: "user-1",
               status: "confirmed",
-              startsAt: new Date(Date.now() + 48 * 60 * 60 * 1000),
+              startsAt: new Date(Date.now() + 96 * 60 * 60 * 1000),
               serviceName: "Lash",
             },
           ]),
@@ -641,7 +721,7 @@ describe("client-actions", () => {
     it("updates booking with new start time and resets status to 'pending'", async () => {
       vi.resetModules();
       const mockUpdateSet = vi.fn(() => ({ where: vi.fn() }));
-      const existingDate = new Date(Date.now() + 48 * 60 * 60 * 1000);
+      const existingDate = new Date(Date.now() + 96 * 60 * 60 * 1000);
       setupMocks({
         select: vi.fn(() =>
           makeChain([
@@ -669,7 +749,7 @@ describe("client-actions", () => {
 
     it("fires PostHog booking_rescheduled_by_client event", async () => {
       vi.resetModules();
-      const futureDate = new Date(Date.now() + 48 * 60 * 60 * 1000);
+      const futureDate = new Date(Date.now() + 96 * 60 * 60 * 1000);
       setupMocks({
         select: vi.fn(() =>
           makeChain([
@@ -699,7 +779,7 @@ describe("client-actions", () => {
 
     it("logs audit action", async () => {
       vi.resetModules();
-      const futureDate = new Date(Date.now() + 48 * 60 * 60 * 1000);
+      const futureDate = new Date(Date.now() + 96 * 60 * 60 * 1000);
       setupMocks({
         select: vi.fn(() =>
           makeChain([
@@ -732,7 +812,7 @@ describe("client-actions", () => {
 
     it("revalidates /dashboard/bookings", async () => {
       vi.resetModules();
-      const futureDate = new Date(Date.now() + 48 * 60 * 60 * 1000);
+      const futureDate = new Date(Date.now() + 96 * 60 * 60 * 1000);
       setupMocks({
         select: vi.fn(() =>
           makeChain([
@@ -790,7 +870,7 @@ describe("client-actions", () => {
             {
               clientId: "other-user",
               status: "confirmed",
-              startsAt: new Date(Date.now() + 48 * 60 * 60 * 1000),
+              startsAt: new Date(Date.now() + 96 * 60 * 60 * 1000),
               depositPaidInCents: 0,
             },
           ]),
@@ -813,7 +893,7 @@ describe("client-actions", () => {
             {
               clientId: "user-1",
               status: "completed",
-              startsAt: new Date(Date.now() + 48 * 60 * 60 * 1000),
+              startsAt: new Date(Date.now() + 96 * 60 * 60 * 1000),
               depositPaidInCents: 0,
             },
           ]),
@@ -828,7 +908,7 @@ describe("client-actions", () => {
       await expect(cancelClientBooking(1)).rejects.toThrow("cannot be cancelled");
     });
 
-    it("throws when appointment is within 24 hours", async () => {
+    it("throws when appointment is within the cancellation window", async () => {
       vi.resetModules();
       setupMocks({
         select: vi.fn(() =>
@@ -841,14 +921,9 @@ describe("client-actions", () => {
             },
           ]),
         ),
-        insert: vi.fn(() => ({
-          values: vi.fn(() => ({ returning: vi.fn().mockResolvedValue([{ id: 1 }]) })),
-        })),
-        update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn() })) })),
-        delete: vi.fn(() => ({ where: vi.fn() })),
       });
       const { cancelClientBooking } = await import("./client-actions");
-      await expect(cancelClientBooking(1)).rejects.toThrow("within 24 hours");
+      await expect(cancelClientBooking(1)).rejects.toThrow("cannot be cancelled within");
     });
 
     it("updates booking status to 'cancelled' with cancelledAt timestamp", async () => {
@@ -860,16 +935,12 @@ describe("client-actions", () => {
             {
               clientId: "user-1",
               status: "confirmed",
-              startsAt: new Date(Date.now() + 48 * 60 * 60 * 1000),
+              startsAt: new Date(Date.now() + 96 * 60 * 60 * 1000),
               depositPaidInCents: 0,
             },
           ]),
         ),
-        insert: vi.fn(() => ({
-          values: vi.fn(() => ({ returning: vi.fn().mockResolvedValue([{ id: 1 }]) })),
-        })),
         update: vi.fn(() => ({ set: mockUpdateSet })),
-        delete: vi.fn(() => ({ where: vi.fn() })),
       });
       const { cancelClientBooking } = await import("./client-actions");
       await cancelClientBooking(1);
@@ -878,7 +949,7 @@ describe("client-actions", () => {
       );
     });
 
-    it("uses deposit-aware cancellation reason when deposit was paid", async () => {
+    it("uses 'Cancelled by client' as cancellation reason regardless of deposit", async () => {
       vi.resetModules();
       const mockUpdateSet = vi.fn(() => ({ where: vi.fn() }));
       setupMocks({
@@ -887,23 +958,17 @@ describe("client-actions", () => {
             {
               clientId: "user-1",
               status: "confirmed",
-              startsAt: new Date(Date.now() + 48 * 60 * 60 * 1000),
+              startsAt: new Date(Date.now() + 96 * 60 * 60 * 1000),
               depositPaidInCents: 5000,
             },
           ]),
         ),
-        insert: vi.fn(() => ({
-          values: vi.fn(() => ({ returning: vi.fn().mockResolvedValue([{ id: 1 }]) })),
-        })),
         update: vi.fn(() => ({ set: mockUpdateSet })),
-        delete: vi.fn(() => ({ where: vi.fn() })),
       });
       const { cancelClientBooking } = await import("./client-actions");
       await cancelClientBooking(1);
       expect(mockUpdateSet).toHaveBeenCalledWith(
-        expect.objectContaining({
-          cancellationReason: expect.stringContaining("deposit pending admin review"),
-        }),
+        expect.objectContaining({ cancellationReason: "Cancelled by client" }),
       );
     });
 
@@ -916,7 +981,7 @@ describe("client-actions", () => {
             {
               clientId: "user-1",
               status: "pending",
-              startsAt: new Date(Date.now() + 48 * 60 * 60 * 1000),
+              startsAt: new Date(Date.now() + 96 * 60 * 60 * 1000),
               depositPaidInCents: 0,
             },
           ]),
@@ -942,7 +1007,7 @@ describe("client-actions", () => {
             {
               clientId: "user-1",
               status: "pending",
-              startsAt: new Date(Date.now() + 48 * 60 * 60 * 1000),
+              startsAt: new Date(Date.now() + 96 * 60 * 60 * 1000),
               depositPaidInCents: 0,
             },
           ]),
@@ -970,7 +1035,7 @@ describe("client-actions", () => {
             {
               clientId: "user-1",
               status: "confirmed",
-              startsAt: new Date(Date.now() + 48 * 60 * 60 * 1000),
+              startsAt: new Date(Date.now() + 96 * 60 * 60 * 1000),
               depositPaidInCents: 0,
             },
           ]),
@@ -994,7 +1059,7 @@ describe("client-actions", () => {
             {
               clientId: "user-1",
               status: "confirmed",
-              startsAt: new Date(Date.now() + 48 * 60 * 60 * 1000),
+              startsAt: new Date(Date.now() + 96 * 60 * 60 * 1000),
               depositPaidInCents: 0,
             },
           ]),
@@ -1018,7 +1083,7 @@ describe("client-actions", () => {
             {
               clientId: "user-1",
               status: "confirmed",
-              startsAt: new Date(Date.now() + 48 * 60 * 60 * 1000),
+              startsAt: new Date(Date.now() + 96 * 60 * 60 * 1000),
               depositPaidInCents: 0,
             },
           ]),
@@ -1049,7 +1114,7 @@ describe("client-actions", () => {
             {
               clientId: "user-1",
               status: "confirmed",
-              startsAt: new Date(Date.now() + 48 * 60 * 60 * 1000),
+              startsAt: new Date(Date.now() + 96 * 60 * 60 * 1000),
               depositPaidInCents: 0,
             },
           ]),

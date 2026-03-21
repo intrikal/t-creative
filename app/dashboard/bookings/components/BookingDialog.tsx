@@ -1,3 +1,35 @@
+/**
+ * Create / Edit booking dialog for the admin Bookings page.
+ * Handles client selection (with auto-fill of preferred rebook cadence),
+ * service selection (with auto-fill of duration and price), staff assignment,
+ * recurrence rules (RRULE), series end constraints, and subscription linking.
+ *
+ * Parent: app/dashboard/bookings/BookingsPage.tsx
+ *
+ * State:
+ *   form — BookingFormState containing all form field values
+ *
+ * Key operations:
+ *   set()              — generic updater: spreads a single key into form state
+ *   onServiceChange()  — when service changes, auto-fills durationMin and price
+ *                         from the selected service's catalog values
+ *   onClientChange()   — when client changes, auto-fills recurrenceRule from
+ *                         the client's preferredRebookIntervalDays via
+ *                         INTERVAL_DAYS_TO_RRULE lookup map
+ *   onRepeatChange()   — clears series constraints when recurrence is turned off
+ *   clientSubscriptions = activeSubscriptions.filter(...)
+ *     — shows only subscriptions belonging to the selected client
+ *   extractBaseFreq()  — strips UNTIL/COUNT from a stored RRULE, returning
+ *                         just FREQ+INTERVAL for the dropdown
+ *   extractUntilDate() — parses UNTIL=YYYYMMDDTHHMMSSZ into YYYY-MM-DD
+ *                         using Object.fromEntries on semicolon-split parts
+ *   extractCount()     — parses COUNT=N from RRULE parts via Object.fromEntries
+ *   bookingToForm()    — maps a Booking object to form state for editing,
+ *                         decomposing the RRULE into base freq + end date + count
+ *
+ * CADENCE_OPTIONS — imported from lib/cadence, populates the Repeat dropdown
+ * INTERVAL_DAYS_TO_RRULE — maps preferredRebookIntervalDays numbers to RRULE strings
+ */
 "use client";
 
 import { useState } from "react";
@@ -124,12 +156,6 @@ export function BookingDialog({
   activeSubscriptions?: { id: number; clientId: string; name: string; sessionsRemaining: number }[];
 }) {
   const [form, setForm] = useState<BookingFormState>(initial ? bookingToForm(initial) : EMPTY_FORM);
-
-  const [lastInitial, setLastInitial] = useState(initial);
-  if (initial !== lastInitial) {
-    setLastInitial(initial);
-    setForm(initial ? bookingToForm(initial) : EMPTY_FORM);
-  }
 
   function set<K extends keyof BookingFormState>(key: K, val: BookingFormState[K]) {
     setForm((prev) => ({ ...prev, [key]: val }));

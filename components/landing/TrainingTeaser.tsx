@@ -11,6 +11,8 @@
 import Link from "next/link";
 import { motion } from "framer-motion";
 
+// Training program summaries — lighter version than the full Training component.
+// Each has title, duration, price, and zone color for the dot indicator.
 const PROGRAMS = [
   {
     title: "Classic Lash Certification",
@@ -65,6 +67,8 @@ export function TrainingTeaser() {
 
         {/* Program cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-12">
+          {/* .map() over PROGRAMS to render cards in a 1x4 (mobile) or 2x2 (desktop) grid.
+              Stagger delay (i * 0.1) cascades entrance animation. */}
           {PROGRAMS.map((program, i) => (
             <motion.div
               key={program.title}

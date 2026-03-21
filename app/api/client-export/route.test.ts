@@ -1,3 +1,30 @@
+/**
+ * Tests for GET /api/client-export — CCPA "Right to Know" data export.
+ *
+ * Covers:
+ *  - Auth: unauthenticated → 401
+ *  - Authorization: profile not found → 403; non-client role (admin) → 403
+ *  - Happy path: authenticated client → 200 JSON download containing
+ *    profile data, plus empty arrays for bookings, payments, orders,
+ *    invoices, conversations, reviews, formSubmissions, serviceRecords,
+ *    loyaltyTransactions, notifications, memberships, subscriptions,
+ *    waitlistEntries, wishlistItems
+ *  - Response headers: Content-Disposition attachment with dated filename,
+ *    Cache-Control: no-store
+ *  - Audit: logAction called with action="export", entityType="client_data"
+ *
+ * The route fires 15 parallel DB selects via Promise.all to gather all
+ * client-related data in one request.
+ *
+ * Mocks: Supabase auth (getUser), db.select (thenable chain returning
+ * profile on first call, empty arrays for all data queries), logAction,
+ * Sentry, drizzle-orm operators.
+ */
+// describe: groups related tests into a labeled block (like a folder for tests)
+// it/test: defines a single test case with a description and assertion function
+// expect: creates an assertion — checks that a value matches an expected condition
+// vi: Vitest's mock utility — creates fake functions, spies on calls, and controls return values
+// beforeEach: runs a setup function before every test in the current describe block
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 /* ------------------------------------------------------------------ */

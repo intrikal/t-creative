@@ -37,6 +37,7 @@ import {
   type PendingWaiver,
 } from "@/app/dashboard/book/actions";
 import { createBookingRequest } from "@/app/dashboard/messages/actions";
+import { getPublicPolicies } from "@/app/dashboard/settings/settings-actions";
 import { Calendar } from "@/components/ui/calendar";
 import { CADENCE_OPTIONS, rruleToCadenceLabel } from "@/lib/cadence";
 import { cn } from "@/lib/utils";
@@ -175,7 +176,6 @@ function downloadIcs(service: Service, date: Date, time: string): void {
 
 type Step = "date" | "time" | "confirm" | "pay";
 
-
 type PhotoPreview = { file: File; preview: string };
 
 export function BookingRequestDialog({
@@ -214,6 +214,9 @@ export function BookingRequestDialog({
   const uploadedPhotosRef = useRef<string[]>([]);
   const [pendingWaivers, setPendingWaivers] = useState<PendingWaiver[]>([]);
   const [waiversChecked, setWaiversChecked] = useState(false);
+  const [tosAccepted, setTosAccepted] = useState(false);
+  const [policyText, setPolicyText] = useState("");
+  const [tosVersion, setTosVersion] = useState("");
 
   const hasDeposit = !!service.depositInCents && service.depositInCents > 0;
   const totalSteps = hasDeposit ? 4 : 3;
@@ -224,13 +227,17 @@ export function BookingRequestDialog({
   const adjustedPrice = (service.priceInCents ?? 0) + addOnTotal;
   const adjustedDuration = (service.durationMinutes ?? 0) + addOnMinutes;
 
-  // Fetch availability + auth status on open
+  // Fetch availability, auth status, and policy on open
   useEffect(() => {
     if (!open) return;
-    Promise.all([getStudioAvailability(), checkIsAuthenticated()]).then(([avail, authed]) => {
-      setAvailability(avail);
-      setIsGuest(!authed);
-    });
+    Promise.all([getStudioAvailability(), checkIsAuthenticated(), getPublicPolicies()]).then(
+      ([avail, authed, policies]) => {
+        setAvailability(avail);
+        setIsGuest(!authed);
+        setPolicyText(policies.cancellationPolicy);
+        setTosVersion(policies.tosVersion);
+      },
+    );
   }, [open]);
 
   // Compute which dates to disable on the calendar
@@ -294,6 +301,8 @@ export function BookingRequestDialog({
             recurrenceRule: cadence || undefined,
             idempotencyKey,
             selectedAddOns: addOnPayload,
+            tosAccepted: true,
+            tosVersion,
             // Guest fields
             ...(isGuest
               ? {
@@ -332,6 +341,7 @@ export function BookingRequestDialog({
       guestPhone,
       turnstileToken,
       selectedAddOns,
+      tosVersion,
     ],
   );
 
@@ -420,6 +430,11 @@ export function BookingRequestDialog({
       return;
     }
 
+    if (!tosAccepted) {
+      setError("Please accept the cancellation policy to continue.");
+      return;
+    }
+
     const addOnPayload = getAddOnPayload();
 
     // If service has deposit, proceed to pay step instead of submitting
@@ -463,6 +478,8 @@ export function BookingRequestDialog({
             preferredCadence: cadence ? rruleToCadenceLabel(cadence) : undefined,
             turnstileToken,
             selectedAddOns: addOnPayload,
+            tosAccepted: true,
+            tosVersion,
           }),
         });
         if (!res.ok) throw new Error("Failed to send request");
@@ -474,6 +491,8 @@ export function BookingRequestDialog({
           referencePhotoUrls,
           recurrenceRule: cadence || undefined,
           selectedAddOns: addOnPayload,
+          tosAccepted: true,
+          tosVersion,
         });
       }
       setSubmitted(true);
@@ -502,6 +521,7 @@ export function BookingRequestDialog({
     setTurnstileToken("");
     setPendingWaivers([]);
     setWaiversChecked(false);
+    setTosAccepted(false);
     uploadedPhotosRef.current = [];
     onClose();
   }
@@ -760,9 +780,7 @@ export function BookingRequestDialog({
                 {/* Add-on upsells */}
                 {addOns.length > 0 && (
                   <div className="space-y-2">
-                    <p className="text-xs font-medium text-stone-600">
-                      Enhance your appointment
-                    </p>
+                    <p className="text-xs font-medium text-stone-600">Enhance your appointment</p>
                     <div className="space-y-1.5">
                       {addOns.map((addon) => {
                         const isSelected = selectedAddOnIds.has(addon.id);
@@ -789,14 +807,10 @@ export function BookingRequestDialog({
                               <div
                                 className={cn(
                                   "w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-colors",
-                                  isSelected
-                                    ? "border-[#96604a] bg-[#96604a]"
-                                    : "border-stone-300",
+                                  isSelected ? "border-[#96604a] bg-[#96604a]" : "border-stone-300",
                                 )}
                               >
-                                {isSelected && (
-                                  <CheckCircle2 className="w-3 h-3 text-white" />
-                                )}
+                                {isSelected && <CheckCircle2 className="w-3 h-3 text-white" />}
                               </div>
                               <div>
                                 <span className="text-sm font-medium text-stone-900">
@@ -987,7 +1001,10 @@ export function BookingRequestDialog({
                         </p>
                         <ul className="mt-1.5 space-y-0.5">
                           {pendingWaivers.map((w) => (
-                            <li key={w.formId} className="text-[11px] text-amber-700 flex items-center gap-1">
+                            <li
+                              key={w.formId}
+                              className="text-[11px] text-amber-700 flex items-center gap-1"
+                            >
                               <span className="w-1 h-1 rounded-full bg-amber-500 shrink-0" />
                               {w.formName}
                             </li>
@@ -998,8 +1015,28 @@ export function BookingRequestDialog({
                   </div>
                 )}
 
+                {/* Cancellation policy / TOS acceptance */}
+                {policyText && (
+                  <label className="flex items-start gap-2.5 cursor-pointer group">
+                    <input
+                      type="checkbox"
+                      required
+                      checked={tosAccepted}
+                      onChange={(e) => setTosAccepted(e.target.checked)}
+                      className="mt-0.5 w-4 h-4 shrink-0 accent-[#96604a] cursor-pointer"
+                    />
+                    <span className="text-[11px] text-stone-600 leading-relaxed">{policyText}</span>
+                  </label>
+                )}
+
                 {error && (
-                  <p role="alert" aria-live="polite" className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>
+                  <p
+                    role="alert"
+                    aria-live="polite"
+                    className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2"
+                  >
+                    {error}
+                  </p>
                 )}
 
                 <p className="text-[11px] text-stone-400 leading-relaxed">
@@ -1009,7 +1046,7 @@ export function BookingRequestDialog({
 
                 <button
                   type="submit"
-                  disabled={submitting || (isGuest === true && !turnstileToken)}
+                  disabled={submitting || (isGuest === true && !turnstileToken) || !tosAccepted}
                   className={cn(
                     "w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold transition-colors",
                     submitting
@@ -1090,7 +1127,13 @@ export function BookingRequestDialog({
                 </div>
 
                 {error && (
-                  <p role="alert" aria-live="polite" className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>
+                  <p
+                    role="alert"
+                    aria-live="polite"
+                    className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2"
+                  >
+                    {error}
+                  </p>
                 )}
 
                 <SquarePaymentForm

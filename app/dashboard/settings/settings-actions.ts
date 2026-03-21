@@ -29,8 +29,8 @@
  */
 "use server";
 
-import * as Sentry from "@sentry/nextjs";
 import { revalidatePath, updateTag } from "next/cache";
+import * as Sentry from "@sentry/nextjs";
 import { eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
@@ -83,6 +83,10 @@ export interface PolicySettings {
   noShowFeePercent: number;
   depositRequired: boolean;
   depositPercent: number;
+  /** Plain-text cancellation policy shown to clients as a required TOS checkbox during booking. */
+  cancellationPolicy: string;
+  /** Version identifier for the current policy (e.g. '2025-01'). Stored on each booking for legal record. */
+  tosVersion: string;
 }
 
 export interface LoyaltyConfig {
@@ -167,6 +171,9 @@ const DEFAULT_POLICIES: PolicySettings = {
   noShowFeePercent: 100,
   depositRequired: true,
   depositPercent: 25,
+  cancellationPolicy:
+    "Cancellations made less than 48 hours before your appointment are subject to a 50% late-cancel fee. No-shows are charged 100% of the service price. By booking you agree to these terms.",
+  tosVersion: "2025-01",
 };
 
 const DEFAULT_LOYALTY: LoyaltyConfig = {
@@ -363,6 +370,8 @@ const policySettingsSchema = z.object({
   noShowFeePercent: z.number().int().nonnegative(),
   depositRequired: z.boolean(),
   depositPercent: z.number().int().nonnegative(),
+  cancellationPolicy: z.string(),
+  tosVersion: z.string().min(1),
 });
 
 export async function savePolicies(data: PolicySettings): Promise<void> {

@@ -947,6 +947,8 @@ const createBookingRequestSchema = z.object({
   referencePhotoUrls: z.array(z.string()).optional(),
   recurrenceRule: z.string().optional(),
   selectedAddOns: z.array(addOnItemSchema).optional(),
+  tosAccepted: z.literal(true),
+  tosVersion: z.string().min(1),
 });
 
 export async function createBookingRequest(input: {
@@ -956,6 +958,8 @@ export async function createBookingRequest(input: {
   referencePhotoUrls?: string[];
   recurrenceRule?: string;
   selectedAddOns?: { name: string; priceInCents: number }[];
+  tosAccepted: true;
+  tosVersion: string;
 }): Promise<{ threadId: number; bookingId: number }> {
   createBookingRequestSchema.parse(input);
   const user = await getUser();
@@ -999,6 +1003,8 @@ export async function createBookingRequest(input: {
       durationMinutes: service.durationMinutes ?? 60,
       totalInCents: service.priceInCents ?? 0,
       recurrenceRule: input.recurrenceRule || null,
+      tosAcceptedAt: new Date(),
+      tosVersion: input.tosVersion,
       // Assemble client notes from optional pieces: preferred dates, recurrence
       // label, and free-text message. Nulls represent missing pieces; .filter(Boolean)
       // strips them so .join() only produces separators between actual content.

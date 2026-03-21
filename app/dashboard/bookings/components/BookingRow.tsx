@@ -85,6 +85,14 @@ export function BookingRow({
         {booking.notes && (
           <p className="text-[10px] text-muted/60 mt-0.5 truncate">{booking.notes}</p>
         )}
+        {booking.tosAcceptedAt && (
+          <p
+            className="text-[10px] text-muted/50 mt-0.5"
+            title={`Policy v${booking.tosVersion ?? "?"} accepted at ${booking.tosAcceptedAt.toLocaleString()}`}
+          >
+            Policy accepted · v{booking.tosVersion ?? "?"}
+          </p>
+        )}
       </div>
       <div className="hidden md:flex flex-col items-end gap-1 shrink-0">
         <span className="text-xs text-muted">{booking.staff}</span>

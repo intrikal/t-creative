@@ -33,6 +33,7 @@ import {
   isSquareConfigured,
   createSquarePaymentLink as squareCreatePaymentLink,
 } from "@/lib/square";
+import type { ActionResult } from "@/lib/types/action-result";
 
 /* ------------------------------------------------------------------ */
 /*  Auth guard                                                         */
@@ -66,11 +67,6 @@ export type RefundInput = {
   paymentId: number;
   amountInCents: number;
   reason?: string;
-};
-
-export type RefundResult = {
-  success: boolean;
-  error?: string;
 };
 
 /* ------------------------------------------------------------------ */
@@ -196,64 +192,71 @@ export async function getBookingsForPayment(): Promise<BookingForPayment[]> {
  * payments. For Square payments, optionally enriches from the Square API
  * if a `squarePaymentId` is provided and Square is configured.
  */
-export async function recordPayment(input: RecordPaymentInput): Promise<void> {
-  RecordPaymentSchema.parse(input);
+export async function recordPayment(input: RecordPaymentInput): Promise<ActionResult<void>> {
+  try {
+    RecordPaymentSchema.parse(input);
 
-  const user = await getUser();
+    const user = await getUser();
 
-  // Validate the booking exists
-  const [booking] = await db
-    .select({ id: bookings.id, clientId: bookings.clientId })
-    .from(bookings)
-    .where(eq(bookings.id, input.bookingId));
+    // Validate the booking exists
+    const [booking] = await db
+      .select({ id: bookings.id, clientId: bookings.clientId })
+      .from(bookings)
+      .where(eq(bookings.id, input.bookingId));
 
-  if (!booking) throw new Error("Booking not found");
-  if (booking.clientId !== input.clientId) throw new Error("Client does not match booking");
+    if (!booking) return { success: false, error: "Booking not found" };
+    if (booking.clientId !== input.clientId)
+      return { success: false, error: "Client does not match booking" };
 
-  let receiptUrl: string | null = null;
-  let squareOrderId: string | null = null;
+    let receiptUrl: string | null = null;
+    let squareOrderId: string | null = null;
 
-  // Enrich from Square API if payment ID provided
-  if (input.squarePaymentId && isSquareConfigured()) {
-    try {
-      const response = await squareClient.payments.get({ paymentId: input.squarePaymentId });
-      receiptUrl = response.payment?.receiptUrl ?? null;
-      squareOrderId = response.payment?.orderId ?? null;
-    } catch {
-      // Non-fatal — proceed with manual data
+    // Enrich from Square API if payment ID provided
+    if (input.squarePaymentId && isSquareConfigured()) {
+      try {
+        const response = await squareClient.payments.get({ paymentId: input.squarePaymentId });
+        receiptUrl = response.payment?.receiptUrl ?? null;
+        squareOrderId = response.payment?.orderId ?? null;
+      } catch {
+        // Non-fatal — proceed with manual data
+      }
     }
-  }
 
-  await db.insert(payments).values({
-    bookingId: input.bookingId,
-    clientId: input.clientId,
-    amountInCents: input.amountInCents,
-    tipInCents: input.tipInCents ?? 0,
-    taxAmountInCents: input.taxAmountInCents ?? 0,
-    method: input.method,
-    status: "paid",
-    paidAt: new Date(),
-    squarePaymentId: input.squarePaymentId ?? null,
-    squareOrderId: squareOrderId,
-    squareReceiptUrl: receiptUrl,
-    notes: input.notes ?? null,
-  });
-
-  await logAction({
-    actorId: user.id,
-    action: "create",
-    entityType: "payment",
-    entityId: String(input.bookingId),
-    description: `Payment of $${(input.amountInCents / 100).toFixed(2)} recorded`,
-    metadata: {
-      method: input.method,
-      amountInCents: input.amountInCents,
+    await db.insert(payments).values({
       bookingId: input.bookingId,
-    },
-  });
+      clientId: input.clientId,
+      amountInCents: input.amountInCents,
+      tipInCents: input.tipInCents ?? 0,
+      taxAmountInCents: input.taxAmountInCents ?? 0,
+      method: input.method,
+      status: "paid",
+      paidAt: new Date(),
+      squarePaymentId: input.squarePaymentId ?? null,
+      squareOrderId: squareOrderId,
+      squareReceiptUrl: receiptUrl,
+      notes: input.notes ?? null,
+    });
 
-  revalidatePath("/dashboard/financial");
-  revalidatePath("/dashboard/bookings");
+    await logAction({
+      actorId: user.id,
+      action: "create",
+      entityType: "payment",
+      entityId: String(input.bookingId),
+      description: `Payment of $${(input.amountInCents / 100).toFixed(2)} recorded`,
+      metadata: {
+        method: input.method,
+        amountInCents: input.amountInCents,
+        bookingId: input.bookingId,
+      },
+    });
+
+    revalidatePath("/dashboard/financial");
+    revalidatePath("/dashboard/bookings");
+    return { success: true, data: undefined };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Failed to record payment";
+    return { success: false, error: message };
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -265,7 +268,7 @@ export async function recordPayment(input: RecordPaymentInput): Promise<void> {
  * payment ID, calls the Square Refunds API first. For cash payments,
  * updates the DB directly.
  */
-export async function processRefund(input: RefundInput): Promise<RefundResult> {
+export async function processRefund(input: RefundInput): Promise<ActionResult<void>> {
   RefundSchema.parse(input);
 
   const user = await getUser();
@@ -401,18 +404,12 @@ export async function processRefund(input: RefundInput): Promise<RefundResult> {
   revalidatePath("/dashboard/financial");
   revalidatePath("/dashboard/bookings");
 
-  return { success: true };
+  return { success: true, data: undefined };
 }
 
 /* ------------------------------------------------------------------ */
 /*  Payment Link                                                       */
 /* ------------------------------------------------------------------ */
-
-export type PaymentLinkResult = {
-  success: boolean;
-  url?: string;
-  error?: string;
-};
 
 /**
  * Creates a Square payment link (checkout URL) for a booking's deposit
@@ -424,7 +421,7 @@ export async function createPaymentLink(input: {
   bookingId: number;
   amountInCents: number;
   type: "deposit" | "balance";
-}): Promise<PaymentLinkResult> {
+}): Promise<ActionResult<{ url: string }>> {
   PaymentLinkSchema.parse(input);
 
   await getUser();
@@ -509,7 +506,7 @@ export async function createPaymentLink(input: {
       });
     }
 
-    return { success: true, url };
+    return { success: true, data: { url } };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Failed to create payment link";
 

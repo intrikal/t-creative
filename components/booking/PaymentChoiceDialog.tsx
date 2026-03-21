@@ -55,13 +55,13 @@ export function PaymentChoiceDialog({
         type,
       });
 
-      if (result.success && result.url) {
-        setPaymentUrl(result.url);
-        await navigator.clipboard.writeText(result.url);
+      if (result.success && result.data.url) {
+        setPaymentUrl(result.data.url);
+        await navigator.clipboard.writeText(result.data.url);
         setCopied(true);
         setTimeout(() => setCopied(false), 3000);
       } else {
-        setError(result.error ?? "Failed to create payment link");
+        setError(result.error);
       }
     });
   }

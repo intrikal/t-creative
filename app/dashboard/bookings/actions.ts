@@ -89,6 +89,7 @@ import {
   chargeCardOnFile,
 } from "@/lib/square";
 import { sendSms } from "@/lib/twilio";
+import type { ActionResult } from "@/lib/types/action-result";
 import { notifyWaitlistForCancelledBooking } from "@/lib/waitlist-notify";
 import { createZohoDeal, updateZohoDeal } from "@/lib/zoho";
 import { createZohoBooksInvoice } from "@/lib/zoho-books";
@@ -445,7 +446,7 @@ export async function updateBookingStatus(
   status: BookingStatus,
   cancellationReason?: string,
   skipWaiverCheck?: boolean,
-): Promise<void> {
+): Promise<ActionResult<void>> {
   try {
     z.number().int().positive().parse(id);
     z.enum(["completed", "in_progress", "confirmed", "pending", "cancelled", "no_show"]).parse(
@@ -563,9 +564,11 @@ export async function updateBookingStatus(
 
     // Bust the Next.js cache so the bookings list reflects the new status
     revalidatePath("/dashboard/bookings");
+    return { success: true, data: undefined };
   } catch (err) {
     Sentry.captureException(err);
-    throw err;
+    const message = err instanceof Error ? err.message : "Failed to update booking status";
+    return { success: false, error: message };
   }
 }
 
@@ -590,7 +593,7 @@ const bookingInputSchema = z.object({
  * deposit link if the service requires one, and creates a Zoho deal + invoice.
  * Called by the "New Booking" dialog on BookingsPage.
  */
-export async function createBooking(input: BookingInput): Promise<void> {
+export async function createBooking(input: BookingInput): Promise<ActionResult<void>> {
   try {
     bookingInputSchema.parse(input);
     const user = await getUser();
@@ -720,9 +723,11 @@ export async function createBooking(input: BookingInput): Promise<void> {
     }
 
     revalidatePath("/dashboard/bookings");
+    return { success: true, data: undefined };
   } catch (err) {
     Sentry.captureException(err);
-    throw err;
+    const message = err instanceof Error ? err.message : "Failed to create booking";
+    return { success: false, error: message };
   }
 }
 
@@ -742,7 +747,7 @@ const updateBookingInputSchema = bookingInputSchema.extend({
 export async function updateBooking(
   id: number,
   input: BookingInput & { status: BookingStatus },
-): Promise<void> {
+): Promise<ActionResult<void>> {
   try {
     z.number().int().positive().parse(id);
     updateBookingInputSchema.parse(input);
@@ -830,9 +835,11 @@ export async function updateBooking(
     });
 
     revalidatePath("/dashboard/bookings");
+    return { success: true, data: undefined };
   } catch (err) {
     Sentry.captureException(err);
-    throw err;
+    const message = err instanceof Error ? err.message : "Failed to update booking";
+    return { success: false, error: message };
   }
 }
 
@@ -842,7 +849,7 @@ export async function updateBooking(
  * without losing data for audit/reporting. Called by the delete action in
  * the booking detail drawer.
  */
-export async function deleteBooking(id: number): Promise<void> {
+export async function deleteBooking(id: number): Promise<ActionResult<void>> {
   try {
     z.number().int().positive().parse(id);
     const user = await getUser();
@@ -857,9 +864,11 @@ export async function deleteBooking(id: number): Promise<void> {
     });
 
     revalidatePath("/dashboard/bookings");
+    return { success: true, data: undefined };
   } catch (err) {
     Sentry.captureException(err);
-    throw err;
+    const message = err instanceof Error ? err.message : "Failed to delete booking";
+    return { success: false, error: message };
   }
 }
 
@@ -2236,7 +2245,7 @@ export async function getAssistantBookings(): Promise<{
  * Finds the series root (parentBookingId ?? the booking itself), then cancels
  * every confirmed/pending booking in the series that hasn't started yet.
  */
-export async function cancelBookingSeries(bookingId: number): Promise<void> {
+export async function cancelBookingSeries(bookingId: number): Promise<ActionResult<void>> {
   try {
     z.number().int().positive().parse(bookingId);
     const user = await getUser();
@@ -2320,8 +2329,10 @@ export async function cancelBookingSeries(bookingId: number): Promise<void> {
     });
 
     revalidatePath("/dashboard/bookings");
+    return { success: true, data: undefined };
   } catch (err) {
     Sentry.captureException(err);
-    throw err;
+    const message = err instanceof Error ? err.message : "Failed to cancel series";
+    return { success: false, error: message };
   }
 }

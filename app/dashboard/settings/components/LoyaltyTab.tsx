@@ -29,6 +29,8 @@ export function LoyaltyTab({ initial }: { initial: LoyaltyConfig }) {
   const [saving, setSaving] = useState(false);
   /** Briefly true after a successful save to show "Saved!" feedback. */
   const [saved, setSaved] = useState(false);
+  /** Error message from save, if any. */
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   /**
    * updateNum — parses a numeric input and updates one loyalty config field.
@@ -41,12 +43,14 @@ export function LoyaltyTab({ initial }: { initial: LoyaltyConfig }) {
 
   async function handleSave() {
     setSaving(true);
-    try {
-      await saveLoyaltyConfig(data);
+    setSaveError(null);
+    const result = await saveLoyaltyConfig(data);
+    setSaving(false);
+    if (result.success) {
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
-    } finally {
-      setSaving(false);
+    } else {
+      setSaveError(result.error);
     }
   }
 
@@ -67,6 +71,17 @@ export function LoyaltyTab({ initial }: { initial: LoyaltyConfig }) {
 
   return (
     <div className="space-y-5">
+      {saveError && (
+        <div className="p-3 bg-red-50 border border-red-200 text-xs text-red-700 flex items-center justify-between">
+          <span>{saveError}</span>
+          <button
+            onClick={() => setSaveError(null)}
+            className="ml-4 text-red-500 hover:text-red-700"
+          >
+            ✕
+          </button>
+        </div>
+      )}
       <div>
         <h2 className="text-base font-semibold text-foreground">Loyalty Program</h2>
         <p className="text-xs text-muted mt-0.5">

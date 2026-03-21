@@ -38,6 +38,7 @@ import { settings } from "@/db/schema";
 import { requireAdmin } from "@/lib/auth";
 import { trackEvent } from "@/lib/posthog";
 import { isSquareConfigured } from "@/lib/square";
+import type { ActionResult } from "@/lib/types/action-result";
 
 /* ------------------------------------------------------------------ */
 /*  Auth guard                                                         */
@@ -337,16 +338,18 @@ const businessProfileSchema = z.object({
   emailFromAddress: z.string().min(1),
 });
 
-export async function saveBusinessProfile(data: BusinessProfile): Promise<void> {
+export async function saveBusinessProfile(data: BusinessProfile): Promise<ActionResult<void>> {
   try {
     businessProfileSchema.parse(data);
     const user = await getUser();
     await upsertSetting(KEY_BUSINESS, "Business Profile", data);
     trackEvent(user.id, "business_profile_updated");
     revalidatePath("/dashboard/settings");
+    return { success: true, data: undefined };
   } catch (err) {
     Sentry.captureException(err);
-    throw err;
+    const message = err instanceof Error ? err.message : "Failed to save";
+    return { success: false, error: message };
   }
 }
 
@@ -374,16 +377,18 @@ const policySettingsSchema = z.object({
   tosVersion: z.string().min(1),
 });
 
-export async function savePolicies(data: PolicySettings): Promise<void> {
+export async function savePolicies(data: PolicySettings): Promise<ActionResult<void>> {
   try {
     policySettingsSchema.parse(data);
     const user = await getUser();
     await upsertSetting(KEY_POLICIES, "Policy Settings", data);
     trackEvent(user.id, "policies_updated");
     revalidatePath("/dashboard/settings");
+    return { success: true, data: undefined };
   } catch (err) {
     Sentry.captureException(err);
-    throw err;
+    const message = err instanceof Error ? err.message : "Failed to save";
+    return { success: false, error: message };
   }
 }
 
@@ -415,16 +420,18 @@ const loyaltyConfigSchema = z.object({
   birthdayPromoExpiryDays: z.number().int().min(1).max(365),
 });
 
-export async function saveLoyaltyConfig(data: LoyaltyConfig): Promise<void> {
+export async function saveLoyaltyConfig(data: LoyaltyConfig): Promise<ActionResult<void>> {
   try {
     loyaltyConfigSchema.parse(data);
     const user = await getUser();
     await upsertSetting(KEY_LOYALTY, "Loyalty Config", data);
     trackEvent(user.id, "loyalty_config_updated");
     revalidatePath("/dashboard/settings");
+    return { success: true, data: undefined };
   } catch (err) {
     Sentry.captureException(err);
-    throw err;
+    const message = err instanceof Error ? err.message : "Failed to save";
+    return { success: false, error: message };
   }
 }
 
@@ -452,15 +459,17 @@ const notificationPrefsSchema = z.object({
   ),
 });
 
-export async function saveNotificationPrefs(data: NotificationPrefs): Promise<void> {
+export async function saveNotificationPrefs(data: NotificationPrefs): Promise<ActionResult<void>> {
   try {
     notificationPrefsSchema.parse(data);
     await getUser();
     await upsertSetting(KEY_NOTIFICATIONS, "Notification Preferences", data);
     revalidatePath("/dashboard/settings");
+    return { success: true, data: undefined };
   } catch (err) {
     Sentry.captureException(err);
-    throw err;
+    const message = err instanceof Error ? err.message : "Failed to save";
+    return { success: false, error: message };
   }
 }
 
@@ -491,16 +500,18 @@ const bookingRulesSchema = z.object({
   waiverTokenExpiryDays: z.number().int().min(1).max(30),
 });
 
-export async function saveBookingRules(data: BookingRulesConfig): Promise<void> {
+export async function saveBookingRules(data: BookingRulesConfig): Promise<ActionResult<void>> {
   try {
     bookingRulesSchema.parse(data);
     const user = await getUser();
     await upsertSetting(KEY_BOOKING_RULES, "Booking Rules", data);
     trackEvent(user.id, "booking_rules_updated");
     revalidatePath("/dashboard/settings");
+    return { success: true, data: undefined };
   } catch (err) {
     Sentry.captureException(err);
-    throw err;
+    const message = err instanceof Error ? err.message : "Failed to save";
+    return { success: false, error: message };
   }
 }
 
@@ -534,15 +545,17 @@ const remindersSchema = z.object({
   ),
 });
 
-export async function saveReminders(data: RemindersConfig): Promise<void> {
+export async function saveReminders(data: RemindersConfig): Promise<ActionResult<void>> {
   try {
     remindersSchema.parse(data);
     await getUser();
     await upsertSetting(KEY_REMINDERS, "Reminder Config", data);
     revalidatePath("/dashboard/settings");
+    return { success: true, data: undefined };
   } catch (err) {
     Sentry.captureException(err);
-    throw err;
+    const message = err instanceof Error ? err.message : "Failed to save";
+    return { success: false, error: message };
   }
 }
 
@@ -577,7 +590,7 @@ const inventoryConfigSchema = z.object({
   giftCardCodePrefix: z.string().min(1).max(20),
 });
 
-export async function saveInventoryConfig(data: InventoryConfig): Promise<void> {
+export async function saveInventoryConfig(data: InventoryConfig): Promise<ActionResult<void>> {
   try {
     inventoryConfigSchema.parse(data);
     const user = await getUser();
@@ -585,9 +598,11 @@ export async function saveInventoryConfig(data: InventoryConfig): Promise<void> 
     trackEvent(user.id, "inventory_config_updated");
     revalidatePath("/dashboard/settings");
     revalidatePath("/dashboard/marketplace");
+    return { success: true, data: undefined };
   } catch (err) {
     Sentry.captureException(err);
-    throw err;
+    const message = err instanceof Error ? err.message : "Failed to save";
+    return { success: false, error: message };
   }
 }
 
@@ -622,7 +637,7 @@ const financialConfigSchema = z.object({
   estimatedTaxRate: z.number().nonnegative(),
 });
 
-export async function saveFinancialConfig(data: FinancialConfig): Promise<void> {
+export async function saveFinancialConfig(data: FinancialConfig): Promise<ActionResult<void>> {
   try {
     financialConfigSchema.parse(data);
     await getUser();
@@ -630,9 +645,11 @@ export async function saveFinancialConfig(data: FinancialConfig): Promise<void> 
     revalidatePath("/dashboard/settings");
     revalidatePath("/dashboard/analytics");
     revalidatePath("/dashboard/financial");
+    return { success: true, data: undefined };
   } catch (err) {
     Sentry.captureException(err);
-    throw err;
+    const message = err instanceof Error ? err.message : "Failed to save";
+    return { success: false, error: message };
   }
 }
 
@@ -664,16 +681,18 @@ const revenueGoalItemSchema = z.object({
   amount: z.number().nonnegative(),
 });
 
-export async function saveRevenueGoals(data: RevenueGoal[]): Promise<void> {
+export async function saveRevenueGoals(data: RevenueGoal[]): Promise<ActionResult<void>> {
   try {
     z.array(revenueGoalItemSchema).parse(data);
     await getUser();
     await upsertSetting(KEY_REVENUE_GOALS, "Revenue Goals", data);
     revalidatePath("/dashboard/settings");
     revalidatePath("/dashboard/analytics");
+    return { success: true, data: undefined };
   } catch (err) {
     Sentry.captureException(err);
-    throw err;
+    const message = err instanceof Error ? err.message : "Failed to save";
+    return { success: false, error: message };
   }
 }
 
@@ -893,7 +912,7 @@ const siteContentSchema = z.object({
   showConsultingPage: z.boolean(),
 });
 
-export async function saveSiteContent(data: SiteContent): Promise<void> {
+export async function saveSiteContent(data: SiteContent): Promise<ActionResult<void>> {
   try {
     siteContentSchema.parse(data);
     const user = await getUser();
@@ -901,9 +920,11 @@ export async function saveSiteContent(data: SiteContent): Promise<void> {
     trackEvent(user.id, "site_content_updated");
     updateTag("site-content");
     revalidatePath("/dashboard/settings");
+    return { success: true, data: undefined };
   } catch (err) {
     Sentry.captureException(err);
-    throw err;
+    const message = err instanceof Error ? err.message : "Failed to save";
+    return { success: false, error: message };
   }
 }
 

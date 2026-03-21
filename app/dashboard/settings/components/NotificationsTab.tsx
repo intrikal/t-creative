@@ -27,6 +27,8 @@ export function NotificationsTab({ initial }: { initial: NotificationPrefs }) {
   const [saving, setSaving] = useState(false);
   /** Briefly true after a successful save to show "Saved!" feedback. */
   const [saved, setSaved] = useState(false);
+  /** Error message from save, if any. */
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   /**
    * toggle — flips a single email/sms boolean for a preference row.
@@ -39,17 +41,30 @@ export function NotificationsTab({ initial }: { initial: NotificationPrefs }) {
 
   async function handleSave() {
     setSaving(true);
-    try {
-      await saveNotificationPrefs({ items: prefs });
+    setSaveError(null);
+    const result = await saveNotificationPrefs({ items: prefs });
+    setSaving(false);
+    if (result.success) {
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
-    } finally {
-      setSaving(false);
+    } else {
+      setSaveError(result.error);
     }
   }
 
   return (
     <div className="space-y-5">
+      {saveError && (
+        <div className="p-3 bg-red-50 border border-red-200 text-xs text-red-700 flex items-center justify-between">
+          <span>{saveError}</span>
+          <button
+            onClick={() => setSaveError(null)}
+            className="ml-4 text-red-500 hover:text-red-700"
+          >
+            ✕
+          </button>
+        </div>
+      )}
       <div>
         <h2 className="text-base font-semibold text-foreground">Notification Preferences</h2>
         <p className="text-xs text-muted mt-0.5">Choose how and when you get notified</p>

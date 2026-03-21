@@ -20,6 +20,7 @@ import { revalidatePath } from "next/cache";
 import { eq, and, sql, inArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { z } from "zod";
+import { getPublicBusinessProfile } from "@/app/dashboard/settings/settings-actions";
 import { db } from "@/db";
 import { payments, bookings, services, profiles, syncLog } from "@/db/schema";
 import { PaymentLinkEmail } from "@/emails/PaymentLinkEmail";
@@ -366,9 +367,10 @@ export async function processRefund(input: RefundInput): Promise<RefundResult> {
         square_other: "Square",
       };
 
+      const bp = await getPublicBusinessProfile();
       await sendEmail({
         to: recipient.email,
-        subject: `Refund processed — $${(input.amountInCents / 100).toFixed(2)} — T Creative`,
+        subject: `Refund processed — $${(input.amountInCents / 100).toFixed(2)} — ${bp.businessName}`,
         react: RefundNotification({
           clientName: recipient.firstName,
           refundAmountInCents: input.amountInCents,
@@ -377,6 +379,7 @@ export async function processRefund(input: RefundInput): Promise<RefundResult> {
             (payment.method ? methodLabels[payment.method] : null) ?? payment.method ?? "Unknown",
           reason: input.reason,
           serviceName,
+          businessName: bp.businessName,
         }),
         entityType: "refund_notification",
         localId: String(payment.id),
@@ -489,15 +492,17 @@ export async function createPaymentLink(input: {
       .where(eq(bookings.id, input.bookingId));
 
     if (linkClient?.email && linkClient.notifyEmail) {
+      const bp = await getPublicBusinessProfile();
       await sendEmail({
         to: linkClient.email,
-        subject: `${input.type === "deposit" ? "Deposit" : "Payment"} link — ${serviceName} — T Creative`,
+        subject: `${input.type === "deposit" ? "Deposit" : "Payment"} link — ${serviceName} — ${bp.businessName}`,
         react: PaymentLinkEmail({
           clientName: linkClient.firstName,
           serviceName,
           amountInCents: input.amountInCents,
           type: input.type,
           paymentUrl: url,
+          businessName: bp.businessName,
         }),
         entityType: "payment_link_delivery",
         localId: String(booking.id),

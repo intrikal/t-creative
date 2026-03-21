@@ -28,6 +28,7 @@ import type {
   PaymentUpdatedEventData,
   RefundCreatedEventData,
 } from "square";
+import { getPublicBusinessProfile } from "@/app/dashboard/settings/settings-actions";
 import { db } from "@/db";
 import {
   payments,
@@ -194,15 +195,17 @@ async function handlePaymentCompleted(data: PaymentCreatedEventData | undefined)
       .where(eq(profiles.id, booking.clientId));
 
     if (bookingClient?.email) {
+      const bp = await getPublicBusinessProfile();
       await sendEmail({
         to: bookingClient.email,
-        subject: "Payment receipt — T Creative",
+        subject: `Payment receipt — ${bp.businessName}`,
         react: PaymentReceipt({
           clientName: bookingClient.firstName,
           amountInCents: amountCents,
           method: method.replace("square_", "").replace("_", " "),
           receiptUrl: squarePayment.receiptUrl ?? undefined,
           description: isDeposit ? "Deposit payment" : "Appointment payment",
+          businessName: bp.businessName,
         }),
         entityType: "payment_receipt",
         localId: String(booking.id),
@@ -305,15 +308,17 @@ async function handlePaymentCompleted(data: PaymentCreatedEventData | undefined)
       .where(eq(profiles.id, productOrder.clientId));
 
     if (orderClient?.email) {
+      const bp = await getPublicBusinessProfile();
       await sendEmail({
         to: orderClient.email,
-        subject: "Payment received for your order — T Creative",
+        subject: `Payment received for your order — ${bp.businessName}`,
         react: PaymentReceipt({
           clientName: orderClient.firstName,
           amountInCents: Number(squarePayment.amountMoney?.amount ?? 0),
           method: "card",
           receiptUrl: squarePayment.receiptUrl ?? undefined,
           description: "Order payment",
+          businessName: bp.businessName,
         }),
         entityType: "payment_receipt",
         localId: String(productOrder.id),
@@ -420,9 +425,7 @@ async function findBookingByOrder(
 /**
  * Finds a product order by its Square order ID.
  */
-async function findProductOrderBySquareOrder(
-  squareOrderId: string | null,
-): Promise<{
+async function findProductOrderBySquareOrder(squareOrderId: string | null): Promise<{
   id: number;
   clientId: string;
   fulfillmentMethod: string | null;
@@ -583,14 +586,16 @@ async function awardFirstBookingPoints(clientId: string, bookingId: number): Pro
         .from(loyaltyTransactions)
         .where(eq(loyaltyTransactions.profileId, clientId));
 
+      const bp = await getPublicBusinessProfile();
       await sendEmail({
         to: client.email,
-        subject: "You earned loyalty points! — T Creative",
+        subject: `You earned loyalty points! — ${bp.businessName}`,
         react: LoyaltyPointsAwarded({
           clientName: client.firstName,
           pointsEarned: pts,
           reason: "First booking",
           totalBalance: Number(balanceRow?.total ?? pts),
+          businessName: bp.businessName,
         }),
         entityType: "loyalty_points_awarded",
         localId: String(bookingId),

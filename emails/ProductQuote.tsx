@@ -7,11 +7,17 @@ export type ProductQuoteProps = {
   clientName: string;
   productTitle: string;
   quotedAmountInCents: number;
+  businessName?: string;
 };
 
-export function ProductQuote({ clientName, productTitle, quotedAmountInCents }: ProductQuoteProps) {
+export function ProductQuote({
+  clientName,
+  productTitle,
+  quotedAmountInCents,
+  businessName = "T Creative Studio",
+}: ProductQuoteProps) {
   return (
-    <Layout preview={`Quote — ${productTitle}`}>
+    <Layout preview={`Quote — ${productTitle}`} businessName={businessName}>
       <Section style={content}>
         <Text style={heading}>Your Quote is Ready</Text>
         <Text style={paragraph}>

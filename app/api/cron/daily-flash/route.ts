@@ -10,6 +10,7 @@
 import { NextResponse } from "next/server";
 import { format } from "date-fns";
 import { and, eq, gte, lt, sql } from "drizzle-orm";
+import { getPublicBusinessProfile } from "@/app/dashboard/settings/settings-actions";
 import { db } from "@/db";
 import { bookings, payments, services, profiles, inquiries, waitlist } from "@/db/schema";
 import { DailyFlashReport } from "@/emails/DailyFlashReport";
@@ -153,6 +154,8 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "No admin email found" }, { status: 500 });
   }
 
+  const bp = await getPublicBusinessProfile();
+
   const dateLabel = format(now, "EEEE, MMMM d, yyyy");
   const yesterdayRevenue = Math.round(Number(revenueRow.total) / 100);
 
@@ -187,6 +190,7 @@ export async function GET(request: Request) {
         count: Number(unpaidInvoices.count),
         totalDue: Math.round(Number(unpaidInvoices.total) / 100),
       },
+      businessName: bp.businessName,
     }),
     entityType: "daily_flash_report",
     localId: format(now, "yyyy-MM-dd"),

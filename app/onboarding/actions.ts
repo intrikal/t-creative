@@ -43,13 +43,13 @@
  */
 import { cookies } from "next/headers";
 import { and, eq } from "drizzle-orm";
+import { getPublicBusinessProfile } from "@/app/dashboard/settings/settings-actions";
 import { db } from "@/db";
 import { profiles, loyaltyTransactions } from "@/db/schema";
 import { assistantProfiles } from "@/db/schema/assistants";
 import { services as servicesTable } from "@/db/schema/services";
 import { LoyaltyPointsAwarded } from "@/emails/LoyaltyPointsAwarded";
 import { ReferralBonus } from "@/emails/ReferralBonus";
-import { getPublicBusinessProfile } from "@/app/dashboard/settings/settings-actions";
 import { WelcomeEmail } from "@/emails/WelcomeEmail";
 import {
   onboardingSchema,
@@ -496,7 +496,7 @@ export async function saveOnboardingData(
       experienceLevel,
       offersTraining: offersTraining ?? false,
     });
-  /* ---- Client onboarding path ---- */
+    /* ---- Client onboarding path ---- */
   } else {
     /**
      * Client path — parse and validate against the client onboarding schema.
@@ -602,10 +602,10 @@ export async function saveOnboardingData(
         referralCode,
         tags: tags || null,
         // Conditional spread: only include referredBy in the update when it has
-      // a value. Spreading an empty object {} is a no-op, so the field is
-      // omitted entirely rather than being set to null (which would overwrite
-      // any existing referral on re-submit).
-      ...(referredBy ? { referredBy } : {}),
+        // a value. Spreading an empty object {} is a no-op, so the field is
+        // omitted entirely rather than being set to null (which would overwrite
+        // any existing referral on re-submit).
+        ...(referredBy ? { referredBy } : {}),
       };
 
       await tx
@@ -698,12 +698,13 @@ export async function saveOnboardingData(
 
         await sendEmail({
           to: email,
-          subject: "You earned loyalty points! — T Creative",
+          subject: `You earned loyalty points! — ${bp.businessName}`,
           react: LoyaltyPointsAwarded({
             clientName: firstName,
             pointsEarned: totalPoints,
             reason: "Completed onboarding",
             totalBalance: totalPoints,
+            businessName: bp.businessName,
           }),
           entityType: "loyalty_points_awarded",
           localId: user.id,
@@ -727,11 +728,12 @@ export async function saveOnboardingData(
           if (referrerProfile?.email && referrerProfile.notifyEmail) {
             await sendEmail({
               to: referrerProfile.email,
-              subject: "Referral bonus! — T Creative",
+              subject: `Referral bonus! — ${bp.businessName}`,
               react: ReferralBonus({
                 referrerName: referrerProfile.firstName,
                 refereeName: `${firstName}${lastName ? ` ${lastName}` : ""}`,
                 pointsEarned: 100,
+                businessName: bp.businessName,
               }),
               entityType: "referral_bonus",
               localId: referredBy,

@@ -14,13 +14,16 @@ import { revalidatePath } from "next/cache";
 import * as Sentry from "@sentry/nextjs";
 import { eq, desc, sql, asc } from "drizzle-orm";
 import { z } from "zod";
+import {
+  getPublicBusinessProfile,
+  getPublicInventoryConfig,
+} from "@/app/dashboard/settings/settings-actions";
 import { db } from "@/db";
 import { products, orders, supplies, profiles } from "@/db/schema";
 import { CommissionQuote } from "@/emails/CommissionQuote";
 import { OrderStatusUpdate } from "@/emails/OrderStatusUpdate";
-import { sendEmail, getEmailRecipient } from "@/lib/resend";
 import { requireAdmin } from "@/lib/auth";
-import { getPublicBusinessProfile, getPublicInventoryConfig } from "@/app/dashboard/settings/settings-actions";
+import { sendEmail, getEmailRecipient } from "@/lib/resend";
 
 const PATH = "/dashboard/marketplace";
 
@@ -733,6 +736,7 @@ export async function quoteCommission(
               })
             : undefined,
           notes: options.notes,
+          businessName: bp.businessName,
         }),
         entityType: "commission_quote",
         localId: String(id),
@@ -826,6 +830,7 @@ async function trySendOrderStatusEmail(
         orderNumber: order.orderNumber,
         productTitle: order.title,
         status,
+        businessName: bp.businessName,
       }),
       entityType: "order_status_update",
       localId: String(orderId),

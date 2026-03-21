@@ -11,6 +11,7 @@ export type DailyFlashReportProps = {
   newInquiries: number;
   waitlistChanges: { added: number; claimed: number; expired: number };
   outstandingInvoices: { count: number; totalDue: number };
+  businessName?: string;
 };
 
 export function DailyFlashReport({
@@ -22,9 +23,10 @@ export function DailyFlashReport({
   newInquiries,
   waitlistChanges,
   outstandingInvoices,
+  businessName = "T Creative Studio",
 }: DailyFlashReportProps) {
   return (
-    <Layout preview={`Daily Flash — ${date}`}>
+    <Layout preview={`Daily Flash — ${date}`} businessName={businessName}>
       <Section style={content}>
         <Text style={heading}>Daily Flash Report</Text>
         <Text style={subheading}>{date}</Text>

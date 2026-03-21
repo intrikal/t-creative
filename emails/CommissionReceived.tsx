@@ -7,6 +7,7 @@ export type CommissionReceivedProps = {
   orderNumber: string;
   title: string;
   category: string;
+  businessName?: string;
 };
 
 const categoryLabel: Record<string, string> = {
@@ -19,11 +20,12 @@ export function CommissionReceived({
   orderNumber,
   title,
   category,
+  businessName = "T Creative Studio",
 }: CommissionReceivedProps) {
   const catLabel = categoryLabel[category] ?? category;
 
   return (
-    <Layout preview={`Commission request received — ${orderNumber}`}>
+    <Layout preview={`Commission request received — ${orderNumber}`} businessName={businessName}>
       <Section style={content}>
         <Text style={heading}>Commission Request Received</Text>
         <Text style={paragraph}>

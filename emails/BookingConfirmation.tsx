@@ -10,6 +10,7 @@ export type BookingConfirmationProps = {
   durationMinutes: number;
   totalInCents: number;
   addOns?: { name: string; priceInCents: number }[];
+  businessName?: string;
 };
 
 export function BookingConfirmation({
@@ -19,11 +20,12 @@ export function BookingConfirmation({
   durationMinutes,
   totalInCents,
   addOns,
+  businessName = "T Creative Studio",
 }: BookingConfirmationProps) {
   const hasAddOns = addOns && addOns.length > 0;
 
   return (
-    <Layout preview={`Booking confirmed — ${serviceName}`}>
+    <Layout preview={`Booking confirmed — ${serviceName}`} businessName={businessName}>
       <Section style={content}>
         <Text style={heading}>Booking Confirmed</Text>
         <Text style={paragraph}>Hey {clientName}, your appointment is confirmed!</Text>

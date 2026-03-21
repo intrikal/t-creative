@@ -35,6 +35,7 @@ import * as Sentry from "@sentry/nextjs";
 import { eq, desc, and, ne, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { z } from "zod";
+import { getPublicBusinessProfile } from "@/app/dashboard/settings/settings-actions";
 import { db } from "@/db";
 import {
   threads,
@@ -47,11 +48,11 @@ import {
   threadParticipants,
 } from "@/db/schema";
 import { MessageNotification } from "@/emails/MessageNotification";
-import { trackEvent } from "@/lib/posthog";
+import { getUser } from "@/lib/auth";
 import { rruleToCadenceLabel } from "@/lib/cadence";
+import { trackEvent } from "@/lib/posthog";
 import { sendEmail } from "@/lib/resend";
 import { createZohoDeal } from "@/lib/zoho";
-import { getUser } from "@/lib/auth";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -552,20 +553,21 @@ export async function sendMessage(threadId: number, body: string): Promise<Messa
 
       const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
       const preview = body.length > 200 ? body.slice(0, 200) + "..." : body;
+      const bp = await getPublicBusinessProfile();
 
       for (const p of participants) {
         if (p.id === user.id) continue; // Don't email yourself
         if (!p.email || !p.notifyEmail) continue;
-
         await sendEmail({
           to: p.email,
-          subject: `New message — ${threadRow?.subject ?? "Conversation"} — T Creative`,
+          subject: `New message — ${threadRow?.subject ?? "Conversation"} — ${bp.businessName}`,
           react: MessageNotification({
             recipientName: p.firstName,
             senderName,
             threadSubject: threadRow?.subject ?? "Conversation",
             messagePreview: preview,
             threadUrl: `${siteUrl}/dashboard/messages?thread=${threadId}`,
+            businessName: bp.businessName,
           }),
           entityType: "message_notification",
           localId: String(msg.id),
@@ -1062,7 +1064,9 @@ export async function createBookingRequest(input: {
   if (input.selectedAddOns && input.selectedAddOns.length > 0) {
     // Format each add-on as "Name (+$Price)" and join into a comma-separated
     // string for the human-readable message body the admin will see in the inbox.
-    const addOnList = input.selectedAddOns.map((a) => `${a.name} (+$${(a.priceInCents / 100).toFixed(0)})`).join(", ");
+    const addOnList = input.selectedAddOns
+      .map((a) => `${a.name} (+$${(a.priceInCents / 100).toFixed(0)})`)
+      .join(", ");
     bodyParts.push(`Add-ons: ${addOnList}`);
   }
   if (input.preferredDates) bodyParts.push(`Preferred dates: ${input.preferredDates}`);

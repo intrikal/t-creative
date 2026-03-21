@@ -15,6 +15,7 @@ export type MembershipReminderProps = {
   daysUntilReset: number;
   /** Link to the booking page. */
   bookingUrl: string;
+  businessName?: string;
 };
 
 export function MembershipReminder({
@@ -25,29 +26,31 @@ export function MembershipReminder({
   cycleEndsAt,
   daysUntilReset,
   bookingUrl,
+  businessName = "T Creative Studio",
 }: MembershipReminderProps) {
   const allFillsUsed = fillsRemaining === 0;
   const fillWord = fillsRemaining === 1 ? "fill" : "fills";
 
   return (
-    <Layout preview={`Your ${planName} cycle resets on ${cycleEndsAt}`}>
+    <Layout preview={`Your ${planName} cycle resets on ${cycleEndsAt}`} businessName={businessName}>
       <Section style={content}>
         <Text style={heading}>Your Membership Cycle Is Almost Up</Text>
         <Text style={paragraph}>
           Hey {clientName ?? "there"}! Your <strong>{planName}</strong> cycle resets on{" "}
-          <strong>{cycleEndsAt}</strong> ({daysUntilReset === 1 ? "tomorrow" : `in ${daysUntilReset} days`}).
+          <strong>{cycleEndsAt}</strong> (
+          {daysUntilReset === 1 ? "tomorrow" : `in ${daysUntilReset} days`}).
         </Text>
 
         {!allFillsUsed && (
           <>
             <Text style={highlightBox}>
-              You have <strong>{fillsRemaining}</strong> {fillWord} remaining out of{" "}
-              {fillsPerCycle} this cycle. Unused fills don&apos;t roll over — book now to get
-              the most out of your membership!
+              You have <strong>{fillsRemaining}</strong> {fillWord} remaining out of {fillsPerCycle}{" "}
+              this cycle. Unused fills don&apos;t roll over — book now to get the most out of your
+              membership!
             </Text>
             <Text style={paragraph}>
-              Don&apos;t let {fillsRemaining === 1 ? "it" : "them"} go to waste — tap below to
-              book before your cycle resets:
+              Don&apos;t let {fillsRemaining === 1 ? "it" : "them"} go to waste — tap below to book
+              before your cycle resets:
             </Text>
           </>
         )}
@@ -66,8 +69,7 @@ export function MembershipReminder({
           </a>
         </Text>
         <Text style={muted}>
-          Questions about your membership? Just reply to this email and we&apos;ll be happy to
-          help.
+          Questions about your membership? Just reply to this email and we&apos;ll be happy to help.
         </Text>
       </Section>
     </Layout>

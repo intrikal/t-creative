@@ -8,6 +8,7 @@ export type EnrollmentConfirmationProps = {
   programName: string;
   format: string;
   priceInCents: number;
+  businessName?: string;
 };
 
 export function EnrollmentConfirmation({
@@ -15,9 +16,10 @@ export function EnrollmentConfirmation({
   programName,
   format,
   priceInCents,
+  businessName = "T Creative Studio",
 }: EnrollmentConfirmationProps) {
   return (
-    <Layout preview={`Enrollment confirmed — ${programName}`}>
+    <Layout preview={`Enrollment confirmed — ${programName}`} businessName={businessName}>
       <Section style={content}>
         <Text style={heading}>Enrollment Confirmed</Text>
         <Text style={paragraph}>

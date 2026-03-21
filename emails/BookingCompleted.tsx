@@ -5,11 +5,16 @@ import { Layout } from "./components/Layout";
 export type BookingCompletedProps = {
   clientName: string;
   serviceName: string;
+  businessName?: string;
 };
 
-export function BookingCompleted({ clientName, serviceName }: BookingCompletedProps) {
+export function BookingCompleted({
+  clientName,
+  serviceName,
+  businessName = "T Creative Studio",
+}: BookingCompletedProps) {
   return (
-    <Layout preview={`Thanks for visiting — ${serviceName}`}>
+    <Layout preview={`Thanks for visiting — ${serviceName}`} businessName={businessName}>
       <Section style={content}>
         <Text style={heading}>Thanks for Visiting!</Text>
         <Text style={paragraph}>

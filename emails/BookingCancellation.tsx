@@ -7,6 +7,7 @@ export type BookingCancellationProps = {
   serviceName: string;
   bookingDate: string;
   cancellationReason?: string;
+  businessName?: string;
 };
 
 export function BookingCancellation({
@@ -14,9 +15,10 @@ export function BookingCancellation({
   serviceName,
   bookingDate,
   cancellationReason,
+  businessName = "T Creative Studio",
 }: BookingCancellationProps) {
   return (
-    <Layout preview={`Booking cancelled — ${serviceName}`}>
+    <Layout preview={`Booking cancelled — ${serviceName}`} businessName={businessName}>
       <Section style={content}>
         <Text style={heading}>Booking Cancelled</Text>
         <Text style={paragraph}>Hey {clientName}, your appointment has been cancelled.</Text>

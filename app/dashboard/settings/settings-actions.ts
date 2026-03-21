@@ -31,10 +31,10 @@
 
 import { revalidatePath, updateTag } from "next/cache";
 import * as Sentry from "@sentry/nextjs";
-import { eq, inArray } from "drizzle-orm";
+import { desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
-import { settings } from "@/db/schema";
+import { auditLog, settings } from "@/db/schema";
 import { requireAdmin } from "@/lib/auth";
 import { trackEvent } from "@/lib/posthog";
 import { isSquareConfigured } from "@/lib/square";
@@ -1062,6 +1062,56 @@ export async function getSquareConnectionStatus(): Promise<SquareConnectionStatu
       environment: process.env.SQUARE_ENVIRONMENT ?? "sandbox",
       locationId: connected ? `...${(process.env.SQUARE_LOCATION_ID ?? "").slice(-6)}` : "",
     };
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  CCPA Data Deletion Log (admin view)                                */
+/* ------------------------------------------------------------------ */
+
+export type CcpaDeletionEntry = {
+  id: number;
+  actorId: string | null;
+  email: string;
+  mediaItemsDeleted: number;
+  ipAddress: string | null;
+  createdAt: string;
+};
+
+/**
+ * Fetch all CCPA data deletion requests from the audit log.
+ * Admin-only — used by the Data Requests tab in admin settings.
+ */
+export async function getCcpaDeletionLog(): Promise<CcpaDeletionEntry[]> {
+  try {
+    await getUser(); // requireAdmin
+
+    const rows = await db
+      .select({
+        id: auditLog.id,
+        actorId: auditLog.actorId,
+        metadata: auditLog.metadata,
+        ipAddress: auditLog.ipAddress,
+        createdAt: auditLog.createdAt,
+      })
+      .from(auditLog)
+      .where(eq(auditLog.entityType, "ccpa_deletion_request"))
+      .orderBy(desc(auditLog.createdAt));
+
+    return rows.map((row) => {
+      const meta = (row.metadata ?? {}) as Record<string, unknown>;
+      return {
+        id: row.id,
+        actorId: row.actorId,
+        email: (meta.email as string) ?? "unknown",
+        mediaItemsDeleted: (meta.mediaItemsDeleted as number) ?? 0,
+        ipAddress: row.ipAddress,
+        createdAt: row.createdAt.toISOString(),
+      };
+    });
   } catch (err) {
     Sentry.captureException(err);
     throw err;

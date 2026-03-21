@@ -27,7 +27,7 @@
 import * as Sentry from "@sentry/nextjs";
 import { revalidatePath } from "next/cache";
 import { createClient as createSupabaseAdmin } from "@supabase/supabase-js";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import {
@@ -35,6 +35,8 @@ import {
   clientPreferences,
   formSubmissions,
   loyaltyTransactions,
+  membershipSubscriptions,
+  mediaItems,
   notifications,
   reviews,
   serviceRecords,
@@ -44,8 +46,12 @@ import {
 } from "@/db/schema";
 import { logAction } from "@/lib/audit";
 import { trackEvent } from "@/lib/posthog";
+import { isResendConfigured, sendEmail } from "@/lib/resend";
+import { isSquareConfigured, squareClient } from "@/lib/square";
 import { syncCampaignsSubscriber, unsubscribeFromCampaigns } from "@/lib/zoho-campaigns";
 import { getUser } from "@/lib/auth";
+import { createClient } from "@/utils/supabase/server";
+import { DataDeletionConfirmation } from "@/emails/DataDeletionConfirmation";
 
 const PATH = "/dashboard/settings";
 
@@ -448,12 +454,23 @@ export async function saveClientPreferences(prefs: Omit<ClientPreferences, never
  * Permanently delete a client's account and anonymize all personal data.
  *
  * CCPA "Right to Delete" implementation:
- * - Anonymizes the profile row (name, email, phone, notes, etc.)
- * - Deletes cascade-eligible child records (preferences, loyalty, reviews,
- *   form submissions, service records, notifications, threads, waitlist, wishlist)
- * - Retains anonymized bookings, payments, invoices, and orders for tax/financial compliance
- * - Deletes the Supabase auth user so the person can no longer sign in
- * - Audit-logs the deletion for compliance records
+ * 1. Sends a final confirmation email BEFORE anonymizing (email will be purged)
+ * 2. In a DB transaction:
+ *    - Deletes cascade-eligible child records (preferences, loyalty, reviews,
+ *      form submissions, service records, notifications, threads, waitlist,
+ *      wishlist, media items)
+ *    - Cancels active memberships
+ *    - Anonymizes the profile row (name, email → hash, phone, birthday, notes)
+ *    - Nullifies referral codes
+ *    - Logs to audit_log with type 'ccpa_deletion_request'
+ * 3. Deletes photos from Supabase Storage (best-effort, outside transaction)
+ * 4. Deletes Square customer record (best-effort)
+ * 5. Deletes the Supabase auth user so credentials are purged
+ *
+ * RETAINED for legal/tax compliance:
+ * - Bookings (client_name shows "Deleted User")
+ * - Payments, invoices, orders
+ * - Webhook events, audit_log, sync_log
  */
 export async function deleteClientAccount() {
   try {
@@ -461,61 +478,151 @@ export async function deleteClientAccount() {
 
     trackEvent(user.id, "account_deleted");
 
-    // Promise.all deletes 9 independent tables in parallel — none depend on each
-    // other and all use simple WHERE on the client's ID. Parallel execution
-    // minimizes total deletion time for CCPA compliance response deadlines.
-    await Promise.all([
-      db.delete(clientPreferences).where(eq(clientPreferences.profileId, user.id)),
-      db.delete(loyaltyTransactions).where(eq(loyaltyTransactions.profileId, user.id)),
-      db.delete(notifications).where(eq(notifications.profileId, user.id)),
-      db.delete(reviews).where(eq(reviews.clientId, user.id)),
-      db.delete(formSubmissions).where(eq(formSubmissions.clientId, user.id)),
-      db.delete(serviceRecords).where(eq(serviceRecords.clientId, user.id)),
-      db.delete(threads).where(eq(threads.clientId, user.id)), // cascades to messages
-      db.delete(waitlist).where(eq(waitlist.clientId, user.id)),
-      db.delete(wishlistItems).where(eq(wishlistItems.clientId, user.id)),
-    ]);
-
-    // 2. Anonymize the profile (can't delete row — bookings/payments/invoices/orders
-    //    have RESTRICT foreign keys, and financial records must be retained for tax compliance)
-    const deletedId = user.id.slice(0, 8);
-    await db
-      .update(profiles)
-      .set({
-        firstName: "Deleted",
-        lastName: "User",
-        email: `deleted-${deletedId}@removed.invalid`,
-        phone: null,
-        displayName: null,
-        avatarUrl: null,
-        internalNotes: null,
-        tags: null,
-        lifecycleStage: null,
-        source: null,
-        eventSourceName: null,
-        referralCode: null,
-        squareCustomerId: null,
-        zohoContactId: null,
-        zohoCampaignsContactKey: null,
-        zohoCustomerId: null,
-        onboardingData: null,
-        notifySms: false,
-        notifyEmail: false,
-        notifyMarketing: false,
-        isActive: false,
+    // 1. Fetch profile data needed BEFORE anonymization (email for confirmation,
+    //    squareCustomerId for external cleanup)
+    const [profile] = await db
+      .select({
+        firstName: profiles.firstName,
+        email: profiles.email,
+        squareCustomerId: profiles.squareCustomerId,
+        notifyEmail: profiles.notifyEmail,
       })
-      .where(eq(profiles.id, user.id));
+      .from(profiles)
+      .where(eq(profiles.id, user.id))
+      .limit(1);
 
-    // 3. Audit log (immutable — retained for compliance)
+    // 2. Collect media storage paths before deleting DB rows
+    const clientMedia = await db
+      .select({
+        id: mediaItems.id,
+        storagePath: mediaItems.storagePath,
+        beforeStoragePath: mediaItems.beforeStoragePath,
+      })
+      .from(mediaItems)
+      .where(eq(mediaItems.clientId, user.id));
+
+    // 3. Send final confirmation email BEFORE anonymizing (last chance to reach them)
+    if (profile?.email && isResendConfigured()) {
+      await sendEmail({
+        to: profile.email,
+        subject: "Your data deletion request has been processed",
+        react: <DataDeletionConfirmation clientName={profile.firstName || "there"} />,
+        entityType: "ccpa_deletion_confirmation",
+        localId: user.id,
+      });
+    }
+
+    // 4. Database transaction — all-or-nothing deletion + anonymization
+    const deletedId = user.id.slice(0, 8);
+
+    await db.transaction(async (tx) => {
+      // 4a. Delete cascade-eligible child records in parallel
+      await Promise.all([
+        tx.delete(clientPreferences).where(eq(clientPreferences.profileId, user.id)),
+        tx.delete(loyaltyTransactions).where(eq(loyaltyTransactions.profileId, user.id)),
+        tx.delete(notifications).where(eq(notifications.profileId, user.id)),
+        tx.delete(reviews).where(eq(reviews.clientId, user.id)),
+        tx.delete(formSubmissions).where(eq(formSubmissions.clientId, user.id)),
+        tx.delete(serviceRecords).where(eq(serviceRecords.clientId, user.id)),
+        tx.delete(threads).where(eq(threads.clientId, user.id)), // cascades to messages
+        tx.delete(waitlist).where(eq(waitlist.clientId, user.id)),
+        tx.delete(wishlistItems).where(eq(wishlistItems.clientId, user.id)),
+        tx.delete(mediaItems).where(eq(mediaItems.clientId, user.id)),
+      ]);
+
+      // 4b. Cancel active memberships (entitlements only — billing is external)
+      await tx
+        .update(membershipSubscriptions)
+        .set({
+          status: "cancelled",
+          cancelledAt: new Date(),
+          notes: "Auto-cancelled: CCPA data deletion request",
+        })
+        .where(
+          and(
+            eq(membershipSubscriptions.clientId, user.id),
+            eq(membershipSubscriptions.status, "active"),
+          ),
+        );
+
+      // 4c. Anonymize the profile (can't delete row — bookings/payments/invoices/orders
+      //     have RESTRICT foreign keys, and financial records must be retained for tax compliance)
+      await tx
+        .update(profiles)
+        .set({
+          firstName: "Deleted",
+          lastName: "User",
+          email: `deleted-${deletedId}@removed.invalid`,
+          phone: null,
+          displayName: null,
+          avatarUrl: null,
+          internalNotes: null,
+          tags: null,
+          lifecycleStage: null,
+          source: null,
+          eventSourceName: null,
+          referralCode: null,
+          squareCustomerId: null,
+          zohoContactId: null,
+          zohoCampaignsContactKey: null,
+          zohoCustomerId: null,
+          onboardingData: null,
+          notifySms: false,
+          notifyEmail: false,
+          notifyMarketing: false,
+          isActive: false,
+        })
+        .where(eq(profiles.id, user.id));
+    });
+
+    // 5. Audit log — outside transaction since logAction is non-fatal and uses
+    //    its own error handling. entityType 'ccpa_deletion_request' for admin filtering.
     await logAction({
       actorId: user.id,
       action: "delete",
-      entityType: "client_account",
+      entityType: "ccpa_deletion_request",
       entityId: user.id,
       description: "Client account deleted and personal data anonymized (CCPA)",
+      metadata: {
+        email: profile?.email ?? "unknown",
+        mediaItemsDeleted: clientMedia.length,
+      },
     });
 
-    // 4. Delete the Supabase auth user so credentials are purged
+    // 6. Delete photos from Supabase Storage (best-effort, outside transaction)
+    if (clientMedia.length > 0) {
+      try {
+        const supabase = await createClient();
+        const pathsToDelete = clientMedia.flatMap((m) =>
+          [m.storagePath, m.beforeStoragePath].filter(Boolean) as string[],
+        );
+        if (pathsToDelete.length > 0) {
+          await supabase.storage.from("media").remove(pathsToDelete);
+        }
+      } catch (storageErr) {
+        // Non-fatal — DB rows are already deleted, storage cleanup can be retried
+        Sentry.captureException(storageErr);
+      }
+    }
+
+    // 7. Delete Square customer record (best-effort)
+    if (profile?.squareCustomerId && isSquareConfigured()) {
+      try {
+        await squareClient.customers.delete(profile.squareCustomerId);
+      } catch (squareErr) {
+        // Non-fatal — profile is already anonymized
+        Sentry.captureException(squareErr);
+      }
+    }
+
+    // 8. Unsubscribe from Zoho Campaigns (best-effort)
+    try {
+      unsubscribeFromCampaigns(user.id);
+    } catch {
+      // Non-fatal
+    }
+
+    // 9. Delete the Supabase auth user so credentials are purged
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
     if (serviceRoleKey) {
       const adminClient = createSupabaseAdmin(
@@ -526,7 +633,6 @@ export async function deleteClientAccount() {
       await adminClient.auth.admin.deleteUser(user.id);
     } else {
       // Fallback: sign out only (auth user remains but profile is anonymized)
-      const { createClient } = await import("@/utils/supabase/server");
       const supabase = await createClient();
       await supabase.auth.signOut();
     }

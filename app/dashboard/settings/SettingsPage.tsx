@@ -33,6 +33,7 @@ import {
   Link2,
   Package,
   Scale,
+  ShieldCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AftercareTab } from "./components/AftercareTab";
@@ -46,6 +47,7 @@ import { NotificationsTab } from "./components/NotificationsTab";
 import { PoliciesTab } from "./components/PoliciesTab";
 import { RemindersTab } from "./components/RemindersTab";
 import { ServiceCategoriesTab } from "./components/ServiceCategoriesTab";
+import { DataDeletionLogTab } from "./components/DataDeletionLogTab";
 import { WebsiteContentTab } from "./components/WebsiteContentTab";
 import type { LegalDocEntry } from "../legal/actions";
 import { LegalDocumentsPage } from "../legal/LegalDocumentsPage";
@@ -54,6 +56,7 @@ import type { ServiceCategoryRow } from "./service-categories-actions";
 import type {
   BookingRulesConfig,
   BusinessProfile,
+  CcpaDeletionEntry,
   PolicySettings,
   LoyaltyConfig,
   NotificationPrefs,
@@ -83,6 +86,7 @@ const TABS = [
   { id: "notifications", label: "Notifications", icon: Bell },
   { id: "website", label: "Website Content", icon: Globe },
   { id: "legal", label: "Legal", icon: Scale },
+  { id: "data-requests", label: "Data Requests", icon: ShieldCheck },
 ] as const;
 
 type Tab = (typeof TABS)[number]["id"];
@@ -110,6 +114,7 @@ export function SettingsPage({
   calendarUrl,
   initialPrivacy,
   initialTerms,
+  initialDeletionLog,
 }: {
   initialHours: BusinessHourRow[];
   initialTimeOff: TimeOffRow[];
@@ -129,6 +134,7 @@ export function SettingsPage({
   calendarUrl?: string;
   initialPrivacy?: LegalDocEntry | null;
   initialTerms?: LegalDocEntry | null;
+  initialDeletionLog?: CcpaDeletionEntry[];
 }) {
   const [tab, setTab] = useState<Tab>("business");
 
@@ -171,6 +177,7 @@ export function SettingsPage({
         embedded
       />
     ),
+    "data-requests": <DataDeletionLogTab entries={initialDeletionLog ?? []} />,
   };
 
   return (

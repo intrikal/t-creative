@@ -131,6 +131,8 @@ export type BookingRow = {
   staffFirstName: string | null;
   recurrenceRule: string | null;
   parentBookingId: number | null;
+  tosAcceptedAt: Date | null;
+  tosVersion: string | null;
 };
 
 /**
@@ -386,6 +388,8 @@ export async function getBookings(opts?: {
         staffFirstName: staffProfile.firstName,
         recurrenceRule: bookings.recurrenceRule,
         parentBookingId: bookings.parentBookingId,
+        tosAcceptedAt: bookings.tosAcceptedAt,
+        tosVersion: bookings.tosVersion,
       })
       .from(bookings)
       .where(and(...conditions))

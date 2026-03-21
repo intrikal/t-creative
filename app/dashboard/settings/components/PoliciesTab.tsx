@@ -18,7 +18,7 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { PolicySettings } from "../settings-actions";
 import { savePolicies } from "../settings-actions";
-import { FieldRow, ToggleRow, StatefulSaveButton, NUM_INPUT_CLASS } from "./shared";
+import { FieldRow, ToggleRow, StatefulSaveButton, NUM_INPUT_CLASS, INPUT_CLASS } from "./shared";
 
 export function PoliciesTab({ initial }: { initial: PolicySettings }) {
   /** Full policy config object — spread-updated on each field change. */
@@ -115,6 +115,37 @@ export function PoliciesTab({ initial }: { initial: PolicySettings }) {
               />
             </FieldRow>
           )}
+        </CardContent>
+      </Card>
+
+      <Card className="gap-0">
+        <CardHeader className="pb-0 pt-5 px-5">
+          <CardTitle className="text-[10px] font-semibold uppercase tracking-wide text-muted">
+            Booking Terms of Service
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="px-5 pb-5 pt-3 space-y-4">
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-foreground">Cancellation policy text</label>
+            <p className="text-[11px] text-muted">
+              Shown to clients as a required checkbox on the booking form. Plain text only.
+            </p>
+            <textarea
+              value={data.cancellationPolicy}
+              onChange={(e) => setData((prev) => ({ ...prev, cancellationPolicy: e.target.value }))}
+              rows={4}
+              className={INPUT_CLASS + " resize-none"}
+            />
+          </div>
+          <FieldRow label="Policy version">
+            <input
+              type="text"
+              value={data.tosVersion}
+              onChange={(e) => setData((prev) => ({ ...prev, tosVersion: e.target.value }))}
+              placeholder="e.g. 2025-01"
+              className={INPUT_CLASS}
+            />
+          </FieldRow>
         </CardContent>
       </Card>
 

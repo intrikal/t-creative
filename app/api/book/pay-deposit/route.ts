@@ -24,6 +24,7 @@ import { NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { eq } from "drizzle-orm";
 import { Resend } from "resend";
+import { z } from "zod";
 import { db } from "@/db";
 import { bookings, bookingAddOns, payments, profiles, services, syncLog } from "@/db/schema";
 import { logAction } from "@/lib/audit";
@@ -34,16 +35,44 @@ import { isSquareConfigured, createSquarePayment } from "@/lib/square";
 import { verifyTurnstileToken } from "@/lib/turnstile";
 import { createClient } from "@/utils/supabase/server";
 
+const schema = z.object({
+  sourceId: z.string().min(1),
+  serviceId: z.number(),
+  preferredDate: z.string().min(1),
+  notes: z.string().optional(),
+  recurrenceRule: z.string().optional(),
+  referencePhotoUrls: z.array(z.string().url()).optional(),
+  idempotencyKey: z.string().min(1),
+  selectedAddOns: z.array(z.object({ name: z.string(), priceInCents: z.number() })).optional(),
+  tosAccepted: z.literal(true, {
+    errorMap: () => ({ message: "Policy acceptance is required" }),
+  }),
+  tosVersion: z.string().optional(),
+  // Guest-only fields
+  name: z.string().optional(),
+  email: z.string().email().optional(),
+  phone: z.string().optional(),
+  turnstileToken: z.string().optional(),
+});
+
 export async function POST(request: Request) {
   if (!isSquareConfigured()) {
     return NextResponse.json({ error: "Payments not configured" }, { status: 503 });
   }
 
-  let body: Record<string, unknown>;
+  let raw: unknown;
   try {
-    body = (await request.json()) as Record<string, unknown>;
+    raw = await request.json();
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+
+  const parsed = schema.safeParse(raw);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: "Invalid request", details: parsed.error.flatten() },
+      { status: 400 },
+    );
   }
 
   const {
@@ -55,37 +84,12 @@ export async function POST(request: Request) {
     referencePhotoUrls,
     idempotencyKey,
     selectedAddOns,
-    tosAccepted,
     tosVersion,
-    // Guest fields
     name: guestName,
     email: guestEmail,
     phone: guestPhone,
     turnstileToken,
-  } = body as {
-    sourceId: string;
-    serviceId: number;
-    preferredDate: string;
-    notes?: string;
-    recurrenceRule?: string;
-    referencePhotoUrls?: string[];
-    idempotencyKey: string;
-    name?: string;
-    email?: string;
-    phone?: string;
-    turnstileToken?: string;
-    selectedAddOns?: { name: string; priceInCents: number }[];
-    tosAccepted?: boolean;
-    tosVersion?: string;
-  };
-
-  if (!sourceId || !serviceId || !preferredDate || !idempotencyKey) {
-    return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
-  }
-
-  if (tosAccepted !== true) {
-    return NextResponse.json({ error: "Policy acceptance is required" }, { status: 400 });
-  }
+  } = parsed.data;
 
   // ── Determine user identity ──
   const supabase = await createClient();
@@ -97,9 +101,6 @@ export async function POST(request: Request) {
   if (isGuest) {
     if (!guestName?.trim() || !guestEmail?.trim()) {
       return NextResponse.json({ error: "Name and email required for guests" }, { status: 400 });
-    }
-    if (!guestEmail.includes("@")) {
-      return NextResponse.json({ error: "Invalid email" }, { status: 400 });
     }
     const validToken = await verifyTurnstileToken(turnstileToken ?? "");
     if (!validToken) {

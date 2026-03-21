@@ -6,28 +6,36 @@
 import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { Resend } from "resend";
+import { z } from "zod";
 import { db } from "@/db";
 import { profiles } from "@/db/schema";
 import { RESEND_FROM, isResendConfigured } from "@/lib/resend";
 import { verifyTurnstileToken } from "@/lib/turnstile";
 
+const schema = z.object({
+  name: z.string().min(1),
+  email: z.string().email(),
+  question: z.string().min(1),
+  turnstileToken: z.string().optional(),
+});
+
 export async function POST(request: Request) {
-  let body: unknown;
+  let raw: unknown;
   try {
-    body = await request.json();
+    raw = await request.json();
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { name, email, question, turnstileToken } = body as Record<string, string>;
-
-  if (!name?.trim() || !email?.trim() || !question?.trim()) {
-    return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+  const parsed = schema.safeParse(raw);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: "Invalid request", details: parsed.error.flatten() },
+      { status: 400 },
+    );
   }
 
-  if (!email.includes("@")) {
-    return NextResponse.json({ error: "Invalid email" }, { status: 400 });
-  }
+  const { name, email, question, turnstileToken } = parsed.data;
 
   const validToken = await verifyTurnstileToken(turnstileToken ?? "");
   if (!validToken) {

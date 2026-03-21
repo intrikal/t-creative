@@ -8,28 +8,39 @@
 import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { Resend } from "resend";
+import { z } from "zod";
 import { db } from "@/db";
 import { profiles, services, waitlist } from "@/db/schema";
 import { RESEND_FROM, isResendConfigured } from "@/lib/resend";
 import { verifyTurnstileToken } from "@/lib/turnstile";
 import { createClient } from "@/utils/supabase/server";
 
+const schema = z.object({
+  serviceId: z.union([z.string().min(1), z.number()]),
+  name: z.string().optional(),
+  email: z.string().email().optional(),
+  datePreference: z.string().optional(),
+  notes: z.string().optional(),
+  turnstileToken: z.string().optional(),
+});
+
 export async function POST(request: Request) {
-  let body: unknown;
+  let raw: unknown;
   try {
-    body = await request.json();
+    raw = await request.json();
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { name, email, serviceId, datePreference, notes, turnstileToken } = body as Record<
-    string,
-    string
-  >;
-
-  if (!serviceId || !Number(serviceId)) {
-    return NextResponse.json({ error: "Missing serviceId" }, { status: 400 });
+  const parsed = schema.safeParse(raw);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: "Invalid request", details: parsed.error.flatten() },
+      { status: 400 },
+    );
   }
+
+  const { name, email, serviceId, datePreference, notes, turnstileToken } = parsed.data;
 
   const [service] = await db
     .select({ id: services.id, name: services.name })

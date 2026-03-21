@@ -1,12 +1,16 @@
 import * as React from "react";
 import { Section, Text } from "@react-email/components";
 import { Layout } from "./components/Layout";
+import { formatCents } from "./components/format";
 
 export type BookingCancellationProps = {
   clientName: string;
   serviceName: string;
   bookingDate: string;
   cancellationReason?: string;
+  refundDecision?: "full_refund" | "partial_refund" | "no_refund" | "no_deposit";
+  refundAmountInCents?: number;
+  depositAmountInCents?: number;
 };
 
 export function BookingCancellation({
@@ -14,7 +18,13 @@ export function BookingCancellation({
   serviceName,
   bookingDate,
   cancellationReason,
+  refundDecision,
+  refundAmountInCents,
+  depositAmountInCents,
 }: BookingCancellationProps) {
+  const showRefundSection =
+    refundDecision && refundDecision !== "no_deposit";
+
   return (
     <Layout preview={`Booking cancelled — ${serviceName}`}>
       <Section style={content}>
@@ -31,6 +41,33 @@ export function BookingCancellation({
           <>
             <Text style={detailLabel}>Reason</Text>
             <Text style={detailValue}>{cancellationReason}</Text>
+          </>
+        )}
+
+        {showRefundSection && (
+          <>
+            <Text style={detailLabel}>Deposit Refund</Text>
+            {refundDecision === "full_refund" && (
+              <Text style={detailValue}>
+                A full refund of {formatCents(refundAmountInCents ?? 0)} has been
+                issued to your original payment method. Please allow 5–10 business
+                days for it to appear.
+              </Text>
+            )}
+            {refundDecision === "partial_refund" && (
+              <Text style={detailValue}>
+                A partial refund of {formatCents(refundAmountInCents ?? 0)} (of
+                your {formatCents(depositAmountInCents ?? 0)} deposit) has been
+                issued to your original payment method. Please allow 5–10 business
+                days for it to appear.
+              </Text>
+            )}
+            {refundDecision === "no_refund" && (
+              <Text style={detailValue}>
+                Because this cancellation was made less than 24 hours before the
+                appointment, no deposit refund will be issued.
+              </Text>
+            )}
           </>
         )}
 

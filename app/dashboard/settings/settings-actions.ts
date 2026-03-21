@@ -67,6 +67,14 @@ export interface PolicySettings {
   noShowFeePercent: number;
   depositRequired: boolean;
   depositPercent: number;
+  /** Hours before appointment at which client gets a full deposit refund. */
+  fullRefundHours: number;
+  /** Percent of deposit refunded when cancelled between partialRefundMinHours and fullRefundHours. */
+  partialRefundPct: number;
+  /** Minimum hours before appointment to qualify for a partial refund. */
+  partialRefundMinHours: number;
+  /** Cancellations within this many hours of appointment get no refund. */
+  noRefundHours: number;
 }
 
 export interface LoyaltyConfig {
@@ -137,6 +145,10 @@ const DEFAULT_POLICIES: PolicySettings = {
   noShowFeePercent: 100,
   depositRequired: true,
   depositPercent: 25,
+  fullRefundHours: 48,
+  partialRefundPct: 50,
+  partialRefundMinHours: 24,
+  noRefundHours: 24,
 };
 
 const DEFAULT_LOYALTY: LoyaltyConfig = {
@@ -315,6 +327,10 @@ const policySettingsSchema = z.object({
   noShowFeePercent: z.number().int().nonnegative(),
   depositRequired: z.boolean(),
   depositPercent: z.number().int().nonnegative(),
+  fullRefundHours: z.number().int().nonnegative(),
+  partialRefundPct: z.number().int().min(0).max(100),
+  partialRefundMinHours: z.number().int().nonnegative(),
+  noRefundHours: z.number().int().nonnegative(),
 });
 
 export async function savePolicies(data: PolicySettings): Promise<void> {

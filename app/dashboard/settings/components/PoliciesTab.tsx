@@ -87,6 +87,48 @@ export function PoliciesTab({ initial }: { initial: PolicySettings }) {
       <Card className="gap-0">
         <CardHeader className="pb-0 pt-5 px-5">
           <CardTitle className="text-[10px] font-semibold uppercase tracking-wide text-muted">
+            Cancellation Refund Tiers
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="px-5 pb-5 pt-3 space-y-4">
+          <FieldRow label="Full refund if cancelled before (hours)">
+            <input
+              type="number"
+              value={data.fullRefundHours}
+              onChange={(e) => updateNum("fullRefundHours", e.target.value)}
+              className={NUM_INPUT_CLASS}
+            />
+          </FieldRow>
+          <FieldRow label="Partial refund (% of deposit)">
+            <input
+              type="number"
+              value={data.partialRefundPct}
+              onChange={(e) => updateNum("partialRefundPct", e.target.value)}
+              className={NUM_INPUT_CLASS}
+            />
+          </FieldRow>
+          <FieldRow label="Partial refund minimum (hours)">
+            <input
+              type="number"
+              value={data.partialRefundMinHours}
+              onChange={(e) => updateNum("partialRefundMinHours", e.target.value)}
+              className={NUM_INPUT_CLASS}
+            />
+          </FieldRow>
+          <FieldRow label="No refund within (hours)">
+            <input
+              type="number"
+              value={data.noRefundHours}
+              onChange={(e) => updateNum("noRefundHours", e.target.value)}
+              className={NUM_INPUT_CLASS}
+            />
+          </FieldRow>
+        </CardContent>
+      </Card>
+
+      <Card className="gap-0">
+        <CardHeader className="pb-0 pt-5 px-5">
+          <CardTitle className="text-[10px] font-semibold uppercase tracking-wide text-muted">
             Deposits
           </CardTitle>
         </CardHeader>

@@ -71,6 +71,9 @@ export const payments = pgTable(
     /** Square receipt URL — sent to client post-payment. */
     squareReceiptUrl: text("square_receipt_url"),
 
+    /** Square refund ID — set when a cancellation refund is processed. */
+    squareRefundId: varchar("square_refund_id", { length: 100 }),
+
     /** Staff or system notes on this payment. */
     notes: text("notes"),
 

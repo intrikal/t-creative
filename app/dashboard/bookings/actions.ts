@@ -58,6 +58,7 @@ import { logAction } from "@/lib/audit";
 import { trackEvent } from "@/lib/posthog";
 import { getEmailRecipient, sendEmail } from "@/lib/resend";
 import {
+  squareClient,
   isSquareConfigured,
   createSquareOrder,
   createSquarePaymentLink,
@@ -276,8 +277,9 @@ export async function updateBookingStatus(
     }
 
     if (status === "cancelled") {
+      const refundResult = await tryRefundCancellationDeposit(id);
       await tryEnforceLateCancelFee(id);
-      await trySendBookingStatusEmail(id, "cancelled", cancellationReason);
+      await trySendBookingStatusEmail(id, "cancelled", cancellationReason, refundResult);
       await tryNotifyWaitlist(id);
     }
 
@@ -1082,6 +1084,7 @@ async function trySendBookingStatusEmail(
   bookingId: number,
   status: "cancelled" | "completed" | "no_show",
   cancellationReason?: string,
+  refundResult?: CancellationRefundResult | null,
 ): Promise<void> {
   try {
     const statusClient = alias(profiles, "statusClient");
@@ -1119,6 +1122,9 @@ async function trySendBookingStatusEmail(
           serviceName: row.serviceName,
           bookingDate: dateFormatted,
           cancellationReason,
+          refundDecision: refundResult?.decision,
+          refundAmountInCents: refundResult?.refundAmountInCents,
+          depositAmountInCents: refundResult?.depositAmountInCents,
         }),
         entityType: "booking_cancellation",
         localId: String(bookingId),
@@ -1388,6 +1394,210 @@ async function tryEnforceLateCancelFee(bookingId: number): Promise<void> {
     await tryEnforceFee(bookingId, "late_cancellation");
   } catch (err) {
     Sentry.captureException(err);
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Cancellation deposit refund                                        */
+/* ------------------------------------------------------------------ */
+
+export type CancellationRefundResult = {
+  decision: "full_refund" | "partial_refund" | "no_refund" | "no_deposit";
+  refundAmountInCents: number;
+  depositAmountInCents: number;
+  hoursUntilAppointment: number;
+};
+
+/**
+ * Refunds the client's deposit (fully or partially) based on how far in
+ * advance the booking is cancelled. Uses the refund policy settings:
+ *
+ * - >= fullRefundHours   → 100% of deposit refunded
+ * - >= partialRefundMinHours → partialRefundPct% of deposit refunded
+ * - < noRefundHours      → no refund
+ *
+ * For card payments processed via Square, calls the Refunds API with an
+ * idempotency key of `refund-{bookingId}`. Stores the Square refund ID
+ * on the payment record and logs the decision to audit_log.
+ */
+async function tryRefundCancellationDeposit(
+  bookingId: number,
+): Promise<CancellationRefundResult | null> {
+  try {
+    const policies = await getPolicies();
+
+    // Look up the booking
+    const [booking] = await db
+      .select({
+        startsAt: bookings.startsAt,
+        depositPaidInCents: bookings.depositPaidInCents,
+        clientId: bookings.clientId,
+      })
+      .from(bookings)
+      .where(and(eq(bookings.id, bookingId), isNull(bookings.deletedAt)));
+
+    if (!booking) return null;
+
+    const depositInCents = booking.depositPaidInCents ?? 0;
+    const hoursUntilAppointment =
+      (booking.startsAt.getTime() - Date.now()) / (1000 * 60 * 60);
+
+    // No deposit was paid — nothing to refund
+    if (depositInCents <= 0) {
+      const result: CancellationRefundResult = {
+        decision: "no_deposit",
+        refundAmountInCents: 0,
+        depositAmountInCents: 0,
+        hoursUntilAppointment,
+      };
+      await logAction({
+        actorId: null,
+        action: "update",
+        entityType: "booking",
+        entityId: String(bookingId),
+        description: "Cancellation refund skipped — no deposit on file",
+        metadata: { decision: result.decision, hoursUntilAppointment },
+      });
+      return result;
+    }
+
+    // Determine refund tier
+    let decision: CancellationRefundResult["decision"];
+    let refundAmountInCents: number;
+
+    if (hoursUntilAppointment >= policies.fullRefundHours) {
+      decision = "full_refund";
+      refundAmountInCents = depositInCents;
+    } else if (hoursUntilAppointment >= policies.partialRefundMinHours) {
+      decision = "partial_refund";
+      refundAmountInCents = Math.round(
+        (depositInCents * policies.partialRefundPct) / 100,
+      );
+    } else {
+      decision = "no_refund";
+      refundAmountInCents = 0;
+    }
+
+    const result: CancellationRefundResult = {
+      decision,
+      refundAmountInCents,
+      depositAmountInCents: depositInCents,
+      hoursUntilAppointment,
+    };
+
+    // Process the Square refund if there's an amount to refund
+    if (refundAmountInCents > 0) {
+      // Find the deposit payment record for this booking
+      const [depositPayment] = await db
+        .select()
+        .from(payments)
+        .where(
+          and(
+            eq(payments.bookingId, bookingId),
+            eq(payments.clientId, booking.clientId),
+            inArray(payments.status, ["paid", "partially_refunded"]),
+          ),
+        );
+
+      if (depositPayment?.squarePaymentId && isSquareConfigured()) {
+        const idempotencyKey = `refund-${bookingId}`;
+
+        try {
+          const refundResponse = await squareClient.refunds.refundPayment({
+            idempotencyKey,
+            paymentId: depositPayment.squarePaymentId,
+            amountMoney: {
+              amount: BigInt(refundAmountInCents),
+              currency: "USD",
+            },
+            reason: `Cancellation ${decision.replace("_", " ")} — booking #${bookingId}`,
+          });
+
+          const squareRefundId = refundResponse.refund?.id ?? null;
+
+          // Update payment record with refund info
+          const newRefundedTotal =
+            depositPayment.refundedInCents + refundAmountInCents;
+          const isFullRefund = newRefundedTotal >= depositPayment.amountInCents;
+
+          await db
+            .update(payments)
+            .set({
+              refundedInCents: newRefundedTotal,
+              refundedAt: new Date(),
+              status: isFullRefund ? "refunded" : "partially_refunded",
+              squareRefundId,
+            })
+            .where(eq(payments.id, depositPayment.id));
+
+          // Log successful Square refund to sync_log
+          await db.insert(syncLog).values({
+            provider: "square",
+            direction: "outbound",
+            status: "success",
+            entityType: "cancellation_refund",
+            localId: String(depositPayment.id),
+            remoteId: squareRefundId ?? depositPayment.squarePaymentId,
+            message: `Cancellation ${decision.replace("_", " ")}: $${(refundAmountInCents / 100).toFixed(2)} refunded for booking #${bookingId}`,
+          });
+        } catch (err) {
+          Sentry.captureException(err);
+          const message =
+            err instanceof Error ? err.message : "Square refund failed";
+
+          await db.insert(syncLog).values({
+            provider: "square",
+            direction: "outbound",
+            status: "failed",
+            entityType: "cancellation_refund",
+            localId: String(depositPayment.id),
+            remoteId: depositPayment.squarePaymentId,
+            message: `Cancellation refund of $${(refundAmountInCents / 100).toFixed(2)} failed for booking #${bookingId}`,
+            errorMessage: message,
+          });
+        }
+      } else if (depositPayment && !depositPayment.squarePaymentId) {
+        // Cash payment — update DB directly (no Square API call)
+        const newRefundedTotal =
+          depositPayment.refundedInCents + refundAmountInCents;
+        const isFullRefund = newRefundedTotal >= depositPayment.amountInCents;
+
+        await db
+          .update(payments)
+          .set({
+            refundedInCents: newRefundedTotal,
+            refundedAt: new Date(),
+            status: isFullRefund ? "refunded" : "partially_refunded",
+          })
+          .where(eq(payments.id, depositPayment.id));
+      }
+    }
+
+    // Log refund decision to audit_log
+    await logAction({
+      actorId: null,
+      action: "update",
+      entityType: "booking",
+      entityId: String(bookingId),
+      description: `Cancellation refund: ${decision.replace("_", " ")} — $${(refundAmountInCents / 100).toFixed(2)} of $${(depositInCents / 100).toFixed(2)} deposit`,
+      metadata: {
+        decision,
+        refundAmountInCents,
+        depositAmountInCents: depositInCents,
+        hoursUntilAppointment: Math.round(hoursUntilAppointment * 100) / 100,
+        policySnapshot: {
+          fullRefundHours: policies.fullRefundHours,
+          partialRefundPct: policies.partialRefundPct,
+          partialRefundMinHours: policies.partialRefundMinHours,
+          noRefundHours: policies.noRefundHours,
+        },
+      },
+    });
+
+    return result;
+  } catch (err) {
+    Sentry.captureException(err);
+    return null;
   }
 }
 

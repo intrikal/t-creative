@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, Field, Input, Textarea, Select, DialogFooter } from "@/components/ui/dialog";
 import type { ProductForm } from "./helpers";
 
@@ -22,6 +22,11 @@ export function ProductDialog({
   serviceOptions?: ServiceOption[];
 }) {
   const [form, setForm] = useState<ProductForm>(initial);
+
+  useEffect(() => {
+    if (open) setForm(initial);
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const set =
     (field: keyof ProductForm) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
@@ -37,7 +42,7 @@ export function ProductDialog({
       description="Add or update a product in your marketplace."
       size="md"
     >
-      <div className="space-y-4" key={String(open)}>
+      <div className="space-y-4">
         <Field label="Product name" required>
           <Input value={form.name} onChange={set("name")} placeholder="e.g. Lash Aftercare Kit" />
         </Field>

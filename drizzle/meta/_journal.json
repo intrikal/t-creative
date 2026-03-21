@@ -239,6 +239,13 @@
       "when": 1774052536809,
       "tag": "0033_melted_tusk",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1774054132331,
+      "tag": "0034_friendly_bushwacker",
+      "breakpoints": true
     }
   ]
 }

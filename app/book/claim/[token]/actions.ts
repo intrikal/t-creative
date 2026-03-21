@@ -1,7 +1,10 @@
 "use server";
 
+import { z } from "zod";
 import * as Sentry from "@sentry/nextjs";
 import { eq } from "drizzle-orm";
+
+const claimTokenSchema = z.string().min(1).max(255);
 import { db } from "@/db";
 import { bookings, profiles, services, waitlist } from "@/db/schema";
 import { logAction } from "@/lib/audit";
@@ -20,6 +23,9 @@ export type ClaimResult =
  * booking confirmation flow.
  */
 export async function claimWaitlistSlot(token: string): Promise<ClaimResult> {
+  const parsed = claimTokenSchema.safeParse(token);
+  if (!parsed.success) return { success: false, error: "invalid_token" };
+
   try {
     // 1. Find the waitlist entry by token
     const [entry] = await db
@@ -120,6 +126,9 @@ export type ClaimPageData =
   | { valid: false; reason: "invalid_token" | "expired" | "already_claimed" };
 
 export async function getClaimPageData(token: string): Promise<ClaimPageData> {
+  const parsed = claimTokenSchema.safeParse(token);
+  if (!parsed.success) return { valid: false, reason: "invalid_token" };
+
   const [entry] = await db
     .select({
       status: waitlist.status,

@@ -8,7 +8,8 @@
  * how to earn, redemption info, and points history.
  */
 
-import { useState, useTransition } from "react";
+import { useState, useRef, useEffect, useTransition } from "react";
+import { useTimeoutFlag } from "@/lib/hooks/use-timeout-flag";
 import type { LoyaltyPageData, ClientReward } from "./actions";
 import { redeemPoints, cancelRedemption } from "./actions";
 import { EarnCard } from "./components/EarnCard";
@@ -26,10 +27,19 @@ import { TierHeroCard } from "./components/TierHeroCard";
 /* ------------------------------------------------------------------ */
 
 export function LoyaltyPage({ data }: { data: LoyaltyPageData }) {
-  const [copied, setCopied] = useState(false);
+  const [copied, triggerCopied] = useTimeoutFlag(2500);
   const [redeemedLabel, setRedeemedLabel] = useState<string | null>(null);
   const [redeemError, setRedeemError] = useState<string | null>(null);
+  const redeemedTimer = useRef<ReturnType<typeof setTimeout>>(null);
+  const errorTimer = useRef<ReturnType<typeof setTimeout>>(null);
   const [isRedeeming, startRedeemTransition] = useTransition();
+
+  useEffect(() => {
+    return () => {
+      if (redeemedTimer.current) clearTimeout(redeemedTimer.current);
+      if (errorTimer.current) clearTimeout(errorTimer.current);
+    };
+  }, []);
   const tier = getTier(data.totalPoints);
   const isMaxTier = tier.name === "Platinum";
   const progress = isMaxTier
@@ -41,8 +51,7 @@ export function LoyaltyPage({ data }: { data: LoyaltyPageData }) {
     if (!data.referralCode) return;
     const url = `https://tcreativestudio.com/book/tcreativestudio?ref=${data.referralCode}`;
     navigator.clipboard.writeText(url);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2500);
+    triggerCopied();
   }
 
   function handleRedeem(reward: ClientReward) {
@@ -51,10 +60,12 @@ export function LoyaltyPage({ data }: { data: LoyaltyPageData }) {
       try {
         await redeemPoints({ rewardId: reward.id });
         setRedeemedLabel(reward.label);
-        setTimeout(() => setRedeemedLabel(null), 4000);
+        if (redeemedTimer.current) clearTimeout(redeemedTimer.current);
+        redeemedTimer.current = setTimeout(() => setRedeemedLabel(null), 4000);
       } catch (err) {
         setRedeemError(err instanceof Error ? err.message : "Something went wrong.");
-        setTimeout(() => setRedeemError(null), 4000);
+        if (errorTimer.current) clearTimeout(errorTimer.current);
+        errorTimer.current = setTimeout(() => setRedeemError(null), 4000);
       }
     });
   }
@@ -66,7 +77,8 @@ export function LoyaltyPage({ data }: { data: LoyaltyPageData }) {
         await cancelRedemption(redemptionId);
       } catch (err) {
         setRedeemError(err instanceof Error ? err.message : "Something went wrong.");
-        setTimeout(() => setRedeemError(null), 4000);
+        if (errorTimer.current) clearTimeout(errorTimer.current);
+        errorTimer.current = setTimeout(() => setRedeemError(null), 4000);
       }
     });
   }

@@ -71,6 +71,7 @@ export const inquiries = pgTable(
     index("inquiries_client_idx").on(t.clientId),
     index("inquiries_status_idx").on(t.status),
     index("inquiries_email_idx").on(t.email),
+    index("inquiries_created_at_idx").on(t.createdAt),
   ],
 );
 

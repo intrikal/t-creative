@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, Field, Input, Select, DialogFooter } from "@/components/ui/dialog";
 import type { ProgramRow, ClientOption, StudentStatus, EnrollmentFormData } from "../actions";
 
@@ -24,11 +24,20 @@ export function StudentDialog({
   const [status, setStatus] = useState<StudentStatus>("active");
   const [amountPaid, setAmountPaid] = useState("0");
 
+  useEffect(() => {
+    if (open) {
+      setClientId(clients[0]?.id ?? "");
+      setProgramId(programs[0]?.id ?? 0);
+      setStatus("active");
+      setAmountPaid("0");
+    }
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const selectedProg = programs.find((p) => p.id === programId) ?? programs[0];
 
   return (
     <Dialog open={open} onClose={onClose} title="Add Student" size="md">
-      <div className="space-y-4" key={String(open)}>
+      <div className="space-y-4">
         <Field label="Client" required>
           <Select value={clientId} onChange={(e) => setClientId(e.target.value)}>
             {clients.length === 0 && <option value="">No clients available</option>}

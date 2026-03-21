@@ -9,6 +9,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTimeoutFlag } from "@/lib/hooks/use-timeout-flag";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import type { RemindersConfig } from "../settings-actions";
@@ -21,7 +22,7 @@ export function RemindersTab({ initial }: { initial: RemindersConfig }) {
   const [reviewRequestDelayHours, setReviewRequestDelayHours] = useState(initial.reviewRequestDelayHours);
   const [bookingReminderHours, setBookingReminderHours] = useState(initial.bookingReminderHours.join(", "));
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const [saved, triggerSaved] = useTimeoutFlag(2000);
 
   function toggleField(id: number, field: "email" | "sms" | "active") {
     setReminders((prev) => prev.map((r) => (r.id === id ? { ...r, [field]: !r[field] } : r)));
@@ -40,8 +41,7 @@ export function RemindersTab({ initial }: { initial: RemindersConfig }) {
         reviewRequestDelayHours,
         bookingReminderHours: parsedHours.length > 0 ? parsedHours : [24, 48],
       });
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
+      triggerSaved();
     } finally {
       setSaving(false);
     }

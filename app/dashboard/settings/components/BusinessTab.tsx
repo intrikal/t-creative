@@ -14,6 +14,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTimeoutFlag } from "@/lib/hooks/use-timeout-flag";
 import { Trash2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -63,15 +64,15 @@ export function BusinessTab({
 }) {
   const [data, setData] = useState(initial);
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const [saved, triggerSaved] = useTimeoutFlag(2000);
   const [financial, setFinancial] = useState(initialFinancial);
   const [savingFinancial, setSavingFinancial] = useState(false);
-  const [savedFinancial, setSavedFinancial] = useState(false);
+  const [savedFinancial, triggerSavedFinancial] = useTimeoutFlag(2000);
   const [goals, setGoals] = useState<RevenueGoal[]>(
     [...initialRevenueGoals].sort((a, b) => a.month.localeCompare(b.month)),
   );
   const [savingGoals, setSavingGoals] = useState(false);
-  const [savedGoals, setSavedGoals] = useState(false);
+  const [savedGoals, triggerSavedGoals] = useTimeoutFlag(2000);
   const [newMonth, setNewMonth] = useState("");
   const [newAmount, setNewAmount] = useState("");
 
@@ -83,8 +84,7 @@ export function BusinessTab({
     setSaving(true);
     try {
       await saveBusinessProfile(data);
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
+      triggerSaved();
     } finally {
       setSaving(false);
     }
@@ -94,8 +94,7 @@ export function BusinessTab({
     setSavingFinancial(true);
     try {
       await saveFinancialConfig(financial);
-      setSavedFinancial(true);
-      setTimeout(() => setSavedFinancial(false), 2000);
+      triggerSavedFinancial();
     } finally {
       setSavingFinancial(false);
     }
@@ -123,8 +122,7 @@ export function BusinessTab({
     setSavingGoals(true);
     try {
       await saveRevenueGoals(goals);
-      setSavedGoals(true);
-      setTimeout(() => setSavedGoals(false), 2000);
+      triggerSavedGoals();
     } finally {
       setSavingGoals(false);
     }

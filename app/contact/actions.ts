@@ -6,10 +6,19 @@
  */
 "use server";
 
+import { z } from "zod";
 import { db } from "@/db";
 import { inquiries } from "@/db/schema";
 import { trackEvent } from "@/lib/posthog";
 import { verifyTurnstileToken } from "@/lib/turnstile";
+
+const contactFormSchema = z.object({
+  name: z.string().min(1).max(200),
+  email: z.string().email().max(320),
+  interest: z.string().min(1),
+  message: z.string().min(1).max(5000),
+  turnstileToken: z.string().min(1),
+});
 
 type ServiceCategory = "lash" | "jewelry" | "crochet" | "consulting" | null;
 
@@ -33,6 +42,9 @@ export async function submitContactForm(data: {
   message: string;
   turnstileToken: string;
 }) {
+  const parsed = contactFormSchema.safeParse(data);
+  if (!parsed.success) throw new Error("Invalid form data. Please check your inputs.");
+
   const valid = await verifyTurnstileToken(data.turnstileToken);
   if (!valid) throw new Error("Bot check failed. Please try again.");
 

@@ -164,6 +164,8 @@ export const messages = pgTable(
     index("messages_sender_idx").on(t.senderId),
     index("messages_recipient_idx").on(t.recipientId),
     index("messages_unread_idx").on(t.recipientId, t.isRead),
+    index("messages_thread_created_idx").on(t.threadId, t.createdAt),
+    index("messages_thread_read_sender_idx").on(t.threadId, t.isRead, t.senderId),
   ],
 );
 

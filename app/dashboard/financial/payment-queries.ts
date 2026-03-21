@@ -180,7 +180,8 @@ export async function getPayments(): Promise<PaymentRow[]> {
       .leftJoin(bookings, eq(payments.bookingId, bookings.id))
       .leftJoin(services, eq(bookings.serviceId, services.id))
       .leftJoin(clientProfile, eq(payments.clientId, clientProfile.id))
-      .orderBy(desc(payments.createdAt));
+      .orderBy(desc(payments.createdAt))
+      .limit(500);
 
     return rows.map((r) => {
       const dateObj = r.paidAt ?? r.createdAt;
@@ -217,44 +218,28 @@ export async function getRevenueStats(): Promise<RevenueStats> {
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const priorMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
 
-    const [[row], [currentMonth], [priorMonth], [taxRow]] = await Promise.all([
-      db
-        .select({
-          totalRevenue: sql<number>`coalesce(sum(${payments.amountInCents}), 0)`,
-          totalTips: sql<number>`coalesce(sum(${payments.tipInCents}), 0)`,
-          count: sql<number>`count(*)`,
-        })
-        .from(payments)
-        .where(eq(payments.status, "paid")),
-      db
-        .select({ total: sql<number>`coalesce(sum(${payments.amountInCents}), 0)` })
-        .from(payments)
-        .where(and(eq(payments.status, "paid"), gte(payments.paidAt, monthStart))),
-      db
-        .select({ total: sql<number>`coalesce(sum(${payments.amountInCents}), 0)` })
-        .from(payments)
-        .where(
-          and(
-            eq(payments.status, "paid"),
-            gte(payments.paidAt, priorMonthStart),
-            lt(payments.paidAt, monthStart),
-          ),
-        ),
-      db
-        .select({ total: sql<number>`coalesce(sum(${payments.taxAmountInCents}), 0)` })
-        .from(payments)
-        .where(and(eq(payments.status, "paid"), gte(payments.paidAt, monthStart))),
-    ]);
+    // Single query with conditional aggregation instead of 4 parallel queries
+    const [row] = await db
+      .select({
+        totalRevenue: sql<number>`coalesce(sum(${payments.amountInCents}), 0)`,
+        totalTips: sql<number>`coalesce(sum(${payments.tipInCents}), 0)`,
+        count: sql<number>`count(*)`,
+        currentMonthRevenue: sql<number>`coalesce(sum(case when ${payments.paidAt} >= ${monthStart} then ${payments.amountInCents} else 0 end), 0)`,
+        priorMonthRevenue: sql<number>`coalesce(sum(case when ${payments.paidAt} >= ${priorMonthStart} and ${payments.paidAt} < ${monthStart} then ${payments.amountInCents} else 0 end), 0)`,
+        currentMonthTax: sql<number>`coalesce(sum(case when ${payments.paidAt} >= ${monthStart} then ${payments.taxAmountInCents} else 0 end), 0)`,
+      })
+      .from(payments)
+      .where(eq(payments.status, "paid"));
 
     const totalRevenue = Math.round(Number(row.totalRevenue) / 100);
     const totalTips = Math.round(Number(row.totalTips) / 100);
     const count = Number(row.count);
-    const currentRev = Number(currentMonth.total);
-    const priorRev = Number(priorMonth.total);
+    const currentRev = Number(row.currentMonthRevenue);
+    const priorRev = Number(row.priorMonthRevenue);
     const revenueVsPriorPeriodPct =
       priorRev === 0 ? null : Math.round(((currentRev - priorRev) / priorRev) * 100);
 
-    const taxCollected = Math.round(Number(taxRow.total) / 100);
+    const taxCollected = Math.round(Number(row.currentMonthTax) / 100);
 
     return {
       totalRevenue,

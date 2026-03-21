@@ -215,6 +215,7 @@ export const profiles = pgTable(
     // Composite for "new clients this week" query: role + created_at range scan
     index("profiles_role_created_at_idx").on(t.role, t.createdAt),
     index("profiles_role_active_idx").on(t.role, t.isActive),
+    index("profiles_created_at_idx").on(t.createdAt),
   ],
 );
 

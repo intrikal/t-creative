@@ -7,7 +7,7 @@
 "use server";
 
 import * as Sentry from "@sentry/nextjs";
-import { eq, sql, and, gte, isNotNull } from "drizzle-orm";
+import { desc, eq, inArray, sql, and, gte, isNotNull } from "drizzle-orm";
 import { db } from "@/db";
 import { bookings, payments, services, profiles } from "@/db/schema";
 import { getUser, rangeToInterval, weekLabel } from "./_shared";
@@ -114,18 +114,13 @@ export async function getAtRiskClients(): Promise<AtRiskClient[]> {
   try {
     await getUser();
 
-    const rows = await db
+    // Step 1: Get at-risk clients without correlated subquery
+    const atRiskRows = await db
       .select({
         clientId: bookings.clientId,
         firstName: profiles.firstName,
         lastName: profiles.lastName,
         lastVisit: sql<Date>`max(${bookings.startsAt})`,
-        lastService: sql<string>`(
-          select s.name from bookings b2
-          join services s on s.id = b2.service_id
-          where b2.client_id = ${bookings.clientId}
-          order by b2.starts_at desc limit 1
-        )`,
       })
       .from(bookings)
       .leftJoin(profiles, eq(bookings.clientId, profiles.id))
@@ -135,15 +130,33 @@ export async function getAtRiskClients(): Promise<AtRiskClient[]> {
       .orderBy(sql`max(${bookings.startsAt}) asc`)
       .limit(10);
 
+    // Step 2: Batch-fetch last service per client using DISTINCT ON
+    const clientIds = atRiskRows.map((r) => r.clientId);
+    const lastServiceMap = new Map<string, string>();
+    if (clientIds.length > 0) {
+      const lastServiceRows = await db
+        .selectDistinctOn([bookings.clientId], {
+          clientId: bookings.clientId,
+          serviceName: services.name,
+        })
+        .from(bookings)
+        .innerJoin(services, eq(bookings.serviceId, services.id))
+        .where(inArray(bookings.clientId, clientIds))
+        .orderBy(bookings.clientId, desc(bookings.startsAt));
+      for (const row of lastServiceRows) {
+        lastServiceMap.set(row.clientId, row.serviceName);
+      }
+    }
+
     const now = new Date();
-    return rows.map((r) => {
+    return atRiskRows.map((r) => {
       const lastDate = new Date(r.lastVisit);
       const daysSince = Math.floor((now.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24));
       return {
         name: [r.firstName, r.lastName].filter(Boolean).join(" ") || "Unknown",
         lastVisit: lastDate.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
         daysSince,
-        service: r.lastService ?? "Unknown",
+        service: lastServiceMap.get(r.clientId) ?? "Unknown",
         urgency: daysSince > 50 ? "high" : daysSince > 40 ? "medium" : "low",
       };
     });

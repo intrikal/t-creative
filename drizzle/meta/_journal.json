@@ -232,6 +232,13 @@
       "when": 1774042580836,
       "tag": "0032_natural_jamie_braddock",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1774052536809,
+      "tag": "0033_melted_tusk",
+      "breakpoints": true
     }
   ]
 }

@@ -92,6 +92,7 @@ export async function getAssistants(): Promise<AssistantRow[]> {
         totalRevenue: sql<number>`coalesce(sum(${bookings.totalInCents}), 0)`.as("total_revenue"),
       })
       .from(bookings)
+      .where(eq(bookings.status, "completed"))
       .groupBy(bookings.staffId)
       .as("all_booking_stats");
 
@@ -102,7 +103,7 @@ export async function getAssistants(): Promise<AssistantRow[]> {
         thisMonthSessions: sql<number>`count(*)`.as("this_month_sessions"),
       })
       .from(bookings)
-      .where(gte(bookings.startsAt, startOfMonth))
+      .where(and(eq(bookings.status, "completed"), gte(bookings.startsAt, startOfMonth)))
       .groupBy(bookings.staffId)
       .as("month_booking_stats");
 
@@ -529,7 +530,7 @@ export async function getCommissionsData(): Promise<CommissionRow[]> {
       })
       .from(bookings)
       .innerJoin(payments, eq(payments.bookingId, bookings.id))
-      .where(eq(bookings.status, "completed"))
+      .where(and(eq(bookings.status, "completed"), eq(payments.status, "paid")))
       .groupBy(bookings.staffId)
       .as("all_time_tips");
 
@@ -553,7 +554,7 @@ export async function getCommissionsData(): Promise<CommissionRow[]> {
       })
       .from(bookings)
       .innerJoin(payments, eq(payments.bookingId, bookings.id))
-      .where(and(eq(bookings.status, "completed"), lt(bookings.startsAt, startOfThisMonth)))
+      .where(and(eq(bookings.status, "completed"), eq(payments.status, "paid"), lt(bookings.startsAt, startOfThisMonth)))
       .groupBy(bookings.staffId)
       .as("prior_tips");
 
@@ -678,6 +679,7 @@ export async function getPayrollData(): Promise<{
       .where(
         and(
           eq(bookings.status, "completed"),
+          eq(payments.status, "paid"),
           gte(bookings.startsAt, startOfThisMonth),
           lte(bookings.startsAt, endOfThisMonth),
         ),

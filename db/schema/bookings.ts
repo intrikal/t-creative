@@ -166,6 +166,7 @@ export const bookings = pgTable(
     index("bookings_starts_at_status_idx").on(t.startsAt, t.status),
     index("bookings_client_starts_at_idx").on(t.clientId, t.startsAt),
     index("bookings_deleted_at_idx").on(t.deletedAt),
+    index("bookings_staff_starts_status_idx").on(t.staffId, t.startsAt, t.status),
   ],
 );
 

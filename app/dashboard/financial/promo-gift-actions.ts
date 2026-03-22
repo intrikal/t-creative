@@ -363,8 +363,13 @@ export async function redeemGiftCard(input: {
     await getUser();
 
     // Transaction: deduct gift card balance + apply discount to booking atomically.
+    // FOR UPDATE locks the gift card row to prevent double-spend from concurrent requests.
     await db.transaction(async (tx) => {
-      const [card] = await tx.select().from(giftCards).where(eq(giftCards.id, input.giftCardId));
+      const [card] = await tx
+        .select()
+        .from(giftCards)
+        .where(eq(giftCards.id, input.giftCardId))
+        .for("update");
       if (!card) throw new Error("Gift card not found");
       if (card.status !== "active") throw new Error("Gift card is not active");
       if (card.balanceInCents < input.amountInCents)
@@ -459,8 +464,13 @@ export async function recordRedemption(input: {
     const user = await getUser();
 
     // Transaction: deduct balance + record transaction + apply discount atomically.
+    // FOR UPDATE locks the gift card row to prevent double-spend from concurrent requests.
     await db.transaction(async (tx) => {
-      const [card] = await tx.select().from(giftCards).where(eq(giftCards.id, input.giftCardId));
+      const [card] = await tx
+        .select()
+        .from(giftCards)
+        .where(eq(giftCards.id, input.giftCardId))
+        .for("update");
       if (!card) throw new Error("Gift card not found");
       if (card.status !== "active") throw new Error("Gift card is not active");
       if (card.balanceInCents < input.amountInCents)

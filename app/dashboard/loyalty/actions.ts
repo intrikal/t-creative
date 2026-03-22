@@ -18,7 +18,7 @@
 
 import { revalidatePath } from "next/cache";
 import * as Sentry from "@sentry/nextjs";
-import { and, asc, eq, or, sum, desc, count } from "drizzle-orm";
+import { and, asc, eq, or, sum, desc, count, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import {
@@ -131,9 +131,13 @@ export async function redeemPoints(input: { rewardId: number }): Promise<void> {
     if (!reward) throw new Error("Reward not found or no longer available");
 
     // Transaction: check balance + deduct points + create redemption.
-    // Prevents race conditions where two concurrent redemptions both pass the
-    // balance check before either deduction settles.
+    // Advisory lock on the profile prevents two concurrent redemptions from
+    // reading the same balance and both succeeding (double-spend).
     await db.transaction(async (tx) => {
+      await tx.execute(
+        sql`SELECT pg_advisory_xact_lock(hashtext(${user.id}))`,
+      );
+
       const [pointsRow] = await tx
         .select({ total: sum(loyaltyTransactions.points) })
         .from(loyaltyTransactions)

@@ -386,6 +386,62 @@ export async function getBookings(opts?: {
 
 import { checkBookingWaivers } from "./waiver-actions";
 
+/**
+ * Fetch a single booking row by ID, in the same BookingRow shape
+ * used by getBookings. Used by Realtime handlers to hydrate a
+ * payload into a full joined row.
+ */
+export async function getBookingById(id: number): Promise<BookingRow | null> {
+  try {
+    await getUser();
+
+    const clientProfile = alias(profiles, "client");
+    const staffProfile = alias(profiles, "staff");
+
+    const [row] = await db
+      .select({
+        id: bookings.id,
+        status: bookings.status,
+        startsAt: bookings.startsAt,
+        durationMinutes: bookings.durationMinutes,
+        totalInCents: bookings.totalInCents,
+        location: bookings.location,
+        clientNotes: bookings.clientNotes,
+        clientId: bookings.clientId,
+        clientFirstName: clientProfile.firstName,
+        clientLastName: clientProfile.lastName,
+        clientPhone: clientProfile.phone,
+        serviceId: bookings.serviceId,
+        serviceName: services.name,
+        serviceCategory: services.category,
+        staffId: bookings.staffId,
+        staffFirstName: staffProfile.firstName,
+        recurrenceRule: bookings.recurrenceRule,
+        parentBookingId: bookings.parentBookingId,
+        tosAcceptedAt: bookings.tosAcceptedAt,
+        tosVersion: bookings.tosVersion,
+      })
+      .from(bookings)
+      .where(and(eq(bookings.id, id), isNull(bookings.deletedAt)))
+      .leftJoin(clientProfile, eq(bookings.clientId, clientProfile.id))
+      .leftJoin(services, eq(bookings.serviceId, services.id))
+      .leftJoin(staffProfile, eq(bookings.staffId, staffProfile.id))
+      .limit(1);
+
+    if (!row) return null;
+
+    return {
+      ...row,
+      clientFirstName: row.clientFirstName ?? "",
+      serviceName: row.serviceName ?? "",
+      serviceCategory: row.serviceCategory ?? "lash",
+    };
+  } catch (err) {
+    Sentry.captureException(err);
+    return null;
+  }
+}
+
 /* ------------------------------------------------------------------ */
 /*  Mutations                                                          */
 /* ------------------------------------------------------------------ */

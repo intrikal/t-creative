@@ -7,7 +7,16 @@
 
 "use client";
 
-import { useState, useMemo, useOptimistic, useTransition, useCallback, useReducer } from "react";
+import {
+  useState,
+  useMemo,
+  useOptimistic,
+  useTransition,
+  useCallback,
+  useReducer,
+  useEffect,
+  useRef,
+} from "react";
 import {
   ChevronLeft,
   ChevronRight,
@@ -27,7 +36,8 @@ import {
 } from "lucide-react";
 import { Calendar as DatePicker } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
-import { createBooking, updateBooking, deleteBooking } from "../bookings/actions";
+import { createClient } from "@/utils/supabase/client";
+import { createBooking, updateBooking, deleteBooking, getBookingById } from "../bookings/actions";
 import { createEvent as createStudioEvent } from "../events/actions";
 import type { VenueRow } from "../events/actions";
 import { EventDialog } from "../events/components/EventDialog";
@@ -965,8 +975,31 @@ function EventsTab({ events, venues }: { events: EventRow[]; venues: VenueRow[] 
 }
 
 /* ------------------------------------------------------------------ */
-/*  CalendarPage                                                       */
+/*  CalendarPage — events reducer                                      */
 /* ------------------------------------------------------------------ */
+
+type EventsAction =
+  | { type: "INIT"; events: CalEvent[] }
+  | { type: "UPSERT"; event: CalEvent }
+  | { type: "REMOVE"; id: number };
+
+function eventsReducer(state: CalEvent[], action: EventsAction): CalEvent[] {
+  switch (action.type) {
+    case "INIT":
+      return action.events;
+    case "UPSERT": {
+      const idx = state.findIndex((e) => e.id === action.event.id);
+      if (idx >= 0) {
+        const next = [...state];
+        next[idx] = action.event;
+        return next;
+      }
+      return [...state, action.event];
+    }
+    case "REMOVE":
+      return state.filter((e) => e.id !== action.id);
+  }
+}
 
 const TODAY = fmtDate(new Date());
 
@@ -1001,23 +1034,76 @@ export function CalendarPage({
 }) {
   const staffMembers = useMemo(() => staffOptions.map((s) => s.name), [staffOptions]);
 
-  const serverEvents = useMemo(() => {
+  const initialEvents = useMemo(() => {
     const active = initialBookings.filter(
       (b) => b.status !== "cancelled" && b.status !== "no_show",
     );
     return active.map(mapBookingToCalEvent);
   }, [initialBookings]);
 
+  const [events, dispatchEvents] = useReducer(eventsReducer, initialEvents);
   const [isPending, startTransition] = useTransition();
-  const [events, addOptimistic] = useOptimistic<CalEvent[], { type: "delete"; id: number }>(
-    serverEvents,
-    (state, action) => {
-      switch (action.type) {
-        case "delete":
-          return state.filter((e) => e.id !== action.id);
-      }
-    },
-  );
+
+  // Sync with server-rendered props on navigation / revalidation
+  const initialRef = useRef(initialEvents);
+  useEffect(() => {
+    if (initialRef.current !== initialEvents) {
+      initialRef.current = initialEvents;
+      dispatchEvents({ type: "INIT", events: initialEvents });
+    }
+  }, [initialEvents]);
+
+  // ── Supabase Realtime — live calendar updates ──────────────────────
+  // NOTE: Requires Supabase Realtime enabled on the `bookings` table.
+  // Enable via Supabase Dashboard → Database → Replication.
+  useEffect(() => {
+    const supabase = createClient();
+    const channel = supabase
+      .channel("calendar-bookings-realtime")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "bookings" },
+        (payload) => {
+          const id = (payload.new as { id: number }).id;
+          getBookingById(id).then((row) => {
+            if (!row || row.status === "cancelled" || row.status === "no_show") return;
+            dispatchEvents({ type: "UPSERT", event: mapBookingToCalEvent(row) });
+          });
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "bookings" },
+        (payload) => {
+          const updated = payload.new as { id: number; status: string; deleted_at: string | null };
+          if (
+            updated.status === "cancelled" ||
+            updated.status === "no_show" ||
+            updated.deleted_at
+          ) {
+            dispatchEvents({ type: "REMOVE", id: updated.id });
+            return;
+          }
+          getBookingById(updated.id).then((row) => {
+            if (!row) return;
+            dispatchEvents({ type: "UPSERT", event: mapBookingToCalEvent(row) });
+          });
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "DELETE", schema: "public", table: "bookings" },
+        (payload) => {
+          const id = (payload.old as { id: number }).id;
+          dispatchEvents({ type: "REMOVE", id });
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   const [view, setView] = useState<View>("week");
   const [cursor, setCursor] = useState<Date>(() => parseDate(TODAY));
@@ -1107,7 +1193,7 @@ export function CalendarPage({
     setSelectedEvent(null);
     if (ev.bookingId) {
       startTransition(async () => {
-        addOptimistic({ type: "delete", id: ev.id });
+        dispatchEvents({ type: "REMOVE", id: ev.id });
         const result = await deleteBooking(ev.bookingId!);
         if (!result.success) setMutationError(result.error);
       });

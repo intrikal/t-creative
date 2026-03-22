@@ -12,6 +12,12 @@ declare global {
 
 declare const self: ServiceWorkerGlobalScope;
 
+/** BackgroundSync SyncEvent — not yet in all TS lib.webworker definitions. */
+interface SyncEvent extends ExtendableEvent {
+  readonly tag: string;
+  readonly lastChance: boolean;
+}
+
 const serwist = new Serwist({
   precacheEntries: self.__SW_MANIFEST,
   skipWaiting: true,
@@ -31,6 +37,75 @@ const serwist = new Serwist({
 });
 
 serwist.addEventListeners();
+
+/* ------------------------------------------------------------------ */
+/*  BackgroundSync — guest booking retry                               */
+/* ------------------------------------------------------------------ */
+
+const SYNC_TAG = "guest-booking-sync";
+const DB_NAME = "tc-booking-sync";
+const STORE_NAME = "pending-bookings";
+
+/** Minimal IndexedDB helpers — no module imports in SW context. */
+function openSyncDb(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const req = self.indexedDB.open(DB_NAME, 1);
+    req.onupgradeneeded = () => {
+      req.result.createObjectStore(STORE_NAME, { keyPath: "id", autoIncrement: true });
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function getAllPending(db: IDBDatabase): Promise<Array<{ id: number; payload: unknown }>> {
+  return new Promise((resolve, reject) => {
+    const req = db.transaction(STORE_NAME, "readonly").objectStore(STORE_NAME).getAll();
+    req.onsuccess = () => resolve(req.result as Array<{ id: number; payload: unknown }>);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function deleteRecord(db: IDBDatabase, id: number): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const req = db.transaction(STORE_NAME, "readwrite").objectStore(STORE_NAME).delete(id);
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+  });
+}
+
+self.addEventListener("sync", (event: SyncEvent) => {
+  if (event.tag !== SYNC_TAG) return;
+
+  event.waitUntil(
+    (async () => {
+      const db = await openSyncDb();
+      const pending = await getAllPending(db);
+
+      for (const record of pending) {
+        try {
+          const res = await fetch("/api/book/guest-request", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(record.payload),
+          });
+
+          if (res.ok) {
+            await deleteRecord(db, record.id);
+            // Notify all open clients that the queued booking went through
+            const clients = await self.clients.matchAll({ type: "window" });
+            for (const client of clients) {
+              client.postMessage({ type: "BOOKING_SYNC_SUCCESS" });
+            }
+          }
+          // Non-2xx (server error) — leave in queue; will retry on next sync
+        } catch {
+          // Network still down — BackgroundSync will retry automatically
+        }
+      }
+    })(),
+  );
+});
 
 /* ------------------------------------------------------------------ */
 /*  Web Push notifications                                             */

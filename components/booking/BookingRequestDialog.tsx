@@ -52,6 +52,7 @@ import {
   type IntakeFormDefinitionRow,
 } from "@/app/dashboard/services/intake-form-actions";
 import type { IntakeFormField } from "@/db/schema";
+import { enqueuePendingBooking } from "@/lib/booking-sync-db";
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                             */
@@ -221,6 +222,7 @@ interface BookingState {
   // Submission
   submitting: boolean;
   submitted: boolean;
+  savedOffline: boolean;
   depositPaid: boolean;
   error: string;
 }
@@ -250,6 +252,7 @@ const INITIAL_STATE: BookingState = {
   waiversChecked: false,
   submitting: false,
   submitted: false,
+  savedOffline: false,
   depositPaid: false,
   error: "",
 };
@@ -292,6 +295,7 @@ type BookingAction =
   | { type: "SET_WAIVERS"; waivers: PendingWaiver[] }
   | { type: "SUBMITTING" }
   | { type: "SUBMITTED" }
+  | { type: "SAVED_OFFLINE" }
   | { type: "DEPOSIT_PAID" }
   | { type: "GO_TO_PAY" }
   | { type: "SET_ERROR"; error: string }
@@ -374,6 +378,8 @@ function bookingReducer(state: BookingState, action: BookingAction): BookingStat
       return { ...state, submitting: true, error: "" };
     case "SUBMITTED":
       return { ...state, submitting: false, submitted: true };
+    case "SAVED_OFFLINE":
+      return { ...state, submitting: false, savedOffline: true };
     case "DEPOSIT_PAID":
       return { ...state, submitting: false, submitted: true, depositPaid: true };
     case "GO_TO_PAY":
@@ -430,12 +436,25 @@ export function BookingRequestDialog({
     waiversChecked,
     submitting,
     submitted,
+    savedOffline,
     depositPaid,
     error,
   } = state;
 
   const handleTurnstileSuccess = useCallback((token: string) => {
     dispatch({ type: "SET_TURNSTILE_TOKEN", token });
+  }, []);
+
+  // Listen for SW message when a queued offline booking is successfully retried
+  useEffect(() => {
+    if (!("serviceWorker" in navigator)) return;
+    function onSwMessage(event: MessageEvent) {
+      if ((event.data as { type?: string })?.type === "BOOKING_SYNC_SUCCESS") {
+        dispatch({ type: "SUBMITTED" });
+      }
+    }
+    navigator.serviceWorker.addEventListener("message", onSwMessage);
+    return () => navigator.serviceWorker.removeEventListener("message", onSwMessage);
   }, []);
   const fileInputRef = useRef<HTMLInputElement>(null);
   /** Cached photo URLs — uploaded once on confirm, reused in pay step. */
@@ -703,25 +722,43 @@ export function BookingRequestDialog({
       const referencePhotoUrls = await uploadPhotos();
 
       if (isGuest) {
-        const res = await fetch("/api/book/guest-request", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: guestName.trim(),
-            email: guestEmail.trim(),
-            phone: guestPhone.trim(),
-            serviceId: service.id,
-            preferredDate: preferredDates,
-            notes: notes.trim(),
-            referencePhotoUrls,
-            preferredCadence: cadence ? rruleToCadenceLabel(cadence) : undefined,
-            turnstileToken,
-            selectedAddOns: addOnPayload,
-            tosAccepted: true,
-            tosVersion,
-          }),
-        });
-        if (!res.ok) throw new Error("Failed to send request");
+        const guestPayload: Record<string, unknown> = {
+          name: guestName.trim(),
+          email: guestEmail.trim(),
+          phone: guestPhone.trim(),
+          serviceId: service.id,
+          preferredDate: preferredDates,
+          notes: notes.trim(),
+          referencePhotoUrls,
+          preferredCadence: cadence ? rruleToCadenceLabel(cadence) : undefined,
+          turnstileToken,
+          selectedAddOns: addOnPayload,
+          tosAccepted: true,
+          tosVersion,
+        };
+
+        let fetchFailed = false;
+        try {
+          const res = await fetch("/api/book/guest-request", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(guestPayload),
+          });
+          if (!res.ok) throw new Error("Failed to send request");
+        } catch (fetchErr) {
+          // Distinguish network failure (TypeError) from server errors
+          if (fetchErr instanceof TypeError && !navigator.onLine) {
+            await enqueuePendingBooking(guestPayload);
+            if ("serviceWorker" in navigator && "SyncManager" in window) {
+              const reg = await navigator.serviceWorker.ready;
+              await (reg as ServiceWorkerRegistration & { sync: { register(tag: string): Promise<void> } }).sync.register("guest-booking-sync");
+            }
+            dispatch({ type: "SAVED_OFFLINE" });
+            return;
+          }
+          fetchFailed = true;
+        }
+        if (fetchFailed) throw new Error("Failed to send request");
       } else {
         await createBookingRequest({
           serviceId: service.id,
@@ -794,7 +831,7 @@ export function BookingRequestDialog({
           </div>
 
           {/* Progress bar */}
-          {!submitted && (
+          {!submitted && !savedOffline && (
             <div className="flex gap-1 mt-4">
               {Array.from({ length: totalSteps }, (_, i) => i + 1).map((i) => (
                 <div
@@ -809,7 +846,25 @@ export function BookingRequestDialog({
           )}
         </div>
 
-        {submitted ? (
+        {savedOffline ? (
+          /* ── Offline queued state ── */
+          <div className="px-6 py-10 text-center">
+            <div className="w-14 h-14 rounded-full bg-amber-50 flex items-center justify-center mx-auto mb-4">
+              <AlertTriangle className="w-6 h-6 text-amber-600" />
+            </div>
+            <h3 className="text-lg font-semibold text-stone-900 mb-1">Booking saved</h3>
+            <p className="text-sm text-stone-500 max-w-xs mx-auto leading-relaxed">
+              Looks like you&apos;re offline. Your booking request has been saved and will be sent
+              automatically once you&apos;re back online.
+            </p>
+            <button
+              onClick={handleClose}
+              className="mt-6 px-5 py-2.5 rounded-xl bg-stone-100 text-sm font-medium text-stone-700 hover:bg-stone-200 transition-colors"
+            >
+              Close
+            </button>
+          </div>
+        ) : submitted ? (
           /* ── Success state ── */
           <div className="px-6 py-10 text-center">
             <div className="w-14 h-14 rounded-full bg-[#faf6f1] flex items-center justify-center mx-auto mb-4">

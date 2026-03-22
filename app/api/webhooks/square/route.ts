@@ -28,6 +28,7 @@ import { handlePaymentCompleted, handlePaymentUpdated } from "./handlers/payment
 import { handleRefundEvent } from "./handlers/refund";
 import { handleInvoicePaymentMade } from "./handlers/invoice";
 import { handleSubscriptionUpdated } from "./handlers/subscription";
+import { handleGiftCardActivity } from "./handlers/gift-card";
 
 /* ------------------------------------------------------------------ */
 /*  Signature verification                                             */
@@ -132,6 +133,10 @@ export async function POST(request: Request): Promise<Response> {
         result = await handleInvoicePaymentMade(event.data as Record<string, unknown> | undefined);
         syncStatus = "success";
         break;
+      case "gift_card.activity.created":
+        result = await handleGiftCardActivity(event.data as Record<string, unknown> | undefined);
+        syncStatus = "success";
+        break;
       default:
         result = `Event type ${eventType} not handled`;
         syncStatus = "skipped";
@@ -164,7 +169,9 @@ export async function POST(request: Request): Promise<Response> {
         ? "subscription"
         : eventType.startsWith("invoice")
           ? "invoice"
-          : "payment",
+          : eventType.startsWith("gift_card")
+            ? "gift_card"
+            : "payment",
     remoteId: eventId,
     message: result,
   });

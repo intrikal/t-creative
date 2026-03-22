@@ -32,8 +32,11 @@ export const giftCards = pgTable(
   {
     id: serial("id").primaryKey(),
 
-    /** Unique card code, e.g. "TC-GC-001". */
+    /** Unique card code — Square GAN when using Square Gift Cards API, or custom TC-GC-XXX. */
     code: varchar("code", { length: 30 }).notNull(),
+
+    /** Square Gift Card ID for API operations (balance checks, redemptions). */
+    squareGiftCardId: varchar("square_gift_card_id", { length: 100 }),
 
     /** Client who purchased the card (nullable for walk-in purchases). */
     purchasedByClientId: uuid("purchased_by_client_id").references(() => profiles.id, {

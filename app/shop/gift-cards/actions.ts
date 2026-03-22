@@ -18,7 +18,13 @@ import { GiftCardPurchase } from "@/emails/GiftCardPurchase";
 import { getUser } from "@/lib/auth";
 import { sendEmail } from "@/lib/resend";
 import { getPublicBusinessProfile, getPublicInventoryConfig } from "@/app/dashboard/settings/settings-actions";
-import { isSquareConfigured, squareClient, SQUARE_LOCATION_ID } from "@/lib/square";
+import {
+  isSquareConfigured,
+  squareClient,
+  SQUARE_LOCATION_ID,
+  createSquareGiftCard,
+  linkGiftCardToCustomer,
+} from "@/lib/square";
 
 /* ------------------------------------------------------------------ */
 /*  Validation                                                         */
@@ -67,77 +73,85 @@ export async function purchaseGiftCard(
   }
   const { amountInCents, recipientName } = validated.data;
 
-  // Read the configured gift card code prefix
-  const inventoryConfig = await getPublicInventoryConfig();
-  const prefix = inventoryConfig.giftCardCodePrefix;
-
-  // Auto-generate next gift card code with retry on unique-constraint collision.
-  // Two concurrent purchases can read the same lastCard and produce the same
-  // code. The unique index on gift_cards.code prevents silent duplicates — we
-  // catch the violation and retry with a fresh sequence read.
-  const MAX_RETRIES = 5;
-  let code = "";
+  // Primary: create gift card via Square (handles code generation + balance).
+  // Fallback: custom sequential code if Square is not configured.
+  let code: string;
+  let squareGiftCardId: string | null = null;
   let newCard!: { id: number };
 
-  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-    // QUERY: Find the most recently created gift card to determine the next code number.
-    // SELECT   — Only the code column (e.g. "TC-GC-042").
-    // FROM     — gift_cards table.
-    // ORDER BY — Descending by id so the newest card (highest auto-increment) comes first.
-    // LIMIT 1  — We only need the single latest card to extract its sequence number.
+  if (isSquareConfigured()) {
+    const squareCard = await createSquareGiftCard({
+      amountInCents,
+      referenceId: `client-gc-${user.id}-${Date.now()}`,
+    });
+
+    if (squareCard) {
+      code = squareCard.gan;
+      squareGiftCardId = squareCard.squareGiftCardId;
+
+      // Link to client's Square customer for POS visibility
+      const [clientProfile] = await db
+        .select({ squareCustomerId: profiles.squareCustomerId })
+        .from(profiles)
+        .where(eq(profiles.id, user.id))
+        .limit(1);
+
+      if (clientProfile?.squareCustomerId) {
+        linkGiftCardToCustomer(squareCard.squareGiftCardId, clientProfile.squareCustomerId).catch(() => {});
+      }
+    } else {
+      // Square failed — fall back to custom code
+      const inventoryConfig = await getPublicInventoryConfig();
+      const prefix = inventoryConfig.giftCardCodePrefix;
+      const [lastCard] = await db
+        .select({ code: giftCards.code })
+        .from(giftCards)
+        .orderBy(desc(giftCards.id))
+        .limit(1);
+      const nextNum = lastCard
+        ? String(parseInt(lastCard.code.replace(`${prefix}-`, ""), 10) + 1).padStart(3, "0")
+        : "001";
+      code = `${prefix}-${nextNum}`;
+    }
+  } else {
+    const inventoryConfig = await getPublicInventoryConfig();
+    const prefix = inventoryConfig.giftCardCodePrefix;
     const [lastCard] = await db
       .select({ code: giftCards.code })
       .from(giftCards)
       .orderBy(desc(giftCards.id))
       .limit(1);
-
     const nextNum = lastCard
       ? String(parseInt(lastCard.code.replace(`${prefix}-`, ""), 10) + 1).padStart(3, "0")
       : "001";
-
     code = `${prefix}-${nextNum}`;
-
-    try {
-      // MUTATION: Insert a new gift card row with status "active" and full balance.
-      // Side-effects: The card is immediately usable at checkout. If two concurrent
-      // purchases generate the same code, the unique index on gift_cards.code will
-      // throw a constraint violation — caught below to retry with a fresh sequence.
-      // RETURNING — Gives us the auto-generated card ID for the transaction ledger
-      // entry, Square payment link, and email sends that follow.
-      const [inserted] = await db
-        .insert(giftCards)
-        .values({
-          code,
-          purchasedByClientId: user.id,
-          recipientName: recipientName ?? null,
-          originalAmountInCents: amountInCents,
-          balanceInCents: amountInCents,
-        })
-        .returning({ id: giftCards.id });
-      newCard = inserted;
-      break;
-    } catch (err: unknown) {
-      const isDuplicate =
-        err instanceof Error &&
-        (err.message.includes("unique") ||
-          err.message.includes("duplicate") ||
-          err.message.includes("gift_cards_code_idx"));
-      if (!isDuplicate || attempt === MAX_RETRIES - 1) throw err;
-    }
   }
 
-  // Record purchase transaction in the ledger
-  // MUTATION: Insert a "purchase" row into gift_card_transactions.
-  // Side-effects: Creates the first entry in this card's transaction history.
-  // balanceAfterInCents equals the full amount because nothing has been spent yet.
-  // performedBy records which user bought the card for audit purposes.
-  await db.insert(giftCardTransactions).values({
-    giftCardId: newCard.id,
-    type: "purchase",
-    amountInCents: amountInCents,
-    balanceAfterInCents: amountInCents,
-    performedBy: user.id,
+  // Transaction: create local gift card + purchase transaction atomically.
+  const [inserted] = await db.transaction(async (tx) => {
+    const [card] = await tx
+      .insert(giftCards)
+      .values({
+        code,
+        squareGiftCardId,
+        purchasedByClientId: user.id,
+        recipientName: recipientName ?? null,
+        originalAmountInCents: amountInCents,
+        balanceInCents: amountInCents,
+      })
+      .returning({ id: giftCards.id });
+
+    await tx.insert(giftCardTransactions).values({
+      giftCardId: card.id,
+      type: "purchase",
+      amountInCents,
+      balanceAfterInCents: amountInCents,
+      performedBy: user.id,
+    });
+
+    return [card];
   });
+  newCard = inserted;
 
   // Create Square payment link (non-fatal if Square not configured)
   let paymentUrl: string | undefined;

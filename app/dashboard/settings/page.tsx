@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { getCurrentUser } from "@/lib/auth";
 import { calendarUrl } from "@/lib/calendar-token";
+import { redis } from "@/lib/redis";
+import type { WebhookHealth } from "./components/IntegrationsTab";
 
 export const metadata: Metadata = {
   title: "Settings — T Creative Studio",
@@ -69,6 +71,17 @@ export default async function Page() {
     getCcpaDeletionLog(),
   ]);
 
+  const [lastSuccess, failures] = await Promise.all([
+    redis.get<string>("webhook:last_success"),
+    redis.get<number>("webhook:sig_failures"),
+  ]);
+  const failureCount = Number(failures ?? 0);
+  const webhookHealth: WebhookHealth = {
+    lastSuccessfulWebhook: lastSuccess ?? null,
+    failureCountLastHour: failureCount,
+    status: failureCount >= 5 ? "failing" : failureCount > 0 ? "degraded" : "healthy",
+  };
+
   return (
     <SettingsPage
       initialHours={initialHours}
@@ -87,6 +100,7 @@ export default async function Page() {
       initialCategories={initialCategories}
       squareStatus={squareStatus}
       calendarUrl={calendarUrl(user.id)}
+      webhookHealth={webhookHealth}
       initialPrivacy={initialPrivacy}
       initialTerms={initialTerms}
       initialDeletionLog={initialDeletionLog}

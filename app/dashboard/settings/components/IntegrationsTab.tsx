@@ -18,11 +18,18 @@ import { Copy, Check } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
+export type WebhookHealth = {
+  lastSuccessfulWebhook: string | null;
+  failureCountLastHour: number;
+  status: "healthy" | "degraded" | "failing";
+};
+
 type IntegrationsTabProps = {
   squareConnected?: boolean;
   squareEnvironment?: string;
   squareLocationId?: string;
   calendarUrl?: string;
+  webhookHealth?: WebhookHealth;
 };
 
 /**
@@ -172,6 +179,7 @@ export function IntegrationsTab({
   squareEnvironment,
   squareLocationId,
   calendarUrl,
+  webhookHealth,
 }: IntegrationsTabProps = {}) {
   const integrations = buildIntegrations(squareConnected, squareEnvironment, squareLocationId);
   // Extract unique category names to render grouped sections.
@@ -193,6 +201,63 @@ export function IntegrationsTab({
             Calendar
           </p>
           <CalendarCard calendarUrl={calendarUrl} />
+        </div>
+      )}
+
+      {webhookHealth && (
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-muted mb-2">
+            Webhooks
+          </p>
+          <Card className="gap-0">
+            <CardContent className="px-5 py-4">
+              <div className="flex items-center gap-4">
+                <span className="text-2xl shrink-0">🔔</span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-semibold text-foreground">Square Webhooks</p>
+                    <span
+                      className={cn(
+                        "text-[10px] font-medium px-1.5 py-0.5 rounded-full border",
+                        webhookHealth.status === "healthy"
+                          ? "bg-[#4e6b51]/10 text-[#4e6b51] border-[#4e6b51]/20"
+                          : webhookHealth.status === "degraded"
+                            ? "bg-yellow-500/10 text-yellow-700 border-yellow-500/20"
+                            : "bg-destructive/10 text-destructive border-destructive/20",
+                      )}
+                    >
+                      {webhookHealth.status === "healthy"
+                        ? "Healthy"
+                        : webhookHealth.status === "degraded"
+                          ? "Degraded"
+                          : "Failing"}
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted mt-0.5">
+                    {webhookHealth.failureCountLastHour > 0
+                      ? `${webhookHealth.failureCountLastHour} signature verification failure${webhookHealth.failureCountLastHour === 1 ? "" : "s"} in the last hour`
+                      : "No signature failures in the last hour"}
+                  </p>
+                  {webhookHealth.lastSuccessfulWebhook && (
+                    <p className="text-[10px] text-muted/70 mt-1">
+                      Last successful:{" "}
+                      {new Date(webhookHealth.lastSuccessfulWebhook).toLocaleString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                        hour: "numeric",
+                        minute: "2-digit",
+                      })}
+                    </p>
+                  )}
+                  {webhookHealth.status === "failing" && (
+                    <p className="text-[10px] text-destructive mt-1">
+                      Check Square Dashboard → Webhooks → Signature Key
+                    </p>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       )}
 

@@ -41,6 +41,7 @@ import { getPublicPolicies } from "@/app/dashboard/settings/settings-actions";
 import { Calendar } from "@/components/ui/calendar";
 import { CADENCE_OPTIONS, rruleToCadenceLabel } from "@/lib/cadence";
 import { cn } from "@/lib/utils";
+import { env } from "@/lib/env";
 import { SquarePaymentForm } from "./components/SquarePaymentForm";
 import { formatPrice } from "./helpers";
 import type { Service, ServiceAddOn } from "./types";
@@ -980,7 +981,7 @@ export function BookingRequestDialog({
 
                 {isGuest && (
                   <Turnstile
-                    siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY!}
+                    siteKey={env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
                     onSuccess={handleTurnstileSuccess}
                     onExpire={() => setTurnstileToken("")}
                     options={{ theme: "light", size: "flexible" }}

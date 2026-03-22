@@ -8,13 +8,14 @@
  * @see https://orm.drizzle.team/docs/drizzle-config-file
  */
 import { defineConfig } from "drizzle-kit";
+import { env } from "./lib/env";
 
 export default defineConfig({
   out: "./drizzle",
   schema: "./db/schema/index.ts",
   dialect: "postgresql",
   dbCredentials: {
-    url: process.env.DIRECT_URL!,
+    url: env.DIRECT_URL,
   },
   verbose: true,
   strict: true,

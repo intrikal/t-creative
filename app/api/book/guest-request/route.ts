@@ -8,6 +8,7 @@ import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { Resend } from "resend";
 import { z } from "zod";
+import { env } from "@/lib/env";
 import { db } from "@/db";
 import { profiles, services } from "@/db/schema";
 import { RESEND_FROM, isResendConfigured } from "@/lib/resend";
@@ -77,7 +78,7 @@ export async function POST(request: Request) {
     .limit(1);
 
   if (admin && isResendConfigured()) {
-    const resend = new Resend(process.env.RESEND_API_KEY!);
+    const resend = new Resend(env.RESEND_API_KEY);
     const price = service.priceInCents
       ? `$${(service.priceInCents / 100).toFixed(0)}`
       : "Contact for quote";

@@ -30,6 +30,7 @@ import { bookings, bookingAddOns, payments, profiles, services, syncLog } from "
 import { logAction } from "@/lib/audit";
 import { rruleToCadenceLabel } from "@/lib/cadence";
 import { trackEvent } from "@/lib/posthog";
+import { env } from "@/lib/env";
 import { RESEND_FROM, isResendConfigured } from "@/lib/resend";
 import { isSquareConfigured, createSquarePayment } from "@/lib/square";
 import { verifyTurnstileToken } from "@/lib/turnstile";
@@ -284,7 +285,7 @@ export async function POST(request: Request) {
       : "";
 
     try {
-      const resend = new Resend(process.env.RESEND_API_KEY!);
+      const resend = new Resend(env.RESEND_API_KEY);
       await resend.emails.send({
         from: RESEND_FROM,
         to: admin.email,

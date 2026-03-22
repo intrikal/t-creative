@@ -1,0 +1,67 @@
+/**
+ * lib/env.ts — Validated, typed environment variables.
+ *
+ * Parses process.env once at module load (server-side only) and throws a
+ * clear error at startup if any required variable is absent or malformed.
+ * Import `env` instead of reaching for `process.env.X` directly.
+ *
+ * NEXT_PUBLIC_* variables are also validated here (they are available on the
+ * server). Next.js inlines each `process.env.NEXT_PUBLIC_*` access as a
+ * literal in client bundles, so the exports below work correctly in both
+ * environments. Server-only variables (DATABASE_URL, etc.) become `""` in
+ * client bundles and are never accessed there.
+ */
+import { z } from "zod";
+
+const schema = z.object({
+  // ── Database ──────────────────────────────────────────────────────────────
+  DATABASE_URL: z.string().url(),
+  /** Direct connection (port 5432) — used by drizzle-kit for migrations. */
+  DIRECT_URL: z.string().url(),
+
+  // ── Supabase ──────────────────────────────────────────────────────────────
+  NEXT_PUBLIC_SUPABASE_URL: z.string().url(),
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1),
+  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
+
+  // ── Email ─────────────────────────────────────────────────────────────────
+  RESEND_API_KEY: z.string().min(1),
+
+  // ── CAPTCHA ───────────────────────────────────────────────────────────────
+  NEXT_PUBLIC_TURNSTILE_SITE_KEY: z.string().min(1),
+});
+
+// Validation runs only on the server (Next.js server runtime and Edge Runtime
+// both have `window` undefined). In client bundles the block is dead-code and
+// webpack omits it, so server-secret values are never evaluated in the browser.
+if (typeof window === "undefined") {
+  const result = schema.safeParse({
+    DATABASE_URL: process.env.DATABASE_URL,
+    DIRECT_URL: process.env.DIRECT_URL,
+    NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
+    NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
+    RESEND_API_KEY: process.env.RESEND_API_KEY,
+    NEXT_PUBLIC_TURNSTILE_SITE_KEY: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY,
+  });
+
+  if (!result.success) {
+    const lines = result.error.issues
+      .map((i) => `  ${String(i.path[0])}: ${i.message}`)
+      .join("\n");
+    throw new Error(`Missing or invalid environment variables:\n${lines}`);
+  }
+}
+
+// Individual process.env accesses let Next.js inline NEXT_PUBLIC_* as string
+// literals in client bundles. The `as string` cast is safe because the
+// validation above guarantees these are non-empty strings at server startup.
+export const env = {
+  DATABASE_URL: process.env.DATABASE_URL as string,
+  DIRECT_URL: process.env.DIRECT_URL as string,
+  NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL as string,
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
+  SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY as string,
+  RESEND_API_KEY: process.env.RESEND_API_KEY as string,
+  NEXT_PUBLIC_TURNSTILE_SITE_KEY: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY as string,
+};

@@ -17,6 +17,7 @@ import { Footer } from "@/components/landing/Footer";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { env } from "@/lib/env";
 import { corporateInquirySchema, submitCorporateInquiry } from "./actions";
 
 type FormData = Omit<z.infer<typeof corporateInquirySchema>, "turnstileToken">;
@@ -473,7 +474,7 @@ export function CorporateInquiryForm() {
                   </form.Field>
 
                   <Turnstile
-                    siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY!}
+                    siteKey={env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
                     onSuccess={handleTurnstileSuccess}
                     onExpire={() => setTurnstileToken("")}
                     options={{ theme: "light" }}

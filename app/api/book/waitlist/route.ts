@@ -11,6 +11,7 @@ import { Resend } from "resend";
 import { z } from "zod";
 import { db } from "@/db";
 import { profiles, services, waitlist } from "@/db/schema";
+import { env } from "@/lib/env";
 import { RESEND_FROM, isResendConfigured } from "@/lib/resend";
 import { verifyTurnstileToken } from "@/lib/turnstile";
 import { createClient } from "@/utils/supabase/server";
@@ -83,7 +84,7 @@ export async function POST(request: Request) {
       .limit(1);
 
     if (admin && isResendConfigured()) {
-      const resend = new Resend(process.env.RESEND_API_KEY!);
+      const resend = new Resend(env.RESEND_API_KEY);
       await resend.emails.send({
         from: RESEND_FROM,
         to: admin.email,

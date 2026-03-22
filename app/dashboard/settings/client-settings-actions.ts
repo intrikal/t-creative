@@ -44,6 +44,7 @@ import {
   waitlist,
   wishlistItems,
 } from "@/db/schema";
+import { env } from "@/lib/env";
 import { logAction } from "@/lib/audit";
 import { trackEvent } from "@/lib/posthog";
 import { isResendConfigured, sendEmail } from "@/lib/resend";
@@ -626,7 +627,7 @@ export async function deleteClientAccount() {
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
     if (serviceRoleKey) {
       const adminClient = createSupabaseAdmin(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        env.NEXT_PUBLIC_SUPABASE_URL,
         serviceRoleKey,
         { auth: { persistSession: false } },
       );

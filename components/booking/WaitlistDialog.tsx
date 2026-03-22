@@ -13,6 +13,7 @@ import { Turnstile } from "@marsidev/react-turnstile";
 import { X, Clock, Sparkles, Send } from "lucide-react";
 import { checkIsAuthenticated } from "@/app/dashboard/book/actions";
 import { cn } from "@/lib/utils";
+import { env } from "@/lib/env";
 import type { Service } from "./types";
 
 export function WaitlistDialog({
@@ -184,7 +185,7 @@ export function WaitlistDialog({
 
               {isGuest && (
                 <Turnstile
-                  siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY!}
+                  siteKey={env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
                   onSuccess={handleTurnstileSuccess}
                   onExpire={() => setTurnstileToken("")}
                   options={{ theme: "light", size: "flexible" }}

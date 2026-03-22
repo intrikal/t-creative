@@ -15,9 +15,12 @@ import { z } from "zod";
 
 const schema = z.object({
   // ── Database ──────────────────────────────────────────────────────────────
-  DATABASE_URL: z.string().url(),
-  /** Direct connection (port 5432) — used by drizzle-kit for migrations. */
+  /** Supabase pooler URL (port 6543, transaction mode) — used by the Drizzle runtime client. */
+  DATABASE_POOLER_URL: z.string().url(),
+  /** Direct connection (port 5432) — used by drizzle-kit for migrations only. */
   DIRECT_URL: z.string().url(),
+  /** Kept for tooling compatibility (Supabase CLI, pg introspection). */
+  DATABASE_URL: z.string().url().optional(),
 
   // ── Supabase ──────────────────────────────────────────────────────────────
   NEXT_PUBLIC_SUPABASE_URL: z.string().url(),
@@ -42,8 +45,9 @@ const schema = z.object({
 // still throw immediately on first request if a required var is absent.
 if (typeof window === "undefined" && process.env.NEXT_PHASE !== "phase-production-build") {
   const result = schema.safeParse({
-    DATABASE_URL: process.env.DATABASE_URL,
+    DATABASE_POOLER_URL: process.env.DATABASE_POOLER_URL,
     DIRECT_URL: process.env.DIRECT_URL,
+    DATABASE_URL: process.env.DATABASE_URL,
     NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
     NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
@@ -63,8 +67,9 @@ if (typeof window === "undefined" && process.env.NEXT_PHASE !== "phase-productio
 // literals in client bundles. The `as string` cast is safe because the
 // validation above guarantees these are non-empty strings at server startup.
 export const env = {
-  DATABASE_URL: process.env.DATABASE_URL as string,
+  DATABASE_POOLER_URL: process.env.DATABASE_POOLER_URL as string,
   DIRECT_URL: process.env.DIRECT_URL as string,
+  DATABASE_URL: process.env.DATABASE_URL as string,
   NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL as string,
   NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
   SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY as string,

@@ -2,7 +2,8 @@
  * db — Drizzle ORM client for Supabase Postgres.
  *
  * Uses the `postgres` driver (porsager/postgres) with the Supabase
- * connection pooler on port 6543. This client is intended for
+ * connection pooler URL (DATABASE_POOLER_URL, port 6543, transaction mode).
+ * This client is intended for
  * Server Components, Server Actions, and API routes — never import
  * it in client components.
  *
@@ -18,8 +19,8 @@
  */
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
-import * as schema from "./schema";
 import { env } from "@/lib/env";
+import * as schema from "./schema";
 
 /**
  * Raw postgres.js connection.
@@ -38,7 +39,7 @@ const globalForDb = globalThis as unknown as {
 
 const client =
   globalForDb.__pgClient ??
-  postgres(env.DATABASE_URL, {
+  postgres(env.DATABASE_POOLER_URL, {
     prepare: false,
     max: 10,
     idle_timeout: 20,

@@ -37,9 +37,15 @@ const globalForDb = globalThis as unknown as {
   __pgClient?: ReturnType<typeof postgres>;
 };
 
+// Use process.env directly (not the validated `env` object) so the
+// connection string is available during `next build` prerendering,
+// where the Zod validation is skipped and `env.*` may be undefined.
+const connectionString =
+  process.env.DATABASE_POOLER_URL || process.env.DATABASE_URL || "";
+
 const client =
   globalForDb.__pgClient ??
-  postgres(env.DATABASE_POOLER_URL, {
+  postgres(connectionString, {
     prepare: false,
     max: 10,
     idle_timeout: 20,

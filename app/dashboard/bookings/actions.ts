@@ -86,6 +86,7 @@ import {
   isSquareConfigured,
   createSquareOrder,
   createSquarePaymentLink,
+  createSquareInvoice,
   getSquareCardOnFile,
   chargeCardOnFile,
 } from "@/lib/square";
@@ -1835,69 +1836,114 @@ async function tryEnforceFee(
       }
     }
 
-    // Fallback: create an invoice if card charge failed or no card on file.
-    // The invoice uses a sequential INV-XXX numbering scheme derived from
-    // the highest existing invoice number.
+    // Fallback: create a Square Invoice if card charge failed or no card on file.
+    // Square emails the client a payment link. When paid, the invoice.payment_made
+    // webhook fires and records the payment locally.
     if (!charged) {
-      // ─── Query: fetch the most recent invoice number for sequential numbering ───
-      // SELECT: fetches only the "number" column (e.g. "INV-042") from the
-      //   "invoices" table — we parse the numeric part and increment it.
-      // FROM: the "invoices" table.
-      // ORDER BY id DESC: sorts by the auto-incrementing primary key in
-      //   descending order, so the most recently created invoice is first.
-      // LIMIT 1: we only need the latest invoice's number to calculate the next
-      //   sequential number (e.g. INV-042 → INV-043).
-      const [lastInvoice] = await db
-        .select({ number: invoices.number })
-        .from(invoices)
-        .orderBy(desc(invoices.id))
-        .limit(1);
-
-      const nextNum = lastInvoice
-        ? String(parseInt(lastInvoice.number.replace("INV-", ""), 10) + 1).padStart(3, "0")
-        : "001";
-
       const dueDate = new Date();
       dueDate.setDate(dueDate.getDate() + 7);
+      const dueDateStr = dueDate.toISOString().split("T")[0]; // YYYY-MM-DD
 
-      await db.insert(invoices).values({
-        clientId: row.clientId,
-        number: `INV-${nextNum}`,
-        description: `${feeType === "no_show" ? "No-show" : "Late cancellation"} fee — ${row.serviceName} (${dateFormatted})`,
-        amountInCents: feeAmountInCents,
-        status: "sent",
-        issuedAt: new Date(),
-        dueAt: dueDate,
-        notes: `Auto-generated: ${feeLabel} fee (${feePercent}% of booking total) for booking #${bookingId}`,
-      });
+      const feeTitle = `${feeType === "no_show" ? "No-Show" : "Late Cancellation"} Fee — ${row.serviceName}`;
+      const feeDescription = `${feeLabel} fee (${feePercent}% of booking total) for appointment on ${dateFormatted}`;
 
-      // Send invoice email
-      if (row.clientEmail && row.notifyEmail) {
-        const bp = await getPublicBusinessProfile();
-        await sendEmail({
-          to: row.clientEmail,
-          subject: `${feeType === "no_show" ? "No-show" : "Late cancellation"} fee invoice — ${row.serviceName} — ${bp.businessName}`,
-          react: NoShowFeeInvoice({
-            clientName: row.clientFirstName,
-            serviceName: row.serviceName,
-            bookingDate: dateFormatted,
-            feeAmountInCents,
-            feeType,
-            businessName: bp.businessName,
-          }),
-          entityType: `${feeType}_fee_invoice`,
-          localId: String(bookingId),
+      let invoiceSentViaSquare = false;
+
+      // Primary: Square Invoice — auto-emails the client a payment link
+      if (isSquareConfigured() && row.squareCustomerId && row.clientEmail) {
+        const squareResult = await createSquareInvoice({
+          bookingId,
+          squareCustomerId: row.squareCustomerId,
+          clientEmail: row.clientEmail,
+          amountInCents: feeAmountInCents,
+          title: feeTitle,
+          description: feeDescription,
+          dueDate: dueDateStr,
         });
+
+        if (squareResult) {
+          invoiceSentViaSquare = true;
+
+          // Record a pending payment so the webhook can match it later
+          await db.insert(payments).values({
+            bookingId,
+            clientId: row.clientId,
+            status: "pending" as "paid",
+            method: "square_other",
+            amountInCents: feeAmountInCents,
+            squareOrderId: squareResult.orderId,
+            squareInvoiceId: squareResult.invoiceId,
+            notes: `${feeTitle} — Square Invoice sent, awaiting payment`,
+            paidAt: null as unknown as Date,
+          });
+
+          await logAction({
+            actorId: "system",
+            action: "create",
+            entityType: "invoice",
+            entityId: String(bookingId),
+            description: `Square Invoice created for ${feeLabel} fee of ${feeAmountInCents}¢ — payment link emailed to client`,
+            metadata: {
+              feeType,
+              feePercent,
+              feeAmountInCents,
+              squareInvoiceId: squareResult.invoiceId,
+              squareOrderId: squareResult.orderId,
+            },
+          });
+        }
       }
 
-      await logAction({
-        actorId: "system",
-        action: "create",
-        entityType: "invoice",
-        entityId: String(bookingId),
-        description: `Created ${feeLabel} fee invoice for ${feeAmountInCents}¢ (no card on file)`,
-        metadata: { feeType, feePercent, feeAmountInCents },
-      });
+      // Fallback: local invoice + manual email if Square invoice failed
+      if (!invoiceSentViaSquare) {
+        const [lastInvoice] = await db
+          .select({ number: invoices.number })
+          .from(invoices)
+          .orderBy(desc(invoices.id))
+          .limit(1);
+
+        const nextNum = lastInvoice
+          ? String(parseInt(lastInvoice.number.replace("INV-", ""), 10) + 1).padStart(3, "0")
+          : "001";
+
+        await db.insert(invoices).values({
+          clientId: row.clientId,
+          number: `INV-${nextNum}`,
+          description: `${feeType === "no_show" ? "No-show" : "Late cancellation"} fee — ${row.serviceName} (${dateFormatted})`,
+          amountInCents: feeAmountInCents,
+          status: "sent",
+          issuedAt: new Date(),
+          dueAt: dueDate,
+          notes: `Auto-generated: ${feeLabel} fee (${feePercent}% of booking total) for booking #${bookingId}`,
+        });
+
+        if (row.clientEmail && row.notifyEmail) {
+          const bp = await getPublicBusinessProfile();
+          await sendEmail({
+            to: row.clientEmail,
+            subject: `${feeType === "no_show" ? "No-show" : "Late cancellation"} fee invoice — ${row.serviceName} — ${bp.businessName}`,
+            react: NoShowFeeInvoice({
+              clientName: row.clientFirstName,
+              serviceName: row.serviceName,
+              bookingDate: dateFormatted,
+              feeAmountInCents,
+              feeType,
+              businessName: bp.businessName,
+            }),
+            entityType: `${feeType}_fee_invoice`,
+            localId: String(bookingId),
+          });
+        }
+
+        await logAction({
+          actorId: "system",
+          action: "create",
+          entityType: "invoice",
+          entityId: String(bookingId),
+          description: `Created local ${feeLabel} fee invoice for ${feeAmountInCents}¢ (Square invoice unavailable)`,
+          metadata: { feeType, feePercent, feeAmountInCents },
+        });
+      }
     }
 
     trackEvent(bookingId.toString(), `${feeType}_fee_enforced`, {

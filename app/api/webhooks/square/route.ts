@@ -355,18 +355,65 @@ async function handlePaymentCompleted(data: PaymentCreatedEventData | undefined)
     return `Auto-linked payment to product order #${productOrder.id}`;
   }
 
-  // 4. No match — log for manual linking
+  // 4. Try customer-based client lookup — matches terminal payments to client
+  //    profiles via squareCustomerId (set during onboarding).
+  const squareCustomerId = (squarePayment as Record<string, unknown>).customerId as
+    | string
+    | undefined;
+
+  if (squareCustomerId) {
+    const [clientProfile] = await db
+      .select({ id: profiles.id })
+      .from(profiles)
+      .where(eq(profiles.squareCustomerId, squareCustomerId))
+      .limit(1);
+
+    if (clientProfile) {
+      const amountCents = Number(squarePayment.amountMoney?.amount ?? 0);
+
+      // bookingId is required on payments — log to syncLog for admin to link
+      await db.insert(syncLog).values({
+        provider: "square",
+        direction: "inbound",
+        status: "skipped",
+        entityType: "payment",
+        remoteId: squarePaymentId,
+        message: `Payment matched to client ${clientProfile.id} via Square customer ID — needs booking link`,
+        payload: {
+          squarePaymentId,
+          squareOrderId,
+          squareCustomerId,
+          clientId: clientProfile.id,
+          amountCents,
+          receiptUrl: squarePayment.receiptUrl ?? null,
+        },
+      });
+
+      await logAction({
+        actorId: null,
+        action: "create",
+        entityType: "payment",
+        entityId: squarePaymentId,
+        description: `Payment matched to client via Square customer ID — needs booking link`,
+        metadata: { squarePaymentId, squareOrderId, squareCustomerId, clientId: clientProfile.id, amountCents },
+      });
+
+      return `Matched payment to client ${clientProfile.id} via Square customer ID — needs booking link`;
+    }
+  }
+
+  // 5. No match — log for manual linking
   await db.insert(syncLog).values({
     provider: "square",
     direction: "inbound",
     status: "skipped",
     entityType: "payment",
     remoteId: squarePaymentId,
-    message: "Payment received but no matching booking or order found — needs manual linking",
-    payload: { squarePaymentId, squareOrderId, amount: squarePayment.amountMoney },
+    message: "Payment received but no matching booking, order, or customer found — needs manual linking",
+    payload: { squarePaymentId, squareOrderId, squareCustomerId: squareCustomerId ?? null, amount: squarePayment.amountMoney },
   });
 
-  return "No matching booking or order — logged for manual linking";
+  return "No matching booking, order, or customer — logged for manual linking";
 }
 
 /**

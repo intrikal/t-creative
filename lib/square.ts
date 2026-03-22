@@ -597,6 +597,108 @@ export async function syncCatalogFromSquare(
   return { created, updated, skipped, errors };
 }
 
+/* ------------------------------------------------------------------ */
+/*  Customers API                                                      */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Creates a Square customer for a client profile. Returns the Square
+ * customer ID on success, or null if Square is not configured or the
+ * call fails. The idempotency key is deterministic (`customer-{profileId}`)
+ * so retries are safe.
+ */
+export async function createSquareCustomer(params: {
+  profileId: string;
+  email: string;
+  firstName: string;
+  lastName?: string;
+  phone?: string | null;
+}): Promise<string | null> {
+  if (!isSquareConfigured()) return null;
+
+  try {
+    const response = await squareClient.customers.create({
+      idempotencyKey: `customer-${params.profileId}`,
+      givenName: params.firstName,
+      familyName: params.lastName || undefined,
+      emailAddress: params.email,
+      phoneNumber: params.phone || undefined,
+      referenceId: params.profileId,
+    });
+
+    return response.customer?.id ?? null;
+  } catch (err) {
+    Sentry.captureException(err);
+    return null;
+  }
+}
+
+/**
+ * Links a Square customer ID to a local profile. Creates the Square
+ * customer if one doesn't already exist, then stores the ID on the
+ * profiles table. Non-fatal — returns the customer ID or null.
+ */
+export async function linkSquareCustomer(params: {
+  profileId: string;
+  email: string;
+  firstName: string;
+  lastName?: string;
+  phone?: string | null;
+}): Promise<string | null> {
+  if (!isSquareConfigured()) return null;
+
+  try {
+    // Check if the profile already has a Square customer ID
+    const { db } = await import("@/db");
+    const { profiles } = await import("@/db/schema");
+    const { eq } = await import("drizzle-orm");
+
+    const [profile] = await db
+      .select({ squareCustomerId: profiles.squareCustomerId })
+      .from(profiles)
+      .where(eq(profiles.id, params.profileId))
+      .limit(1);
+
+    if (profile?.squareCustomerId) return profile.squareCustomerId;
+
+    // Search Square for an existing customer by email before creating
+    let squareCustomerId: string | null = null;
+
+    try {
+      const searchResponse = await squareClient.customers.search({
+        query: {
+          filter: {
+            emailAddress: { exact: params.email },
+          },
+        },
+      });
+      squareCustomerId = searchResponse.customers?.[0]?.id ?? null;
+    } catch {
+      // Search failed — will create a new customer below
+    }
+
+    if (!squareCustomerId) {
+      squareCustomerId = await createSquareCustomer(params);
+    }
+
+    if (squareCustomerId) {
+      await db
+        .update(profiles)
+        .set({ squareCustomerId })
+        .where(eq(profiles.id, params.profileId));
+    }
+
+    return squareCustomerId;
+  } catch (err) {
+    Sentry.captureException(err);
+    return null;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Card-on-File API                                                   */
+/* ------------------------------------------------------------------ */
+
 export async function chargeCardOnFile(params: {
   bookingId: number;
   squareCustomerId: string;

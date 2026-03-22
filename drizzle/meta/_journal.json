@@ -253,6 +253,13 @@
       "when": 1742774400000,
       "tag": "0039_materialized_views",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1742860800000,
+      "tag": "0040_square_catalog_id",
+      "breakpoints": true
     }
   ]
 }

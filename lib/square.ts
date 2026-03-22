@@ -337,6 +337,266 @@ export async function getSquareCardOnFile(squareCustomerId: string): Promise<str
  * it. Returns payment details on success, or null if the charge fails
  * (caller should fall back to creating an invoice).
  */
+/* ------------------------------------------------------------------ */
+/*  Catalog API                                                        */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Upserts a single item in the Square Catalog via batchUpsert.
+ *
+ * - If `existingSquareCatalogId` is provided the call updates the existing
+ *   item's name, description, and price in place (fetches current version
+ *   first — Square requires the version field for updates).
+ * - If it is null/undefined a new ITEM + ITEM_VARIATION is created using
+ *   temp IDs (prefixed with `#`) that Square resolves to real IDs.
+ *
+ * The idempotency key is deterministic: `catalog-{type}-{localId}` so
+ * re-calling with the same arguments on retry is safe — Square deduplicates
+ * within 24 hours using the same key.
+ *
+ * Returns the Square Catalog Object ID to be stored in the local DB so
+ * future calls can update instead of create.
+ */
+export async function upsertCatalogItem(params: {
+  /** "service" or "product" — used to namespace the idempotency key. */
+  type: "service" | "product";
+  /** Local DB primary key — used to namespace the idempotency key. */
+  localId: number;
+  name: string;
+  description?: string | null;
+  /** Price in cents. Pass 0 for free/contact-for-quote items. */
+  priceInCents: number;
+  /** If the item already exists in Square, pass its catalog object ID to update it. */
+  existingSquareCatalogId?: string | null;
+}): Promise<string> {
+  if (!isSquareConfigured()) throw new Error("Square not configured");
+
+  // Deterministic idempotency key so retries don't create duplicates.
+  const idempotencyKey = `catalog-${params.type}-${params.localId}`;
+
+  try {
+    let itemId = `#${idempotencyKey}`;
+    let variationId = `#${idempotencyKey}-var`;
+    let itemVersion: bigint | undefined;
+    let variationVersion: bigint | undefined;
+
+    if (params.existingSquareCatalogId) {
+      // Fetch current version — Square requires it for updates.
+      const existing = await squareClient.catalog.object.get({
+        objectId: params.existingSquareCatalogId,
+      });
+      const obj = existing.object;
+      // CatalogObject is a discriminated union; narrow to Item.
+      if (obj && "itemData" in obj) {
+        itemId = params.existingSquareCatalogId;
+        itemVersion = obj.version;
+        const firstVariation = obj.itemData?.variations?.[0];
+        if (firstVariation && "itemVariationData" in firstVariation) {
+          variationId = firstVariation.id ?? variationId;
+          variationVersion = firstVariation.version;
+        }
+      }
+    }
+
+    const response = await squareClient.catalog.batchUpsert({
+      idempotencyKey,
+      batches: [
+        {
+          objects: [
+            {
+              type: "ITEM",
+              id: itemId,
+              version: itemVersion,
+              itemData: {
+                name: params.name,
+                description: params.description ?? undefined,
+                variations: [
+                  {
+                    type: "ITEM_VARIATION",
+                    id: variationId,
+                    version: variationVersion,
+                    itemVariationData: {
+                      name: "Regular",
+                      pricingType: "FIXED_PRICING",
+                      priceMoney: {
+                        amount: BigInt(params.priceInCents),
+                        currency: "USD",
+                      },
+                    },
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      ],
+    });
+
+    // Square resolves temp IDs in idMappings — use that to get the real ID.
+    const idMappings = response.idMappings ?? [];
+    const tempItemId = `#${idempotencyKey}`;
+    const mapping = idMappings.find((m) => m.clientObjectId === tempItemId);
+    const resolvedId = mapping?.objectId ?? params.existingSquareCatalogId;
+
+    if (!resolvedId) throw new Error("Square catalog batchUpsert returned no object ID");
+    return resolvedId;
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
+}
+
+/**
+ * Full catalog reconciliation — walks all active services and published
+ * products, compares them against the live Square Catalog, and pushes any
+ * that are missing or whose name or price has drifted.
+ *
+ * Called by the daily `catalog-sync` cron. Returns a summary of how many
+ * items were created, updated, and skipped (already in sync).
+ *
+ * Skips items where `priceInCents` is null (contact-for-quote) because
+ * Square requires a price for FIXED_PRICING variations.
+ */
+export async function syncCatalogFromSquare(
+  allServices: Array<{
+    id: number;
+    name: string;
+    description: string | null;
+    priceInCents: number | null;
+    isActive: boolean;
+    squareCatalogId: string | null;
+  }>,
+  allProducts: Array<{
+    id: number;
+    title: string;
+    description: string | null;
+    priceInCents: number | null;
+    isPublished: boolean;
+    squareCatalogId: string | null;
+  }>,
+): Promise<{ created: number; updated: number; skipped: number; errors: number }> {
+  if (!isSquareConfigured()) throw new Error("Square not configured");
+
+  let created = 0;
+  let updated = 0;
+  let skipped = 0;
+  let errors = 0;
+
+  // Fetch ALL ITEM objects from the Square catalog for drift detection.
+  // Map Square catalog ID → { name, priceInCents } for O(1) comparison.
+  // catalog.list() returns an async-iterable Page — iterate with for-await.
+  const squareItems = new Map<string, { name: string; priceInCents: number }>();
+  try {
+    for await (const obj of await squareClient.catalog.list({ types: "ITEM" })) {
+      if (!obj.id || !("itemData" in obj)) continue;
+      const variation = obj.itemData?.variations?.[0];
+      const price =
+        variation && "itemVariationData" in variation
+          ? Number(variation.itemVariationData?.priceMoney?.amount ?? 0)
+          : 0;
+      squareItems.set(obj.id, {
+        name: obj.itemData?.name ?? "",
+        priceInCents: price,
+      });
+    }
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
+
+  // Process services
+  for (const svc of allServices) {
+    if (!svc.isActive || svc.priceInCents == null) {
+      skipped++;
+      continue;
+    }
+    try {
+      if (svc.squareCatalogId) {
+        const existing = squareItems.get(svc.squareCatalogId);
+        if (existing && existing.name === svc.name && existing.priceInCents === svc.priceInCents) {
+          skipped++;
+          continue;
+        }
+        await upsertCatalogItem({
+          type: "service",
+          localId: svc.id,
+          name: svc.name,
+          description: svc.description,
+          priceInCents: svc.priceInCents,
+          existingSquareCatalogId: svc.squareCatalogId,
+        });
+        updated++;
+      } else {
+        const newId = await upsertCatalogItem({
+          type: "service",
+          localId: svc.id,
+          name: svc.name,
+          description: svc.description,
+          priceInCents: svc.priceInCents,
+        });
+        // Write Square catalog ID back to DB (inline import avoids circular dep
+        // since lib/square.ts must not depend on @/db at module load time).
+        const { db } = await import("@/db");
+        const { services } = await import("@/db/schema");
+        const { eq } = await import("drizzle-orm");
+        await db.update(services).set({ squareCatalogId: newId }).where(eq(services.id, svc.id));
+        created++;
+      }
+    } catch (err) {
+      Sentry.captureException(err);
+      errors++;
+    }
+  }
+
+  // Process products
+  for (const prod of allProducts) {
+    if (!prod.isPublished || prod.priceInCents == null) {
+      skipped++;
+      continue;
+    }
+    try {
+      if (prod.squareCatalogId) {
+        const existing = squareItems.get(prod.squareCatalogId);
+        if (
+          existing &&
+          existing.name === prod.title &&
+          existing.priceInCents === prod.priceInCents
+        ) {
+          skipped++;
+          continue;
+        }
+        await upsertCatalogItem({
+          type: "product",
+          localId: prod.id,
+          name: prod.title,
+          description: prod.description,
+          priceInCents: prod.priceInCents,
+          existingSquareCatalogId: prod.squareCatalogId,
+        });
+        updated++;
+      } else {
+        const newId = await upsertCatalogItem({
+          type: "product",
+          localId: prod.id,
+          name: prod.title,
+          description: prod.description,
+          priceInCents: prod.priceInCents,
+        });
+        const { db } = await import("@/db");
+        const { products } = await import("@/db/schema");
+        const { eq } = await import("drizzle-orm");
+        await db.update(products).set({ squareCatalogId: newId }).where(eq(products.id, prod.id));
+        created++;
+      }
+    } catch (err) {
+      Sentry.captureException(err);
+      errors++;
+    }
+  }
+
+  return { created, updated, skipped, errors };
+}
+
 export async function chargeCardOnFile(params: {
   bookingId: number;
   squareCustomerId: string;

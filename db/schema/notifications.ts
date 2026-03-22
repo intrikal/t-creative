@@ -69,6 +69,10 @@ export const notifications = pgTable(
     readAt: timestamp("read_at", { withTimezone: true }),
 
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
   },
   (t) => [
     index("notifications_profile_idx").on(t.profileId),

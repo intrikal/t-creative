@@ -106,6 +106,10 @@ export const loyaltyTransactions = pgTable(
     referenceId: uuid("reference_id"),
 
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
   },
   (t) => [
     index("loyalty_tx_profile_idx").on(t.profileId),

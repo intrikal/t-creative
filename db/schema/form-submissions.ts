@@ -63,6 +63,11 @@ export const formSubmissions = pgTable(
     ipAddress: varchar("ip_address", { length: 45 }),
 
     submittedAt: timestamp("submitted_at", { withTimezone: true }).notNull().defaultNow(),
+
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
   },
   (t) => [
     index("form_submissions_client_idx").on(t.clientId),

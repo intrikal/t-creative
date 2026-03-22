@@ -137,6 +137,10 @@ export const webhookEvents = pgTable(
     attempts: integer("attempts").notNull().default(0),
 
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
   },
   (t) => [
     index("webhook_provider_idx").on(t.provider),

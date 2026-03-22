@@ -27,6 +27,7 @@ import {
   Images,
   Gift,
   Bell,
+  Camera,
   PanelLeft,
   PanelLeftClose,
   X,
@@ -143,6 +144,7 @@ const CLIENT_NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/dashboard/book", label: "Book a Service", icon: CalendarPlus },
       { href: "/dashboard/shop", label: "Shop", icon: ShoppingBag },
+      { href: "/dashboard/my-photos", label: "My Photos", icon: Camera },
       { href: "/dashboard/gallery", label: "Gallery", icon: Images },
       { href: "/dashboard/training", label: "Training", icon: GraduationCap },
       { href: "/dashboard/aftercare", label: "Aftercare", icon: HeartHandshake },

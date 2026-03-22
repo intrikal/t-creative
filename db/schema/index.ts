@@ -209,6 +209,9 @@ export {
   referralsRelations,
 } from "./referrals";
 
+/* Client photos */
+export { photoTypeEnum, clientPhotos, clientPhotosRelations } from "./client-photos";
+
 /* Integrations (Square + Zoho sync) */
 export {
   integrationProviderEnum,

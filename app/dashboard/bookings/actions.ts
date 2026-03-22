@@ -265,7 +265,6 @@ async function hasApprovedTimeOffConflict(
 /*  Queries                                                            */
 /* ------------------------------------------------------------------ */
 
-
 const DEFAULT_BOOKINGS_LIMIT = 100;
 
 /**
@@ -560,45 +559,53 @@ export async function createBooking(input: BookingInput): Promise<ActionResult<v
     bookingInputSchema.parse(input);
     const user = await getUser();
 
-    if (input.staffId) {
-      const conflict = await hasOverlappingBooking(
-        input.staffId,
-        input.startsAt,
-        input.durationMinutes,
-      );
-      if (conflict) {
-        throw new Error("This staff member already has a booking during that time slot");
+    const [newBooking] = await db.transaction(async (tx) => {
+      if (input.staffId) {
+        // Serialize all booking attempts for this staff member within the
+        // transaction. hashtext() maps the UUID to a 32-bit int so it fits
+        // pg_advisory_xact_lock's signature. The lock releases on commit/rollback,
+        // so concurrent requests for *different* staff members proceed in parallel.
+        await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${input.staffId}))`);
+
+        const conflict = await hasOverlappingBooking(
+          input.staffId,
+          input.startsAt,
+          input.durationMinutes,
+        );
+        if (conflict) {
+          throw new Error("This staff member already has a booking during that time slot");
+        }
+
+        const timeOffConflict = await hasApprovedTimeOffConflict(
+          input.staffId,
+          input.startsAt,
+          input.durationMinutes,
+        );
+        if (timeOffConflict) {
+          throw new Error("This staff member has approved time off during that time slot");
+        }
       }
 
-      const timeOffConflict = await hasApprovedTimeOffConflict(
-        input.staffId,
-        input.startsAt,
-        input.durationMinutes,
-      );
-      if (timeOffConflict) {
-        throw new Error("This staff member has approved time off during that time slot");
-      }
-    }
-
-    const [newBooking] = await db
-      .insert(bookings)
-      .values({
-        clientId: input.clientId,
-        serviceId: input.serviceId,
-        staffId: input.staffId ?? undefined,
-        startsAt: input.startsAt,
-        durationMinutes: input.durationMinutes,
-        totalInCents: input.totalInCents,
-        location: input.location ?? undefined,
-        clientNotes: input.clientNotes ?? undefined,
-        recurrenceRule: input.recurrenceRule ?? undefined,
-        subscriptionId: input.subscriptionId ?? undefined,
-        // Admin-created bookings start as "confirmed" — the pending→confirmed
-        // flow only applies to client self-booking (handled by a separate action).
-        status: "confirmed",
-        confirmedAt: new Date(),
-      })
-      .returning({ id: bookings.id });
+      return tx
+        .insert(bookings)
+        .values({
+          clientId: input.clientId,
+          serviceId: input.serviceId,
+          staffId: input.staffId ?? undefined,
+          startsAt: input.startsAt,
+          durationMinutes: input.durationMinutes,
+          totalInCents: input.totalInCents,
+          location: input.location ?? undefined,
+          clientNotes: input.clientNotes ?? undefined,
+          recurrenceRule: input.recurrenceRule ?? undefined,
+          subscriptionId: input.subscriptionId ?? undefined,
+          // Admin-created bookings start as "confirmed" — the pending→confirmed
+          // flow only applies to client self-booking (handled by a separate action).
+          status: "confirmed",
+          confirmedAt: new Date(),
+        })
+        .returning({ id: bookings.id });
+    });
 
     // Create Square order for POS payment matching
     await tryCreateSquareOrder(newBooking.id, input.serviceId, input.totalInCents);
@@ -1951,7 +1958,6 @@ async function tryEnforceLateCancelFee(bookingId: number): Promise<void> {
 /*  Cancellation deposit refund                                        */
 /* ------------------------------------------------------------------ */
 
-
 /**
  * Refunds the client's deposit (fully or partially) based on how far in
  * advance the booking is cancelled. Uses the refund policy settings:
@@ -1983,8 +1989,7 @@ async function tryRefundCancellationDeposit(
     if (!booking) return null;
 
     const depositInCents = booking.depositPaidInCents ?? 0;
-    const hoursUntilAppointment =
-      (booking.startsAt.getTime() - Date.now()) / (1000 * 60 * 60);
+    const hoursUntilAppointment = (booking.startsAt.getTime() - Date.now()) / (1000 * 60 * 60);
 
     // No deposit was paid — nothing to refund
     if (depositInCents <= 0) {
@@ -2014,9 +2019,7 @@ async function tryRefundCancellationDeposit(
       refundAmountInCents = depositInCents;
     } else if (hoursUntilAppointment >= policies.partialRefundMinHours) {
       decision = "partial_refund";
-      refundAmountInCents = Math.round(
-        (depositInCents * policies.partialRefundPct) / 100,
-      );
+      refundAmountInCents = Math.round((depositInCents * policies.partialRefundPct) / 100);
     } else {
       decision = "no_refund";
       refundAmountInCents = 0;
@@ -2060,8 +2063,7 @@ async function tryRefundCancellationDeposit(
           const squareRefundId = refundResponse.refund?.id ?? null;
 
           // Transaction: update payment record + log sync atomically.
-          const newRefundedTotal =
-            depositPayment.refundedInCents + refundAmountInCents;
+          const newRefundedTotal = depositPayment.refundedInCents + refundAmountInCents;
           const isFullRefund = newRefundedTotal >= depositPayment.amountInCents;
 
           await db.transaction(async (tx) => {
@@ -2087,8 +2089,7 @@ async function tryRefundCancellationDeposit(
           });
         } catch (err) {
           Sentry.captureException(err);
-          const message =
-            err instanceof Error ? err.message : "Square refund failed";
+          const message = err instanceof Error ? err.message : "Square refund failed";
 
           await db.insert(syncLog).values({
             provider: "square",
@@ -2103,8 +2104,7 @@ async function tryRefundCancellationDeposit(
         }
       } else if (depositPayment && !depositPayment.squarePaymentId) {
         // Cash payment — update DB directly (no Square API call)
-        const newRefundedTotal =
-          depositPayment.refundedInCents + refundAmountInCents;
+        const newRefundedTotal = depositPayment.refundedInCents + refundAmountInCents;
         const isFullRefund = newRefundedTotal >= depositPayment.amountInCents;
 
         await db
@@ -2226,7 +2226,6 @@ async function trySendBookingReschedule(bookingId: number, oldStartsAt: Date): P
 /* ------------------------------------------------------------------ */
 /*  Assistant-scoped bookings                                          */
 /* ------------------------------------------------------------------ */
-
 
 /* ---- Date/time formatting helpers for AssistantBookingRow ---- */
 

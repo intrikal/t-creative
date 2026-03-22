@@ -35,6 +35,7 @@
 import { useState } from "react";
 import { Dialog, DialogFooter, Field, Input, Textarea, Select } from "@/components/ui/dialog";
 import { CADENCE_OPTIONS } from "@/lib/cadence";
+import { ClientCombobox } from "./ClientCombobox";
 import type { Booking, BookingStatus } from "./helpers";
 
 export type BookingFormState = {
@@ -130,21 +131,17 @@ export function BookingDialog({
   onClose,
   onSave,
   initial,
-  clients,
   serviceOptions,
   staffOptions,
   activeSubscriptions = [],
+  initialClientName,
 }: {
   open: boolean;
   onClose: () => void;
   onSave: (data: BookingFormState) => void;
   initial?: Booking | null;
-  clients: {
-    id: string;
-    name: string;
-    phone: string | null;
-    preferredRebookIntervalDays: number | null;
-  }[];
+  /** Display name of the pre-selected client in edit mode (shown in combobox). */
+  initialClientName?: string;
   serviceOptions: {
     id: number;
     name: string;
@@ -174,8 +171,10 @@ export function BookingDialog({
     });
   }
 
-  function onClientChange(clientId: string) {
-    const client = clients.find((c) => c.id === clientId);
+  function onClientChange(
+    clientId: string,
+    client: { preferredRebookIntervalDays: number | null } | null,
+  ) {
     const preferredDays = client?.preferredRebookIntervalDays;
     setForm((prev) => ({
       ...prev,
@@ -221,18 +220,11 @@ export function BookingDialog({
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-3">
           <Field label="Client" required>
-            <Select
-              aria-required="true"
+            <ClientCombobox
               value={form.clientId}
-              onChange={(e) => onClientChange(e.target.value)}
-            >
-              <option value="">Select client…</option>
-              {clients.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </Select>
+              onChange={onClientChange}
+              selectedName={initialClientName}
+            />
           </Field>
           <Field label="Service" required>
             <Select

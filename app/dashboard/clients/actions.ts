@@ -96,12 +96,15 @@ const DEFAULT_CLIENTS_LIMIT = 100;
 export async function getClients(opts?: {
   offset?: number;
   limit?: number;
+  /** Free-text search against first_name, last_name, email via pg_trgm word_similarity(). */
+  search?: string;
 }): Promise<PaginatedClients> {
   try {
     await getUser();
 
     const limit = opts?.limit ?? DEFAULT_CLIENTS_LIMIT;
     const offset = opts?.offset ?? 0;
+    const search = opts?.search?.trim() ?? "";
 
     const referrer = alias(profiles, "referrer");
 
@@ -138,10 +141,32 @@ export async function getClients(opts?: {
       })
       .from(profiles)
       .innerJoin(sql`client_summary cs`, sql`cs.id = ${profiles.id}`)
-      .where(and(eq(profiles.role, "client"), eq(profiles.isActive, true)))
+      .where(
+        and(
+          eq(profiles.role, "client"),
+          eq(profiles.isActive, true),
+          search
+            ? sql`
+                greatest(
+                  word_similarity(${search}, ${profiles.firstName} || ' ' || coalesce(${profiles.lastName}, '')),
+                  word_similarity(${search}, ${profiles.email})
+                ) > 0.2
+              `
+            : undefined,
+        ),
+      )
       .leftJoin(referrer, eq(profiles.referredBy, referrer.id))
       .leftJoin(referralStats, eq(profiles.id, referralStats.referrerId))
-      .orderBy(desc(profiles.createdAt))
+      .orderBy(
+        search
+          ? sql`
+              greatest(
+                word_similarity(${search}, ${profiles.firstName} || ' ' || coalesce(${profiles.lastName}, '')),
+                word_similarity(${search}, ${profiles.email})
+              ) desc
+            `
+          : desc(profiles.createdAt),
+      )
       .limit(limit + 1)
       .offset(offset);
 

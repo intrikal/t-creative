@@ -112,7 +112,6 @@ export type { Booking, BookingStatus, ServiceCategory } from "./components/helpe
 export function BookingsPage({
   initialBookings,
   initialHasMore = false,
-  clients,
   serviceOptions,
   staffOptions,
   activeSubscriptions = [],
@@ -120,12 +119,6 @@ export function BookingsPage({
 }: {
   initialBookings: BookingRow[];
   initialHasMore?: boolean;
-  clients: {
-    id: string;
-    name: string;
-    phone: string | null;
-    preferredRebookIntervalDays: number | null;
-  }[];
   serviceOptions: {
     id: number;
     name: string;
@@ -560,7 +553,6 @@ export function BookingsPage({
           pendingBookings={pendingBookings}
           onBook={openAdd}
           onRemove={removeFromWaitlist}
-          clients={clients}
           serviceOptions={serviceOptions}
         />
       )}
@@ -574,7 +566,7 @@ export function BookingsPage({
         onClose={() => setDialogOpen(false)}
         onSave={handleSave}
         initial={editTarget}
-        clients={clients}
+        initialClientName={editTarget?.client ?? undefined}
         serviceOptions={serviceOptions}
         staffOptions={staffOptions}
         activeSubscriptions={activeSubscriptions}

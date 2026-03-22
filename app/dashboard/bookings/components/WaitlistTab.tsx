@@ -44,6 +44,7 @@ import {
 } from "../waitlist-actions";
 import type { WaitlistRow, WaitlistInput } from "../waitlist-actions";
 import { categoryDot, type Booking, type ServiceCategory } from "./helpers";
+import { ClientCombobox } from "./ClientCombobox";
 
 /* ------------------------------------------------------------------ */
 /*  Status badge config                                                */
@@ -64,13 +65,11 @@ const STATUS_CONFIG: Record<WaitlistRow["status"], { label: string; className: s
 function AddWaitlistDialog({
   open,
   onClose,
-  clients,
   serviceOptions,
   onAdded,
 }: {
   open: boolean;
   onClose: () => void;
-  clients: { id: string; name: string }[];
   serviceOptions: { id: number; name: string; category: string }[];
   onAdded: () => void;
 }) {
@@ -103,14 +102,10 @@ function AddWaitlistDialog({
     <Dialog open={open} onClose={onClose} title="Add to Waitlist" size="md">
       <div className="space-y-4">
         <Field label="Client" required>
-          <Select value={clientId} onChange={(e) => setClientId(e.target.value)}>
-            <option value="">Select client…</option>
-            {clients.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </Select>
+          <ClientCombobox
+            value={clientId}
+            onChange={(id) => setClientId(id)}
+          />
         </Field>
         <Field label="Service" required>
           <Select value={serviceId} onChange={(e) => setServiceId(e.target.value)}>
@@ -164,13 +159,11 @@ export function WaitlistTab({
   pendingBookings,
   onBook,
   onRemove,
-  clients,
   serviceOptions,
 }: {
   pendingBookings: Booking[];
   onBook: () => void;
   onRemove: (id: number) => void;
-  clients: { id: string; name: string }[];
   serviceOptions: { id: number; name: string; category: string }[];
 }) {
   const [waitlistEntries, setWaitlistEntries] = useState<WaitlistRow[]>([]);
@@ -463,7 +456,6 @@ export function WaitlistTab({
         <AddWaitlistDialog
           open
           onClose={() => setAddDialogOpen(false)}
-          clients={clients}
           serviceOptions={serviceOptions}
           onAdded={refreshWaitlist}
         />

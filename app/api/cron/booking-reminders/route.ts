@@ -10,13 +10,16 @@
 import { NextResponse } from "next/server";
 import { format } from "date-fns";
 import { and, eq, gte, lte, sql } from "drizzle-orm";
+import {
+  getPublicBusinessProfile,
+  getPublicRemindersConfig,
+} from "@/app/dashboard/settings/settings-actions";
 import { db } from "@/db";
 import { bookings, profiles, services, syncLog } from "@/db/schema";
-import { getPublicBusinessProfile, getPublicRemindersConfig } from "@/app/dashboard/settings/settings-actions";
 import { BookingReminder } from "@/emails/BookingReminder";
+import { isNotificationEnabled } from "@/lib/notification-preferences";
 import { sendEmail } from "@/lib/resend";
 import { sendSms } from "@/lib/twilio";
-import { isNotificationEnabled } from "@/lib/notification-preferences";
 import { sendPushNotification, isPushConfigured } from "@/lib/web-push";
 
 type ReminderWindow = { label: string; hoursUntil: number; minHours: number; maxHours: number };
@@ -81,7 +84,11 @@ export async function GET(request: Request) {
       const startsAtFormatted = format(booking.startsAt, "EEEE, MMMM d 'at' h:mm a");
 
       // --- Email ---
-      const emailEnabled = await isNotificationEnabled(booking.clientId, "email", "booking_reminder");
+      const emailEnabled = await isNotificationEnabled(
+        booking.clientId,
+        "email",
+        "booking_reminder",
+      );
       if (booking.clientEmail && booking.notifyEmail && emailEnabled) {
         const [existingEmail] = await db
           .select({ id: syncLog.id })
@@ -135,7 +142,7 @@ export async function GET(request: Request) {
         if (!existingSms) {
           const success = await sendSms({
             to: booking.clientPhone,
-            body: `Hi ${booking.clientFirstName}! Reminder: your ${booking.serviceName} appt at ${businessName} is ${startsAtFormatted}. See you soon! Reply STOP to opt out.`,
+            body: `Hi ${booking.clientFirstName}! Reminder: your ${booking.serviceName} appt at ${businessName} is ${startsAtFormatted}. Reply C to confirm or X to cancel. Reply STOP to opt out.`,
             entityType: smsEntityType,
             localId,
           });

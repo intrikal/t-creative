@@ -316,19 +316,11 @@ export async function processRefund(input: RefundInput): Promise<ActionResult<vo
       return { success: false, error: message };
     }
 
-    // Log successful Square refund
-    await db.insert(syncLog).values({
-      provider: "square",
-      direction: "outbound",
-      status: "success",
-      entityType: "refund",
-      localId: String(payment.id),
-      remoteId: payment.squarePaymentId,
-      message: `Refunded $${(input.amountInCents / 100).toFixed(2)}`,
-    });
+    // Square call succeeded — log it inside the transaction below
   }
 
-  // Update the payment record
+  // Transaction: update payment record + log sync atomically.
+  // External calls (Square refund above, email below) stay outside.
   const newRefundedTotal = payment.refundedInCents + input.amountInCents;
   const isFullRefund = newRefundedTotal >= payment.amountInCents;
 
@@ -336,15 +328,29 @@ export async function processRefund(input: RefundInput): Promise<ActionResult<vo
     Boolean,
   );
 
-  await db
-    .update(payments)
-    .set({
-      refundedInCents: newRefundedTotal,
-      refundedAt: new Date(),
-      status: isFullRefund ? "refunded" : "partially_refunded",
-      notes: noteParts.join(" | ") || null,
-    })
-    .where(eq(payments.id, input.paymentId));
+  await db.transaction(async (tx) => {
+    await tx
+      .update(payments)
+      .set({
+        refundedInCents: newRefundedTotal,
+        refundedAt: new Date(),
+        status: isFullRefund ? "refunded" : "partially_refunded",
+        notes: noteParts.join(" | ") || null,
+      })
+      .where(eq(payments.id, input.paymentId));
+
+    if (payment.squarePaymentId) {
+      await tx.insert(syncLog).values({
+        provider: "square",
+        direction: "outbound",
+        status: "success",
+        entityType: "refund",
+        localId: String(payment.id),
+        remoteId: payment.squarePaymentId,
+        message: `Refunded $${(input.amountInCents / 100).toFixed(2)}`,
+      });
+    }
+  });
 
   // Send refund notification email (non-fatal)
   try {

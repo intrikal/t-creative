@@ -657,14 +657,40 @@ export async function cancelClientBooking(bookingId: number) {
     const depositPaidInCents = booking.depositPaidInCents ?? 0;
     const cancellationReason = "Cancelled by client";
 
-    await db
-      .update(bookings)
-      .set({
-        status: "cancelled",
-        cancelledAt: new Date(),
-        cancellationReason,
-      })
-      .where(eq(bookings.id, bookingId));
+    // Transaction: update booking status + notify staff atomically.
+    // External calls (Square refund, email, Zoho, waitlist) run after commit.
+    await db.transaction(async (tx) => {
+      await tx
+        .update(bookings)
+        .set({
+          status: "cancelled",
+          cancelledAt: new Date(),
+          cancellationReason,
+        })
+        .where(eq(bookings.id, bookingId));
+
+      if (booking.staffId) {
+        const dateFormatted = booking.startsAt.toLocaleString("en-US", {
+          weekday: "short",
+          month: "short",
+          day: "numeric",
+          hour: "numeric",
+          minute: "2-digit",
+        });
+        await tx.insert(notifications).values({
+          profileId: booking.staffId,
+          type: "booking_cancellation",
+          channel: "internal",
+          status: "delivered",
+          title: `Client cancelled: ${booking.serviceName ?? "Appointment"}`,
+          body: `Booking on ${dateFormatted} has been cancelled by the client.`,
+          relatedEntityType: "booking",
+          relatedEntityId: bookingId,
+        });
+      }
+    });
+
+    // --- After commit: audit log, external calls, dependent DB writes ---
 
     trackEvent(user.id, "booking_cancelled_by_client", {
       bookingId,
@@ -704,29 +730,33 @@ export async function cancelClientBooking(bookingId: number) {
           const refundable = pmt.amountInCents - pmt.refundedInCents;
           if (refundable <= 0 || !pmt.squarePaymentId) continue;
           try {
+            // External: Square refund API call
             await squareClient.refunds.refundPayment({
               idempotencyKey: crypto.randomUUID(),
               paymentId: pmt.squarePaymentId,
               amountMoney: { amount: BigInt(refundable), currency: "USD" },
               reason: "Booking cancelled by client",
             });
+            // Transaction: update payment + log sync atomically
             const newRefundedTotal = pmt.refundedInCents + refundable;
-            await db
-              .update(payments)
-              .set({
-                refundedInCents: newRefundedTotal,
-                refundedAt: new Date(),
-                status: newRefundedTotal >= pmt.amountInCents ? "refunded" : "partially_refunded",
-              })
-              .where(eq(payments.id, pmt.id));
-            await db.insert(syncLog).values({
-              provider: "square",
-              direction: "outbound",
-              status: "success",
-              entityType: "refund",
-              localId: String(pmt.id),
-              remoteId: pmt.squarePaymentId,
-              message: `Deposit refunded $${(refundable / 100).toFixed(2)} — client self-cancel`,
+            await db.transaction(async (tx) => {
+              await tx
+                .update(payments)
+                .set({
+                  refundedInCents: newRefundedTotal,
+                  refundedAt: new Date(),
+                  status: newRefundedTotal >= pmt.amountInCents ? "refunded" : "partially_refunded",
+                })
+                .where(eq(payments.id, pmt.id));
+              await tx.insert(syncLog).values({
+                provider: "square",
+                direction: "outbound",
+                status: "success",
+                entityType: "refund",
+                localId: String(pmt.id),
+                remoteId: pmt.squarePaymentId,
+                message: `Deposit refunded $${(refundable / 100).toFixed(2)} — client self-cancel`,
+              });
             });
           } catch (refundErr) {
             await db.insert(syncLog).values({
@@ -743,31 +773,6 @@ export async function cancelClientBooking(bookingId: number) {
         }
       } catch {
         // Non-fatal — refund failure shouldn't block the cancellation
-      }
-    }
-
-    // Notify assigned staff member via in-app notification (non-fatal)
-    if (booking.staffId) {
-      try {
-        const dateFormatted = booking.startsAt.toLocaleString("en-US", {
-          weekday: "short",
-          month: "short",
-          day: "numeric",
-          hour: "numeric",
-          minute: "2-digit",
-        });
-        await db.insert(notifications).values({
-          profileId: booking.staffId,
-          type: "booking_cancellation",
-          channel: "internal",
-          status: "delivered",
-          title: `Client cancelled: ${booking.serviceName ?? "Appointment"}`,
-          body: `Booking on ${dateFormatted} has been cancelled by the client.`,
-          relatedEntityType: "booking",
-          relatedEntityId: bookingId,
-        });
-      } catch {
-        // Non-fatal
       }
     }
 

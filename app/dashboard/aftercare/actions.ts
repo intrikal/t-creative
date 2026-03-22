@@ -25,7 +25,7 @@ import { getUser } from "@/lib/auth";
 /*  Types                                                              */
 /* ------------------------------------------------------------------ */
 
-export type {
+import type {
   AftercareSection,
   PolicyEntry,
   AftercareSectionInput,

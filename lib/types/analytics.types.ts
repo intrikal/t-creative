@@ -201,7 +201,15 @@ export type WaitlistConversionStats = {
     service: string;
     entries: number;
     booked: number;
-    rate: number;
+    expired: number;
+    conversionRate: number;
+    avgWaitDays: number | null;
+  }[];
+  weeklyTrend: {
+    week: string;
+    joined: number;
+    booked: number;
+    expired: number;
   }[];
 };
 

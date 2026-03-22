@@ -98,6 +98,7 @@ export function createMockBooking(overrides: Partial<BookingRow> = {}): BookingR
     parentBookingId: null,
     tosAcceptedAt: null,
     tosVersion: null,
+    locationId: null,
     ...overrides,
   };
 }

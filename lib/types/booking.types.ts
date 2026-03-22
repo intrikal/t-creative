@@ -50,6 +50,7 @@ export type BookingRow = {
   parentBookingId: number | null;
   tosAcceptedAt: Date | null;
   tosVersion: string | null;
+  locationId: number | null;
 };
 
 /** Input shape for `createBooking` / `updateBooking`. */
@@ -61,6 +62,7 @@ export type BookingInput = {
   durationMinutes: number;
   totalInCents: number;
   location?: string;
+  locationId?: number;
   clientNotes?: string;
   recurrenceRule?: string;
   subscriptionId?: number;

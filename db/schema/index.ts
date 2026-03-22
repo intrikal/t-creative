@@ -64,6 +64,9 @@ export {
 /* Service categories (lookup table) */
 export { serviceCategories } from "./service-categories";
 
+/* Locations (multi-studio support) */
+export { locations, locationsRelations } from "./locations";
+
 /* Bookings & appointments */
 export { bookings, bookingAddOns, bookingsRelations, bookingAddOnsRelations } from "./bookings";
 

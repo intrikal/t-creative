@@ -137,6 +137,7 @@ async function hasOverlappingBooking(
   startsAt: Date,
   durationMinutes: number,
   excludeBookingId?: number,
+  locationId?: number,
 ): Promise<boolean> {
   const endsAt = new Date(startsAt.getTime() + durationMinutes * 60_000);
 
@@ -149,6 +150,12 @@ async function hasOverlappingBooking(
     sql`${bookings.startsAt} < ${endsAt}`,
     sql`${bookings.startsAt} + (${bookings.durationMinutes} || ' minutes')::interval > ${startsAt}`,
   ];
+
+  // Location-scoped overlap: a staff member at location A doesn't conflict
+  // with a booking at location B (they could be working at both).
+  if (locationId !== undefined) {
+    conditions.push(eq(bookings.locationId, locationId));
+  }
 
   if (excludeBookingId !== undefined) {
     conditions.push(ne(bookings.id, excludeBookingId));
@@ -287,6 +294,7 @@ export async function getBookings(opts?: {
   limit?: number;
   startDate?: Date;
   endDate?: Date;
+  locationId?: number;
 }): Promise<PaginatedBookings> {
   try {
     await getUser();
@@ -297,6 +305,7 @@ export async function getBookings(opts?: {
     const conditions = [isNull(bookings.deletedAt)];
     if (opts?.startDate) conditions.push(gte(bookings.startsAt, opts.startDate));
     if (opts?.endDate) conditions.push(lte(bookings.startsAt, opts.endDate));
+    if (opts?.locationId) conditions.push(eq(bookings.locationId, opts.locationId));
 
     // alias() creates a second reference to the same "profiles" table under a
     // different name. We need two aliases because a booking references profiles
@@ -357,6 +366,7 @@ export async function getBookings(opts?: {
         parentBookingId: bookings.parentBookingId,
         tosAcceptedAt: bookings.tosAcceptedAt,
         tosVersion: bookings.tosVersion,
+        locationId: bookings.locationId,
       })
       .from(bookings)
       .where(and(...conditions))
@@ -425,6 +435,7 @@ export async function getBookingById(id: number): Promise<BookingRow | null> {
         parentBookingId: bookings.parentBookingId,
         tosAcceptedAt: bookings.tosAcceptedAt,
         tosVersion: bookings.tosVersion,
+        locationId: bookings.locationId,
       })
       .from(bookings)
       .where(and(eq(bookings.id, id), isNull(bookings.deletedAt)))
@@ -624,16 +635,21 @@ export async function createBooking(input: BookingInput): Promise<ActionResult<v
 
     const [newBooking] = await db.transaction(async (tx) => {
       if (input.staffId) {
-        // Serialize all booking attempts for this staff member within the
-        // transaction. hashtext() maps the UUID to a 32-bit int so it fits
-        // pg_advisory_xact_lock's signature. The lock releases on commit/rollback,
-        // so concurrent requests for *different* staff members proceed in parallel.
-        await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${input.staffId}))`);
+        // Serialize all booking attempts for this staff member + location within the
+        // transaction. The lock key includes locationId so different locations don't
+        // block each other. hashtext() maps the string to a 32-bit int for
+        // pg_advisory_xact_lock. The lock releases on commit/rollback.
+        const lockKey = input.locationId
+          ? `${input.staffId}:${input.locationId}`
+          : input.staffId;
+        await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${lockKey}))`);
 
         const conflict = await hasOverlappingBooking(
           input.staffId,
           input.startsAt,
           input.durationMinutes,
+          undefined,
+          input.locationId,
         );
         if (conflict) {
           throw new Error("This staff member already has a booking during that time slot");
@@ -659,6 +675,7 @@ export async function createBooking(input: BookingInput): Promise<ActionResult<v
           durationMinutes: input.durationMinutes,
           totalInCents: input.totalInCents,
           location: input.location ?? undefined,
+          locationId: input.locationId ?? undefined,
           clientNotes: input.clientNotes ?? undefined,
           recurrenceRule: input.recurrenceRule ?? undefined,
           subscriptionId: input.subscriptionId ?? undefined,

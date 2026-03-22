@@ -29,6 +29,7 @@ import {
   varchar,
 } from "drizzle-orm/pg-core";
 import { pgEnum } from "drizzle-orm/pg-core";
+import { locations } from "./locations";
 import { profiles } from "./users";
 
 /* ------------------------------------------------------------------ */
@@ -162,6 +163,9 @@ export const shifts = pgTable(
 
     /** Location for this shift (e.g. "Main Studio", "Pop-up at Valley Fair"). */
     location: varchar("location", { length: 500 }),
+
+    /** FK to locations table. Nullable during migration — new shifts should set this. */
+    locationId: integer("location_id").references(() => locations.id, { onDelete: "set null" }),
 
     /** Notes for the shift (e.g. "Cover for Trini", "Event setup"). */
     notes: text("notes"),

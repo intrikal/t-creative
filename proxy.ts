@@ -86,6 +86,18 @@ function clientIp(request: NextRequest): string {
 }
 
 // ---------------------------------------------------------------------------
+// Profile cache
+// ---------------------------------------------------------------------------
+
+/** Cache key for the profile lookup used by ban-check + route guards. */
+const profileCacheKey = (userId: string) => `profile:${userId}`;
+
+/** TTL for cached profile rows — 5 minutes. */
+const PROFILE_CACHE_TTL = 300;
+
+type CachedProfile = { is_active: boolean; role: string };
+
+// ---------------------------------------------------------------------------
 // Proxy
 // ---------------------------------------------------------------------------
 
@@ -176,11 +188,23 @@ export async function proxy(request: NextRequest) {
    * - Redirect to /suspended with all query parameters stripped
    */
   if (user) {
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("is_active, role")
-      .eq("id", user.id)
-      .single();
+    // Check Redis before hitting Supabase REST — saves ~50ms on warm requests.
+    // On miss: fetch from Supabase, cache for 5 minutes.
+    // The supabase.auth.getUser() call above still runs unconditionally because
+    // it is required to refresh session cookies (Supabase SSR constraint).
+    let profile: CachedProfile | null = await redis.get<CachedProfile>(profileCacheKey(user.id));
+
+    if (profile === null) {
+      const { data } = await supabase
+        .from("profiles")
+        .select("is_active, role")
+        .eq("id", user.id)
+        .single();
+      profile = data ?? null;
+      if (profile) {
+        await redis.set(profileCacheKey(user.id), profile, { ex: PROFILE_CACHE_TTL });
+      }
+    }
 
     if (profile && !profile.is_active) {
       await supabase.auth.signOut();

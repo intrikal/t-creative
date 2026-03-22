@@ -16,6 +16,7 @@ import { getPublicBusinessProfile, getPublicRemindersConfig } from "@/app/dashbo
 import { BookingReminder } from "@/emails/BookingReminder";
 import { sendEmail } from "@/lib/resend";
 import { sendSms } from "@/lib/twilio";
+import { isNotificationEnabled } from "@/lib/notification-preferences";
 import { sendPushNotification, isPushConfigured } from "@/lib/web-push";
 
 type ReminderWindow = { label: string; hoursUntil: number; minHours: number; maxHours: number };
@@ -80,7 +81,8 @@ export async function GET(request: Request) {
       const startsAtFormatted = format(booking.startsAt, "EEEE, MMMM d 'at' h:mm a");
 
       // --- Email ---
-      if (booking.clientEmail && booking.notifyEmail) {
+      const emailEnabled = await isNotificationEnabled(booking.clientId, "email", "booking_reminder");
+      if (booking.clientEmail && booking.notifyEmail && emailEnabled) {
         const [existingEmail] = await db
           .select({ id: syncLog.id })
           .from(syncLog)
@@ -116,7 +118,8 @@ export async function GET(request: Request) {
       }
 
       // --- SMS ---
-      if (booking.clientPhone && booking.notifySms) {
+      const smsEnabled = await isNotificationEnabled(booking.clientId, "sms", "booking_reminder");
+      if (booking.clientPhone && booking.notifySms && smsEnabled) {
         const [existingSms] = await db
           .select({ id: syncLog.id })
           .from(syncLog)
@@ -143,7 +146,8 @@ export async function GET(request: Request) {
       }
 
       // --- Push notification ---
-      if (isPushConfigured()) {
+      const pushEnabled = await isNotificationEnabled(booking.clientId, "push", "booking_reminder");
+      if (isPushConfigured() && pushEnabled) {
         const pushEntityType = `booking_reminder_${window.label}_push`;
 
         const [existingPush] = await db

@@ -61,6 +61,7 @@ import {
 } from "@/lib/onboarding-schema";
 import { trackEvent } from "@/lib/posthog";
 import { sendEmail } from "@/lib/resend";
+import { seedNotificationPreferences } from "@/lib/notification-preferences";
 import { linkSquareCustomer } from "@/lib/square";
 import { upsertZohoContact } from "@/lib/zoho";
 import { syncCampaignsSubscriber } from "@/lib/zoho-campaigns";
@@ -673,6 +674,9 @@ export async function saveOnboardingData(
 
       await tx.insert(loyaltyTransactions).values(pointsRows);
     });
+
+    // Seed granular notification preferences (all enabled by default)
+    seedNotificationPreferences(user.id).catch(() => {});
 
     // Send welcome email (non-fatal, respects notifyEmail preference)
     if (notifications.email) {

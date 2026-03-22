@@ -236,6 +236,15 @@ export { serviceRecords, serviceRecordsRelations } from "./service-records";
 /* Notifications */
 export { notifications, notificationsRelations } from "./notifications";
 export { pushSubscriptions, pushSubscriptionsRelations } from "./push-subscriptions";
+export {
+  notificationPreferences,
+  notificationPreferencesRelations,
+  notifChannelEnum,
+  notifTypeEnum,
+  NOTIF_CHANNELS,
+  NOTIF_TYPES,
+} from "./notification-preferences";
+export type { NotifChannel, NotifType } from "./notification-preferences";
 
 /* Instagram feed cache */
 export { instagramPosts } from "./instagram";

@@ -17,6 +17,7 @@ import { db } from "@/db";
 import { profiles, promotions, syncLog } from "@/db/schema";
 import { getPublicBusinessProfile, getPublicLoyaltyConfig } from "@/app/dashboard/settings/settings-actions";
 import { BirthdayGreeting } from "@/emails/BirthdayGreeting";
+import { isNotificationEnabled } from "@/lib/notification-preferences";
 import { sendEmail } from "@/lib/resend";
 
 /** Generate a unique birthday promo code like BDAY-A3K9. */
@@ -66,6 +67,8 @@ export async function GET(request: Request) {
 
   for (const profile of birthdayProfiles) {
     if (!profile.email) continue;
+    const bdayEnabled = await isNotificationEnabled(profile.id, "email", "birthday_promo");
+    if (!bdayEnabled) continue;
 
     // Check if we already sent a birthday email this year
     const year = now.getFullYear();

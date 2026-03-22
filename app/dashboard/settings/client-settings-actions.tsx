@@ -47,6 +47,11 @@ import {
 import { DataDeletionConfirmation } from "@/emails/DataDeletionConfirmation";
 import { logAction } from "@/lib/audit";
 import { getUser } from "@/lib/auth";
+import {
+  getNotificationPreferences,
+  setNotificationPreference,
+} from "@/lib/notification-preferences";
+import type { NotifChannel, NotifType } from "@/db/schema";
 import { env } from "@/lib/env";
 import { trackEvent } from "@/lib/posthog";
 import { redis } from "@/lib/redis";
@@ -95,7 +100,7 @@ export type ClientPreferences = {
 
 export type ClientSettingsData = {
   profile: ClientProfile;
-  notifications: ClientNotifications;
+  notifications: Record<string, boolean>;
   preferences: ClientPreferences | null;
 };
 
@@ -165,11 +170,7 @@ export async function getClientSettings(): Promise<ClientSettingsData> {
         phone: row?.phone ?? "",
         allergies,
       },
-      notifications: {
-        notifySms: row?.notifySms ?? true,
-        notifyEmail: row?.notifyEmail ?? true,
-        notifyMarketing: row?.notifyMarketing ?? false,
-      },
+      notifications: await getClientNotificationPrefs(),
       preferences: prefRow
         ? {
             preferredLashStyle: prefRow.preferredLashStyle,
@@ -639,6 +640,78 @@ export async function deleteClientAccount() {
       const supabase = await createClient();
       await supabase.auth.signOut();
     }
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Granular notification preferences                                  */
+/* ------------------------------------------------------------------ */
+
+const VALID_CHANNELS = ["email", "sms", "push"] as const;
+const VALID_TYPES = ["booking_reminder", "review_request", "fill_reminder", "birthday_promo", "marketing"] as const;
+
+/**
+ * Load all notification preferences for the current client.
+ * Returns a Record keyed by `${channel}:${type}` → enabled.
+ */
+export async function getClientNotificationPrefs(): Promise<Record<string, boolean>> {
+  const user = await getUser();
+  const map = await getNotificationPreferences(user.id);
+  const result: Record<string, boolean> = {};
+  for (const ch of VALID_CHANNELS) {
+    for (const t of VALID_TYPES) {
+      result[`${ch}:${t}`] = map.get(`${ch}:${t}`) ?? true;
+    }
+  }
+  return result;
+}
+
+/**
+ * Save granular notification preferences from the settings UI.
+ * Input is a Record keyed by `${channel}:${type}` → enabled.
+ */
+export async function saveNotificationPreferences(
+  prefs: Record<string, boolean>,
+): Promise<void> {
+  try {
+    const user = await getUser();
+
+    for (const [key, enabled] of Object.entries(prefs)) {
+      const [channel, ...typeParts] = key.split(":");
+      const type = typeParts.join(":");
+
+      if (
+        VALID_CHANNELS.includes(channel as NotifChannel) &&
+        VALID_TYPES.includes(type as NotifType)
+      ) {
+        await setNotificationPreference(
+          user.id,
+          channel as NotifChannel,
+          type as NotifType,
+          enabled,
+        );
+      }
+    }
+
+    // Sync the legacy profile booleans to stay consistent.
+    // Email: enabled if any email type is on. SMS: same. Marketing: specific type.
+    const emailEnabled = VALID_TYPES.some((t) => prefs[`email:${t}`] !== false);
+    const smsEnabled = VALID_TYPES.some((t) => prefs[`sms:${t}`] !== false);
+    const marketingEnabled = prefs["email:marketing"] ?? true;
+
+    await db
+      .update(profiles)
+      .set({
+        notifyEmail: emailEnabled,
+        notifySms: smsEnabled,
+        notifyMarketing: marketingEnabled,
+      })
+      .where(eq(profiles.id, user.id));
+
+    revalidatePath(PATH);
   } catch (err) {
     Sentry.captureException(err);
     throw err;

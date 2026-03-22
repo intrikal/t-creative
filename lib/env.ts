@@ -31,10 +31,12 @@ const schema = z.object({
   NEXT_PUBLIC_TURNSTILE_SITE_KEY: z.string().min(1),
 });
 
-// Validation runs only on the server (Next.js server runtime and Edge Runtime
-// both have `window` undefined). In client bundles the block is dead-code and
-// webpack omits it, so server-secret values are never evaluated in the browser.
-if (typeof window === "undefined") {
+// Validation runs at server startup and during `next dev`, but is skipped
+// during `next build`. Runtime secrets (SUPABASE_SERVICE_ROLE_KEY, etc.) are
+// only injected by Vercel at request time, not during the static build phase,
+// so validating them at build would always fail in CI. The server process will
+// still throw immediately on first request if a required var is absent.
+if (typeof window === "undefined" && process.env.NEXT_PHASE !== "phase-production-build") {
   const result = schema.safeParse({
     DATABASE_URL: process.env.DATABASE_URL,
     DIRECT_URL: process.env.DIRECT_URL,

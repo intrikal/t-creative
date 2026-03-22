@@ -45,9 +45,7 @@ const schema = z.object({
   referencePhotoUrls: z.array(z.string().url()).optional(),
   idempotencyKey: z.string().min(1),
   selectedAddOns: z.array(z.object({ name: z.string(), priceInCents: z.number() })).optional(),
-  tosAccepted: z.literal(true, {
-    errorMap: () => ({ message: "Policy acceptance is required" }),
-  }),
+  tosAccepted: z.literal(true, { error: "Policy acceptance is required" }),
   tosVersion: z.string().optional(),
   // Guest-only fields
   name: z.string().optional(),

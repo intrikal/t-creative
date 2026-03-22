@@ -61,9 +61,7 @@ type ExportType = (typeof EXPORT_TYPES)[number];
 
 const querySchema = z.object({
   type: z.enum(["clients", "bookings", "payments", "expenses", "invoices", "orders"], {
-    errorMap: () => ({
-      message: `Invalid type. Must be one of: ${EXPORT_TYPES.join(", ")}`,
-    }),
+    error: `Invalid type. Must be one of: ${EXPORT_TYPES.join(", ")}`,
   }),
   from: z.string().date().optional(),
   to: z.string().date().optional(),

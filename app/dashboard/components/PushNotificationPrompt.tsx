@@ -6,7 +6,7 @@ import { Bell, X } from "lucide-react";
 const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? "";
 
 /** Convert a URL-safe base64 VAPID key to a Uint8Array for the push API. */
-function urlBase64ToUint8Array(base64String: string): Uint8Array {
+function urlBase64ToUint8Array(base64String: string): BufferSource {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
   const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
   const rawData = atob(base64);
@@ -79,9 +79,7 @@ export function PushNotificationPrompt() {
     <div className="flex items-center gap-3 px-4 py-3 rounded-xl border border-accent/20 bg-accent/[0.04]">
       <Bell className="w-4 h-4 text-accent shrink-0" />
       <div className="flex-1 min-w-0">
-        <span className="text-sm font-medium text-foreground">
-          Get appointment reminders
-        </span>
+        <span className="text-sm font-medium text-foreground">Get appointment reminders</span>
         <span className="text-xs text-muted ml-2 hidden sm:inline">
           We&apos;ll notify you before upcoming appointments so you never miss one.
         </span>

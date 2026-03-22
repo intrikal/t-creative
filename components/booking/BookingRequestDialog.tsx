@@ -14,7 +14,7 @@
  * valid windows so the sister gets clean, actionable requests.
  */
 
-import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { useReducer, useEffect, useMemo, useRef, useCallback } from "react";
 import { Turnstile } from "@marsidev/react-turnstile";
 import {
   X,
@@ -40,8 +40,8 @@ import { createBookingRequest } from "@/app/dashboard/messages/actions";
 import { getPublicPolicies } from "@/app/dashboard/settings/settings-actions";
 import { Calendar } from "@/components/ui/calendar";
 import { CADENCE_OPTIONS, rruleToCadenceLabel } from "@/lib/cadence";
-import { cn } from "@/lib/utils";
 import { env } from "@/lib/env";
+import { cn } from "@/lib/utils";
 import { SquarePaymentForm } from "./components/SquarePaymentForm";
 import { formatPrice } from "./helpers";
 import type { Service, ServiceAddOn } from "./types";
@@ -172,52 +172,212 @@ function downloadIcs(service: Service, date: Date, time: string): void {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Component                                                           */
+/*  Reducer                                                             */
 /* ------------------------------------------------------------------ */
 
 type Step = "date" | "time" | "confirm" | "pay";
 
 type PhotoPreview = { file: File; preview: string };
 
+interface BookingState {
+  step: Step;
+  // Async data loaded on open
+  availability: StudioAvailability | null;
+  isGuest: boolean | null;
+  policyText: string;
+  tosVersion: string;
+  // Navigation
+  selectedDate: Date | undefined;
+  selectedTime: string;
+  // User input
+  notes: string;
+  cadence: string;
+  guestName: string;
+  guestEmail: string;
+  guestPhone: string;
+  photos: PhotoPreview[];
+  selectedAddOnIds: Set<number>;
+  tosAccepted: boolean;
+  turnstileToken: string;
+  // Waiver
+  pendingWaivers: PendingWaiver[];
+  waiversChecked: boolean;
+  // Submission
+  submitting: boolean;
+  submitted: boolean;
+  depositPaid: boolean;
+  error: string;
+}
+
+const INITIAL_STATE: BookingState = {
+  step: "date",
+  availability: null,
+  isGuest: null,
+  policyText: "",
+  tosVersion: "",
+  selectedDate: undefined,
+  selectedTime: "",
+  notes: "",
+  cadence: "",
+  guestName: "",
+  guestEmail: "",
+  guestPhone: "",
+  photos: [],
+  selectedAddOnIds: new Set(),
+  tosAccepted: false,
+  turnstileToken: "",
+  pendingWaivers: [],
+  waiversChecked: false,
+  submitting: false,
+  submitted: false,
+  depositPaid: false,
+  error: "",
+};
+
+type BookingAction =
+  | {
+      type: "LOADED";
+      availability: StudioAvailability;
+      isGuest: boolean;
+      policyText: string;
+      tosVersion: string;
+    }
+  | { type: "PREFILL"; date: Date; time: string }
+  | { type: "SELECT_DATE"; date: Date }
+  | { type: "SELECT_TIME"; time: string }
+  | { type: "GO_BACK" }
+  | { type: "SET_NOTES"; value: string }
+  | { type: "SET_CADENCE"; value: string }
+  | { type: "SET_GUEST_NAME"; value: string }
+  | { type: "SET_GUEST_EMAIL"; value: string }
+  | { type: "SET_GUEST_PHONE"; value: string }
+  | { type: "TOGGLE_ADDON"; id: number }
+  | { type: "ADD_PHOTOS"; photos: PhotoPreview[] }
+  | { type: "REMOVE_PHOTO"; index: number; revokedUrl: string }
+  | { type: "SET_TOS_ACCEPTED"; value: boolean }
+  | { type: "SET_TURNSTILE_TOKEN"; token: string }
+  | { type: "SET_WAIVERS"; waivers: PendingWaiver[] }
+  | { type: "SUBMITTING" }
+  | { type: "SUBMITTED" }
+  | { type: "DEPOSIT_PAID" }
+  | { type: "GO_TO_PAY" }
+  | { type: "SET_ERROR"; error: string }
+  | { type: "RESET"; revokedUrls: string[] };
+
+function bookingReducer(state: BookingState, action: BookingAction): BookingState {
+  switch (action.type) {
+    case "LOADED":
+      return {
+        ...state,
+        availability: action.availability,
+        isGuest: action.isGuest,
+        policyText: action.policyText,
+        tosVersion: action.tosVersion,
+      };
+    case "PREFILL":
+      return { ...state, selectedDate: action.date, selectedTime: action.time, step: "confirm" };
+    case "SELECT_DATE":
+      return { ...state, selectedDate: action.date, selectedTime: "", step: "time" };
+    case "SELECT_TIME":
+      return { ...state, selectedTime: action.time, step: "confirm" };
+    case "GO_BACK":
+      if (state.step === "time") return { ...state, step: "date", selectedTime: "" };
+      if (state.step === "confirm") return { ...state, step: "time" };
+      if (state.step === "pay") return { ...state, step: "confirm" };
+      return state;
+    case "SET_NOTES":
+      return { ...state, notes: action.value };
+    case "SET_CADENCE":
+      return { ...state, cadence: action.value };
+    case "SET_GUEST_NAME":
+      return { ...state, guestName: action.value };
+    case "SET_GUEST_EMAIL":
+      return { ...state, guestEmail: action.value };
+    case "SET_GUEST_PHONE":
+      return { ...state, guestPhone: action.value };
+    case "TOGGLE_ADDON": {
+      const next = new Set(state.selectedAddOnIds);
+      if (next.has(action.id)) next.delete(action.id);
+      else next.add(action.id);
+      return { ...state, selectedAddOnIds: next };
+    }
+    case "ADD_PHOTOS":
+      return { ...state, photos: [...state.photos, ...action.photos] };
+    case "REMOVE_PHOTO":
+      return { ...state, photos: state.photos.filter((_, i) => i !== action.index) };
+    case "SET_TOS_ACCEPTED":
+      return { ...state, tosAccepted: action.value };
+    case "SET_TURNSTILE_TOKEN":
+      return { ...state, turnstileToken: action.token };
+    case "SET_WAIVERS":
+      return { ...state, pendingWaivers: action.waivers, waiversChecked: true };
+    case "SUBMITTING":
+      return { ...state, submitting: true, error: "" };
+    case "SUBMITTED":
+      return { ...state, submitting: false, submitted: true };
+    case "DEPOSIT_PAID":
+      return { ...state, submitting: false, submitted: true, depositPaid: true };
+    case "GO_TO_PAY":
+      return { ...state, submitting: false, step: "pay" };
+    case "SET_ERROR":
+      return { ...state, submitting: false, error: action.error };
+    case "RESET":
+      return { ...INITIAL_STATE };
+  }
+}
+
 export function BookingRequestDialog({
   service,
   addOns = [],
   open,
   onClose,
+  prefillDate,
+  prefillTime,
+  prefillStaffId,
 }: {
   service: Service;
   addOns?: ServiceAddOn[];
   open: boolean;
   onClose: () => void;
+  /** Pre-select date from email link (YYYY-MM-DD). */
+  prefillDate?: string | null;
+  /** Pre-select time slot from email link (HH:MM 24h). */
+  prefillTime?: string | null;
+  /** Pre-select staff from email link (staff profile ID). */
+  prefillStaffId?: string | null;
 }) {
-  const [step, setStep] = useState<Step>("date");
-  const [availability, setAvailability] = useState<StudioAvailability | null>(null);
-  const [isGuest, setIsGuest] = useState<boolean | null>(null);
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>();
-  const [selectedTime, setSelectedTime] = useState("");
-  const [notes, setNotes] = useState("");
-  const [cadence, setCadence] = useState("");
-  const [guestName, setGuestName] = useState("");
-  const [guestEmail, setGuestEmail] = useState("");
-  const [guestPhone, setGuestPhone] = useState("");
-  const [photos, setPhotos] = useState<PhotoPreview[]>([]);
-  const [selectedAddOnIds, setSelectedAddOnIds] = useState<Set<number>>(new Set());
-  const [submitting, setSubmitting] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
-  const [depositPaid, setDepositPaid] = useState(false);
-  const [error, setError] = useState("");
-  const [turnstileToken, setTurnstileToken] = useState("");
+  const [state, dispatch] = useReducer(bookingReducer, INITIAL_STATE);
+  const {
+    step,
+    availability,
+    isGuest,
+    policyText,
+    tosVersion,
+    selectedDate,
+    selectedTime,
+    notes,
+    cadence,
+    guestName,
+    guestEmail,
+    guestPhone,
+    photos,
+    selectedAddOnIds,
+    tosAccepted,
+    turnstileToken,
+    pendingWaivers,
+    waiversChecked,
+    submitting,
+    submitted,
+    depositPaid,
+    error,
+  } = state;
+
   const handleTurnstileSuccess = useCallback((token: string) => {
-    setTurnstileToken(token);
+    dispatch({ type: "SET_TURNSTILE_TOKEN", token });
   }, []);
   const fileInputRef = useRef<HTMLInputElement>(null);
   /** Cached photo URLs — uploaded once on confirm, reused in pay step. */
   const uploadedPhotosRef = useRef<string[]>([]);
-  const [pendingWaivers, setPendingWaivers] = useState<PendingWaiver[]>([]);
-  const [waiversChecked, setWaiversChecked] = useState(false);
-  const [tosAccepted, setTosAccepted] = useState(false);
-  const [policyText, setPolicyText] = useState("");
-  const [tosVersion, setTosVersion] = useState("");
 
   const hasDeposit = !!service.depositInCents && service.depositInCents > 0;
   const totalSteps = hasDeposit ? 4 : 3;
@@ -233,13 +393,29 @@ export function BookingRequestDialog({
     if (!open) return;
     Promise.all([getStudioAvailability(), checkIsAuthenticated(), getPublicPolicies()]).then(
       ([avail, authed, policies]) => {
-        setAvailability(avail);
-        setIsGuest(!authed);
-        setPolicyText(policies.cancellationPolicy);
-        setTosVersion(policies.tosVersion);
+        dispatch({
+          type: "LOADED",
+          availability: avail,
+          isGuest: !authed,
+          policyText: policies.cancellationPolicy,
+          tosVersion: policies.tosVersion,
+        });
       },
     );
   }, [open]);
+
+  // Auto-apply prefill params (from email rebooking link) and skip to confirm step
+  const prefillApplied = useRef(false);
+  useEffect(() => {
+    if (!open || !availability || prefillApplied.current) return;
+    if (!prefillDate || !prefillTime) return;
+
+    const parsed = new Date(prefillDate + "T00:00:00");
+    if (Number.isNaN(parsed.getTime())) return;
+
+    prefillApplied.current = true;
+    dispatch({ type: "PREFILL", date: parsed, time: prefillTime });
+  }, [open, availability, prefillDate, prefillTime]);
 
   // Compute which dates to disable on the calendar
   const disabledDates = useMemo(() => {
@@ -279,8 +455,7 @@ export function BookingRequestDialog({
     async (token: string) => {
       if (submitting || !selectedDate) return;
 
-      setSubmitting(true);
-      setError("");
+      dispatch({ type: "SUBMITTING" });
 
       const preferredDates = `${fmtDateLabel(selectedDate)} at ${fmt12(selectedTime)}`;
       const idempotencyKey = crypto.randomUUID();
@@ -304,7 +479,6 @@ export function BookingRequestDialog({
             selectedAddOns: addOnPayload,
             tosAccepted: true,
             tosVersion,
-            // Guest fields
             ...(isGuest
               ? {
                   name: guestName.trim(),
@@ -321,12 +495,12 @@ export function BookingRequestDialog({
           throw new Error(data.error || "Payment failed. Please try again.");
         }
 
-        setDepositPaid(true);
-        setSubmitted(true);
+        dispatch({ type: "DEPOSIT_PAID" });
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Payment failed. Please try again.");
-      } finally {
-        setSubmitting(false);
+        dispatch({
+          type: "SET_ERROR",
+          error: err instanceof Error ? err.message : "Payment failed. Please try again.",
+        });
       }
     },
     [
@@ -350,33 +524,22 @@ export function BookingRequestDialog({
 
   function handleDateSelect(date: Date | undefined) {
     if (!date) return;
-    setSelectedDate(date);
-    setSelectedTime("");
-    setStep("time");
+    dispatch({ type: "SELECT_DATE", date });
   }
 
   function handleTimeSelect(time: string) {
-    setSelectedTime(time);
-    setStep("confirm");
+    dispatch({ type: "SELECT_TIME", time });
 
     // Check waivers for authenticated users when entering confirm step
     if (isGuest === false && !waiversChecked) {
       checkClientWaivers(service.category).then((waivers) => {
-        setPendingWaivers(waivers);
-        setWaiversChecked(true);
+        dispatch({ type: "SET_WAIVERS", waivers });
       });
     }
   }
 
   function goBack() {
-    if (step === "time") {
-      setStep("date");
-      setSelectedTime("");
-    } else if (step === "confirm") {
-      setStep("time");
-    } else if (step === "pay") {
-      setStep("confirm");
-    }
+    dispatch({ type: "GO_BACK" });
   }
 
   function handlePhotoSelect(e: React.ChangeEvent<HTMLInputElement>) {
@@ -388,16 +551,14 @@ export function BookingRequestDialog({
       file,
       preview: URL.createObjectURL(file),
     }));
-    setPhotos((prev) => [...prev, ...toAdd]);
-    // Reset input so same file can be re-selected if removed
+    dispatch({ type: "ADD_PHOTOS", photos: toAdd });
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
   function removePhoto(index: number) {
-    setPhotos((prev) => {
-      URL.revokeObjectURL(prev[index].preview);
-      return prev.filter((_, i) => i !== index);
-    });
+    const revokedUrl = photos[index].preview;
+    URL.revokeObjectURL(revokedUrl);
+    dispatch({ type: "REMOVE_PHOTO", index, revokedUrl });
   }
 
   async function uploadPhotos(): Promise<string[]> {
@@ -414,7 +575,6 @@ export function BookingRequestDialog({
     return urls;
   }
 
-  /** Serialisable add-on payload for server actions + API routes. */
   function getAddOnPayload() {
     return selectedAddOns.map((a) => ({
       name: a.name,
@@ -427,37 +587,30 @@ export function BookingRequestDialog({
     if (submitting || !selectedDate) return;
 
     if (isGuest && (!guestName.trim() || !guestEmail.trim())) {
-      setError("Please enter your name and email.");
+      dispatch({ type: "SET_ERROR", error: "Please enter your name and email." });
       return;
     }
 
     if (!tosAccepted) {
-      setError("Please accept the cancellation policy to continue.");
+      dispatch({ type: "SET_ERROR", error: "Please accept the cancellation policy to continue." });
       return;
     }
 
     const addOnPayload = getAddOnPayload();
 
-    // If service has deposit, proceed to pay step instead of submitting
     if (hasDeposit) {
-      // Upload photos now so they're ready for the pay step
-      setSubmitting(true);
-      setError("");
+      dispatch({ type: "SUBMITTING" });
       try {
         uploadedPhotosRef.current = await uploadPhotos();
       } catch {
-        setError("Photo upload failed. Please try again.");
-        setSubmitting(false);
+        dispatch({ type: "SET_ERROR", error: "Photo upload failed. Please try again." });
         return;
       }
-      setSubmitting(false);
-      setStep("pay");
+      dispatch({ type: "GO_TO_PAY" });
       return;
     }
 
-    // No deposit — submit as before
-    setSubmitting(true);
-    setError("");
+    dispatch({ type: "SUBMITTING" });
 
     const preferredDates = `${fmtDateLabel(selectedDate)} at ${fmt12(selectedTime)}`;
 
@@ -496,34 +649,20 @@ export function BookingRequestDialog({
           tosVersion,
         });
       }
-      setSubmitted(true);
+      dispatch({ type: "SUBMITTED" });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
-    } finally {
-      setSubmitting(false);
+      dispatch({
+        type: "SET_ERROR",
+        error: err instanceof Error ? err.message : "Something went wrong",
+      });
     }
   }
 
   function handleClose() {
     photos.forEach((p) => URL.revokeObjectURL(p.preview));
-    setSubmitted(false);
-    setDepositPaid(false);
-    setStep("date");
-    setSelectedDate(undefined);
-    setSelectedTime("");
-    setNotes("");
-    setCadence("");
-    setGuestName("");
-    setGuestEmail("");
-    setGuestPhone("");
-    setPhotos([]);
-    setSelectedAddOnIds(new Set());
-    setError("");
-    setTurnstileToken("");
-    setPendingWaivers([]);
-    setWaiversChecked(false);
-    setTosAccepted(false);
+    prefillApplied.current = false;
     uploadedPhotosRef.current = [];
+    dispatch({ type: "RESET", revokedUrls: photos.map((p) => p.preview) });
     onClose();
   }
 
@@ -789,14 +928,7 @@ export function BookingRequestDialog({
                           <button
                             key={addon.id}
                             type="button"
-                            onClick={() =>
-                              setSelectedAddOnIds((prev) => {
-                                const next = new Set(prev);
-                                if (isSelected) next.delete(addon.id);
-                                else next.add(addon.id);
-                                return next;
-                              })
-                            }
+                            onClick={() => dispatch({ type: "TOGGLE_ADDON", id: addon.id })}
                             className={cn(
                               "w-full flex items-center justify-between rounded-xl border px-3.5 py-2.5 text-left transition-colors",
                               isSelected
@@ -854,7 +986,7 @@ export function BookingRequestDialog({
                       type="text"
                       placeholder="Full name *"
                       value={guestName}
-                      onChange={(e) => setGuestName(e.target.value)}
+                      onChange={(e) => dispatch({ type: "SET_GUEST_NAME", value: e.target.value })}
                       required
                       className="w-full px-3.5 py-2.5 text-sm bg-white border border-stone-200 rounded-xl text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-[#e8c4b8] focus:border-[#96604a] transition"
                     />
@@ -862,7 +994,7 @@ export function BookingRequestDialog({
                       type="email"
                       placeholder="Email address *"
                       value={guestEmail}
-                      onChange={(e) => setGuestEmail(e.target.value)}
+                      onChange={(e) => dispatch({ type: "SET_GUEST_EMAIL", value: e.target.value })}
                       required
                       className="w-full px-3.5 py-2.5 text-sm bg-white border border-stone-200 rounded-xl text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-[#e8c4b8] focus:border-[#96604a] transition"
                     />
@@ -870,7 +1002,7 @@ export function BookingRequestDialog({
                       type="tel"
                       placeholder="Phone (optional)"
                       value={guestPhone}
-                      onChange={(e) => setGuestPhone(e.target.value)}
+                      onChange={(e) => dispatch({ type: "SET_GUEST_PHONE", value: e.target.value })}
                       className="w-full px-3.5 py-2.5 text-sm bg-white border border-stone-200 rounded-xl text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-[#e8c4b8] focus:border-[#96604a] transition"
                     />
                   </div>
@@ -883,7 +1015,7 @@ export function BookingRequestDialog({
                   </label>
                   <select
                     value={cadence}
-                    onChange={(e) => setCadence(e.target.value)}
+                    onChange={(e) => dispatch({ type: "SET_CADENCE", value: e.target.value })}
                     className="w-full px-3.5 py-2.5 text-sm bg-white border border-stone-200 rounded-xl text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#e8c4b8] focus:border-[#96604a] transition"
                   >
                     {CADENCE_OPTIONS.map((o) => (
@@ -901,7 +1033,7 @@ export function BookingRequestDialog({
                   </label>
                   <textarea
                     value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
+                    onChange={(e) => dispatch({ type: "SET_NOTES", value: e.target.value })}
                     placeholder="First time getting lashes, have sensitive eyes, preferred time of day..."
                     rows={2}
                     className="w-full px-3.5 py-2.5 text-sm bg-white border border-stone-200 rounded-xl text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-[#e8c4b8] focus:border-[#96604a] transition resize-none"
@@ -983,7 +1115,7 @@ export function BookingRequestDialog({
                   <Turnstile
                     siteKey={env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
                     onSuccess={handleTurnstileSuccess}
-                    onExpire={() => setTurnstileToken("")}
+                    onExpire={() => dispatch({ type: "SET_TURNSTILE_TOKEN", token: "" })}
                     options={{ theme: "light", size: "flexible" }}
                   />
                 )}
@@ -1023,7 +1155,9 @@ export function BookingRequestDialog({
                       type="checkbox"
                       required
                       checked={tosAccepted}
-                      onChange={(e) => setTosAccepted(e.target.checked)}
+                      onChange={(e) =>
+                        dispatch({ type: "SET_TOS_ACCEPTED", value: e.target.checked })
+                      }
                       className="mt-0.5 w-4 h-4 shrink-0 accent-[#96604a] cursor-pointer"
                     />
                     <span className="text-[11px] text-stone-600 leading-relaxed">{policyText}</span>

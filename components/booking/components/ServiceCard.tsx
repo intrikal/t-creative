@@ -49,6 +49,9 @@ export function ServiceCard({
   addOns,
   isPopular,
   autoOpen,
+  prefillDate,
+  prefillTime,
+  prefillStaffId,
 }: {
   service: Service;
   meta: {
@@ -61,6 +64,9 @@ export function ServiceCard({
   isPopular: boolean;
   /** When true, auto-opens the booking dialog on mount (from ?service=ID link). */
   autoOpen?: boolean;
+  prefillDate?: string | null;
+  prefillTime?: string | null;
+  prefillStaffId?: string | null;
 }) {
   const [showRequest, setShowRequest] = useState(autoOpen ?? false);
   const [showWaitlist, setShowWaitlist] = useState(false);
@@ -167,6 +173,9 @@ export function ServiceCard({
         addOns={addOns}
         open={showRequest}
         onClose={() => setShowRequest(false)}
+        prefillDate={prefillDate}
+        prefillTime={prefillTime}
+        prefillStaffId={prefillStaffId}
       />
 
       <WaitlistDialog

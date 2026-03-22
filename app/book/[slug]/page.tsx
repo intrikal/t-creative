@@ -137,6 +137,9 @@ export default async function BookSlugPage({ params, searchParams }: Props) {
   const { slug } = await params;
   const sp = await searchParams;
   const prefillServiceId = typeof sp.service === "string" ? Number(sp.service) : null;
+  const prefillStaffId = typeof sp.staff === "string" ? sp.staff : null;
+  const prefillDate = typeof sp.date === "string" ? sp.date : null;
+  const prefillTime = typeof sp.time === "string" ? sp.time : null;
 
   // ── 1. Fetch cached booking data ─────────────────────────────────────────
   const bookingData = await getBookingPageData(slug);
@@ -273,6 +276,9 @@ export default async function BookSlugPage({ params, searchParams }: Props) {
         addOnsByService={addOnsByService}
         slug={slug}
         prefillServiceId={prefillServiceId}
+        prefillStaffId={prefillStaffId}
+        prefillDate={prefillDate}
+        prefillTime={prefillTime}
       />
     </>
   );

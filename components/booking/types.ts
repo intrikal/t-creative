@@ -150,4 +150,10 @@ export interface BookingPageProps {
   slug: string;
   /** When set (from ?service=ID query param), auto-opens the booking dialog for this service. */
   prefillServiceId?: number | null;
+  /** Pre-select this staff member in the booking dialog (from ?staff=ID). */
+  prefillStaffId?: string | null;
+  /** Pre-select this date in the calendar (from ?date=YYYY-MM-DD). */
+  prefillDate?: string | null;
+  /** Pre-select this time slot (from ?time=HH:MM, 24h format). */
+  prefillTime?: string | null;
 }

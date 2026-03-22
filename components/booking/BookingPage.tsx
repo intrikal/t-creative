@@ -121,6 +121,9 @@ export function BookingPage({
   addOnsByService,
   slug,
   prefillServiceId,
+  prefillStaffId,
+  prefillDate,
+  prefillTime,
 }: BookingPageProps) {
   // Save ?ref=CODE to a cookie so /auth/callback can award referral points on signup.
   useEffect(() => {
@@ -526,6 +529,11 @@ export function BookingPage({
                             addOns={addOnsByService[service.id] ?? []}
                             isPopular={index === 0 && catServices.length > 1}
                             autoOpen={prefillServiceId === service.id}
+                            prefillDate={prefillServiceId === service.id ? prefillDate : undefined}
+                            prefillTime={prefillServiceId === service.id ? prefillTime : undefined}
+                            prefillStaffId={
+                              prefillServiceId === service.id ? prefillStaffId : undefined
+                            }
                           />
                         ))}
                       </div>

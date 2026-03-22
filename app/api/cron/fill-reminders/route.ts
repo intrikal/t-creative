@@ -45,8 +45,18 @@ function formatHour(hour: number): string {
 function analyseBookingPattern(bookingDates: Date[]): {
   suggestedDay: string | null;
   suggestedTime: string | null;
+  /** Raw JS day-of-week (0=Sun) for URL building. */
+  suggestedDayNum: number | null;
+  /** Raw hour (0-23) for URL building. */
+  suggestedHourNum: number | null;
 } {
-  if (bookingDates.length < 2) return { suggestedDay: null, suggestedTime: null };
+  if (bookingDates.length < 2)
+    return {
+      suggestedDay: null,
+      suggestedTime: null,
+      suggestedDayNum: null,
+      suggestedHourNum: null,
+    };
 
   // Count day-of-week frequency
   const dayCounts = new Map<number, number>();
@@ -80,9 +90,13 @@ function analyseBookingPattern(bookingDates: Date[]): {
 
   // Only suggest if the pattern appears in at least 40% of bookings
   const threshold = bookingDates.length * 0.4;
+  const dayMatch = topDayCount >= threshold;
+  const hourMatch = topHourCount >= threshold;
   return {
-    suggestedDay: topDayCount >= threshold ? DAY_NAMES[topDay] : null,
-    suggestedTime: topHourCount >= threshold ? formatHour(topHour) : null,
+    suggestedDay: dayMatch ? DAY_NAMES[topDay] : null,
+    suggestedTime: hourMatch ? formatHour(topHour) : null,
+    suggestedDayNum: dayMatch ? topDay : null,
+    suggestedHourNum: hourMatch ? topHour : null,
   };
 }
 
@@ -222,7 +236,8 @@ export async function GET(request: Request) {
       .orderBy(desc(bookings.startsAt))
       .limit(10);
 
-    const { suggestedDay, suggestedTime } = analyseBookingPattern(history.map((h) => h.startsAt));
+    const { suggestedDay, suggestedTime, suggestedDayNum, suggestedHourNum } =
+      analyseBookingPattern(history.map((h) => h.startsAt));
 
     // Look up the preferred staff member's name (most recent booking's staff).
     let staffName: string | null = null;
@@ -236,10 +251,28 @@ export async function GET(request: Request) {
       staffName = staffRow?.firstName ?? null;
     }
 
-    // Build the one-click rebooking URL with the service pre-filled.
-    const bookingUrl = slug
-      ? `${baseUrl}/book/${slug}?service=${candidate.serviceId}`
-      : `${baseUrl}/dashboard/book`;
+    // Build the one-click rebooking URL with service, staff, date, and time pre-filled.
+    let bookingUrl: string;
+    if (slug) {
+      const params = new URLSearchParams({ service: String(candidate.serviceId) });
+      if (preferredStaffId) params.set("staff", preferredStaffId);
+      if (suggestedDayNum !== null) {
+        // Find the next occurrence of the suggested day-of-week from today
+        const nextDate = new Date();
+        const daysUntil = (suggestedDayNum - nextDate.getDay() + 7) % 7 || 7;
+        nextDate.setDate(nextDate.getDate() + daysUntil);
+        params.set(
+          "date",
+          `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, "0")}-${String(nextDate.getDate()).padStart(2, "0")}`,
+        );
+      }
+      if (suggestedHourNum !== null) {
+        params.set("time", `${String(suggestedHourNum).padStart(2, "0")}:00`);
+      }
+      bookingUrl = `${baseUrl}/book/${slug}?${params}`;
+    } else {
+      bookingUrl = `${baseUrl}/dashboard/book`;
+    }
 
     const lastVisitDate = format(candidate.startsAt, "MMMM d");
 

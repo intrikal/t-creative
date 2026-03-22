@@ -61,12 +61,12 @@ export function FillReminder({
 
         <Text style={paragraph}>
           {hasSuggestion
-            ? "We\u2019ve pre-filled your last service \u2014 just pick a date and you\u2019re set:"
+            ? "We\u2019ve pre-filled everything based on your history \u2014 one click to confirm:"
             : "Click below to book your next fill:"}
         </Text>
         <Text style={ctaWrapper}>
           <a href={bookingUrl} style={cta}>
-            Rebook Your Fill →
+            {hasSuggestion ? "Confirm Your Fill →" : "Rebook Your Fill →"}
           </a>
         </Text>
         <Text style={muted}>

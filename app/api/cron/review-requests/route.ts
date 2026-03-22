@@ -17,6 +17,7 @@ import { bookings, profiles, services, syncLog } from "@/db/schema";
 import { ReviewRequest } from "@/emails/ReviewRequest";
 import { isNotificationEnabled } from "@/lib/notification-preferences";
 import { sendEmail } from "@/lib/resend";
+import { SITE_URL } from "@/lib/site-config";
 
 export async function GET(request: Request) {
   const secret = request.headers.get("x-cron-secret");
@@ -80,6 +81,8 @@ export async function GET(request: Request) {
 
     if (existing) continue;
 
+    const reviewUrl = `${SITE_URL}/review/${booking.bookingId}`;
+
     const success = await sendEmail({
       to: booking.clientEmail,
       subject: `How was your ${booking.serviceName}?`,
@@ -87,6 +90,7 @@ export async function GET(request: Request) {
         clientName: booking.clientFirstName,
         serviceName: booking.serviceName,
         businessName: bp.businessName,
+        reviewUrl,
       }),
       entityType: "review_request",
       localId,

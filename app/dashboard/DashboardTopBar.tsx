@@ -2,10 +2,11 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { Settings, UsersRound, CalendarCheck, LogOut, ChevronDown, Menu } from "lucide-react";
+import { Settings, UsersRound, CalendarCheck, LogOut, ChevronDown, Menu, MapPin } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { NotificationBell } from "./components/NotificationBell";
+import { useLocation } from "./location-context";
 import { useSidebar } from "./sidebar-context";
 
 function getProfileMenuItems(role: "admin" | "assistant" | "client") {
@@ -31,6 +32,8 @@ export function DashboardTopBar({
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const { openDrawer } = useSidebar();
+  const { locations: locationList, selectedLocationId, setLocationId } = useLocation();
+  const showLocationSelector = locationList.length > 1;
 
   useEffect(() => {
     if (!open) return;
@@ -63,8 +66,27 @@ export function DashboardTopBar({
         <Menu className="w-5 h-5" />
       </button>
 
-      {/* Spacer on desktop (hamburger is in sidebar) */}
-      <div className="hidden lg:block" />
+      {/* Location selector — only shown when multiple locations exist */}
+      {showLocationSelector ? (
+        <div className="hidden lg:flex items-center gap-1.5">
+          <MapPin className="w-3.5 h-3.5 text-muted" />
+          <select
+            value={selectedLocationId ?? ""}
+            onChange={(e) => setLocationId(e.target.value ? Number(e.target.value) : null)}
+            aria-label="Select studio location"
+            className="text-sm font-medium text-foreground bg-transparent border-none outline-none cursor-pointer pr-6"
+          >
+            {role === "admin" && <option value="">All locations</option>}
+            {locationList.map((loc) => (
+              <option key={loc.id} value={loc.id}>
+                {loc.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : (
+        <div className="hidden lg:block" />
+      )}
 
       {/* Right: notification + profile */}
       <div className="flex items-center gap-2">

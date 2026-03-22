@@ -29,6 +29,7 @@ import {
   varchar,
 } from "drizzle-orm/pg-core";
 import { pgEnum } from "drizzle-orm/pg-core";
+import { locations } from "./locations";
 import { profiles } from "./users";
 
 /* ------------------------------------------------------------------ */
@@ -58,6 +59,11 @@ export const businessHours = pgTable(
 
     /** Staff member this schedule belongs to. Null = studio-wide default. */
     staffId: uuid("staff_id").references(() => profiles.id, {
+      onDelete: "cascade",
+    }),
+
+    /** Location this schedule belongs to. Null = all locations. */
+    locationId: integer("location_id").references(() => locations.id, {
       onDelete: "cascade",
     }),
 
@@ -104,6 +110,11 @@ export const timeOff = pgTable(
       onDelete: "cascade",
     }),
 
+    /** Location. Null = all locations. */
+    locationId: integer("location_id").references(() => locations.id, {
+      onDelete: "cascade",
+    }),
+
     type: timeOffTypeEnum("type").notNull(),
 
     /** First blocked date (inclusive). */
@@ -143,6 +154,11 @@ export const timeOff = pgTable(
  */
 export const bookingRules = pgTable("booking_rules", {
   id: serial("id").primaryKey(),
+
+  /** Location this rule set applies to. Null = global default. */
+  locationId: integer("location_id").references(() => locations.id, {
+    onDelete: "cascade",
+  }),
 
   /* ------ Time buffers ------ */
 

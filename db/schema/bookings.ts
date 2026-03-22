@@ -26,6 +26,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { bookingStatusEnum } from "./enums";
 import { giftCards } from "./gift-cards";
+import { locations } from "./locations";
 import { payments } from "./payments";
 import { promotions } from "./promotions";
 import { reviews } from "./reviews";
@@ -87,6 +88,9 @@ export const bookings = pgTable(
 
     /** Location or method — "San Jose Studio", "Mobile", "Virtual". */
     location: varchar("location", { length: 200 }),
+
+    /** FK to locations table for multi-studio support. Nullable during migration. */
+    locationId: integer("location_id").references(() => locations.id, { onDelete: "set null" }),
 
     /* ------ External integrations ------ */
 
@@ -179,6 +183,7 @@ export const bookings = pgTable(
     index("bookings_starts_at_status_idx").on(t.startsAt, t.status),
     index("bookings_client_starts_at_idx").on(t.clientId, t.startsAt),
     index("bookings_deleted_at_idx").on(t.deletedAt),
+    index("bookings_location_idx").on(t.locationId),
     index("bookings_staff_starts_status_idx").on(t.staffId, t.startsAt, t.status),
     // Partial index — active (non-deleted, non-cancelled) bookings per client.
     // Skips cancelled/deleted rows that are never included in normal query paths.
@@ -252,6 +257,11 @@ export const bookingsRelations = relations(bookings, ({ one, many }) => ({
   subscription: one(bookingSubscriptions, {
     fields: [bookings.subscriptionId],
     references: [bookingSubscriptions.id],
+  }),
+  /** Many-to-one: bookings.location_id → locations.id (which studio). */
+  studioLocation: one(locations, {
+    fields: [bookings.locationId],
+    references: [locations.id],
   }),
 }));
 

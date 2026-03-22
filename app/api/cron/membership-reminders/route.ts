@@ -1,29 +1,39 @@
 /**
- * GET /api/cron/membership-reminders — Send membership cycle renewal reminders.
+ * GET /api/cron/membership-reminders — Membership status sync + reminders.
  *
- * Runs daily via pg_cron. Finds active memberships whose cycle ends in 3–4
- * days and sends a reminder email. If the member still has unused fills,
- * the email highlights that ("You have 1 fill remaining — book now before
- * your cycle resets on April 1"). If all fills are used, it simply reminds
- * them about the upcoming renewal.
+ * Runs daily via pg_cron. Two-phase job:
  *
- * Deduplicates via sync_log so each cycle triggers at most one reminder.
+ * Phase 1 — Square subscription status sync:
+ *   For each active/paused membership with a squareSubscriptionId, check
+ *   the Square subscription status. If Square says ACTIVE and the local
+ *   cycle has expired, auto-renew (reset fills, advance dates). If Square
+ *   says DEACTIVATED (payment failed, in grace period), pause locally.
+ *   If Square says CANCELED, cancel locally.
+ *
+ * Phase 2 — Reminder emails:
+ *   Find active memberships whose cycle ends in 3–4 days and send a
+ *   reminder email highlighting unused fills or upcoming renewal.
+ *   Deduplicates via sync_log so each cycle triggers at most one reminder.
  *
  * Secured with CRON_SECRET header to prevent unauthorized access.
  */
 import { NextResponse } from "next/server";
-import { format } from "date-fns";
-import { and, eq, gte, lte } from "drizzle-orm";
+import { addDays, format } from "date-fns";
+import { and, eq, gte, isNotNull, lte, or } from "drizzle-orm";
 import { getPublicBusinessProfile } from "@/app/dashboard/settings/settings-actions";
 import { db } from "@/db";
 import { membershipPlans, membershipSubscriptions, profiles, syncLog } from "@/db/schema";
 import { MembershipReminder } from "@/emails/MembershipReminder";
+import { logAction } from "@/lib/audit";
 import { sendEmail } from "@/lib/resend";
+import { getSquareSubscriptionStatus } from "@/lib/square";
 
 /** Send reminder this many days before the cycle resets. */
 const REMINDER_DAYS_BEFORE = 3;
 /** Daily job — look across a 24h window. */
 const WINDOW_HOURS = 24;
+/** Grace period days — how long after payment failure before cancelling. */
+const GRACE_PERIOD_DAYS = 7;
 
 export async function GET(request: Request) {
   const secret = request.headers.get("x-cron-secret");
@@ -33,7 +43,145 @@ export async function GET(request: Request) {
 
   const now = new Date();
 
-  // Find memberships whose cycleEndsAt is 3–4 days from now.
+  // ── Phase 1: Square subscription status sync ────────────────────
+  let synced = 0;
+  let renewed = 0;
+  let deactivated = 0;
+  let cancelled = 0;
+
+  const squareSubs = await db
+    .select({
+      id: membershipSubscriptions.id,
+      status: membershipSubscriptions.status,
+      squareSubscriptionId: membershipSubscriptions.squareSubscriptionId,
+      cycleEndsAt: membershipSubscriptions.cycleEndsAt,
+      fillsPerCycle: membershipPlans.fillsPerCycle,
+      cycleIntervalDays: membershipPlans.cycleIntervalDays,
+    })
+    .from(membershipSubscriptions)
+    .innerJoin(membershipPlans, eq(membershipSubscriptions.planId, membershipPlans.id))
+    .where(
+      and(
+        or(
+          eq(membershipSubscriptions.status, "active"),
+          eq(membershipSubscriptions.status, "paused"),
+        ),
+        isNotNull(membershipSubscriptions.squareSubscriptionId),
+      ),
+    );
+
+  for (const sub of squareSubs) {
+    if (!sub.squareSubscriptionId) continue;
+
+    const squareStatus = await getSquareSubscriptionStatus(sub.squareSubscriptionId);
+    if (!squareStatus) continue;
+    synced++;
+
+    // Square says ACTIVE and local cycle has expired → auto-renew
+    if (squareStatus.status === "ACTIVE" && sub.cycleEndsAt <= now) {
+      const newCycleStart = sub.cycleEndsAt;
+      const newCycleEnd = addDays(newCycleStart, sub.cycleIntervalDays);
+
+      await db
+        .update(membershipSubscriptions)
+        .set({
+          status: "active",
+          fillsRemainingThisCycle: sub.fillsPerCycle,
+          cycleStartAt: newCycleStart,
+          cycleEndsAt: newCycleEnd,
+          pausedAt: null,
+        })
+        .where(eq(membershipSubscriptions.id, sub.id));
+
+      await logAction({
+        actorId: "system",
+        action: "update",
+        entityType: "membership_subscription",
+        entityId: sub.id,
+        description: "Membership auto-renewed via Square subscription sync",
+        metadata: { squareStatus: squareStatus.status, newCycleEnd: newCycleEnd.toISOString() },
+      });
+
+      renewed++;
+    }
+
+    // Square says DEACTIVATED (payment failed) → pause locally with grace period
+    if (squareStatus.status === "DEACTIVATED" && sub.status === "active") {
+      await db
+        .update(membershipSubscriptions)
+        .set({
+          status: "paused",
+          pausedAt: now,
+          notes: `Auto-paused: Square payment failed (grace period until ${format(addDays(now, GRACE_PERIOD_DAYS), "MMM d, yyyy")})`,
+        })
+        .where(eq(membershipSubscriptions.id, sub.id));
+
+      await logAction({
+        actorId: "system",
+        action: "status_change",
+        entityType: "membership_subscription",
+        entityId: sub.id,
+        description: "Membership paused — Square payment failed (grace period started)",
+        metadata: { squareStatus: squareStatus.status },
+      });
+
+      deactivated++;
+    }
+
+    // Square says CANCELED → cancel locally
+    if (squareStatus.status === "CANCELED" && sub.status !== "cancelled") {
+      await db
+        .update(membershipSubscriptions)
+        .set({
+          status: "cancelled",
+          cancelledAt: now,
+        })
+        .where(eq(membershipSubscriptions.id, sub.id));
+
+      await logAction({
+        actorId: "system",
+        action: "status_change",
+        entityType: "membership_subscription",
+        entityId: sub.id,
+        description: "Membership cancelled — Square subscription cancelled",
+        metadata: { squareStatus: squareStatus.status },
+      });
+
+      cancelled++;
+    }
+
+    // Paused locally but past grace period → cancel
+    if (sub.status === "paused" && squareStatus.status === "DEACTIVATED") {
+      const [pausedSub] = await db
+        .select({ pausedAt: membershipSubscriptions.pausedAt })
+        .from(membershipSubscriptions)
+        .where(eq(membershipSubscriptions.id, sub.id))
+        .limit(1);
+
+      if (
+        pausedSub?.pausedAt &&
+        now.getTime() - pausedSub.pausedAt.getTime() > GRACE_PERIOD_DAYS * 24 * 60 * 60 * 1000
+      ) {
+        await cancelSquareSubscriptionIfNeeded(sub.squareSubscriptionId);
+        await db
+          .update(membershipSubscriptions)
+          .set({ status: "cancelled", cancelledAt: now })
+          .where(eq(membershipSubscriptions.id, sub.id));
+
+        await logAction({
+          actorId: "system",
+          action: "status_change",
+          entityType: "membership_subscription",
+          entityId: sub.id,
+          description: "Membership cancelled — grace period expired after payment failure",
+        });
+
+        cancelled++;
+      }
+    }
+  }
+
+  // ── Phase 2: Reminder emails (unchanged logic) ─────────────────
   const windowStart = new Date(now.getTime() + REMINDER_DAYS_BEFORE * 24 * 60 * 60 * 1000);
   const windowEnd = new Date(windowStart.getTime() + WINDOW_HOURS * 60 * 60 * 1000);
 
@@ -62,11 +210,8 @@ export async function GET(request: Request) {
 
   const bp = await getPublicBusinessProfile();
 
-  // Look up the studio slug for booking URLs.
   const [adminProfile] = await db
-    .select({
-      onboardingData: profiles.onboardingData,
-    })
+    .select({ onboardingData: profiles.onboardingData })
     .from(profiles)
     .where(eq(profiles.role, "admin"))
     .limit(1);
@@ -86,7 +231,6 @@ export async function GET(request: Request) {
       continue;
     }
 
-    // Deduplicate: one reminder per subscription per cycle (keyed by cycle end date).
     const localId = `${candidate.subscriptionId}:${candidate.cycleEndsAt.toISOString()}`;
 
     const [existing] = await db
@@ -138,5 +282,18 @@ export async function GET(request: Request) {
     else failed++;
   }
 
-  return NextResponse.json({ matched: candidates.length, sent, failed, skipped });
+  return NextResponse.json({
+    sync: { checked: synced, renewed, deactivated, cancelled },
+    reminders: { matched: candidates.length, sent, failed, skipped },
+  });
+}
+
+/** Helper: cancel Square subscription, swallowing errors. */
+async function cancelSquareSubscriptionIfNeeded(squareSubscriptionId: string): Promise<void> {
+  try {
+    const { cancelSquareSubscription } = await import("@/lib/square");
+    await cancelSquareSubscription(squareSubscriptionId);
+  } catch {
+    // Non-fatal
+  }
 }

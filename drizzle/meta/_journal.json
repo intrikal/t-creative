@@ -260,6 +260,13 @@
       "when": 1742860800000,
       "tag": "0040_square_catalog_id",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1774425600000,
+      "tag": "0041_square_subscriptions",
+      "breakpoints": true
     }
   ]
 }

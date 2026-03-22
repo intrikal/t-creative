@@ -1,5 +1,7 @@
 import { redirect } from "next/navigation";
+import type { Metadata } from "next";
 import { getCurrentUser } from "@/lib/auth";
+import type { Range } from "@/lib/types/analytics.types";
 import { AnalyticsShell } from "./AnalyticsShell";
 import { AppointmentGapSectionWrapper } from "./sections/AppointmentGapSectionWrapper";
 import { BookingsSectionWrapper } from "./sections/BookingsSectionWrapper";
@@ -13,13 +15,12 @@ import { PeakTimesSectionWrapper } from "./sections/PeakTimesSectionWrapper";
 import { PromotionRoiSectionWrapper } from "./sections/PromotionRoiSectionWrapper";
 import { RetentionSectionWrapper } from "./sections/RetentionSectionWrapper";
 import { RevenueByServiceSectionWrapper } from "./sections/RevenueByServiceSectionWrapper";
+import { RevenueForecastSectionWrapper } from "./sections/RevenueForecastSectionWrapper";
 import { RevenuePerHourSectionWrapper } from "./sections/RevenuePerHourSectionWrapper";
 import { RevenueSectionWrapper } from "./sections/RevenueSectionWrapper";
 import { StaffSection } from "./sections/StaffSection";
 import { VisitFrequencySectionWrapper } from "./sections/VisitFrequencySectionWrapper";
 import { WaitlistConversionSectionWrapper } from "./sections/WaitlistConversionSectionWrapper";
-import type { Range } from "@/lib/types/analytics.types";
-import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "Analytics — T Creative Studio",
@@ -39,9 +40,7 @@ export default async function Page({
   if (user.profile?.role !== "admin") redirect("/dashboard");
 
   const { range: rawRange } = await searchParams;
-  const range: Range = VALID_RANGES.includes(rawRange as Range)
-    ? (rawRange as Range)
-    : "30d";
+  const range: Range = VALID_RANGES.includes(rawRange as Range) ? (rawRange as Range) : "30d";
 
   return (
     <AnalyticsShell>
@@ -49,6 +48,7 @@ export default async function Page({
       <RevenueSectionWrapper range={range} />
       <RevenueByServiceSectionWrapper range={range} />
       <RevenuePerHourSectionWrapper range={range} />
+      <RevenueForecastSectionWrapper />
       <BookingsSectionWrapper range={range} />
       <StaffSection range={range} />
       <OperationalSection range={range} />

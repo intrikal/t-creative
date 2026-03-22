@@ -260,3 +260,40 @@ export type CancellationReasonItem = {
   count: number;
   pct: number;
 };
+
+/* ------------------------------------------------------------------ */
+/*  Revenue forecast                                                   */
+/* ------------------------------------------------------------------ */
+
+export type ForecastDataPoint = {
+  /** Label like "Apr 5" */
+  label: string;
+  /** ISO date string YYYY-MM-DD */
+  date: string;
+  /** Confirmed upcoming booking revenue (cumulative, cents) */
+  confirmed: number;
+  /** Confirmed + projected recurring revenue (cumulative, cents) */
+  recurring: number;
+  /** Confirmed + recurring + membership renewal revenue (cumulative, cents) */
+  total: number;
+  /** Lower confidence bound (cumulative, cents) */
+  low: number;
+  /** Upper confidence bound (cumulative, cents) */
+  high: number;
+};
+
+export type RevenueForecastData = {
+  points: ForecastDataPoint[];
+  /** Historical completion rate used for confidence bands */
+  completionRate: number;
+  /** Summary totals at 30/60/90 day marks (cents) */
+  milestones: {
+    days: number;
+    confirmed: number;
+    recurring: number;
+    membership: number;
+    total: number;
+    low: number;
+    high: number;
+  }[];
+};

@@ -913,7 +913,7 @@ export function BookingRequestDialog({
                 </div>
 
                 {timeSlots.length > 0 ? (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2" role="group" aria-label="Available time slots" aria-live="polite">
                     {timeSlots.map((slot) => (
                       <button
                         key={slot}
@@ -1094,29 +1094,51 @@ export function BookingRequestDialog({
                 {isGuest && (
                   <div className="space-y-2.5">
                     <p className="text-xs font-medium text-stone-600">Your contact info</p>
-                    <input
-                      type="text"
-                      placeholder="Full name *"
-                      value={guestName}
-                      onChange={(e) => dispatch({ type: "SET_GUEST_NAME", value: e.target.value })}
-                      required
-                      className="w-full px-3.5 py-2.5 text-sm bg-white border border-stone-200 rounded-xl text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-[#e8c4b8] focus:border-[#96604a] transition"
-                    />
-                    <input
-                      type="email"
-                      placeholder="Email address *"
-                      value={guestEmail}
-                      onChange={(e) => dispatch({ type: "SET_GUEST_EMAIL", value: e.target.value })}
-                      required
-                      className="w-full px-3.5 py-2.5 text-sm bg-white border border-stone-200 rounded-xl text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-[#e8c4b8] focus:border-[#96604a] transition"
-                    />
-                    <input
-                      type="tel"
-                      placeholder="Phone (optional)"
-                      value={guestPhone}
-                      onChange={(e) => dispatch({ type: "SET_GUEST_PHONE", value: e.target.value })}
-                      className="w-full px-3.5 py-2.5 text-sm bg-white border border-stone-200 rounded-xl text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-[#e8c4b8] focus:border-[#96604a] transition"
-                    />
+                    <div className="space-y-1">
+                      <label htmlFor="guest-name" className="text-xs font-medium text-stone-600">
+                        Full name <span className="text-red-400" aria-hidden="true">*</span>
+                        <span className="sr-only">(required)</span>
+                      </label>
+                      <input
+                        id="guest-name"
+                        type="text"
+                        placeholder="Your full name"
+                        value={guestName}
+                        onChange={(e) => dispatch({ type: "SET_GUEST_NAME", value: e.target.value })}
+                        required
+                        aria-required="true"
+                        className="w-full px-3.5 py-2.5 text-sm bg-white border border-stone-200 rounded-xl text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-[#e8c4b8] focus:border-[#96604a] transition"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label htmlFor="guest-email" className="text-xs font-medium text-stone-600">
+                        Email address <span className="text-red-400" aria-hidden="true">*</span>
+                        <span className="sr-only">(required)</span>
+                      </label>
+                      <input
+                        id="guest-email"
+                        type="email"
+                        placeholder="you@example.com"
+                        value={guestEmail}
+                        onChange={(e) => dispatch({ type: "SET_GUEST_EMAIL", value: e.target.value })}
+                        required
+                        aria-required="true"
+                        className="w-full px-3.5 py-2.5 text-sm bg-white border border-stone-200 rounded-xl text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-[#e8c4b8] focus:border-[#96604a] transition"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label htmlFor="guest-phone" className="text-xs font-medium text-stone-600">
+                        Phone <span className="text-stone-400">(optional)</span>
+                      </label>
+                      <input
+                        id="guest-phone"
+                        type="tel"
+                        placeholder="(555) 555-0000"
+                        value={guestPhone}
+                        onChange={(e) => dispatch({ type: "SET_GUEST_PHONE", value: e.target.value })}
+                        className="w-full px-3.5 py-2.5 text-sm bg-white border border-stone-200 rounded-xl text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-[#e8c4b8] focus:border-[#96604a] transition"
+                      />
+                    </div>
                   </div>
                 )}
 

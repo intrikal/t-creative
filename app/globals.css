@@ -17,9 +17,9 @@
   --color-ivory: #faf6f1;
   --color-warm-cream: #f3ece4;
   --color-deep-espresso: #2c2420;
-  --color-warm-stone: #6b5d52;
+  --color-warm-stone: #625548;
   --color-studio-blush: #c4907a;
-  --color-accent-text: #96604a;
+  --color-accent-text: #7d4f3a;
 
   /* Interactive */
   --color-btn-primary: #2c2420;
@@ -79,8 +79,8 @@
   --color-background: #faf6f1;
   --color-foreground: #2c2420;
   --color-surface: #f3ece4;
-  --color-muted: #6b5d52;
-  --color-accent: #96604a;
+  --color-muted: #625548;
+  --color-accent: #7d4f3a;
   --color-accent-decorative: #c4907a;
   --color-accent-geo: #e8c4b8;
   --color-hover: #f0e0d6;

@@ -10,6 +10,7 @@
  */
 import * as Sentry from "@sentry/nextjs";
 import { squareClient, SQUARE_LOCATION_ID, isSquareConfigured } from "./client";
+import { withRetry } from "@/lib/retry";
 
 /**
  * Creates a Square gift card and activates it with the given amount.
@@ -33,15 +34,18 @@ export async function createSquareGiftCard(params: {
 
   try {
     // 1. Create the gift card
-    const createResponse = await squareClient.giftCards.create({
-      idempotencyKey: params.referenceId
-        ? `gc-create-${params.referenceId}`
-        : crypto.randomUUID(),
-      locationId: SQUARE_LOCATION_ID,
-      giftCard: {
-        type: "DIGITAL",
-      },
-    });
+    const createResponse = await withRetry(
+      () => squareClient.giftCards.create({
+        idempotencyKey: params.referenceId
+          ? `gc-create-${params.referenceId}`
+          : crypto.randomUUID(),
+        locationId: SQUARE_LOCATION_ID,
+        giftCard: {
+          type: "DIGITAL",
+        },
+      }),
+      { label: "square.giftCards.create" },
+    );
 
     const giftCard = createResponse.giftCard;
     if (!giftCard?.id || !giftCard?.gan) {
@@ -49,26 +53,29 @@ export async function createSquareGiftCard(params: {
     }
 
     // 2. Activate (fund) the gift card
-    await squareClient.giftCards.activities.create({
-      idempotencyKey: params.referenceId
-        ? `gc-activate-${params.referenceId}`
-        : crypto.randomUUID(),
-      giftCardActivity: {
-        giftCardId: giftCard.id,
-        type: "ACTIVATE",
-        locationId: SQUARE_LOCATION_ID,
-        activateActivityDetails: {
-          amountMoney: {
-            amount: BigInt(params.amountInCents),
-            currency: "USD",
+    await withRetry(
+      () => squareClient.giftCards.activities.create({
+        idempotencyKey: params.referenceId
+          ? `gc-activate-${params.referenceId}`
+          : crypto.randomUUID(),
+        giftCardActivity: {
+          giftCardId: giftCard.id,
+          type: "ACTIVATE",
+          locationId: SQUARE_LOCATION_ID,
+          activateActivityDetails: {
+            amountMoney: {
+              amount: BigInt(params.amountInCents),
+              currency: "USD",
+            },
+            buyerPaymentInstrumentIds: params.buyerPaymentId
+              ? [params.buyerPaymentId]
+              : undefined,
+            referenceId: params.referenceId,
           },
-          buyerPaymentInstrumentIds: params.buyerPaymentId
-            ? [params.buyerPaymentId]
-            : undefined,
-          referenceId: params.referenceId,
         },
-      },
-    });
+      }),
+      { label: "square.giftCards.activities.create(activate)" },
+    );
 
     return {
       squareGiftCardId: giftCard.id,
@@ -90,9 +97,10 @@ export async function getSquareGiftCardBalance(
   if (!isSquareConfigured()) return null;
 
   try {
-    const response = await squareClient.giftCards.get({
-      id: squareGiftCardId,
-    });
+    const response = await withRetry(
+      () => squareClient.giftCards.get({ id: squareGiftCardId }),
+      { label: "square.giftCards.get" },
+    );
 
     const card = response.giftCard;
     if (!card) return null;
@@ -119,23 +127,26 @@ export async function redeemSquareGiftCard(params: {
   if (!isSquareConfigured()) return null;
 
   try {
-    const response = await squareClient.giftCards.activities.create({
-      idempotencyKey: params.referenceId
-        ? `gc-redeem-${params.referenceId}`
-        : crypto.randomUUID(),
-      giftCardActivity: {
-        giftCardId: params.squareGiftCardId,
-        type: "REDEEM",
-        locationId: SQUARE_LOCATION_ID,
-        redeemActivityDetails: {
-          amountMoney: {
-            amount: BigInt(params.amountInCents),
-            currency: "USD",
+    const response = await withRetry(
+      () => squareClient.giftCards.activities.create({
+        idempotencyKey: params.referenceId
+          ? `gc-redeem-${params.referenceId}`
+          : crypto.randomUUID(),
+        giftCardActivity: {
+          giftCardId: params.squareGiftCardId,
+          type: "REDEEM",
+          locationId: SQUARE_LOCATION_ID,
+          redeemActivityDetails: {
+            amountMoney: {
+              amount: BigInt(params.amountInCents),
+              currency: "USD",
+            },
+            referenceId: params.referenceId,
           },
-          referenceId: params.referenceId,
         },
-      },
-    });
+      }),
+      { label: "square.giftCards.activities.create(redeem)" },
+    );
 
     const balanceAfter = response.giftCardActivity?.giftCardBalanceMoney?.amount;
     return {
@@ -158,10 +169,13 @@ export async function linkGiftCardToCustomer(
   if (!isSquareConfigured()) return false;
 
   try {
-    await squareClient.giftCards.linkCustomer({
-      giftCardId: squareGiftCardId,
-      customerId: squareCustomerId,
-    });
+    await withRetry(
+      () => squareClient.giftCards.linkCustomer({
+        giftCardId: squareGiftCardId,
+        customerId: squareCustomerId,
+      }),
+      { label: "square.giftCards.linkCustomer" },
+    );
     return true;
   } catch (err) {
     Sentry.captureException(err);

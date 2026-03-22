@@ -4,6 +4,7 @@
  */
 import * as Sentry from "@sentry/nextjs";
 import { squareClient, SQUARE_LOCATION_ID, isSquareConfigured } from "./client";
+import { withRetry } from "@/lib/retry";
 
 /**
  * Charges a card using a Web Payments SDK token (nonce).
@@ -23,43 +24,49 @@ export async function createSquarePayment(params: {
   if (!isSquareConfigured()) throw new Error("Square not configured");
 
   try {
-    const orderResponse = await squareClient.orders.create({
-      order: {
-        locationId: SQUARE_LOCATION_ID,
-        referenceId: String(params.bookingId),
-        lineItems: [
-          {
-            name: `Deposit — ${params.serviceName}`,
-            quantity: "1",
-            basePriceMoney: {
-              amount: BigInt(params.amountInCents),
-              currency: "USD",
+    const orderResponse = await withRetry(
+      () => squareClient.orders.create({
+        order: {
+          locationId: SQUARE_LOCATION_ID,
+          referenceId: String(params.bookingId),
+          lineItems: [
+            {
+              name: `Deposit — ${params.serviceName}`,
+              quantity: "1",
+              basePriceMoney: {
+                amount: BigInt(params.amountInCents),
+                currency: "USD",
+              },
             },
+          ],
+          metadata: {
+            bookingId: String(params.bookingId),
+            paymentType: "deposit",
           },
-        ],
-        metadata: {
-          bookingId: String(params.bookingId),
-          paymentType: "deposit",
         },
-      },
-      idempotencyKey: `${params.idempotencyKey}-order`,
-    });
+        idempotencyKey: `${params.idempotencyKey}-order`,
+      }),
+      { label: "square.orders.create(deposit)" },
+    );
 
     const orderId = orderResponse.order?.id;
     if (!orderId) throw new Error("Square order creation failed");
 
-    const paymentResponse = await squareClient.payments.create({
-      sourceId: params.sourceId,
-      amountMoney: {
-        amount: BigInt(params.amountInCents),
-        currency: "USD",
-      },
-      orderId,
-      locationId: SQUARE_LOCATION_ID,
-      idempotencyKey: params.idempotencyKey,
-      note: params.note ?? `Booking #${params.bookingId} (deposit)`,
-      autocomplete: true,
-    });
+    const paymentResponse = await withRetry(
+      () => squareClient.payments.create({
+        sourceId: params.sourceId,
+        amountMoney: {
+          amount: BigInt(params.amountInCents),
+          currency: "USD",
+        },
+        orderId,
+        locationId: SQUARE_LOCATION_ID,
+        idempotencyKey: params.idempotencyKey,
+        note: params.note ?? `Booking #${params.bookingId} (deposit)`,
+        autocomplete: true,
+      }),
+      { label: "square.payments.create(deposit)" },
+    );
 
     const payment = paymentResponse.payment;
     if (!payment?.id) throw new Error("Square payment creation failed");
@@ -99,44 +106,50 @@ export async function chargeCardOnFile(params: {
   const idempotencyKey = crypto.randomUUID();
 
   try {
-    const orderResponse = await squareClient.orders.create({
-      order: {
-        locationId: SQUARE_LOCATION_ID,
-        referenceId: String(params.bookingId),
-        lineItems: [
-          {
-            name: label,
-            quantity: "1",
-            basePriceMoney: {
-              amount: BigInt(params.amountInCents),
-              currency: "USD",
+    const orderResponse = await withRetry(
+      () => squareClient.orders.create({
+        order: {
+          locationId: SQUARE_LOCATION_ID,
+          referenceId: String(params.bookingId),
+          lineItems: [
+            {
+              name: label,
+              quantity: "1",
+              basePriceMoney: {
+                amount: BigInt(params.amountInCents),
+                currency: "USD",
+              },
             },
+          ],
+          metadata: {
+            bookingId: String(params.bookingId),
+            paymentType: params.feeType,
           },
-        ],
-        metadata: {
-          bookingId: String(params.bookingId),
-          paymentType: params.feeType,
         },
-      },
-      idempotencyKey: `${idempotencyKey}-order`,
-    });
+        idempotencyKey: `${idempotencyKey}-order`,
+      }),
+      { label: "square.orders.create(fee)" },
+    );
 
     const orderId = orderResponse.order?.id;
     if (!orderId) throw new Error("Square order creation failed for fee");
 
-    const paymentResponse = await squareClient.payments.create({
-      sourceId: params.cardId,
-      amountMoney: {
-        amount: BigInt(params.amountInCents),
-        currency: "USD",
-      },
-      customerId: params.squareCustomerId,
-      orderId,
-      locationId: SQUARE_LOCATION_ID,
-      idempotencyKey,
-      note: `Booking #${params.bookingId} (${params.feeType.replace("_", " ")})`,
-      autocomplete: true,
-    });
+    const paymentResponse = await withRetry(
+      () => squareClient.payments.create({
+        sourceId: params.cardId,
+        amountMoney: {
+          amount: BigInt(params.amountInCents),
+          currency: "USD",
+        },
+        customerId: params.squareCustomerId,
+        orderId,
+        locationId: SQUARE_LOCATION_ID,
+        idempotencyKey,
+        note: `Booking #${params.bookingId} (${params.feeType.replace("_", " ")})`,
+        autocomplete: true,
+      }),
+      { label: "square.payments.create(fee)" },
+    );
 
     const payment = paymentResponse.payment;
     if (!payment?.id) throw new Error("Square fee payment creation failed");

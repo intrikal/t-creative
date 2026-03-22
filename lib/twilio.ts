@@ -13,6 +13,7 @@
 import * as Sentry from "@sentry/nextjs";
 import { eq } from "drizzle-orm";
 import twilio from "twilio";
+import { withRetry } from "@/lib/retry";
 import { db } from "@/db";
 import { syncLog, profiles } from "@/db/schema";
 
@@ -82,11 +83,14 @@ export async function sendSms(params: {
   }
 
   try {
-    const message = await getTwilioClient().messages.create({
-      from: fromNumber!,
-      to: params.to,
-      body: params.body,
-    });
+    const message = await withRetry(
+      () => getTwilioClient().messages.create({
+        from: fromNumber!,
+        to: params.to,
+        body: params.body,
+      }),
+      { label: "twilio.messages.create" },
+    );
 
     await db.insert(syncLog).values({
       provider: "twilio",

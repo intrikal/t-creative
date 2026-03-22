@@ -12,6 +12,7 @@
 import * as Sentry from "@sentry/nextjs";
 import { eq } from "drizzle-orm";
 import { Resend } from "resend";
+import { withRetry } from "@/lib/retry";
 import { db } from "@/db";
 import { syncLog, profiles } from "@/db/schema";
 import { getPublicBusinessProfile } from "@/app/dashboard/settings/settings-actions";
@@ -105,14 +106,26 @@ export async function sendEmail(params: {
 
   try {
     const from = await getResendFrom();
-    const { data, error } = await getResendClient().emails.send({
-      from,
-      to: params.to,
-      subject: params.subject,
-      react: params.react,
-    });
-
-    if (error) throw new Error(error.message);
+    const { data, error } = await withRetry(
+      async () => {
+        const result = await getResendClient().emails.send({
+          from,
+          to: params.to,
+          subject: params.subject,
+          react: params.react,
+        });
+        // Resend returns { data, error } instead of throwing — surface the
+        // error as a thrown exception so withRetry can detect 429s and retry.
+        if (result.error) {
+          const err = Object.assign(new Error(result.error.message), {
+            statusCode: (result.error as { statusCode?: number }).statusCode,
+          });
+          throw err;
+        }
+        return result;
+      },
+      { label: "resend.emails.send" },
+    );
 
     await db.insert(syncLog).values({
       provider: "resend",

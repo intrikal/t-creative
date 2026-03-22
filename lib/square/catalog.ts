@@ -4,6 +4,7 @@
  */
 import * as Sentry from "@sentry/nextjs";
 import { squareClient, isSquareConfigured } from "./client";
+import { withRetry } from "@/lib/retry";
 
 /**
  * Upserts a single item in the Square Catalog via batchUpsert.
@@ -32,9 +33,12 @@ export async function upsertCatalogItem(params: {
     let variationVersion: bigint | undefined;
 
     if (params.existingSquareCatalogId) {
-      const existing = await squareClient.catalog.object.get({
-        objectId: params.existingSquareCatalogId,
-      });
+      const existing = await withRetry(
+        () => squareClient.catalog.object.get({
+          objectId: params.existingSquareCatalogId!,
+        }),
+        { label: "square.catalog.object.get" },
+      );
       const obj = existing.object;
       if (obj && "itemData" in obj) {
         itemId = params.existingSquareCatalogId;
@@ -47,39 +51,42 @@ export async function upsertCatalogItem(params: {
       }
     }
 
-    const response = await squareClient.catalog.batchUpsert({
-      idempotencyKey,
-      batches: [
-        {
-          objects: [
-            {
-              type: "ITEM",
-              id: itemId,
-              version: itemVersion,
-              itemData: {
-                name: params.name,
-                description: params.description ?? undefined,
-                variations: [
-                  {
-                    type: "ITEM_VARIATION",
-                    id: variationId,
-                    version: variationVersion,
-                    itemVariationData: {
-                      name: "Regular",
-                      pricingType: "FIXED_PRICING",
-                      priceMoney: {
-                        amount: BigInt(params.priceInCents),
-                        currency: "USD",
+    const response = await withRetry(
+      () => squareClient.catalog.batchUpsert({
+        idempotencyKey,
+        batches: [
+          {
+            objects: [
+              {
+                type: "ITEM",
+                id: itemId,
+                version: itemVersion,
+                itemData: {
+                  name: params.name,
+                  description: params.description ?? undefined,
+                  variations: [
+                    {
+                      type: "ITEM_VARIATION",
+                      id: variationId,
+                      version: variationVersion,
+                      itemVariationData: {
+                        name: "Regular",
+                        pricingType: "FIXED_PRICING",
+                        priceMoney: {
+                          amount: BigInt(params.priceInCents),
+                          currency: "USD",
+                        },
                       },
                     },
-                  },
-                ],
+                  ],
+                },
               },
-            },
-          ],
-        },
-      ],
-    });
+            ],
+          },
+        ],
+      }),
+      { label: "square.catalog.batchUpsert(item)" },
+    );
 
     const idMappings = response.idMappings ?? [];
     const tempItemId = `#${idempotencyKey}`;
@@ -126,7 +133,10 @@ export async function syncCatalogFromSquare(
 
   const squareItems = new Map<string, { name: string; priceInCents: number }>();
   try {
-    for await (const obj of await squareClient.catalog.list({ types: "ITEM" })) {
+    for await (const obj of await withRetry(
+      () => squareClient.catalog.list({ types: "ITEM" }),
+      { label: "square.catalog.list" },
+    )) {
       if (!obj.id || !("itemData" in obj)) continue;
       const variation = obj.itemData?.variations?.[0];
       const price =

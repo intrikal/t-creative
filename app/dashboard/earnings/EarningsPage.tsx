@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { TrendingUp, DollarSign, CalendarDays, Clock, Wallet } from "lucide-react";
+import { TrendingUp, DollarSign, CalendarDays, Clock, Wallet, Download } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -9,7 +9,7 @@ import type { EarningsData } from "./actions";
 
 type Period = "week" | "month" | "all";
 
-export function AssistantEarningsPage({ data }: { data: EarningsData }) {
+export function AssistantEarningsPage({ data, staffId }: { data: EarningsData; staffId: string }) {
   const [period, setPeriod] = useState<Period>("week");
   const [hoveredBar, setHoveredBar] = useState<string | null>(null);
 
@@ -47,13 +47,22 @@ export function AssistantEarningsPage({ data }: { data: EarningsData }) {
 
   return (
     <div className="p-4 md:p-6 lg:p-8 space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold text-foreground tracking-tight">Earnings</h1>
-        <p className="text-sm text-muted mt-0.5">
-          {commissionType === "flat_fee"
-            ? `$${Math.round(flatFeeInCents / 100)}/session flat fee · ${tipSplitPercent}% of tips`
-            : `${commissionRate}% commission · ${tipSplitPercent}% of tips`}
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-semibold text-foreground tracking-tight">Earnings</h1>
+          <p className="text-sm text-muted mt-0.5">
+            {commissionType === "flat_fee"
+              ? `$${Math.round(flatFeeInCents / 100)}/session flat fee · ${tipSplitPercent}% of tips`
+              : `${commissionRate}% commission · ${tipSplitPercent}% of tips`}
+          </p>
+        </div>
+        <a
+          href={`/api/commission-report?staffId=${staffId}&from=${new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split("T")[0]}&to=${now.toISOString().split("T")[0]}&format=csv`}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-foreground bg-surface border border-border rounded-lg hover:bg-foreground/5 transition-colors shrink-0"
+        >
+          <Download className="w-3.5 h-3.5" />
+          Export CSV
+        </a>
       </div>
 
       {/* Summary cards */}

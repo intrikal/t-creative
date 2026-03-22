@@ -16,5 +16,5 @@ export default async function Page() {
   if (user.profile?.role === "client") redirect("/dashboard");
 
   const data = await getAssistantEarnings();
-  return <AssistantEarningsPage data={data} />;
+  return <AssistantEarningsPage data={data} staffId={user.id} />;
 }

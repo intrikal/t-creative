@@ -32,7 +32,7 @@
 
 import { type ReactNode, useState, useOptimistic, useTransition } from "react";
 import dynamic from "next/dynamic";
-import { Search, Plus, Tag, Package, FileText, HeartHandshake, Images, ToggleLeft, Sparkles } from "lucide-react";
+import { Search, Plus, Tag, Package, FileText, HeartHandshake, Images, ToggleLeft, Sparkles, ClipboardList } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import type { ServiceRow } from "@/lib/types/services.types";
@@ -46,6 +46,7 @@ import {
 import type { BundleRow } from "@/lib/types/services.types";
 import { BundlesTab } from "./components/BundlesTab";
 import { FormsTab } from "./components/FormsTab";
+import { IntakeFormsTab } from "./components/IntakeFormsTab";
 import { ServiceCard } from "./components/ServiceCard";
 
 const AddOnsDialog = dynamic(
@@ -57,6 +58,7 @@ const ServiceFormDialog = dynamic(
   { ssr: false },
 );
 import type { FormRow } from "@/lib/types/services.types";
+import type { IntakeFormDefinitionRow } from "./intake-form-actions";
 import { CAT_CONFIG, dbToService, serviceToInput, serviceToFormData } from "./types";
 import type { Category, Service, ServiceFormData } from "./types";
 
@@ -68,6 +70,7 @@ const SERVICES_TABS = [
   { id: "menu", label: "Menu", icon: Tag },
   { id: "bundles", label: "Bundles", icon: Package },
   { id: "forms", label: "Forms & Waivers", icon: FileText },
+  { id: "intake", label: "Intake Forms", icon: ClipboardList },
   { id: "aftercare", label: "Aftercare", icon: HeartHandshake },
   { id: "portfolio", label: "Portfolio", icon: Images },
 ] as const;
@@ -90,12 +93,14 @@ export function ServicesPage({
   initialServices,
   initialBundles,
   initialForms,
+  initialIntakeForms,
   aftercareContent,
   portfolioContent,
 }: {
   initialServices: ServiceRow[];
   initialBundles: BundleRow[];
   initialForms: FormRow[];
+  initialIntakeForms: IntakeFormDefinitionRow[];
   aftercareContent?: ReactNode;
   portfolioContent?: ReactNode;
 }) {
@@ -256,6 +261,13 @@ export function ServicesPage({
 
       {/* ── Forms tab ── */}
       {activeTab === "forms" && <FormsTab initialForms={initialForms} />}
+
+      {activeTab === "intake" && (
+        <IntakeFormsTab
+          initialDefinitions={initialIntakeForms}
+          services={initialServices.map((s) => ({ id: s.id, name: s.name }))}
+        />
+      )}
 
       {/* ── Aftercare tab ── */}
       {activeTab === "aftercare" && aftercareContent}

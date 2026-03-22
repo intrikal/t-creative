@@ -273,6 +273,16 @@ export { clientPreferences, clientPreferencesRelations } from "./client-preferen
 /* Booking subscriptions (pre-paid session packages) */
 export { bookingSubscriptions, bookingSubscriptionsRelations } from "./subscriptions";
 
+/* Intake forms (per-service, versioned, booking-linked) */
+export {
+  intakeFieldTypeEnum,
+  intakeFormDefinitions,
+  intakeFormSubmissions,
+  intakeFormDefinitionsRelations,
+  intakeFormSubmissionsRelations,
+  type IntakeFormField,
+} from "./intake-forms";
+
 /* Membership plans & subscriptions (Lash Club recurring memberships) */
 export {
   membershipPlans,

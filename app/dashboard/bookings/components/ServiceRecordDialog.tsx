@@ -39,6 +39,7 @@ import {
 } from "../service-record-actions";
 import type { ServiceRecordInput } from "../service-record-actions";
 import { BookingPhotosSection } from "./BookingPhotosSection";
+import { IntakeResponsesSection } from "./IntakeResponsesSection";
 
 export type ServiceRecordFormState = {
   lashMapping: string;
@@ -482,6 +483,12 @@ export function ServiceRecordDialog({
               onChange={(e) => set("nextVisitNotes", e.target.value)}
             />
           </Field>
+        </div>
+      )}
+      {/* Intake form responses */}
+      {!loading && (
+        <div className="border-t border-border pt-4 mt-4">
+          <IntakeResponsesSection bookingId={bookingId} />
         </div>
       )}
       {/* Client photos gallery (before/after/reference) */}

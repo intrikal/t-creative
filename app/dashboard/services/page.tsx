@@ -27,6 +27,7 @@ export default async function Page() {
     { getServices },
     { getBundles },
     { getForms },
+    { getIntakeFormDefinitions },
     { ServicesPage },
     { getAftercareSections, getPolicies, seedAftercareDefaults },
     { AftercarePage },
@@ -35,6 +36,7 @@ export default async function Page() {
     import("./actions"),
     import("./bundle-actions"),
     import("./form-actions"),
+    import("./intake-form-actions"),
     import("./ServicesPage"),
     import("../aftercare/actions"),
     import("../aftercare/AftercarePage"),
@@ -43,11 +45,12 @@ export default async function Page() {
 
   await seedAftercareDefaults();
 
-  const [initialServices, initialBundles, initialForms, aftercareSections, aftercarePolicies] =
+  const [initialServices, initialBundles, initialForms, initialIntakeForms, aftercareSections, aftercarePolicies] =
     await Promise.all([
       getServices(),
       getBundles(),
       getForms(),
+      getIntakeFormDefinitions(),
       getAftercareSections(),
       getPolicies(),
     ]);
@@ -57,6 +60,7 @@ export default async function Page() {
       initialServices={initialServices}
       initialBundles={initialBundles}
       initialForms={initialForms}
+      initialIntakeForms={initialIntakeForms}
       aftercareContent={
         <AftercarePage initialSections={aftercareSections} initialPolicies={aftercarePolicies} />
       }

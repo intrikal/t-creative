@@ -43,8 +43,15 @@ import { CADENCE_OPTIONS, rruleToCadenceLabel } from "@/lib/cadence";
 import { env } from "@/lib/env";
 import { cn } from "@/lib/utils";
 import { SquarePaymentForm } from "./components/SquarePaymentForm";
+import { IntakeFormStep } from "./IntakeFormStep";
 import { formatPrice } from "./helpers";
 import type { Service, ServiceAddOn } from "./types";
+import {
+  getActiveIntakeFormsForBooking,
+  getLastSubmissionForCurrentUser,
+  type IntakeFormDefinitionRow,
+} from "@/app/dashboard/services/intake-form-actions";
+import type { IntakeFormField } from "@/db/schema";
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                             */
@@ -175,7 +182,7 @@ function downloadIcs(service: Service, date: Date, time: string): void {
 /*  Reducer                                                             */
 /* ------------------------------------------------------------------ */
 
-type Step = "date" | "time" | "confirm" | "pay";
+type Step = "date" | "time" | "intake" | "confirm" | "pay";
 
 type PhotoPreview = { file: File; preview: string };
 
@@ -199,6 +206,15 @@ interface BookingState {
   selectedAddOnIds: Set<number>;
   tosAccepted: boolean;
   turnstileToken: string;
+  // Intake forms
+  intakeForms: IntakeFormDefinitionRow[];
+  intakePrefill: Record<number, Record<string, unknown>>;
+  intakeResponses: Array<{
+    formDefinitionId: number;
+    formVersion: number;
+    responses: Record<string, unknown>;
+  }>;
+  intakeFormsLoaded: boolean;
   // Waiver
   pendingWaivers: PendingWaiver[];
   waiversChecked: boolean;
@@ -226,6 +242,10 @@ const INITIAL_STATE: BookingState = {
   selectedAddOnIds: new Set(),
   tosAccepted: false,
   turnstileToken: "",
+  intakeForms: [],
+  intakePrefill: {},
+  intakeResponses: [],
+  intakeFormsLoaded: false,
   pendingWaivers: [],
   waiversChecked: false,
   submitting: false,
@@ -256,6 +276,19 @@ type BookingAction =
   | { type: "REMOVE_PHOTO"; index: number; revokedUrl: string }
   | { type: "SET_TOS_ACCEPTED"; value: boolean }
   | { type: "SET_TURNSTILE_TOKEN"; token: string }
+  | {
+      type: "SET_INTAKE_FORMS";
+      forms: IntakeFormDefinitionRow[];
+      prefill: Record<number, Record<string, unknown>>;
+    }
+  | {
+      type: "SET_INTAKE_RESPONSES";
+      responses: Array<{
+        formDefinitionId: number;
+        formVersion: number;
+        responses: Record<string, unknown>;
+      }>;
+    }
   | { type: "SET_WAIVERS"; waivers: PendingWaiver[] }
   | { type: "SUBMITTING" }
   | { type: "SUBMITTED" }
@@ -275,14 +308,31 @@ function bookingReducer(state: BookingState, action: BookingAction): BookingStat
         tosVersion: action.tosVersion,
       };
     case "PREFILL":
-      return { ...state, selectedDate: action.date, selectedTime: action.time, step: "confirm" };
+      return {
+        ...state,
+        selectedDate: action.date,
+        selectedTime: action.time,
+        step: state.intakeFormsLoaded && state.intakeForms.length > 0 ? "intake" : "confirm",
+      };
     case "SELECT_DATE":
       return { ...state, selectedDate: action.date, selectedTime: "", step: "time" };
     case "SELECT_TIME":
-      return { ...state, selectedTime: action.time, step: "confirm" };
+      return {
+        ...state,
+        selectedTime: action.time,
+        // Route to intake step if forms are loaded and present
+        step: state.intakeFormsLoaded && state.intakeForms.length > 0 ? "intake" : "confirm",
+      };
     case "GO_BACK":
       if (state.step === "time") return { ...state, step: "date", selectedTime: "" };
-      if (state.step === "confirm") return { ...state, step: "time" };
+      if (state.step === "intake") return { ...state, step: "time" };
+      if (state.step === "confirm") {
+        // Go back to intake if forms exist, otherwise time
+        return {
+          ...state,
+          step: state.intakeForms.length > 0 ? "intake" : "time",
+        };
+      }
       if (state.step === "pay") return { ...state, step: "confirm" };
       return state;
     case "SET_NOTES":
@@ -309,6 +359,15 @@ function bookingReducer(state: BookingState, action: BookingAction): BookingStat
       return { ...state, tosAccepted: action.value };
     case "SET_TURNSTILE_TOKEN":
       return { ...state, turnstileToken: action.token };
+    case "SET_INTAKE_FORMS":
+      return {
+        ...state,
+        intakeForms: action.forms,
+        intakePrefill: action.prefill,
+        intakeFormsLoaded: true,
+      };
+    case "SET_INTAKE_RESPONSES":
+      return { ...state, intakeResponses: action.responses, step: "confirm" };
     case "SET_WAIVERS":
       return { ...state, pendingWaivers: action.waivers, waiversChecked: true };
     case "SUBMITTING":
@@ -362,6 +421,9 @@ export function BookingRequestDialog({
     guestPhone,
     photos,
     selectedAddOnIds,
+    intakeForms,
+    intakePrefill,
+    intakeResponses,
     tosAccepted,
     turnstileToken,
     pendingWaivers,
@@ -380,7 +442,8 @@ export function BookingRequestDialog({
   const uploadedPhotosRef = useRef<string[]>([]);
 
   const hasDeposit = !!service.depositInCents && service.depositInCents > 0;
-  const totalSteps = hasDeposit ? 4 : 3;
+  const hasIntakeForms = intakeForms.length > 0;
+  const totalSteps = 2 + (hasIntakeForms ? 1 : 0) + 1 + (hasDeposit ? 1 : 0);
 
   const selectedAddOns = addOns.filter((a) => selectedAddOnIds.has(a.id));
   const addOnTotal = selectedAddOns.reduce((sum, a) => sum + a.priceInCents, 0);
@@ -388,21 +451,43 @@ export function BookingRequestDialog({
   const adjustedPrice = (service.priceInCents ?? 0) + addOnTotal;
   const adjustedDuration = (service.durationMinutes ?? 0) + addOnMinutes;
 
-  // Fetch availability, auth status, and policy on open
+  // Fetch availability, auth status, policy, and intake forms on open
   useEffect(() => {
     if (!open) return;
-    Promise.all([getStudioAvailability(), checkIsAuthenticated(), getPublicPolicies()]).then(
-      ([avail, authed, policies]) => {
-        dispatch({
-          type: "LOADED",
-          availability: avail,
-          isGuest: !authed,
-          policyText: policies.cancellationPolicy,
-          tosVersion: policies.tosVersion,
-        });
-      },
-    );
-  }, [open]);
+    Promise.all([
+      getStudioAvailability(),
+      checkIsAuthenticated(),
+      getPublicPolicies(),
+      getActiveIntakeFormsForBooking(service.id),
+    ]).then(async ([avail, authed, policies, intakeDefs]) => {
+      dispatch({
+        type: "LOADED",
+        availability: avail,
+        isGuest: !authed,
+        policyText: policies.cancellationPolicy,
+        tosVersion: policies.tosVersion,
+      });
+
+      // Load intake forms + pre-fill for authenticated returning clients
+      if (intakeDefs.length > 0) {
+        const prefill: Record<number, Record<string, unknown>> = {};
+        if (authed) {
+          const prefillResults = await Promise.all(
+            intakeDefs.map(async (def) => {
+              const last = await getLastSubmissionForCurrentUser(def.id);
+              return { defId: def.id, data: last };
+            }),
+          );
+          for (const { defId, data } of prefillResults) {
+            if (data) prefill[defId] = data;
+          }
+        }
+        dispatch({ type: "SET_INTAKE_FORMS", forms: intakeDefs, prefill });
+      } else {
+        dispatch({ type: "SET_INTAKE_FORMS", forms: [], prefill: {} });
+      }
+    });
+  }, [open, service.id]);
 
   // Auto-apply prefill params (from email rebooking link) and skip to confirm step
   const prefillApplied = useRef(false);
@@ -666,7 +751,16 @@ export function BookingRequestDialog({
     onClose();
   }
 
-  const stepNum = step === "date" ? 1 : step === "time" ? 2 : step === "confirm" ? 3 : 4;
+  const stepNum =
+    step === "date"
+      ? 1
+      : step === "time"
+        ? 2
+        : step === "intake"
+          ? 3
+          : step === "confirm"
+            ? hasIntakeForms ? 4 : 3
+            : hasIntakeForms ? 5 : 4;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -843,7 +937,25 @@ export function BookingRequestDialog({
               </div>
             )}
 
-            {/* ── Step 3: Confirm & send ── */}
+            {/* ── Intake form step (between time and confirm) ── */}
+            {availability && step === "intake" && selectedDate && hasIntakeForms && (
+              <IntakeFormStep
+                definitions={intakeForms.map((def) => ({
+                  id: def.id,
+                  name: def.name,
+                  description: def.description,
+                  fields: (def.fields ?? []) as IntakeFormField[],
+                  version: def.version,
+                }))}
+                prefill={intakePrefill}
+                onSubmit={(responses) =>
+                  dispatch({ type: "SET_INTAKE_RESPONSES", responses })
+                }
+                onBack={goBack}
+              />
+            )}
+
+            {/* ── Confirm & send ── */}
             {availability && step === "confirm" && selectedDate && (
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="flex items-center gap-2">

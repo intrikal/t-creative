@@ -1,4 +1,5 @@
 import { withSentryConfig } from "@sentry/nextjs";
+import withSerwist from "@serwist/next";
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
@@ -86,7 +87,12 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default withSentryConfig(nextConfig, {
+const withSerwistConfig = withSerwist({
+  swSrc: "app/sw.ts",
+  swDest: "public/sw.js",
+});
+
+export default withSentryConfig(withSerwistConfig(nextConfig), {
   org: process.env.SENTRY_ORG,
   project: process.env.SENTRY_PROJECT,
   authToken: process.env.SENTRY_AUTH_TOKEN,

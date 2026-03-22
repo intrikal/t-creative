@@ -32,6 +32,11 @@ export const wishlistItems = pgTable(
 
     /** When the client saved this product — used for "Recently Saved" ordering. */
     savedAt: timestamp("saved_at", { withTimezone: true }).notNull().defaultNow(),
+
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
   },
   (t) => [
     index("wishlist_client_idx").on(t.clientId),

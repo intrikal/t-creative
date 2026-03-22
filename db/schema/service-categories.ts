@@ -5,7 +5,7 @@
  * The services.category column (pgEnum) maps to the `slug` column here.
  * Validation against this table is done at the application level.
  */
-import { boolean, integer, pgTable, serial, varchar } from "drizzle-orm/pg-core";
+import { boolean, integer, pgTable, serial, timestamp, varchar } from "drizzle-orm/pg-core";
 
 export const serviceCategories = pgTable("service_categories", {
   id: serial("id").primaryKey(),
@@ -13,4 +13,10 @@ export const serviceCategories = pgTable("service_categories", {
   slug: varchar("slug", { length: 100 }).notNull().unique(),
   displayOrder: integer("display_order").notNull().default(0),
   isActive: boolean("is_active").notNull().default(true),
+
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
 });

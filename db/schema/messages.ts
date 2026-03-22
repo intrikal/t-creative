@@ -117,6 +117,10 @@ export const threads = pgTable(
     referencePhotoUrls: text("reference_photo_urls").array(),
 
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
   },
   (t) => [
     index("threads_client_idx").on(t.clientId),
@@ -197,6 +201,10 @@ export const quickReplies = pgTable("quick_replies", {
   isActive: boolean("is_active").notNull().default(true),
 
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
 });
 
 /* ------------------------------------------------------------------ */

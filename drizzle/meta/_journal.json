@@ -232,6 +232,13 @@
       "when": 1742515200000,
       "tag": "0036_partial_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1742601600000,
+      "tag": "0037_updated_at_triggers",
+      "breakpoints": true
     }
   ]
 }

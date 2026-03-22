@@ -45,7 +45,8 @@ import {
   payments,
   services,
 } from "@/db/schema";
-import { requireAdmin } from "@/lib/auth";
+import { requireAdmin, getUser as getAuthUser } from "@/lib/auth";
+import { trackEvent } from "@/lib/posthog";
 
 /* ------------------------------------------------------------------ */
 /*  Auth guard                                                         */
@@ -1075,4 +1076,238 @@ export async function generatePayStub(
     Sentry.captureException(err);
     throw err;
   }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Commission Report (date-range, per-booking, grouped by service)    */
+/* ------------------------------------------------------------------ */
+
+export type CommissionReportEntry = {
+  bookingId: number;
+  date: string;
+  client: string;
+  service: string;
+  serviceCategory: string;
+  priceInCents: number;
+  commissionRate: number;
+  commissionInCents: number;
+  tipInCents: number;
+  tipEarnedInCents: number;
+  totalEarnedInCents: number;
+};
+
+export type CommissionReportData = {
+  staffId: string;
+  staffName: string;
+  role: string | null;
+  periodLabel: string;
+  commissionType: CommissionType;
+  rate: number;
+  flatFeeInCents: number;
+  tipSplitPercent: number;
+  entries: CommissionReportEntry[];
+  byCategory: Record<
+    string,
+    {
+      sessions: number;
+      revenueInCents: number;
+      commissionInCents: number;
+      tipsInCents: number;
+      tipEarnedInCents: number;
+      totalEarnedInCents: number;
+    }
+  >;
+  totals: {
+    sessions: number;
+    revenueInCents: number;
+    commissionInCents: number;
+    tipsInCents: number;
+    tipEarnedInCents: number;
+    totalEarnedInCents: number;
+  };
+};
+
+/**
+ * Generate a commission report for a staff member within a date range.
+ * Returns per-booking line items grouped by service category.
+ * Used by both admin (any staff) and staff (own bookings only).
+ */
+export async function generateCommissionReport(
+  staffId: string,
+  startDate: string,
+  endDate: string,
+): Promise<CommissionReportData> {
+  const user = await getAuthUser();
+  const [userProfile] = await db
+    .select({ role: profiles.role })
+    .from(profiles)
+    .where(eq(profiles.id, user.id))
+    .limit(1);
+
+  const isAdmin = userProfile?.role === "admin";
+  const isOwnReport = user.id === staffId;
+  if (!isAdmin && !isOwnReport) throw new Error("Forbidden");
+
+  const startOfPeriod = new Date(startDate + "T00:00:00");
+  const endOfPeriod = new Date(endDate + "T23:59:59.999");
+
+  const [staffRow] = await db
+    .select({
+      firstName: profiles.firstName,
+      lastName: profiles.lastName,
+      title: assistantProfiles.title,
+      commissionType: assistantProfiles.commissionType,
+      rate: assistantProfiles.commissionRatePercent,
+      flatFeeInCents: assistantProfiles.commissionFlatFeeInCents,
+      tipSplitPercent: assistantProfiles.tipSplitPercent,
+    })
+    .from(profiles)
+    .leftJoin(assistantProfiles, eq(profiles.id, assistantProfiles.profileId))
+    .where(eq(profiles.id, staffId))
+    .limit(1);
+
+  if (!staffRow) throw new Error("Staff member not found");
+
+  const commissionType = (staffRow.commissionType as CommissionType) ?? "percentage";
+  const rate = staffRow.rate ?? DEFAULT_COMMISSION_RATE;
+  const flatFee = staffRow.flatFeeInCents ?? 0;
+  const tipSplit = staffRow.tipSplitPercent ?? 100;
+
+  const clientProfile = alias(profiles, "client");
+
+  const bookingRows = await db
+    .select({
+      id: bookings.id,
+      startsAt: bookings.startsAt,
+      totalInCents: bookings.totalInCents,
+      serviceName: services.name,
+      serviceCategory: services.category,
+      clientFirstName: clientProfile.firstName,
+      clientLastName: clientProfile.lastName,
+      tipInCents: sql<number>`coalesce(sum(${payments.tipInCents}), 0)`.as("tip_in_cents"),
+    })
+    .from(bookings)
+    .innerJoin(services, eq(bookings.serviceId, services.id))
+    .innerJoin(clientProfile, eq(bookings.clientId, clientProfile.id))
+    .leftJoin(payments, eq(payments.bookingId, bookings.id))
+    .where(
+      and(
+        eq(bookings.staffId, staffId),
+        eq(bookings.status, "completed"),
+        gte(bookings.startsAt, startOfPeriod),
+        lte(bookings.startsAt, endOfPeriod),
+      ),
+    )
+    .groupBy(
+      bookings.id,
+      bookings.startsAt,
+      bookings.totalInCents,
+      services.name,
+      services.category,
+      clientProfile.firstName,
+      clientProfile.lastName,
+    )
+    .orderBy(bookings.startsAt);
+
+  const entries: CommissionReportEntry[] = bookingRows.map((r) => {
+    const price = r.totalInCents;
+    const tip = Number(r.tipInCents ?? 0);
+    const commission = calcServiceEarned(commissionType, rate, flatFee, price, 1);
+    const tipEarned = Math.round((tip * tipSplit) / 100);
+    const first = r.clientFirstName ?? "";
+    const last = r.clientLastName ?? "";
+
+    return {
+      bookingId: r.id,
+      date: new Date(r.startsAt).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      }),
+      client: `${first} ${last.charAt(0) ? last.charAt(0) + "." : ""}`.trim(),
+      service: r.serviceName,
+      serviceCategory: r.serviceCategory,
+      priceInCents: price,
+      commissionRate: commissionType === "flat_fee" ? 0 : rate,
+      commissionInCents: commission,
+      tipInCents: tip,
+      tipEarnedInCents: tipEarned,
+      totalEarnedInCents: commission + tipEarned,
+    };
+  });
+
+  const byCategory: CommissionReportData["byCategory"] = {};
+  for (const e of entries) {
+    const cat = e.serviceCategory || "Other";
+    if (!byCategory[cat]) {
+      byCategory[cat] = {
+        sessions: 0, revenueInCents: 0, commissionInCents: 0,
+        tipsInCents: 0, tipEarnedInCents: 0, totalEarnedInCents: 0,
+      };
+    }
+    byCategory[cat].sessions++;
+    byCategory[cat].revenueInCents += e.priceInCents;
+    byCategory[cat].commissionInCents += e.commissionInCents;
+    byCategory[cat].tipsInCents += e.tipInCents;
+    byCategory[cat].tipEarnedInCents += e.tipEarnedInCents;
+    byCategory[cat].totalEarnedInCents += e.totalEarnedInCents;
+  }
+
+  const totals = entries.reduce(
+    (acc, e) => ({
+      sessions: acc.sessions + 1,
+      revenueInCents: acc.revenueInCents + e.priceInCents,
+      commissionInCents: acc.commissionInCents + e.commissionInCents,
+      tipsInCents: acc.tipsInCents + e.tipInCents,
+      tipEarnedInCents: acc.tipEarnedInCents + e.tipEarnedInCents,
+      totalEarnedInCents: acc.totalEarnedInCents + e.totalEarnedInCents,
+    }),
+    {
+      sessions: 0, revenueInCents: 0, commissionInCents: 0,
+      tipsInCents: 0, tipEarnedInCents: 0, totalEarnedInCents: 0,
+    },
+  );
+
+  const fmtD = (d: Date) =>
+    d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+
+  return {
+    staffId,
+    staffName: [staffRow.firstName, staffRow.lastName].filter(Boolean).join(" "),
+    role: staffRow.title ?? null,
+    periodLabel: `${fmtD(startOfPeriod)} – ${fmtD(endOfPeriod)}`,
+    commissionType,
+    rate,
+    flatFeeInCents: flatFee,
+    tipSplitPercent: tipSplit,
+    entries,
+    byCategory,
+    totals,
+  };
+}
+
+/**
+ * List all staff members for the commission report staff selector.
+ */
+export async function getStaffList(): Promise<
+  Array<{ id: string; name: string; role: string | null }>
+> {
+  await getUser();
+  const rows = await db
+    .select({
+      id: profiles.id,
+      firstName: profiles.firstName,
+      lastName: profiles.lastName,
+      title: assistantProfiles.title,
+    })
+    .from(profiles)
+    .leftJoin(assistantProfiles, eq(profiles.id, assistantProfiles.profileId))
+    .where(ne(profiles.role, "client"))
+    .orderBy(profiles.firstName);
+
+  return rows.map((r) => ({
+    id: r.id,
+    name: [r.firstName, r.lastName].filter(Boolean).join(" "),
+    role: r.title ?? null,
+  }));
 }

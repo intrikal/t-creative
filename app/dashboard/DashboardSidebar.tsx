@@ -79,6 +79,7 @@ const ADMIN_NAV_GROUPS: NavGroup[] = [
     label: "Business",
     items: [
       { href: "/dashboard/financial", label: "Financial", icon: DollarSign },
+      { href: "/dashboard/commissions", label: "Commissions", icon: Receipt },
       { href: "/dashboard/analytics", label: "Analytics", icon: BarChart2 },
       { href: "/dashboard/reviews", label: "Reviews", icon: Star },
     ],

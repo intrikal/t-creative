@@ -39,7 +39,7 @@ export async function getRetentionTrend(range: Range = "30d"): Promise<Retention
     // For 90d / 1y ranges use the client_retention_monthly materialized view
     // (refreshed every 4h). Monthly granularity is appropriate at that scale and
     // avoids the expensive booking-level CTE.
-    if (range === "90d" || range === "1y") {
+    if (range === "90d" || range === "12m") {
       const months = range === "90d" ? 3 : 12;
       const rows = await db.execute<{
         month: Date;

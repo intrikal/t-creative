@@ -51,31 +51,36 @@ import { redis } from "@/lib/redis";
  * correctly enforces limits even when requests hit different cold-started
  * instances.
  *
- * windowMs values are converted to seconds because Upstash Ratelimit uses
- * seconds as its time unit.
+ * When Redis is not configured (UPSTASH_REDIS_REST_URL absent) the map is
+ * empty and rate limiting is skipped — requests pass through freely.
  */
-const RATE_LIMITS: Record<string, Ratelimit> = {
-  "/api/chat/fallback": new Ratelimit({
-    redis,
-    limiter: Ratelimit.slidingWindow(10, "60 s"),
-    prefix: "rl:chat-fallback",
-  }),
-  "/api/book/guest-request": new Ratelimit({
-    redis,
-    limiter: Ratelimit.slidingWindow(5, "60 s"),
-    prefix: "rl:book-guest-request",
-  }),
-  "/api/book/waitlist": new Ratelimit({
-    redis,
-    limiter: Ratelimit.slidingWindow(5, "60 s"),
-    prefix: "rl:book-waitlist",
-  }),
-  "/api/book/upload-reference": new Ratelimit({
-    redis,
-    limiter: Ratelimit.slidingWindow(20, "60 s"),
-    prefix: "rl:book-upload-reference",
-  }),
-};
+const redisConfigured =
+  !!process.env.UPSTASH_REDIS_REST_URL && !!process.env.UPSTASH_REDIS_REST_TOKEN;
+
+const RATE_LIMITS: Record<string, Ratelimit> = redisConfigured
+  ? {
+      "/api/chat/fallback": new Ratelimit({
+        redis,
+        limiter: Ratelimit.slidingWindow(10, "60 s"),
+        prefix: "rl:chat-fallback",
+      }),
+      "/api/book/guest-request": new Ratelimit({
+        redis,
+        limiter: Ratelimit.slidingWindow(5, "60 s"),
+        prefix: "rl:book-guest-request",
+      }),
+      "/api/book/waitlist": new Ratelimit({
+        redis,
+        limiter: Ratelimit.slidingWindow(5, "60 s"),
+        prefix: "rl:book-waitlist",
+      }),
+      "/api/book/upload-reference": new Ratelimit({
+        redis,
+        limiter: Ratelimit.slidingWindow(20, "60 s"),
+        prefix: "rl:book-upload-reference",
+      }),
+    }
+  : {};
 
 function clientIp(request: NextRequest): string {
   return (

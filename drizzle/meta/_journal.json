@@ -225,6 +225,13 @@
       "when": 1774339200000,
       "tag": "0035_check_constraints",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1742515200000,
+      "tag": "0036_partial_indexes",
+      "breakpoints": true
     }
   ]
 }

@@ -4,6 +4,7 @@
 // vi: Vitest's mock utility for creating fake functions and spying on calls
 // beforeEach: runs setup before every test (typically resets mocks)
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { createMockBooking } from "@/lib/test-utils";
 
 /* ------------------------------------------------------------------ */
 /*  Chainable DB mock helper                                           */
@@ -373,7 +374,7 @@ describe("actions", () => {
         select: vi.fn(() => {
           selectCount++;
           // 1st select: waiver check — booking lookup (needs clientId+serviceCategory)
-          if (selectCount === 1) return makeChain([{ clientId: "c1", serviceCategory: "lash" }]);
+          if (selectCount === 1) return makeChain([createMockBooking({ clientId: "c1" })]);
           // 2nd select: waiver forms lookup — return none (no forms required)
           return makeChain([]);
         }),
@@ -446,7 +447,7 @@ describe("actions", () => {
         select: vi.fn(() => {
           selectCount++;
           // 1st select: waiver check booking lookup
-          if (selectCount === 1) return makeChain([{ clientId: "c1", serviceCategory: "lash" }]);
+          if (selectCount === 1) return makeChain([createMockBooking({ clientId: "c1" })]);
           return makeChain([]);
         }),
         insert: vi.fn(() => ({
@@ -828,7 +829,7 @@ describe("actions", () => {
       const mockUpdateSet = vi.fn(() => ({ where: vi.fn() }));
       // select returns a conflict row, but it should not matter for cancel
       setupMocks({
-        select: vi.fn(() => makeChain([{ id: 50, startsAt: new Date() }])),
+        select: vi.fn(() => makeChain([createMockBooking({ id: 50, startsAt: new Date() })])),
         insert: vi.fn(() => ({
           values: vi.fn(() => ({ returning: vi.fn().mockResolvedValue([{ id: 1 }]) })),
         })),
@@ -1557,7 +1558,7 @@ describe("actions", () => {
           selectCount++;
           // 1st: booking + service category lookup
           if (selectCount === 1)
-            return makeChain([{ clientId: "client-1", serviceCategory: "lash" }]);
+            return makeChain([createMockBooking()]);
           // 2nd: active required forms
           if (selectCount === 2)
             return makeChain([{ id: 10, name: "Lash Waiver", type: "waiver", appliesTo: ["All"] }]);
@@ -1584,7 +1585,7 @@ describe("actions", () => {
         select: vi.fn(() => {
           selectCount++;
           if (selectCount === 1)
-            return makeChain([{ clientId: "client-1", serviceCategory: "lash" }]);
+            return makeChain([createMockBooking()]);
           if (selectCount === 2)
             return makeChain([
               { id: 10, name: "Lash Waiver", type: "waiver", appliesTo: ["All"] },
@@ -1613,7 +1614,7 @@ describe("actions", () => {
         select: vi.fn(() => {
           selectCount++;
           if (selectCount === 1)
-            return makeChain([{ clientId: "client-1", serviceCategory: "lash" }]);
+            return makeChain([createMockBooking()]);
           if (selectCount === 2)
             return makeChain([
               { id: 10, name: "Lash Waiver", type: "waiver", appliesTo: ["All"] },

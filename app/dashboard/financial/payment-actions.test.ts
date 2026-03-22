@@ -4,6 +4,7 @@
 // vi: Vitest's mock utility for creating fake functions and spying on calls
 // beforeEach: runs setup before every test (typically resets mocks)
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { createMockBooking, createMockPayment } from "@/lib/test-utils";
 
 /* ------------------------------------------------------------------ */
 /*  Mocks                                                              */
@@ -165,7 +166,7 @@ describe("payment-actions", () => {
     });
 
     it("throws when client does not match booking", async () => {
-      mockSelectWhere.mockResolvedValue([{ id: 1, clientId: "client-other" }]);
+      mockSelectWhere.mockResolvedValue([createMockBooking({ clientId: "client-other" })]);
 
       vi.resetModules();
       vi.doMock("@/db", () => ({ db: mockDb }));
@@ -209,7 +210,7 @@ describe("payment-actions", () => {
     });
 
     it("inserts payment record for cash payment", async () => {
-      mockSelectWhere.mockResolvedValue([{ id: 1, clientId: "client-1" }]);
+      mockSelectWhere.mockResolvedValue([createMockBooking()]);
       mockInsertValues.mockResolvedValue(undefined);
 
       vi.resetModules();
@@ -264,7 +265,7 @@ describe("payment-actions", () => {
     });
 
     it("enriches from Square API when squarePaymentId provided", async () => {
-      mockSelectWhere.mockResolvedValue([{ id: 1, clientId: "client-1" }]);
+      mockSelectWhere.mockResolvedValue([createMockBooking()]);
       mockInsertValues.mockResolvedValue(undefined);
       mockSquarePaymentsGet.mockResolvedValue({
         payment: {
@@ -370,15 +371,7 @@ describe("payment-actions", () => {
     });
 
     it("returns error when refund amount is zero or negative", async () => {
-      mockSelectWhere.mockResolvedValue([
-        {
-          id: 1,
-          amountInCents: 5000,
-          refundedInCents: 0,
-          squarePaymentId: null,
-          notes: null,
-        },
-      ]);
+      mockSelectWhere.mockResolvedValue([createMockPayment({ amountInCents: 5000 })]);
 
       vi.resetModules();
       vi.doMock("@/db", () => ({ db: mockDb }));
@@ -424,13 +417,7 @@ describe("payment-actions", () => {
 
     it("returns error when refund exceeds refundable amount", async () => {
       mockSelectWhere.mockResolvedValue([
-        {
-          id: 1,
-          amountInCents: 5000,
-          refundedInCents: 3000, // Already refunded $30
-          squarePaymentId: null,
-          notes: null,
-        },
+        createMockPayment({ amountInCents: 5000, refundedInCents: 3000 }), // Already refunded $30
       ]);
 
       vi.resetModules();
@@ -477,13 +464,7 @@ describe("payment-actions", () => {
 
     it("processes cash refund without calling Square API", async () => {
       mockSelectWhere.mockResolvedValue([
-        {
-          id: 1,
-          amountInCents: 5000,
-          refundedInCents: 0,
-          squarePaymentId: null, // Cash payment — no Square ID
-          notes: null,
-        },
+        createMockPayment({ amountInCents: 5000 }), // Cash payment — no Square ID
       ]);
 
       vi.resetModules();
@@ -496,15 +477,7 @@ describe("payment-actions", () => {
           select: vi.fn(() => ({
             from: vi.fn(() => ({
               where: () =>
-                Promise.resolve([
-                  {
-                    id: 1,
-                    amountInCents: 5000,
-                    refundedInCents: 0,
-                    squarePaymentId: null,
-                    notes: null,
-                  },
-                ]),
+                Promise.resolve([createMockPayment({ amountInCents: 5000 })]),
             })),
           })),
           insert: vi.fn(() => ({ values: vi.fn() })),
@@ -576,13 +549,7 @@ describe("payment-actions", () => {
             from: vi.fn(() => ({
               where: () =>
                 Promise.resolve([
-                  {
-                    id: 1,
-                    amountInCents: 10000,
-                    refundedInCents: 0,
-                    squarePaymentId: "sq_pay_abc",
-                    notes: null,
-                  },
+                  createMockPayment({ amountInCents: 10000, squarePaymentId: "sq_pay_abc" }),
                 ]),
             })),
           })),
@@ -660,13 +627,7 @@ describe("payment-actions", () => {
             from: vi.fn(() => ({
               where: () =>
                 Promise.resolve([
-                  {
-                    id: 1,
-                    amountInCents: 5000,
-                    refundedInCents: 0,
-                    squarePaymentId: "sq_pay_abc",
-                    notes: null,
-                  },
+                  createMockPayment({ amountInCents: 5000, squarePaymentId: "sq_pay_abc" }),
                 ]),
             })),
           })),

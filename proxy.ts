@@ -35,8 +35,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { Ratelimit } from "@upstash/ratelimit";
-import { Redis } from "@upstash/redis";
 import { env } from "@/lib/env";
+import { redis } from "@/lib/redis";
 
 // ---------------------------------------------------------------------------
 // Rate limiting
@@ -54,11 +54,6 @@ import { env } from "@/lib/env";
  * windowMs values are converted to seconds because Upstash Ratelimit uses
  * seconds as its time unit.
  */
-const redis = new Redis({
-  url: env.UPSTASH_REDIS_REST_URL,
-  token: env.UPSTASH_REDIS_REST_TOKEN,
-});
-
 const RATE_LIMITS: Record<string, Ratelimit> = {
   "/api/chat/fallback": new Ratelimit({
     redis,

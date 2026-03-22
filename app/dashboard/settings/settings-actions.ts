@@ -37,6 +37,7 @@ import { db } from "@/db";
 import { auditLog, settings } from "@/db/schema";
 import { requireAdmin } from "@/lib/auth";
 import { trackEvent } from "@/lib/posthog";
+import { redis } from "@/lib/redis";
 import { isSquareConfigured } from "@/lib/square";
 import type { ActionResult } from "@/lib/types/action-result";
 import type {
@@ -64,14 +65,27 @@ const getUser = requireAdmin;
 /*  Public-safe helpers (no auth — used by public pages)               */
 /* ------------------------------------------------------------------ */
 
+/** Cache key for a setting. */
+const cacheKey = (key: string) => `setting:${key}`;
+
+/** TTL for cached settings — 5 minutes. */
+const CACHE_TTL_SECONDS = 300;
+
 /**
  * Read a setting without an auth guard. Used by public pages that need
  * site content / policies but have no logged-in user.
+ *
+ * Checks Redis first; on miss reads from Postgres and backfills the cache.
  */
 async function getPublicSetting<T>(key: string, fallback: T): Promise<T> {
+  const cached = await redis.get<T>(cacheKey(key));
+  if (cached !== null) return cached;
+
   const [row] = await db.select().from(settings).where(eq(settings.key, key));
-  if (!row) return fallback;
-  return row.value as T;
+  const value = row ? (row.value as T) : fallback;
+
+  await redis.set(cacheKey(key), value, { ex: CACHE_TTL_SECONDS });
+  return value;
 }
 
 /* ------------------------------------------------------------------ */
@@ -230,27 +244,74 @@ const KEY_REMINDERS = "reminder_config";
 /*  Generic helpers                                                    */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Read a setting with an auth guard.
+ * Checks Redis first; on miss reads from Postgres and backfills the cache.
+ */
 async function getSetting<T>(key: string, fallback: T): Promise<T> {
+  const cached = await redis.get<T>(cacheKey(key));
+  if (cached !== null) return cached;
+
   const [row] = await db.select().from(settings).where(eq(settings.key, key));
-  if (!row) return fallback;
-  return row.value as T;
+  const value = row ? (row.value as T) : fallback;
+
+  await redis.set(cacheKey(key), value, { ex: CACHE_TTL_SECONDS });
+  return value;
 }
 
+/**
+ * Upsert a setting and invalidate its Redis cache entry so the next read
+ * fetches the updated value from Postgres.
+ */
 async function upsertSetting(key: string, label: string, value: unknown): Promise<void> {
   await db.insert(settings).values({ key, label, value }).onConflictDoUpdate({
     target: settings.key,
     set: { value },
   });
+  await redis.del(cacheKey(key));
 }
 
 /**
- * Fetch multiple settings in a single query. Returns a Map keyed by
- * setting key so callers can look up each value with its own fallback.
+ * Fetch multiple settings in a single round-trip where possible.
+ *
+ * Pipeline-gets all keys from Redis. For any key that misses, falls back
+ * to a single Postgres query covering all misses, then backfills each
+ * miss into Redis with a 5-minute TTL.
  */
 async function getMultipleSettings(keys: string[]): Promise<Map<string, unknown>> {
   if (keys.length === 0) return new Map();
-  const rows = await db.select().from(settings).where(inArray(settings.key, keys));
-  return new Map(rows.map((r) => [r.key, r.value]));
+
+  // Fetch all keys from Redis in one pipeline round-trip
+  const cached = await redis.mget<unknown[]>(...keys.map(cacheKey));
+
+  const result = new Map<string, unknown>();
+  const missKeys: string[] = [];
+
+  keys.forEach((key, i) => {
+    if (cached[i] !== null) {
+      result.set(key, cached[i]);
+    } else {
+      missKeys.push(key);
+    }
+  });
+
+  if (missKeys.length > 0) {
+    const rows = await db.select().from(settings).where(inArray(settings.key, missKeys));
+    const rowMap = new Map(rows.map((r) => [r.key, r.value]));
+
+    // Backfill each miss into Redis; keys not in DB get no entry (no caching of absence)
+    await Promise.all(
+      missKeys.map(async (key) => {
+        const value = rowMap.get(key);
+        if (value !== undefined) {
+          result.set(key, value);
+          await redis.set(cacheKey(key), value, { ex: CACHE_TTL_SECONDS });
+        }
+      }),
+    );
+  }
+
+  return result;
 }
 
 /* ------------------------------------------------------------------ */

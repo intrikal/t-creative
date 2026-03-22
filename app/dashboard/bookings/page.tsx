@@ -48,7 +48,7 @@ export default async function Page() {
 
   const [
     { getBookings },
-    { getClientsForSelect, getServicesForSelect, getStaffForSelect },
+    { getServicesForSelect, getStaffForSelect },
     { getSubscriptions },
     { BookingsPage },
     { MembershipsSection },
@@ -60,10 +60,9 @@ export default async function Page() {
     import("./sections/MembershipsSection"),
   ]);
 
-  const [bookingsResult, clients, serviceOptions, staffOptions, allSubscriptions] =
+  const [bookingsResult, serviceOptions, staffOptions, allSubscriptions] =
     await Promise.all([
       getBookings(),
-      getClientsForSelect(),
       getServicesForSelect(),
       getStaffForSelect(),
       getSubscriptions("active"),
@@ -80,7 +79,6 @@ export default async function Page() {
     <BookingsPage
       initialBookings={bookingsResult.rows}
       initialHasMore={bookingsResult.hasMore}
-      clients={clients}
       serviceOptions={serviceOptions}
       staffOptions={staffOptions}
       activeSubscriptions={activeSubscriptions}

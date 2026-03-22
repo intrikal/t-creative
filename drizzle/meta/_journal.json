@@ -246,6 +246,13 @@
       "when": 1742688000000,
       "tag": "0038_client_summary_view",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1742774400000,
+      "tag": "0039_materialized_views",
+      "breakpoints": true
     }
   ]
 }

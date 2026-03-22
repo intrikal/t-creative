@@ -259,24 +259,21 @@ export async function getCategoryRevenue(): Promise<CategoryRevenue[]> {
   try {
     await getUser();
 
-    const rows = await db
-      .select({
-        category: services.category,
-        total: sql<number>`coalesce(sum(${payments.amountInCents}), 0)`,
-      })
-      .from(payments)
-      .leftJoin(bookings, eq(payments.bookingId, bookings.id))
-      .leftJoin(services, eq(bookings.serviceId, services.id))
-      .where(eq(payments.status, "paid"))
-      .groupBy(services.category)
-      .orderBy(sql`sum(${payments.amountInCents}) desc`);
+    // Reads from revenue_by_service_daily materialized view (refreshed every 4h)
+    // instead of joining payments → bookings → services on the full table scan.
+    const rows = await db.execute<{ service_category: string; total: string }>(sql`
+      SELECT service_category, sum(revenue_cents) AS total
+      FROM revenue_by_service_daily
+      GROUP BY service_category
+      ORDER BY sum(revenue_cents) DESC
+    `);
 
     const grandTotal = rows.reduce((s, r) => s + Number(r.total), 0);
 
     return rows
-      .filter((r) => r.category)
+      .filter((r) => r.service_category)
       .map((r) => ({
-        category: CATEGORY_LABELS[r.category!] ?? r.category!,
+        category: CATEGORY_LABELS[r.service_category] ?? r.service_category,
         amount: Math.round(Number(r.total) / 100),
         pct: grandTotal > 0 ? Math.round((Number(r.total) / grandTotal) * 100) : 0,
       }));
@@ -292,15 +289,13 @@ export async function getWeeklyRevenue(): Promise<DailyRevenue[]> {
 
     const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-    const rows = await db
-      .select({
-        dow: sql<number>`extract(dow from coalesce(${payments.paidAt}, ${payments.createdAt}))`,
-        total: sql<number>`coalesce(sum(${payments.amountInCents}), 0)`,
-      })
-      .from(payments)
-      .where(eq(payments.status, "paid"))
-      .groupBy(sql`extract(dow from coalesce(${payments.paidAt}, ${payments.createdAt}))`)
-      .orderBy(sql`extract(dow from coalesce(${payments.paidAt}, ${payments.createdAt}))`);
+    // dow 0=Sun … 6=Sat, sourced from revenue_by_service_daily (refreshed every 4h).
+    const rows = await db.execute<{ dow: string; total: string }>(sql`
+      SELECT extract(dow from day)::int AS dow, sum(revenue_cents) AS total
+      FROM revenue_by_service_daily
+      GROUP BY extract(dow from day)
+      ORDER BY extract(dow from day)
+    `);
 
     const byDow = new Map(rows.map((r) => [Number(r.dow), Math.round(Number(r.total) / 100)]));
     return DAY_NAMES.map((day, i) => ({
@@ -336,27 +331,27 @@ export async function getDepositStats(): Promise<DepositStats> {
           ),
         ),
       db
-      .select({
-        bookingId: bookings.id,
-        clientFirstName: depositClient.firstName,
-        clientLastName: depositClient.lastName,
-        serviceName: services.name,
-        depositRequired: services.depositInCents,
-        depositPaid: bookings.depositPaidInCents,
-        startsAt: bookings.startsAt,
-      })
-      .from(bookings)
-      .innerJoin(services, eq(bookings.serviceId, services.id))
-      .innerJoin(depositClient, eq(bookings.clientId, depositClient.id))
-      .where(
-        and(
-          sql`${services.depositInCents} > 0`,
-          sql`coalesce(${bookings.depositPaidInCents}, 0) < ${services.depositInCents}`,
-          sql`${bookings.status} in ('pending', 'confirmed')`,
-        ),
-      )
-      .orderBy(bookings.startsAt)
-      .limit(10),
+        .select({
+          bookingId: bookings.id,
+          clientFirstName: depositClient.firstName,
+          clientLastName: depositClient.lastName,
+          serviceName: services.name,
+          depositRequired: services.depositInCents,
+          depositPaid: bookings.depositPaidInCents,
+          startsAt: bookings.startsAt,
+        })
+        .from(bookings)
+        .innerJoin(services, eq(bookings.serviceId, services.id))
+        .innerJoin(depositClient, eq(bookings.clientId, depositClient.id))
+        .where(
+          and(
+            sql`${services.depositInCents} > 0`,
+            sql`coalesce(${bookings.depositPaidInCents}, 0) < ${services.depositInCents}`,
+            sql`${bookings.status} in ('pending', 'confirmed')`,
+          ),
+        )
+        .orderBy(bookings.startsAt)
+        .limit(10),
     ]);
 
     const expected = Math.round(Number(row.expectedCents) / 100);

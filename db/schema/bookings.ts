@@ -143,6 +143,11 @@ export const bookings = pgTable(
       onDelete: "set null",
     }),
 
+    /* ------ Referral tracking ------ */
+
+    /** Referral code used when this booking was created (from ?ref= cookie). */
+    referrerCode: varchar("referrer_code", { length: 50 }),
+
     /* ------ Terms of service acceptance ------ */
 
     /** When the client accepted the cancellation/TOS policy during booking. */

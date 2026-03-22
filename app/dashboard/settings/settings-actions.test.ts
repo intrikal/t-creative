@@ -388,6 +388,7 @@ describe("settings-actions", () => {
         tierPlatinum: 1500,
         birthdayDiscountPercent: 5,
         birthdayPromoExpiryDays: 7,
+        referralRewardCents: 1000,
       });
       expect(mockTrackEvent).toHaveBeenCalledWith("user-1", "loyalty_config_updated");
     });
@@ -544,14 +545,26 @@ describe("settings-actions", () => {
       mockGetUser.mockResolvedValue({ data: { user: null } });
       setupMocks();
       const { saveReminders } = await import("./settings-actions");
-      await expect(saveReminders({ items: [], fillReminderDays: 18, reviewRequestDelayHours: 24, bookingReminderHours: [24, 48] })).rejects.toThrow("Not authenticated");
+      await expect(
+        saveReminders({
+          items: [],
+          fillReminderDays: 18,
+          reviewRequestDelayHours: 24,
+          bookingReminderHours: [24, 48],
+        }),
+      ).rejects.toThrow("Not authenticated");
     });
 
     it("revalidates /dashboard/settings", async () => {
       vi.resetModules();
       setupMocks();
       const { saveReminders } = await import("./settings-actions");
-      await saveReminders({ items: [], fillReminderDays: 18, reviewRequestDelayHours: 24, bookingReminderHours: [24, 48] });
+      await saveReminders({
+        items: [],
+        fillReminderDays: 18,
+        reviewRequestDelayHours: 24,
+        bookingReminderHours: [24, 48],
+      });
       expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/settings");
     });
   });

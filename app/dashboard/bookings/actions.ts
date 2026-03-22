@@ -54,7 +54,11 @@ import * as Sentry from "@sentry/nextjs";
 import { eq, desc, ne, and, sql, inArray, isNull, gte, lte } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { z } from "zod";
-import { getPolicies, getPublicBusinessProfile } from "@/app/dashboard/settings/settings-actions";
+import {
+  getPolicies,
+  getPublicBusinessProfile,
+  getPublicLoyaltyConfig,
+} from "@/app/dashboard/settings/settings-actions";
 import { db } from "@/db";
 import {
   bookings,
@@ -65,6 +69,7 @@ import {
   payments,
   profiles,
   services,
+  referrals,
   syncLog,
   timeOff,
 } from "@/db/schema";
@@ -545,6 +550,7 @@ export async function updateBookingStatus(
     if (status === "completed") {
       await trySendBookingStatusEmail(id, "completed");
       await generateNextRecurringBooking(id);
+      await tryCreditReferrer(id);
     }
 
     if (status === "no_show") {
@@ -1484,6 +1490,81 @@ async function tryFireInternalNotification(params: {
       body: params.body ?? null,
       relatedEntityType: "booking",
       relatedEntityId: params.relatedEntityId ?? null,
+    });
+  } catch {
+    // Non-fatal
+  }
+}
+
+/**
+ * Credit the referrer when a referred client's booking is completed.
+ * Looks up the referrer by the booking's `referrerCode`, creates a
+ * `referrals` row, and sends an in-app notification.
+ */
+async function tryCreditReferrer(bookingId: number): Promise<void> {
+  try {
+    const [booking] = await db
+      .select({
+        referrerCode: bookings.referrerCode,
+        clientId: bookings.clientId,
+      })
+      .from(bookings)
+      .where(eq(bookings.id, bookingId))
+      .limit(1);
+
+    if (!booking?.referrerCode) return;
+
+    // Find the referrer by code
+    const [referrer] = await db
+      .select({ id: profiles.id, firstName: profiles.firstName })
+      .from(profiles)
+      .where(eq(profiles.referralCode, booking.referrerCode.toUpperCase()))
+      .limit(1);
+
+    if (!referrer || referrer.id === booking.clientId) return;
+
+    // Check if this referral was already credited (prevent double-award)
+    const [existing] = await db
+      .select({ id: referrals.id })
+      .from(referrals)
+      .where(
+        and(
+          eq(referrals.referrerId, referrer.id),
+          eq(referrals.referredId, booking.clientId),
+          eq(referrals.status, "completed"),
+        ),
+      )
+      .limit(1);
+
+    if (existing) return;
+
+    const loyaltyConfig = await getPublicLoyaltyConfig();
+    const rewardCents = loyaltyConfig.referralRewardCents ?? 1000;
+
+    // Create or update the referral row
+    await db.insert(referrals).values({
+      referrerId: referrer.id,
+      referredId: booking.clientId,
+      bookingId,
+      status: "completed",
+      rewardAmountInCents: rewardCents,
+    });
+
+    // Get referred client's name for the notification
+    const [referred] = await db
+      .select({ firstName: profiles.firstName })
+      .from(profiles)
+      .where(eq(profiles.id, booking.clientId))
+      .limit(1);
+
+    const referredName = referred?.firstName ?? "A friend";
+
+    await tryFireInternalNotification({
+      profileId: referrer.id,
+      type: "general",
+      title: "Referral reward earned!",
+      body: `${referredName} completed their booking — you earned a $${(rewardCents / 100).toFixed(0)} credit. Thank you for spreading the word!`,
+      relatedEntityId: bookingId,
     });
   } catch {
     // Non-fatal

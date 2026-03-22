@@ -200,6 +200,15 @@ export {
   loyaltyRedemptionsRelations,
 } from "./loyalty-rewards";
 
+/* Referrals */
+export {
+  referralStatusEnum,
+  referralCodes,
+  referrals,
+  referralCodesRelations,
+  referralsRelations,
+} from "./referrals";
+
 /* Integrations (Square + Zoho sync) */
 export {
   integrationProviderEnum,

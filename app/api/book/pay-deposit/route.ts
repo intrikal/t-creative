@@ -20,6 +20,7 @@
  * Guest-only fields (when not authenticated):
  *   name, email, phone, turnstileToken
  */
+import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { eq } from "drizzle-orm";
@@ -29,8 +30,8 @@ import { db } from "@/db";
 import { bookings, bookingAddOns, payments, profiles, services, syncLog } from "@/db/schema";
 import { logAction } from "@/lib/audit";
 import { rruleToCadenceLabel } from "@/lib/cadence";
-import { trackEvent } from "@/lib/posthog";
 import { env } from "@/lib/env";
+import { trackEvent } from "@/lib/posthog";
 import { RESEND_FROM, isResendConfigured } from "@/lib/resend";
 import { isSquareConfigured, createSquarePayment } from "@/lib/square";
 import { verifyTurnstileToken } from "@/lib/turnstile";
@@ -160,6 +161,8 @@ export async function POST(request: Request) {
 
   let bookingId: number;
   try {
+    const cookieStore = await cookies();
+    const referrerCode = cookieStore.get("referral_ref")?.value?.trim() || null;
     const [newBooking] = await db
       .insert(bookings)
       .values({
@@ -174,6 +177,7 @@ export async function POST(request: Request) {
         tosAcceptedAt: new Date(),
         tosVersion: tosVersion || null,
         clientNotes,
+        referrerCode,
       })
       .returning({ id: bookings.id });
     bookingId = newBooking.id;

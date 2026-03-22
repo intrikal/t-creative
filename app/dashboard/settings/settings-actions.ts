@@ -146,6 +146,7 @@ const DEFAULT_LOYALTY: LoyaltyConfig = {
   tierSilver: 300,
   tierGold: 700,
   tierPlatinum: 1500,
+  referralRewardCents: 1000,
 };
 
 const DEFAULT_BOOKING_RULES: BookingRulesConfig = {
@@ -424,6 +425,7 @@ const loyaltyConfigSchema = z.object({
   tierPlatinum: z.number().int().nonnegative(),
   birthdayDiscountPercent: z.number().int().min(1).max(100),
   birthdayPromoExpiryDays: z.number().int().min(1).max(365),
+  referralRewardCents: z.number().int().nonnegative(),
 });
 
 export async function saveLoyaltyConfig(data: LoyaltyConfig): Promise<ActionResult<void>> {

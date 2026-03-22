@@ -60,6 +60,8 @@ export interface LoyaltyConfig {
   birthdayDiscountPercent: number;
   /** Days until birthday promo code expires (default: 7). */
   birthdayPromoExpiryDays: number;
+  /** Cash reward credited to the referrer when a referred booking completes (cents, default 1000 = $10). */
+  referralRewardCents: number;
 }
 
 export interface NotificationPrefs {

@@ -17,8 +17,8 @@
 
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
 import type { LoyaltyConfig } from "@/lib/types/settings.types";
+import { cn } from "@/lib/utils";
 import { saveLoyaltyConfig } from "../settings-actions";
 import { FieldRow, StatefulSaveButton, NUM_INPUT_CLASS } from "./shared";
 
@@ -168,6 +168,37 @@ export function LoyaltyTab({ initial }: { initial: LoyaltyConfig }) {
                 className={NUM_INPUT_CLASS}
               />
               <span className="text-xs text-muted">days</span>
+            </div>
+          </FieldRow>
+        </CardContent>
+      </Card>
+
+      <Card className="gap-0">
+        <CardHeader className="pb-0 pt-5 px-5">
+          <CardTitle className="text-[10px] font-semibold uppercase tracking-wide text-muted">
+            Referral Reward
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="px-5 pb-5 pt-3 space-y-4">
+          <p className="text-xs text-muted">
+            Cash credit given to the referrer when a referred client&apos;s first booking is
+            completed and paid.
+          </p>
+          <FieldRow label="Reward amount">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted">$</span>
+              <input
+                type="number"
+                value={data.referralRewardCents / 100}
+                onChange={(e) => {
+                  const n = parseFloat(e.target.value);
+                  if (!isNaN(n))
+                    setData((prev) => ({ ...prev, referralRewardCents: Math.round(n * 100) }));
+                }}
+                step="0.50"
+                min="0"
+                className={NUM_INPUT_CLASS}
+              />
             </div>
           </FieldRow>
         </CardContent>

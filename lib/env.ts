@@ -29,6 +29,10 @@ const schema = z.object({
 
   // ── CAPTCHA ───────────────────────────────────────────────────────────────
   NEXT_PUBLIC_TURNSTILE_SITE_KEY: z.string().min(1),
+
+  // ── Upstash Redis (rate limiting) ─────────────────────────────────────────
+  UPSTASH_REDIS_REST_URL: z.string().url(),
+  UPSTASH_REDIS_REST_TOKEN: z.string().min(1),
 });
 
 // Validation runs at server startup and during `next dev`, but is skipped
@@ -45,12 +49,12 @@ if (typeof window === "undefined" && process.env.NEXT_PHASE !== "phase-productio
     SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
     RESEND_API_KEY: process.env.RESEND_API_KEY,
     NEXT_PUBLIC_TURNSTILE_SITE_KEY: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY,
+    UPSTASH_REDIS_REST_URL: process.env.UPSTASH_REDIS_REST_URL,
+    UPSTASH_REDIS_REST_TOKEN: process.env.UPSTASH_REDIS_REST_TOKEN,
   });
 
   if (!result.success) {
-    const lines = result.error.issues
-      .map((i) => `  ${String(i.path[0])}: ${i.message}`)
-      .join("\n");
+    const lines = result.error.issues.map((i) => `  ${String(i.path[0])}: ${i.message}`).join("\n");
     throw new Error(`Missing or invalid environment variables:\n${lines}`);
   }
 }
@@ -66,4 +70,6 @@ export const env = {
   SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY as string,
   RESEND_API_KEY: process.env.RESEND_API_KEY as string,
   NEXT_PUBLIC_TURNSTILE_SITE_KEY: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY as string,
+  UPSTASH_REDIS_REST_URL: process.env.UPSTASH_REDIS_REST_URL as string,
+  UPSTASH_REDIS_REST_TOKEN: process.env.UPSTASH_REDIS_REST_TOKEN as string,
 };

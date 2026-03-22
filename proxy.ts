@@ -34,6 +34,8 @@
  */
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import { Ratelimit } from "@upstash/ratelimit";
+import { Redis } from "@upstash/redis";
 import { env } from "@/lib/env";
 
 // ---------------------------------------------------------------------------
@@ -41,42 +43,44 @@ import { env } from "@/lib/env";
 // ---------------------------------------------------------------------------
 
 /**
- * Per-route limits for public, unauthenticated POST endpoints.
- * Key: exact pathname. Value: { limit: max requests, windowMs: window size }.
+ * Per-route limiters for public, unauthenticated POST endpoints.
+ *
+ * Each entry creates a dedicated Upstash Ratelimit instance with a sliding
+ * window algorithm. State is stored in Upstash Redis and shared across all
+ * serverless function instances — unlike the previous in-memory Map, this
+ * correctly enforces limits even when requests hit different cold-started
+ * instances.
+ *
+ * windowMs values are converted to seconds because Upstash Ratelimit uses
+ * seconds as its time unit.
  */
-const RATE_LIMITS: Record<string, { limit: number; windowMs: number }> = {
-  "/api/chat/fallback": { limit: 10, windowMs: 60_000 },
-  "/api/book/guest-request": { limit: 5, windowMs: 60_000 },
-  "/api/book/waitlist": { limit: 5, windowMs: 60_000 },
-  "/api/book/upload-reference": { limit: 20, windowMs: 60_000 },
+const redis = new Redis({
+  url: env.UPSTASH_REDIS_REST_URL,
+  token: env.UPSTASH_REDIS_REST_TOKEN,
+});
+
+const RATE_LIMITS: Record<string, Ratelimit> = {
+  "/api/chat/fallback": new Ratelimit({
+    redis,
+    limiter: Ratelimit.slidingWindow(10, "60 s"),
+    prefix: "rl:chat-fallback",
+  }),
+  "/api/book/guest-request": new Ratelimit({
+    redis,
+    limiter: Ratelimit.slidingWindow(5, "60 s"),
+    prefix: "rl:book-guest-request",
+  }),
+  "/api/book/waitlist": new Ratelimit({
+    redis,
+    limiter: Ratelimit.slidingWindow(5, "60 s"),
+    prefix: "rl:book-waitlist",
+  }),
+  "/api/book/upload-reference": new Ratelimit({
+    redis,
+    limiter: Ratelimit.slidingWindow(20, "60 s"),
+    prefix: "rl:book-upload-reference",
+  }),
 };
-
-/**
- * Module-level store: maps "ip:path" → array of request timestamps (ms).
- * Populated lazily; old entries are pruned on every write once the Map
- * exceeds 5 000 entries to prevent unbounded growth.
- */
-const rateLimitStore = new Map<string, number[]>();
-
-function isRateLimited(ip: string, pathname: string, limit: number, windowMs: number): boolean {
-  const key = `${ip}:${pathname}`;
-  const now = Date.now();
-  const windowStart = now - windowMs;
-
-  // Keep only timestamps inside the current window
-  const timestamps = (rateLimitStore.get(key) ?? []).filter((t) => t > windowStart);
-  timestamps.push(now);
-  rateLimitStore.set(key, timestamps);
-
-  // Prune stale keys to keep memory bounded
-  if (rateLimitStore.size > 5_000) {
-    for (const [k, ts] of rateLimitStore) {
-      if (ts[ts.length - 1] <= windowStart) rateLimitStore.delete(k);
-    }
-  }
-
-  return timestamps.length > limit;
-}
 
 function clientIp(request: NextRequest): string {
   return (
@@ -93,17 +97,22 @@ function clientIp(request: NextRequest): string {
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Rate-limit public POST endpoints before touching Supabase
+  // Rate-limit public POST endpoints before touching Supabase.
+  // Upstash Redis stores the sliding-window state so the limit is shared
+  // across all serverless instances — no per-instance in-memory store needed.
   if (request.method === "POST") {
-    const rule = RATE_LIMITS[pathname];
-    if (rule && isRateLimited(clientIp(request), pathname, rule.limit, rule.windowMs)) {
-      return new NextResponse(
-        JSON.stringify({ error: "Too many requests. Please try again later." }),
-        {
-          status: 429,
-          headers: { "Content-Type": "application/json" },
-        },
-      );
+    const limiter = RATE_LIMITS[pathname];
+    if (limiter) {
+      const { success } = await limiter.limit(clientIp(request));
+      if (!success) {
+        return new NextResponse(
+          JSON.stringify({ error: "Too many requests. Please try again later." }),
+          {
+            status: 429,
+            headers: { "Content-Type": "application/json" },
+          },
+        );
+      }
     }
   }
 

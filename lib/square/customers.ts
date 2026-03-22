@@ -4,6 +4,7 @@
  */
 import * as Sentry from "@sentry/nextjs";
 import { squareClient, isSquareConfigured } from "./client";
+import { withRetry } from "@/lib/retry";
 
 /**
  * Retrieves the first stored card ID for a Square customer. Returns null
@@ -13,7 +14,10 @@ export async function getSquareCardOnFile(squareCustomerId: string): Promise<str
   if (!isSquareConfigured()) return null;
 
   try {
-    const response = await squareClient.cards.list({ customerId: squareCustomerId });
+    const response = await withRetry(
+      () => squareClient.cards.list({ customerId: squareCustomerId }),
+      { label: "square.cards.list" },
+    );
     const cards = response.data ?? [];
     const enabledCard = cards.find((c) => c.enabled);
     return enabledCard?.id ?? null;
@@ -38,14 +42,17 @@ export async function createSquareCustomer(params: {
   if (!isSquareConfigured()) return null;
 
   try {
-    const response = await squareClient.customers.create({
-      idempotencyKey: `customer-${params.profileId}`,
-      givenName: params.firstName,
-      familyName: params.lastName || undefined,
-      emailAddress: params.email,
-      phoneNumber: params.phone || undefined,
-      referenceId: params.profileId,
-    });
+    const response = await withRetry(
+      () => squareClient.customers.create({
+        idempotencyKey: `customer-${params.profileId}`,
+        givenName: params.firstName,
+        familyName: params.lastName || undefined,
+        emailAddress: params.email,
+        phoneNumber: params.phone || undefined,
+        referenceId: params.profileId,
+      }),
+      { label: "square.customers.create" },
+    );
 
     return response.customer?.id ?? null;
   } catch (err) {
@@ -84,13 +91,16 @@ export async function linkSquareCustomer(params: {
     let squareCustomerId: string | null = null;
 
     try {
-      const searchResponse = await squareClient.customers.search({
-        query: {
-          filter: {
-            emailAddress: { exact: params.email },
+      const searchResponse = await withRetry(
+        () => squareClient.customers.search({
+          query: {
+            filter: {
+              emailAddress: { exact: params.email },
+            },
           },
-        },
-      });
+        }),
+        { label: "square.customers.search" },
+      );
       squareCustomerId = searchResponse.customers?.[0]?.id ?? null;
     } catch {
       // Search failed — will create a new customer below

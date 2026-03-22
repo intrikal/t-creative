@@ -4,6 +4,7 @@
  */
 import * as Sentry from "@sentry/nextjs";
 import { squareClient, SQUARE_LOCATION_ID, isSquareConfigured } from "./client";
+import { withRetry } from "@/lib/retry";
 
 /** Maps cycleIntervalDays to a Square subscription cadence. */
 function mapCadence(
@@ -33,31 +34,34 @@ export async function createSquareSubscriptionPlan(params: {
   try {
     const cadence = mapCadence(params.cycleIntervalDays);
 
-    const response = await squareClient.catalog.batchUpsert({
-      idempotencyKey: `sub-plan-${params.localPlanId}`,
-      batches: [
-        {
-          objects: [
-            {
-              type: "SUBSCRIPTION_PLAN",
-              id: `#sub-plan-${params.localPlanId}`,
-              subscriptionPlanData: {
-                name: params.name,
-                phases: [
-                  {
-                    cadence,
-                    recurringPriceMoney: {
-                      amount: BigInt(params.priceInCents),
-                      currency: "USD",
+    const response = await withRetry(
+      () => squareClient.catalog.batchUpsert({
+        idempotencyKey: `sub-plan-${params.localPlanId}`,
+        batches: [
+          {
+            objects: [
+              {
+                type: "SUBSCRIPTION_PLAN",
+                id: `#sub-plan-${params.localPlanId}`,
+                subscriptionPlanData: {
+                  name: params.name,
+                  phases: [
+                    {
+                      cadence,
+                      recurringPriceMoney: {
+                        amount: BigInt(params.priceInCents),
+                        currency: "USD",
+                      },
                     },
-                  },
-                ],
+                  ],
+                },
               },
-            },
-          ],
-        },
-      ],
-    });
+            ],
+          },
+        ],
+      }),
+      { label: "square.catalog.batchUpsert(subscription-plan)" },
+    );
 
     const mapping = response.idMappings?.[0];
     const catalogObjectId = mapping?.objectId ?? null;
@@ -87,14 +91,17 @@ export async function createSquareSubscription(params: {
   if (!isSquareConfigured()) return null;
 
   try {
-    const response = await squareClient.subscriptions.create({
-      idempotencyKey: `sub-${params.localSubscriptionId}`,
-      locationId: SQUARE_LOCATION_ID,
-      customerId: params.squareCustomerId,
-      planVariationId: params.planVariationId,
-      cardId: params.cardId,
-      startDate: params.startDate,
-    });
+    const response = await withRetry(
+      () => squareClient.subscriptions.create({
+        idempotencyKey: `sub-${params.localSubscriptionId}`,
+        locationId: SQUARE_LOCATION_ID,
+        customerId: params.squareCustomerId,
+        planVariationId: params.planVariationId,
+        cardId: params.cardId,
+        startDate: params.startDate,
+      }),
+      { label: "square.subscriptions.create" },
+    );
 
     return response.subscription?.id ?? null;
   } catch (err) {
@@ -108,7 +115,10 @@ export async function cancelSquareSubscription(subscriptionId: string): Promise<
   if (!isSquareConfigured()) return false;
 
   try {
-    await squareClient.subscriptions.cancel({ subscriptionId });
+    await withRetry(
+      () => squareClient.subscriptions.cancel({ subscriptionId }),
+      { label: "square.subscriptions.cancel" },
+    );
     return true;
   } catch (err) {
     Sentry.captureException(err);
@@ -121,10 +131,13 @@ export async function pauseSquareSubscription(subscriptionId: string): Promise<b
   if (!isSquareConfigured()) return false;
 
   try {
-    await squareClient.subscriptions.pause({
-      subscriptionId,
-      pauseReason: "Paused by admin",
-    });
+    await withRetry(
+      () => squareClient.subscriptions.pause({
+        subscriptionId,
+        pauseReason: "Paused by admin",
+      }),
+      { label: "square.subscriptions.pause" },
+    );
     return true;
   } catch (err) {
     Sentry.captureException(err);
@@ -137,7 +150,10 @@ export async function resumeSquareSubscription(subscriptionId: string): Promise<
   if (!isSquareConfigured()) return false;
 
   try {
-    await squareClient.subscriptions.resume({ subscriptionId });
+    await withRetry(
+      () => squareClient.subscriptions.resume({ subscriptionId }),
+      { label: "square.subscriptions.resume" },
+    );
     return true;
   } catch (err) {
     Sentry.captureException(err);
@@ -152,7 +168,10 @@ export async function getSquareSubscriptionStatus(
   if (!isSquareConfigured()) return null;
 
   try {
-    const response = await squareClient.subscriptions.get({ subscriptionId });
+    const response = await withRetry(
+      () => squareClient.subscriptions.get({ subscriptionId }),
+      { label: "square.subscriptions.get" },
+    );
     const sub = response.subscription;
     if (!sub) return null;
 

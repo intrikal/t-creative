@@ -239,6 +239,13 @@
       "when": 1742601600000,
       "tag": "0037_updated_at_triggers",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1742688000000,
+      "tag": "0038_client_summary_view",
+      "breakpoints": true
     }
   ]
 }

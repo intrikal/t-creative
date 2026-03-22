@@ -32,8 +32,14 @@ import { db } from "@/db";
 import { bookings, services } from "@/db/schema";
 import { logAction } from "@/lib/audit";
 import { requireAdmin } from "@/lib/auth";
-import type { ServiceRow, ServiceInput, AssistantServiceRow, AssistantServiceStats } from "@/lib/types/services.types";
 import { trackEvent } from "@/lib/posthog";
+import { upsertCatalogItem, isSquareConfigured } from "@/lib/square";
+import type {
+  ServiceRow,
+  ServiceInput,
+  AssistantServiceRow,
+  AssistantServiceStats,
+} from "@/lib/types/services.types";
 
 /* ------------------------------------------------------------------ */
 /*  Full service catalog — Trini's real menu                          */
@@ -419,7 +425,7 @@ export async function createService(input: ServiceInput): Promise<ServiceRow> {
   try {
     serviceInputSchema.parse(input);
     const user = await getUser();
-    const [row] = await db
+    let [row] = await db
       .insert(services)
       .values({
         name: input.name,
@@ -432,6 +438,24 @@ export async function createService(input: ServiceInput): Promise<ServiceRow> {
       })
       .returning();
     trackEvent(user.id, "service_created", { name: input.name, category: input.category });
+
+    // Push to Square Catalog so the terminal always shows current pricing.
+    // Non-fatal — Square being unavailable must not block the local create.
+    if (isSquareConfigured() && input.priceInCents > 0) {
+      try {
+        const squareCatalogId = await upsertCatalogItem({
+          type: "service",
+          localId: row.id,
+          name: input.name,
+          description: input.description || null,
+          priceInCents: input.priceInCents,
+        });
+        await db.update(services).set({ squareCatalogId }).where(eq(services.id, row.id));
+        row = { ...row, squareCatalogId } as ServiceRow;
+      } catch {
+        // Logged by upsertCatalogItem via Sentry — don't rethrow
+      }
+    }
 
     await logAction({
       actorId: user.id,
@@ -472,6 +496,25 @@ export async function updateService(id: number, input: ServiceInput): Promise<Se
       .where(eq(services.id, id))
       .returning();
     trackEvent(user.id, "service_updated", { serviceId: id, name: input.name });
+
+    // Sync updated name/price to Square Catalog (non-fatal).
+    if (isSquareConfigured() && input.priceInCents > 0) {
+      try {
+        const squareCatalogId = await upsertCatalogItem({
+          type: "service",
+          localId: id,
+          name: input.name,
+          description: input.description || null,
+          priceInCents: input.priceInCents,
+          existingSquareCatalogId: row.squareCatalogId,
+        });
+        if (!row.squareCatalogId) {
+          await db.update(services).set({ squareCatalogId }).where(eq(services.id, id));
+        }
+      } catch {
+        // Logged by upsertCatalogItem via Sentry — don't rethrow
+      }
+    }
 
     await logAction({
       actorId: user.id,

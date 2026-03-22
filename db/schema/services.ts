@@ -54,6 +54,9 @@ export const services = pgTable(
 
     isActive: boolean("is_active").notNull().default(true),
 
+    /** Square Catalog Object ID — set after first push to Square Catalog API. */
+    squareCatalogId: varchar("square_catalog_id", { length: 100 }),
+
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
@@ -63,6 +66,7 @@ export const services = pgTable(
   (t) => [
     index("services_category_idx").on(t.category),
     index("services_active_sort_idx").on(t.isActive, t.sortOrder),
+    index("services_square_id_idx").on(t.squareCatalogId),
   ],
 );
 

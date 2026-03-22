@@ -24,6 +24,7 @@ import { CommissionQuote } from "@/emails/CommissionQuote";
 import { OrderStatusUpdate } from "@/emails/OrderStatusUpdate";
 import { requireAdmin } from "@/lib/auth";
 import { sendEmail, getEmailRecipient } from "@/lib/resend";
+import { upsertCatalogItem, isSquareConfigured } from "@/lib/square";
 
 const PATH = "/dashboard/marketplace";
 
@@ -376,28 +377,49 @@ export async function createProduct(form: ProductFormData) {
       | "price_range"
       | "contact_for_quote";
 
-    await db.insert(products).values({
-      title: form.name,
-      slug: slugify(form.name),
-      description: form.description || null,
-      productType: form.stock !== undefined ? "ready_made" : "custom_order",
-      category: form.category,
-      pricingType: dbPricing,
-      priceInCents: form.pricingType === "range" ? null : Math.round(form.price * 100),
-      priceMinInCents: form.pricingType === "range" ? Math.round(form.price * 100) : null,
-      priceMaxInCents:
-        form.pricingType === "range" && form.priceMax ? Math.round(form.priceMax * 100) : null,
-      stockCount: form.stock ?? 0,
-      availability:
-        form.status === "out_of_stock"
-          ? "out_of_stock"
-          : form.stock !== undefined
-            ? "in_stock"
-            : "made_to_order",
-      isPublished: form.status !== "inactive",
-      tags: form.tags || null,
-      serviceId: form.serviceId ?? null,
-    });
+    const priceInCents = form.pricingType === "range" ? null : Math.round(form.price * 100);
+
+    const [newProduct] = await db
+      .insert(products)
+      .values({
+        title: form.name,
+        slug: slugify(form.name),
+        description: form.description || null,
+        productType: form.stock !== undefined ? "ready_made" : "custom_order",
+        category: form.category,
+        pricingType: dbPricing,
+        priceInCents,
+        priceMinInCents: form.pricingType === "range" ? Math.round(form.price * 100) : null,
+        priceMaxInCents:
+          form.pricingType === "range" && form.priceMax ? Math.round(form.priceMax * 100) : null,
+        stockCount: form.stock ?? 0,
+        availability:
+          form.status === "out_of_stock"
+            ? "out_of_stock"
+            : form.stock !== undefined
+              ? "in_stock"
+              : "made_to_order",
+        isPublished: form.status !== "inactive",
+        tags: form.tags || null,
+        serviceId: form.serviceId ?? null,
+      })
+      .returning({ id: products.id });
+
+    // Push to Square Catalog (non-fatal).
+    if (isSquareConfigured() && priceInCents != null && priceInCents > 0) {
+      try {
+        const squareCatalogId = await upsertCatalogItem({
+          type: "product",
+          localId: newProduct.id,
+          name: form.name,
+          description: form.description || null,
+          priceInCents,
+        });
+        await db.update(products).set({ squareCatalogId }).where(eq(products.id, newProduct.id));
+      } catch {
+        // Logged by upsertCatalogItem via Sentry — don't rethrow
+      }
+    }
 
     revalidatePath(PATH);
   } catch (err) {
@@ -419,14 +441,16 @@ export async function updateProduct(id: number, form: ProductFormData) {
       | "price_range"
       | "contact_for_quote";
 
-    await db
+    const priceInCents = form.pricingType === "range" ? null : Math.round(form.price * 100);
+
+    const [updated] = await db
       .update(products)
       .set({
         title: form.name,
         description: form.description || null,
         category: form.category,
         pricingType: dbPricing,
-        priceInCents: form.pricingType === "range" ? null : Math.round(form.price * 100),
+        priceInCents,
         priceMinInCents: form.pricingType === "range" ? Math.round(form.price * 100) : null,
         priceMaxInCents:
           form.pricingType === "range" && form.priceMax ? Math.round(form.priceMax * 100) : null,
@@ -442,7 +466,27 @@ export async function updateProduct(id: number, form: ProductFormData) {
         serviceId: form.serviceId ?? null,
         updatedAt: new Date(),
       })
-      .where(eq(products.id, id));
+      .where(eq(products.id, id))
+      .returning({ squareCatalogId: products.squareCatalogId });
+
+    // Sync updated name/price to Square Catalog (non-fatal).
+    if (isSquareConfigured() && priceInCents != null && priceInCents > 0) {
+      try {
+        const squareCatalogId = await upsertCatalogItem({
+          type: "product",
+          localId: id,
+          name: form.name,
+          description: form.description || null,
+          priceInCents,
+          existingSquareCatalogId: updated?.squareCatalogId,
+        });
+        if (!updated?.squareCatalogId) {
+          await db.update(products).set({ squareCatalogId }).where(eq(products.id, id));
+        }
+      } catch {
+        // Logged by upsertCatalogItem via Sentry — don't rethrow
+      }
+    }
 
     revalidatePath(PATH);
   } catch (err) {

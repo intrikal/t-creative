@@ -40,8 +40,8 @@ import { z } from "zod";
 import { db } from "@/db";
 import { profiles, bookings, services, loyaltyTransactions, clientPreferences } from "@/db/schema";
 import { logAction } from "@/lib/audit";
-import { trackEvent } from "@/lib/posthog";
 import { getUser } from "@/lib/auth";
+import { trackEvent } from "@/lib/posthog";
 import type {
   ClientSource,
   LifecycleStage,
@@ -84,6 +84,12 @@ const DEFAULT_CLIENTS_LIMIT = 100;
  * and referral metadata. Called by the admin Clients table on mount and on
  * scroll (infinite pagination via offset).
  *
+ * The four aggregates (total_bookings, last_visit, lifetime_spend,
+ * loyalty_balance) are read from the `client_summary` view, which pre-joins
+ * bookings, payments, and loyalty_transactions. This replaces three separate
+ * subquery joins with a single view scan and uses actual paid payment amounts
+ * (rather than quoted booking prices) for lifetime spend.
+ *
  * Uses limit + 1 to detect whether a next page exists without a separate COUNT.
  */
 export async function getClients(opts?: {
@@ -97,28 +103,6 @@ export async function getClients(opts?: {
     const offset = opts?.offset ?? 0;
 
     const referrer = alias(profiles, "referrer");
-
-    // Subquery: aggregate all-time booking stats per client (intentionally unscoped by date)
-    const bookingStats = db
-      .select({
-        clientId: bookings.clientId,
-        totalBookings: sql<number>`count(*)`.as("total_bookings"),
-        totalSpent: sql<number>`coalesce(sum(${bookings.totalInCents}), 0)`.as("total_spent"),
-        lastVisit: sql<Date | null>`max(${bookings.startsAt})`.as("last_visit"),
-      })
-      .from(bookings)
-      .groupBy(bookings.clientId)
-      .as("booking_stats");
-
-    // Subquery: aggregate loyalty points per client
-    const loyaltyStats = db
-      .select({
-        profileId: loyaltyTransactions.profileId,
-        points: sql<number>`coalesce(sum(${loyaltyTransactions.points}), 0)`.as("loyalty_points"),
-      })
-      .from(loyaltyTransactions)
-      .groupBy(loyaltyTransactions.profileId)
-      .as("loyalty_stats");
 
     // Subquery: count how many clients each person has referred
     const referee = alias(profiles, "referee");
@@ -146,16 +130,15 @@ export async function getClients(opts?: {
         referredByName: referrer.firstName,
         referralCount: referralStats.referralCount,
         createdAt: profiles.createdAt,
-        totalBookings: bookingStats.totalBookings,
-        totalSpent: bookingStats.totalSpent,
-        lastVisit: bookingStats.lastVisit,
-        loyaltyPoints: loyaltyStats.points,
+        totalBookings: sql<number>`cs.total_bookings`,
+        totalSpent: sql<number>`cs.lifetime_spend`,
+        lastVisit: sql<Date | null>`cs.last_visit`,
+        loyaltyPoints: sql<number>`cs.loyalty_balance`,
       })
       .from(profiles)
+      .innerJoin(sql`client_summary cs`, sql`cs.id = ${profiles.id}`)
       .where(and(eq(profiles.role, "client"), eq(profiles.isActive, true)))
       .leftJoin(referrer, eq(profiles.referredBy, referrer.id))
-      .leftJoin(bookingStats, eq(profiles.id, bookingStats.clientId))
-      .leftJoin(loyaltyStats, eq(profiles.id, loyaltyStats.profileId))
       .leftJoin(referralStats, eq(profiles.id, referralStats.referrerId))
       .orderBy(desc(profiles.createdAt))
       .limit(limit + 1)

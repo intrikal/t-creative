@@ -11,7 +11,7 @@ import { BookOpen, CheckCircle2, ChevronDown, ChevronUp } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { toggleLessonCompletion } from "../actions";
-import type { ClientEnrollment, ClientLessonModule } from "../client-actions";
+import type { ClientEnrollment, ClientLessonModule } from "@/lib/types/training.types";
 import { PROG_STYLE } from "./client-helpers";
 
 export function LessonProgressCard({ enrollment }: { enrollment: ClientEnrollment }) {

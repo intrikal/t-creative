@@ -32,40 +32,9 @@ import { createClient } from "@/utils/supabase/server";
 /*  Types                                                              */
 /* ------------------------------------------------------------------ */
 
-export type CommissionCategory = "crochet" | "3d_printing";
+import type { CommissionCategory, SubmitCommissionInput, ClientCommission } from "@/lib/types/commission.types";
 
-export type SubmitCommissionInput = {
-  category: CommissionCategory;
-  title: string;
-  description: string;
-  quantity: number;
-  metadata?: {
-    colors?: string;
-    size?: string;
-    material?: string;
-    deadline?: string;
-    budgetRange?: string;
-    referenceNotes?: string;
-    /** Public URLs of uploaded reference images. */
-    referenceUrls?: string[];
-    /** Public URLs of uploaded 3D design files (.stl, .obj, .3mf, etc.). */
-    designUrls?: string[];
-  };
-};
-
-export type ClientCommission = {
-  id: number;
-  orderNumber: string;
-  category: string | null;
-  title: string;
-  description: string | null;
-  quantity: number;
-  status: string;
-  quotedInCents: number | null;
-  estimatedCompletionAt: string | null;
-  metadata: Record<string, unknown> | null;
-  createdAt: string;
-};
+export type { CommissionCategory, SubmitCommissionInput, ClientCommission } from "@/lib/types/commission.types";
 
 /* ------------------------------------------------------------------ */
 /*  Queries                                                            */

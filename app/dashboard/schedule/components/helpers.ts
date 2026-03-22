@@ -7,7 +7,7 @@
  * status badge config, and navigation helpers used by the view switcher.
  */
 
-import type { AppointmentRow, BookingStatus, ServiceCategory } from "../actions";
+import type { AppointmentRow, BookingStatus, ServiceCategory } from "@/lib/types/booking.types";
 
 /* ------------------------------------------------------------------ */
 /*  Date helpers                                                       */

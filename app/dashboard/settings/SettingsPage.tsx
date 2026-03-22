@@ -51,9 +51,11 @@ import { DataDeletionLogTab } from "./components/DataDeletionLogTab";
 import { WebsiteContentTab } from "./components/WebsiteContentTab";
 import type { LegalDocEntry } from "../legal/actions";
 import { LegalDocumentsPage } from "../legal/LegalDocumentsPage";
-import type { BusinessHourRow, LunchBreak, TimeOffRow } from "./hours-actions";
-import type { ServiceCategoryRow } from "./service-categories-actions";
 import type {
+  BusinessHourRow,
+  LunchBreak,
+  TimeOffRow,
+  ServiceCategoryRow,
   BookingRulesConfig,
   BusinessProfile,
   CcpaDeletionEntry,
@@ -65,8 +67,8 @@ import type {
   InventoryConfig,
   RevenueGoal,
   SiteContent,
-  SquareConnectionStatus,
-} from "./settings-actions";
+} from "@/lib/types/settings.types";
+import type { SquareConnectionStatus } from "./settings-actions";
 
 /* ------------------------------------------------------------------ */
 /*  Tab config                                                         */

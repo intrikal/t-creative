@@ -13,50 +13,13 @@ import { eq, and, gte, lte, asc, count, not, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { bookings, services, profiles, events, eventGuests } from "@/db/schema";
 import { getUser } from "@/lib/auth";
+import type { BookingStatus, ServiceCategory, AppointmentRow, ScheduleStats } from "@/lib/types/booking.types";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
 /* ------------------------------------------------------------------ */
 
-export type BookingStatus =
-  | "completed"
-  | "in_progress"
-  | "confirmed"
-  | "pending"
-  | "cancelled"
-  | "no_show";
-export type ServiceCategory = "lash" | "jewelry" | "crochet" | "consulting";
-
-export type AppointmentRow = {
-  id: number;
-  date: string;
-  dayLabel: string;
-  time: string;
-  startTime24: string;
-  endTime: string;
-  service: string;
-  category: ServiceCategory;
-  client: string;
-  clientInitials: string;
-  status: BookingStatus;
-  durationMin: number;
-  price: number;
-  location?: string;
-  notes?: string;
-  /** Set for corporate events assigned to this assistant. */
-  companyName?: string;
-  /** Guest count for events assigned to this assistant. */
-  guestCount?: number;
-  /** Distinguishes regular bookings from assigned events. */
-  kind?: "booking" | "event";
-};
-
-export type ScheduleStats = {
-  todayCount: number;
-  todayRevenue: number;
-  weekCount: number;
-  weekRevenue: number;
-};
+export type { BookingStatus, ServiceCategory, AppointmentRow, ScheduleStats } from "@/lib/types/booking.types";
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */

@@ -42,78 +42,39 @@ import { profiles, bookings, services, loyaltyTransactions, clientPreferences } 
 import { logAction } from "@/lib/audit";
 import { trackEvent } from "@/lib/posthog";
 import { getUser } from "@/lib/auth";
+import type {
+  ClientSource,
+  LifecycleStage,
+  ClientRow,
+  ClientInput,
+  LoyaltyRow,
+  PaginatedClients,
+  ClientPreferencesRow,
+  ClientPreferencesInput,
+  AssistantClientRow,
+  AssistantClientStats,
+} from "@/lib/types/client.types";
 
 /* ------------------------------------------------------------------ */
-/*  Types — shared by admin client list and modal forms                */
+/*  Types — re-exported from lib/types/client.types                   */
 /* ------------------------------------------------------------------ */
 
-export type ClientSource =
-  | "instagram"
-  | "tiktok"
-  | "pinterest"
-  | "word_of_mouth"
-  | "google_search"
-  | "referral"
-  | "website_direct"
-  | "event";
-
-export type LifecycleStage = "prospect" | "active" | "at_risk" | "lapsed" | "churned";
-
-/**
- * Composite row returned by `getClients` — combines profile columns with
- * aggregated booking stats, loyalty points, and referral counts so the
- * clients table can render everything without secondary fetches.
- */
-export type ClientRow = {
-  id: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  phone: string | null;
-  source: ClientSource | null;
-  isVip: boolean;
-  lifecycleStage: LifecycleStage | null;
-  internalNotes: string | null;
-  tags: string | null;
-  referredByName: string | null;
-  referralCount: number;
-  createdAt: Date;
-  totalBookings: number;
-  totalSpent: number;
-  lastVisit: Date | null;
-  loyaltyPoints: number;
-};
-
-/** Fields accepted by createClient / updateClient — mirrors the client modal form. */
-export type ClientInput = {
-  firstName: string;
-  lastName: string;
-  email: string;
-  phone?: string;
-  source?: ClientSource;
-  isVip: boolean;
-  lifecycleStage?: LifecycleStage | null;
-  internalNotes?: string;
-  tags?: string;
-};
-
-/** Row shape for the Loyalty leaderboard tab — aggregated per client. */
-export type LoyaltyRow = {
-  id: string;
-  firstName: string;
-  lastName: string;
-  points: number;
-  lastActivity: Date | null;
-};
+export type {
+  ClientSource,
+  LifecycleStage,
+  ClientRow,
+  ClientInput,
+  LoyaltyRow,
+  PaginatedClients,
+  ClientPreferencesRow,
+  ClientPreferencesInput,
+  AssistantClientRow,
+  AssistantClientStats,
+} from "@/lib/types/client.types";
 
 /* ------------------------------------------------------------------ */
 /*  Queries — admin client list + loyalty leaderboard                  */
 /* ------------------------------------------------------------------ */
-
-export type PaginatedClients = {
-  rows: ClientRow[];
-  hasMore: boolean;
-};
 
 /** Page size for the clients table. 100 keeps the initial payload under ~50 KB. */
 const DEFAULT_CLIENTS_LIMIT = 100;
@@ -481,43 +442,6 @@ export async function issueLoyaltyReward(
  * Separated from the main profile because these are service-domain data
  * (curl types, adhesive sensitivity) rather than CRM contact data.
  */
-export type ClientPreferencesRow = {
-  profileId: string;
-  preferredLashStyle: string | null;
-  preferredCurlType: string | null;
-  preferredLengths: string | null;
-  preferredDiameter: string | null;
-  naturalLashNotes: string | null;
-  retentionProfile: string | null;
-  allergies: string | null;
-  skinType: string | null;
-  adhesiveSensitivity: boolean;
-  healthNotes: string | null;
-  birthday: string | null;
-  preferredContactMethod: string | null;
-  preferredServiceTypes: string | null;
-  generalNotes: string | null;
-  preferredRebookIntervalDays: number | null;
-};
-
-export type ClientPreferencesInput = {
-  profileId: string;
-  preferredLashStyle?: string;
-  preferredCurlType?: string;
-  preferredLengths?: string;
-  preferredDiameter?: string;
-  naturalLashNotes?: string;
-  retentionProfile?: string;
-  allergies?: string;
-  skinType?: string;
-  adhesiveSensitivity?: boolean;
-  healthNotes?: string;
-  birthday?: string;
-  preferredContactMethod?: string;
-  preferredServiceTypes?: string;
-  generalNotes?: string;
-  preferredRebookIntervalDays?: number;
-};
 
 /**
  * Fetch the beauty/health preferences for a single client.
@@ -621,27 +545,6 @@ export async function upsertClientPreferences(input: ClientPreferencesInput): Pr
  * from bookings rather than the full profiles table.
  * Name is privacy-truncated ("Sarah L.") since assistants don't need full names.
  */
-export type AssistantClientRow = {
-  id: string;
-  name: string;
-  initials: string;
-  phone: string | null;
-  email: string;
-  lastService: string | null;
-  lastServiceDate: string | null;
-  categories: string[];
-  totalVisits: number;
-  totalSpent: number;
-  vip: boolean;
-  notes: string | null;
-  nextAppointment: string | null;
-};
-
-export type AssistantClientStats = {
-  totalClients: number;
-  vipClients: number;
-  totalRevenue: number;
-};
 
 /** Avatar fallback — "SL" for "Sarah Lee", "?" if both names are empty. */
 function getInitials(first: string, last: string): string {

@@ -12,7 +12,7 @@
 import { Clock, ChevronDown, ChevronUp, MapPin, Plus, Star } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import type { ClientBookingRow } from "../client-actions";
+import type { ClientBookingRow } from "@/lib/types/booking.types";
 import { statusConfig, CAT_DOT } from "./client-helpers";
 
 function hoursUntilBooking(startsAtISO: string): number {

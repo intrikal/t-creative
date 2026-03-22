@@ -5,11 +5,8 @@
 import { useRef, useState, useTransition } from "react";
 import Image from "next/image";
 import { CheckCircle2, X, FileBox, Paperclip } from "lucide-react";
-import {
-  submitCommissionRequest,
-  uploadCommissionFile,
-  type CommissionCategory,
-} from "@/app/dashboard/commissions/actions";
+import { submitCommissionRequest, uploadCommissionFile } from "@/app/dashboard/commissions/actions";
+import type { CommissionCategory } from "@/lib/types/commission.types";
 import { Dialog } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { CAT_CONFIG } from "./commissions-helpers";

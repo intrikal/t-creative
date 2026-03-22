@@ -8,7 +8,7 @@
 import { useState } from "react";
 import Image from "next/image";
 import { Star, Eye, EyeOff, ImagePlus, Trash2, MoreHorizontal } from "lucide-react";
-import type { MediaRow } from "@/app/dashboard/media/actions";
+import type { MediaRow } from "@/lib/types/media.types";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";

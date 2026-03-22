@@ -4,7 +4,7 @@ import { useState, useCallback } from "react";
 import { ChevronLeft, ChevronRight, List, CalendarDays, CalendarRange, Clock } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import type { AppointmentRow, ScheduleStats } from "./actions";
+import type { AppointmentRow, ScheduleStats } from "@/lib/types/booking.types";
 import { AgendaView } from "./components/AgendaView";
 import { ApptDetailDialog } from "./components/ApptDetailDialog";
 import { type View, fmtDate, navigate, periodLabel, CATEGORY_COLORS } from "./components/helpers";

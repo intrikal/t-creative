@@ -11,51 +11,26 @@ import { desc, eq, inArray, sql, and, gte, isNotNull } from "drizzle-orm";
 import { db } from "@/db";
 import { bookings, payments, services, profiles } from "@/db/schema";
 import { getUser, rangeToInterval, weekLabel } from "./_shared";
-import type { Range } from "./_shared";
+import type {
+  Range,
+  RetentionWeek,
+  AtRiskClient,
+  ClientSourceItem,
+  ClientLifetimeValue,
+  VisitFrequencyBucket,
+  RebookRate,
+  CancellationReasonItem,
+} from "@/lib/types/analytics.types";
 
-export type RetentionWeek = {
-  week: string;
-  newClients: number;
-  returning: number;
-};
-
-export type AtRiskClient = {
-  name: string;
-  lastVisit: string;
-  daysSince: number;
-  service: string;
-  urgency: "high" | "medium" | "low";
-};
-
-export type ClientSourceItem = {
-  source: string;
-  count: number;
-  pct: number;
-};
-
-export type ClientLifetimeValue = {
-  clientId: string;
-  name: string;
-  totalSpend: number;
-  transactionCount: number;
-};
-
-export type VisitFrequencyBucket = {
-  label: string;
-  clients: number;
-  pct: number;
-};
-
-export type RebookRate = {
-  service: string;
-  rate: number;
-};
-
-export type CancellationReasonItem = {
-  reason: string;
-  count: number;
-  pct: number;
-};
+export type {
+  RetentionWeek,
+  AtRiskClient,
+  ClientSourceItem,
+  ClientLifetimeValue,
+  VisitFrequencyBucket,
+  RebookRate,
+  CancellationReasonItem,
+} from "@/lib/types/analytics.types";
 
 export async function getRetentionTrend(range: Range = "30d"): Promise<RetentionWeek[]> {
   try {

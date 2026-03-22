@@ -15,7 +15,7 @@
 
 import { useState } from "react";
 import { Dialog, Field, Input, Textarea, Select, DialogFooter } from "@/components/ui/dialog";
-import type { ProgramRow, ProgramType, ProgramFormData } from "../actions";
+import type { ProgramRow, ProgramType, ProgramFormData } from "@/lib/types/training.types";
 
 export function ProgramDialog({
   open,

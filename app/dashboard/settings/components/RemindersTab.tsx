@@ -12,7 +12,7 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useTimeoutFlag } from "@/lib/hooks/use-timeout-flag";
 import { cn } from "@/lib/utils";
-import type { RemindersConfig } from "../settings-actions";
+import type { RemindersConfig } from "@/lib/types/settings.types";
 import { saveReminders } from "../settings-actions";
 import { Toggle, FieldRow, StatefulSaveButton, NUM_INPUT_CLASS } from "./shared";
 

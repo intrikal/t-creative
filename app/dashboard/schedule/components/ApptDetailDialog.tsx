@@ -9,7 +9,7 @@
 
 import { Building2, Clock, MapPin, Users } from "lucide-react";
 import { Dialog } from "@/components/ui/dialog";
-import type { AppointmentRow } from "../actions";
+import type { AppointmentRow } from "@/lib/types/booking.types";
 import { parseDate, fmt12, DAY_NAMES_SHORT, MONTH_NAMES, CATEGORY_COLORS } from "./helpers";
 
 const CATEGORY_LABELS: Record<string, string> = {

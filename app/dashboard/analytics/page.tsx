@@ -18,7 +18,7 @@ import { RevenueSectionWrapper } from "./sections/RevenueSectionWrapper";
 import { StaffSection } from "./sections/StaffSection";
 import { VisitFrequencySectionWrapper } from "./sections/VisitFrequencySectionWrapper";
 import { WaitlistConversionSectionWrapper } from "./sections/WaitlistConversionSectionWrapper";
-import type { Range } from "./actions";
+import type { Range } from "@/lib/types/analytics.types";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {

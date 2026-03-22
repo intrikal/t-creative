@@ -18,7 +18,7 @@ import { Trash2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { useTimeoutFlag } from "@/lib/hooks/use-timeout-flag";
 import { cn } from "@/lib/utils";
-import type { BusinessProfile, FinancialConfig, RevenueGoal } from "../settings-actions";
+import type { BusinessProfile, FinancialConfig, RevenueGoal } from "@/lib/types/settings.types";
 import { saveBusinessProfile, saveFinancialConfig, saveRevenueGoals } from "../settings-actions";
 import { FieldRow, StatefulSaveButton, INPUT_CLASS } from "./shared";
 

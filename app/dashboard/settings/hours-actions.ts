@@ -29,48 +29,13 @@ import { z } from "zod";
 import { db } from "@/db";
 import { businessHours, timeOff, settings } from "@/db/schema";
 import { requireAdmin } from "@/lib/auth";
+import type { BusinessHourRow, TimeOffRow, LunchBreak, HourInput, TimeOffInput } from "@/lib/types/settings.types";
 
 /* ------------------------------------------------------------------ */
 /*  Exported types                                                     */
 /* ------------------------------------------------------------------ */
 
-export type BusinessHourRow = typeof businessHours.$inferSelect;
-export type TimeOffRow = typeof timeOff.$inferSelect;
-
-/** Shape stored in the `settings` table under key `"lunch_break"`. */
-export interface LunchBreak {
-  /** Whether the lunch break window is active. */
-  enabled: boolean;
-  /** Start of the blocked window in "HH:MM" 24-hour format. */
-  start: string;
-  /** End of the blocked window in "HH:MM" 24-hour format. */
-  end: string;
-}
-
-/**
- * Input shape for `saveBusinessHours`.
- * Mirrors `businessHours.$inferInsert` without `staffId` (always null for studio-wide).
- */
-export interface HourInput {
-  /** ISO day of week: 1 (Monday) through 7 (Sunday). */
-  dayOfWeek: number;
-  isOpen: boolean;
-  /** "HH:MM" 24-hour format, or null when closed. */
-  opensAt: string | null;
-  /** "HH:MM" 24-hour format, or null when closed. */
-  closesAt: string | null;
-}
-
-/** Input shape for `addTimeOff`. */
-export interface TimeOffInput {
-  type: "day_off" | "vacation";
-  /** "YYYY-MM-DD" — inclusive start date. */
-  startDate: string;
-  /** "YYYY-MM-DD" — inclusive end date. Same as startDate for single days. */
-  endDate: string;
-  /** Optional human-readable label (e.g. "Hawaii trip"). */
-  label?: string;
-}
+export type { BusinessHourRow, TimeOffRow, LunchBreak, HourInput, TimeOffInput } from "@/lib/types/settings.types";
 
 /* ------------------------------------------------------------------ */
 /*  Auth helper                                                        */

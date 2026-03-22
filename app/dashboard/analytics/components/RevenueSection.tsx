@@ -11,7 +11,7 @@
 
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { WeeklyRevenue } from "../actions";
+import type { WeeklyRevenue } from "@/lib/types/analytics.types";
 
 function GoalArc({ actual, goal }: { actual: number; goal: number }) {
   const pct = Math.min(actual / goal, 1);

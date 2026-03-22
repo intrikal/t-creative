@@ -22,7 +22,7 @@
  *   SOURCE_FILTERS           — chip labels for the source filter bar
  *   CLIENTS_TABS             — tab config for Clients / Loyalty tabs
  */
-import type { ClientRow, LoyaltyRow, LifecycleStage } from "../actions";
+import type { ClientRow, LoyaltyRow, LifecycleStage } from "@/lib/types/client.types";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                               */

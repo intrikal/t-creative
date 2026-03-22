@@ -18,7 +18,7 @@ import dynamic from "next/dynamic";
 import { Search, Star, Plus, Users, TrendingUp, DollarSign } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import type { ClientRow, LoyaltyRow, LifecycleStage } from "./actions";
+import type { ClientRow, LoyaltyRow, LifecycleStage } from "@/lib/types/client.types";
 export type { LifecycleStage };
 import { createClient, updateClient, deleteClient, getClients as fetchClients } from "./actions";
 import { ClientCard } from "./components/ClientCard";

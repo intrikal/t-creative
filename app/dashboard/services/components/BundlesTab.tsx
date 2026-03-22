@@ -23,7 +23,7 @@ import { useState } from "react";
 import { Plus, Pencil, Trash2, Package } from "lucide-react";
 import { Dialog, Field, Input, Textarea, DialogFooter } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import type { BundleRow, BundleInput } from "../bundle-actions";
+import type { BundleRow, BundleInput } from "@/lib/types/services.types";
 import { createBundle, updateBundle, deleteBundle, toggleBundleActive } from "../bundle-actions";
 import { dbToBundle, BLANK_BUNDLE } from "../types";
 import type { Bundle, BundleForm } from "../types";

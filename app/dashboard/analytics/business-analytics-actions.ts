@@ -23,93 +23,23 @@ import {
   serviceRecords,
 } from "@/db/schema";
 import { getUser, rangeToInterval } from "./_shared";
-import type { Range } from "./_shared";
+import type {
+  Range,
+  StaffPerformanceItem,
+  PromotionRoiItem,
+  MembershipValueStats,
+  GiftCardBreakageStats,
+  WaitlistConversionStats,
+} from "@/lib/types/analytics.types";
 
-export type StaffPerformanceItem = {
-  name: string;
-  role: string;
-  avatar: string;
-  bookings: number;
-  revenue: number;
-  avgTicket: number;
-  utilization: number;
-  serviceRecordCompletion: number;
-};
+export type {
+  StaffPerformanceItem,
+  PromotionRoiItem,
+  MembershipValueStats,
+  GiftCardBreakageStats,
+  WaitlistConversionStats,
+} from "@/lib/types/analytics.types";
 
-export type PromotionRoiItem = {
-  code: string;
-  description: string | null;
-  discountType: string;
-  bookings: number;
-  grossRevenue: number;
-  totalDiscount: number;
-  netRevenue: number;
-  roi: number;
-};
-
-export type MembershipValueStats = {
-  memberAvgSpend: number;
-  nonMemberAvgSpend: number;
-  spendLift: number;
-  avgLifetimeDays: number | null;
-  monthlyChurnRate: number;
-  activeCount: number;
-  cancelledCount: number;
-  byPlan: {
-    plan: string;
-    active: number;
-    cancelled: number;
-    avgSpend: number;
-    avgLifetimeDays: number | null;
-    churnRate: number;
-  }[];
-};
-
-export type GiftCardBreakageStats = {
-  totalSold: number;
-  totalOriginalValue: number;
-  totalRedeemed: number;
-  totalRemaining: number;
-  breakageRate: number;
-  byStatus: {
-    status: string;
-    count: number;
-    originalValue: number;
-    remaining: number;
-  }[];
-  aging: {
-    label: string;
-    count: number;
-    remaining: number;
-  }[];
-};
-
-export type WaitlistConversionStats = {
-  totalEntries: number;
-  totalNotified: number;
-  totalBooked: number;
-  totalExpired: number;
-  totalCancelled: number;
-  totalWaiting: number;
-  conversionRate: number;
-  expiryRate: number;
-  avgWaitDays: number | null;
-  avgClaimHours: number | null;
-  byService: {
-    service: string;
-    entries: number;
-    booked: number;
-    expired: number;
-    conversionRate: number;
-    avgWaitDays: number | null;
-  }[];
-  weeklyTrend: {
-    week: string;
-    joined: number;
-    booked: number;
-    expired: number;
-  }[];
-};
 
 export async function getStaffPerformance(range: Range = "30d"): Promise<StaffPerformanceItem[]> {
   try {

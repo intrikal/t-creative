@@ -10,7 +10,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import type { StaffPerformanceItem } from "../actions";
+import type { StaffPerformanceItem } from "@/lib/types/analytics.types";
 
 const AVATAR_PALETTE: Record<string, string> = {
   T: "bg-[#c4907a]",

@@ -5,7 +5,7 @@ import { CheckCircle2, Clock, Tag, PackageOpen } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import type { AssistantServiceRow, AssistantServiceStats } from "./actions";
+import type { AssistantServiceRow, AssistantServiceStats } from "@/lib/types/services.types";
 
 function formatDuration(min: number): string {
   if (min < 60) return `${min}min`;

@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { ShoppingCart, Package, Heart, ExternalLink } from "lucide-react";
-import { type ClientCommission } from "@/app/dashboard/commissions/actions";
+import { type ClientCommission } from "@/lib/types/commission.types";
 import {
   placeOrder,
   addToWishlist,

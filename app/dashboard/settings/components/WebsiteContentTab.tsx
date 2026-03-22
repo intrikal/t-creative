@@ -13,7 +13,7 @@ import { useState } from "react";
 import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import type { SiteContent } from "../settings-actions";
+import type { SiteContent } from "@/lib/types/settings.types";
 import { saveSiteContent } from "../settings-actions";
 import { FieldRow, StatefulSaveButton, Toggle, INPUT_CLASS } from "./shared";
 

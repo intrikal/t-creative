@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { GraduationCap, Award, Download } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import type { ClientProgram, ClientTrainingData, EnrollStatus } from "./client-actions";
+import type { ClientProgram, ClientTrainingData, EnrollStatus } from "@/lib/types/training.types";
 import { clientEnroll, clientJoinWaitlist } from "./client-actions";
 import { PROG_STYLE } from "./components/client-helpers";
 import { ClientProgramCard } from "./components/ClientProgramCard";

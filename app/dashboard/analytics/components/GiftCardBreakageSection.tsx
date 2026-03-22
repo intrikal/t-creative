@@ -13,7 +13,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import type { GiftCardBreakageStats } from "../actions";
+import type { GiftCardBreakageStats } from "@/lib/types/analytics.types";
 
 const AGING_COLORS = ["bg-[#4e6b51]", "bg-[#7ba3a3]", "bg-[#d4a574]", "bg-destructive/60"];
 

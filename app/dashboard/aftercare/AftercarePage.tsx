@@ -3,7 +3,7 @@
 import { useState, useOptimistic, useTransition } from "react";
 import { CheckCircle, FileText, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { AftercareSection, PolicyEntry } from "./actions";
+import type { AftercareSection, PolicyEntry } from "@/lib/types/aftercare.types";
 import {
   updateAftercareSection,
   deleteAftercareSection,
@@ -11,7 +11,7 @@ import {
   updatePolicy as updatePolicyAction,
   deletePolicy as deletePolicyAction,
   createPolicy as createPolicyAction,
-} from "./actions";
+} from "@/lib/types/aftercare.types";
 import { AftercareCard } from "./components/AftercareCard";
 import { NewPolicyDialog } from "./components/NewPolicyDialog";
 import { NewSectionDialog } from "./components/NewSectionDialog";

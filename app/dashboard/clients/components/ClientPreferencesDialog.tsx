@@ -25,7 +25,7 @@
 import { useState } from "react";
 import { Dialog, DialogFooter, Field, Input, Textarea, Select } from "@/components/ui/dialog";
 import { getClientPreferences, upsertClientPreferences } from "../actions";
-import type { ClientPreferencesInput } from "../actions";
+import type { ClientPreferencesInput } from "@/lib/types/client.types";
 
 type PreferencesFormState = {
   preferredLashStyle: string;

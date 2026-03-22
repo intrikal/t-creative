@@ -8,7 +8,7 @@
 
 import { XCircle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { CancellationReasonItem } from "../actions";
+import type { CancellationReasonItem } from "@/lib/types/analytics.types";
 
 export function CancellationReasonsSection({ reasons }: { reasons: CancellationReasonItem[] }) {
   return (

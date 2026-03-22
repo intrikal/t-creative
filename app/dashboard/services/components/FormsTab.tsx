@@ -28,7 +28,7 @@
 import { useState } from "react";
 import { Plus, Pencil, Trash2, FileText, Tag, ChevronDown, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { FormRow, FormInput } from "../form-actions";
+import type { FormRow, FormInput } from "@/lib/types/services.types";
 import { createForm, deleteForm, toggleFormActive } from "../form-actions";
 import { FORM_TYPE_CONFIG, dbToForm } from "../types";
 import type { ClientForm, NewFormData } from "../types";

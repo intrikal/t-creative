@@ -1,7 +1,7 @@
 /** Status and category configuration for the commissions UI. */
 
 import { Clock, CheckCircle2, XCircle, Scissors, Printer } from "lucide-react";
-import type { CommissionCategory } from "@/app/dashboard/commissions/actions";
+import type { CommissionCategory } from "@/lib/types/commission.types";
 
 export const STATUS_CONFIG: Record<
   string,

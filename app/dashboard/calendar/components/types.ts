@@ -3,9 +3,9 @@
  * @description Shared type and interface definitions for the Calendar feature.
  */
 
-import type { BookingRow } from "../../bookings/actions";
+import type { BookingRow } from "@/lib/types/booking.types";
 import type { EventRow } from "../../events/actions";
-import type { BusinessHourRow, LunchBreak, TimeOffRow } from "../../settings/hours-actions";
+import type { BusinessHourRow, LunchBreak, TimeOffRow } from "@/lib/types/settings.types";
 
 /* ------------------------------------------------------------------ */
 /*  Core calendar types                                                */

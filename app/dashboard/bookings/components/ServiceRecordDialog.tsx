@@ -28,7 +28,7 @@
 import { useRef, useState, useTransition } from "react";
 import Image from "next/image";
 import { Camera, CheckCircle2, X } from "lucide-react";
-import type { MediaCategory } from "@/app/dashboard/media/actions";
+import type { MediaCategory } from "@/lib/types/media.types";
 import { Dialog, DialogFooter, Field, Input, Select, Textarea } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import {

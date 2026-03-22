@@ -10,7 +10,7 @@
  *
  * @module training/components/helpers
  */
-import type { ProgramType, StudentStatus } from "../actions";
+import type { ProgramType, StudentStatus } from "@/lib/types/training.types";
 
 export const PROGRAM_STYLE: Record<
   ProgramType,

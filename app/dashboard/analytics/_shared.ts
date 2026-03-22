@@ -7,7 +7,7 @@ import { requireAdmin } from "@/lib/auth";
 
 export const getUser = requireAdmin;
 
-export type Range = "7d" | "30d" | "90d" | "12m";
+export type { Range } from "@/lib/types/analytics.types";
 
 export function rangeToInterval(range: Range): string {
   switch (range) {

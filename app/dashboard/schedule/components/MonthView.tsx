@@ -11,7 +11,7 @@
 
 import { useMemo } from "react";
 import { cn } from "@/lib/utils";
-import type { AppointmentRow } from "../actions";
+import type { AppointmentRow } from "@/lib/types/booking.types";
 import { fmtDate, getMonthGrid, DAY_NAMES_SHORT, CATEGORY_COLORS, fmt12 } from "./helpers";
 
 export function MonthView({

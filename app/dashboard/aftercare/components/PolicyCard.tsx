@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Trash2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { PolicyEntry } from "../actions";
+import type { PolicyEntry } from "@/lib/types/aftercare.types";
 
 export function PolicyCard({
   policy,

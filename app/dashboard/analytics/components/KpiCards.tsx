@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import type { KpiStats } from "../actions";
+import type { KpiStats } from "@/lib/types/analytics.types";
 
 export function KpiCards({ stats }: { stats: KpiStats }) {
   const cards: Array<{

@@ -13,7 +13,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import type { CheckoutRebookStats } from "../actions";
+import type { CheckoutRebookStats } from "@/lib/types/analytics.types";
 
 function rateColor(rate: number) {
   if (rate >= 70) return "text-[#4e6b51]";

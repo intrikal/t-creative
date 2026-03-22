@@ -27,18 +27,10 @@ import { z } from "zod";
 import { db } from "@/db";
 import { serviceBundles } from "@/db/schema";
 import { requireAdmin } from "@/lib/auth";
+import type { BundleRow, BundleInput } from "@/lib/types/services.types";
 import { trackEvent } from "@/lib/posthog";
 
-export type BundleRow = typeof serviceBundles.$inferSelect;
-
-export type BundleInput = {
-  name: string;
-  description: string;
-  serviceNames: string[];
-  originalPriceInCents: number;
-  bundlePriceInCents: number;
-  isActive: boolean;
-};
+export type { BundleRow, BundleInput } from "@/lib/types/services.types";
 
 const getUser = requireAdmin;
 

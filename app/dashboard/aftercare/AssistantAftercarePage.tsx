@@ -4,7 +4,7 @@ import { useState } from "react";
 import { CheckCircle, AlertTriangle, FileText, Copy, Check, PackageOpen } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import type { AftercareSection, PolicyEntry } from "./actions";
+import type { AftercareSection, PolicyEntry } from "@/lib/types/aftercare.types";
 
 /* ------------------------------------------------------------------ */
 /*  Copy button                                                         */

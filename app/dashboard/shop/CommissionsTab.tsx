@@ -4,7 +4,7 @@
 
 import { useState } from "react";
 import { Plus, Package } from "lucide-react";
-import type { ClientCommission } from "@/app/dashboard/commissions/actions";
+import type { ClientCommission } from "@/lib/types/commission.types";
 import { CommissionRequestDialog } from "./components/CommissionRequestDialog";
 import { CommissionCard } from "./components/CommissionCard";
 

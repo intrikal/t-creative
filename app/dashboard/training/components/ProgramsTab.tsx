@@ -10,7 +10,7 @@
 "use client";
 
 import { GraduationCap } from "lucide-react";
-import type { ProgramRow, StudentRow } from "../actions";
+import type { ProgramRow, StudentRow } from "@/lib/types/training.types";
 import { ProgramCard } from "./ProgramCard";
 
 export function ProgramsTab({

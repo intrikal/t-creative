@@ -19,45 +19,15 @@ import {
   timeOff,
 } from "@/db/schema";
 import { getUser, rangeToInterval, weekLabel, CATEGORY_LABELS } from "./_shared";
-import type { Range } from "./_shared";
+import type {
+  Range,
+  KpiStats,
+  WeeklyRevenue,
+  ServiceRevenueItem,
+  RevenuePerHourDay,
+} from "@/lib/types/analytics.types";
 
-export type { Range } from "./_shared";
-
-export type KpiStats = {
-  revenueMtd: number;
-  bookingCount: number;
-  newClients: number;
-  noShowRate: number;
-  fillRate: number;
-  avgTicket: number;
-  revenueMtdDelta: number | null;
-  bookingCountDelta: number | null;
-  newClientsDelta: number | null;
-  noShowRateDelta: number | null;
-  fillRateDelta: number | null;
-  avgTicketDelta: number | null;
-};
-
-export type WeeklyRevenue = {
-  week: string;
-  revenue: number;
-};
-
-export type ServiceRevenueItem = {
-  service: string;
-  category: string;
-  revenue: number;
-  bookings: number;
-  pct: number;
-};
-
-export type RevenuePerHourDay = {
-  day: string;
-  isoDay: number;
-  revenue: number;
-  availableHours: number;
-  revenuePerHour: number;
-};
+export type { Range, KpiStats, WeeklyRevenue, ServiceRevenueItem, RevenuePerHourDay } from "@/lib/types/analytics.types";
 
 async function computeKpiForPeriod(periodStart: Date, periodEnd: Date) {
   const [revRow, bookRow, clientRow, statusRow] = await Promise.all([

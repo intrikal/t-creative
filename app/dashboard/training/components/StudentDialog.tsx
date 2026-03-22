@@ -15,7 +15,7 @@
 
 import { useState, useEffect } from "react";
 import { Dialog, Field, Input, Select, DialogFooter } from "@/components/ui/dialog";
-import type { ProgramRow, ClientOption, StudentStatus, EnrollmentFormData } from "../actions";
+import type { ProgramRow, ClientOption, StudentStatus, EnrollmentFormData } from "@/lib/types/training.types";
 
 export function StudentDialog({
   open,

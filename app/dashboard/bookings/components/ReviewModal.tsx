@@ -8,7 +8,7 @@
 import { useState } from "react";
 import { Star, X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { ClientBookingRow } from "../client-actions";
+import type { ClientBookingRow } from "@/lib/types/booking.types";
 
 interface ReviewModalProps {
   booking: ClientBookingRow;

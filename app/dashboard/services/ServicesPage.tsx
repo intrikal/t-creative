@@ -35,7 +35,7 @@ import dynamic from "next/dynamic";
 import { Search, Plus, Tag, Package, FileText, HeartHandshake, Images, ToggleLeft, Sparkles } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import type { ServiceRow } from "./actions";
+import type { ServiceRow } from "@/lib/types/services.types";
 import {
   createService,
   updateService,
@@ -43,7 +43,7 @@ import {
   toggleServiceActive,
   seedServiceCatalog,
 } from "./actions";
-import type { BundleRow } from "./bundle-actions";
+import type { BundleRow } from "@/lib/types/services.types";
 import { BundlesTab } from "./components/BundlesTab";
 import { FormsTab } from "./components/FormsTab";
 import { ServiceCard } from "./components/ServiceCard";
@@ -56,7 +56,7 @@ const ServiceFormDialog = dynamic(
   () => import("./components/ServiceFormDialog").then((m) => m.ServiceFormDialog),
   { ssr: false },
 );
-import type { FormRow } from "./form-actions";
+import type { FormRow } from "@/lib/types/services.types";
 import { CAT_CONFIG, dbToService, serviceToInput, serviceToFormData } from "./types";
 import type { Category, Service, ServiceFormData } from "./types";
 

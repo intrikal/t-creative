@@ -34,17 +34,9 @@ import { db } from "@/db";
 import { clientForms, formSubmissions } from "@/db/schema";
 import { requireAdmin } from "@/lib/auth";
 import { trackEvent } from "@/lib/posthog";
+import type { FormRow, FormInput, FormSubmissionRow, FormSubmissionInput } from "@/lib/types/services.types";
 
-export type FormRow = typeof clientForms.$inferSelect;
-
-export type FormInput = {
-  name: string;
-  type: "intake" | "waiver" | "consent" | "custom";
-  description: string;
-  appliesTo: string[];
-  required: boolean;
-  isActive: boolean;
-};
+export type { FormRow, FormInput } from "@/lib/types/services.types";
 
 const getUser = requireAdmin;
 
@@ -173,25 +165,7 @@ export async function updateFormFields(id: number, fields: unknown): Promise<voi
 /*  Form Submissions                                                   */
 /* ------------------------------------------------------------------ */
 
-export type FormSubmissionRow = {
-  id: number;
-  formId: number;
-  formName: string;
-  formType: "intake" | "waiver" | "consent" | "custom";
-  data: Record<string, unknown> | null;
-  signatureUrl: string | null;
-  formVersion: string | null;
-  submittedAt: string;
-};
-
-export type FormSubmissionInput = {
-  clientId: string;
-  formId: number;
-  data: Record<string, unknown>;
-  signatureUrl?: string;
-  formVersion?: string;
-  ipAddress?: string;
-};
+export type { FormSubmissionRow, FormSubmissionInput } from "@/lib/types/services.types";
 
 export async function getFormSubmissions(clientId: string): Promise<FormSubmissionRow[]> {
   try {

@@ -32,6 +32,7 @@ import { db } from "@/db";
 import { bookings, services } from "@/db/schema";
 import { logAction } from "@/lib/audit";
 import { requireAdmin } from "@/lib/auth";
+import type { ServiceRow, ServiceInput, AssistantServiceRow, AssistantServiceStats } from "@/lib/types/services.types";
 import { trackEvent } from "@/lib/posthog";
 
 /* ------------------------------------------------------------------ */
@@ -380,17 +381,7 @@ export async function seedServiceCatalog(): Promise<ServiceRow[]> {
 /*  Types & Validation                                                 */
 /* ------------------------------------------------------------------ */
 
-export type ServiceRow = typeof services.$inferSelect;
-
-export type ServiceInput = {
-  name: string;
-  category: ServiceRow["category"];
-  description: string;
-  durationMinutes: number;
-  priceInCents: number;
-  depositInCents: number;
-  isActive: boolean;
-};
+export type { ServiceRow, ServiceInput } from "@/lib/types/services.types";
 
 const getUser = requireAdmin;
 
@@ -553,24 +544,7 @@ export async function toggleServiceActive(id: number, isActive: boolean): Promis
 /*  Assistant-scoped services                                          */
 /* ------------------------------------------------------------------ */
 
-export type AssistantServiceRow = {
-  id: number;
-  name: string;
-  category: string;
-  description: string | null;
-  durationMin: number | null;
-  price: number;
-  deposit: number | null;
-  certified: boolean;
-  certDate: string | null;
-  timesPerformed: number;
-};
-
-export type AssistantServiceStats = {
-  totalServices: number;
-  certifiedCount: number;
-  avgDuration: number;
-};
+export type { AssistantServiceRow, AssistantServiceStats } from "@/lib/types/services.types";
 
 /**
  * Fetch all active services enriched with the logged-in assistant's performance data.

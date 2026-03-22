@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { Upload, Grid, List, Star, Filter, ImagePlus } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { MediaRow, MediaStats } from "./actions";
+import type { MediaRow, MediaStats } from "@/lib/types/media.types";
 import { togglePublish, toggleFeatured, deleteMediaItem } from "./actions";
 import { CATEGORIES, formatBytes } from "./components/helpers";
 import type { FilterCategory } from "./components/helpers";

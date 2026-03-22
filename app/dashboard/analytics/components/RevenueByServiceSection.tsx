@@ -10,7 +10,7 @@
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { ServiceRevenueItem } from "../actions";
+import type { ServiceRevenueItem } from "@/lib/types/analytics.types";
 
 const CATEGORY_COLORS: Record<string, string> = {
   "Lash Services": "bg-[#4e6b51]",

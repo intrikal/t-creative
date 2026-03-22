@@ -11,12 +11,8 @@ import {
   FileBox,
   Paperclip,
 } from "lucide-react";
-import {
-  acceptQuote,
-  declineQuote,
-  type ClientCommission,
-  type CommissionCategory,
-} from "@/app/dashboard/commissions/actions";
+import { acceptQuote, declineQuote } from "@/app/dashboard/commissions/actions";
+import type { ClientCommission, CommissionCategory } from "@/lib/types/commission.types";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { STATUS_CONFIG, CAT_CONFIG } from "./commissions-helpers";

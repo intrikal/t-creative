@@ -16,7 +16,7 @@
 
 import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import type { NotificationPrefs } from "../settings-actions";
+import type { NotificationPrefs } from "@/lib/types/settings.types";
 import { saveNotificationPrefs } from "../settings-actions";
 import { Toggle, StatefulSaveButton } from "./shared";
 

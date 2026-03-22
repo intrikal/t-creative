@@ -13,7 +13,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import type { StaffRow, ShiftRow } from "./actions";
+import type { StaffRow, ShiftRow } from "@/lib/types/staff.types";
 
 /* ------------------------------------------------------------------ */
 /*  Display helpers                                                    */

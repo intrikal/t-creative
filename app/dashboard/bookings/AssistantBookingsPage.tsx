@@ -24,7 +24,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import type { AppointmentRow, BookingStatus, ServiceCategory } from "../schedule/actions";
+import type { AppointmentRow, BookingStatus, ServiceCategory } from "@/lib/types/booking.types";
 import { AgendaView } from "../schedule/components/AgendaView";
 import { ApptDetailDialog } from "../schedule/components/ApptDetailDialog";
 import {
@@ -36,7 +36,7 @@ import {
 } from "../schedule/components/helpers";
 import { MonthView } from "../schedule/components/MonthView";
 import { WeekGridView } from "../schedule/components/WeekGridView";
-import type { AssistantBookingRow, AssistantBookingStats } from "./actions";
+import type { AssistantBookingRow, AssistantBookingStats } from "@/lib/types/booking.types";
 
 /* ------------------------------------------------------------------ */
 /*  Config                                                             */

@@ -21,7 +21,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import type { ClientProgram, EnrollStatus } from "../client-actions";
+import type { ClientProgram, EnrollStatus } from "@/lib/types/training.types";
 import { PROG_STYLE, FORMAT_LABEL } from "./client-helpers";
 
 export function ClientProgramCard({

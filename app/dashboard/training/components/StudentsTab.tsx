@@ -12,7 +12,7 @@
 
 import { UserPlus } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { StudentRow, StudentStatus } from "../actions";
+import type { StudentRow, StudentStatus } from "@/lib/types/training.types";
 import { StudentCard } from "./StudentCard";
 
 export function StudentsTab({

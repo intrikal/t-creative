@@ -53,6 +53,7 @@ import { sendEmail, getEmailRecipient } from "@/lib/resend";
 import { squareClient, isSquareConfigured } from "@/lib/square";
 import { notifyWaitlistForCancelledBooking } from "@/lib/waitlist-notify";
 import { updateZohoDeal, logZohoNote } from "@/lib/zoho";
+import type { ClientBookingRow, ClientBookingsData } from "@/lib/types/booking.types";
 
 const PATH = "/dashboard/bookings";
 
@@ -60,33 +61,7 @@ const PATH = "/dashboard/bookings";
 /*  Types                                                              */
 /* ------------------------------------------------------------------ */
 
-export type ClientBookingRow = {
-  id: number;
-  dateISO: string;
-  startsAtISO: string;
-  date: string;
-  time: string;
-  service: string;
-  category: "lash" | "jewelry" | "crochet" | "consulting";
-  assistant: string;
-  durationMin: number;
-  price: number;
-  status: "confirmed" | "pending" | "completed" | "cancelled";
-  notes: string | null;
-  location: string | null;
-  addOns: { name: string; priceInCents: number }[];
-  reviewLeft: boolean;
-  depositPaid: boolean;
-};
-
-export type ClientBookingsData = {
-  bookings: ClientBookingRow[];
-  calendarUrl: string;
-  policy: {
-    cancelWindowHours: number;
-    lateCancelFeePercent: number;
-  };
-};
+export type { ClientBookingRow, ClientBookingsData } from "@/lib/types/booking.types";
 
 /* ------------------------------------------------------------------ */
 /*  Query                                                              */

@@ -4,6 +4,7 @@
 // vi: Vitest's mock utility for creating fake functions and spying on calls
 // beforeEach: runs setup before every test (typically resets mocks)
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { createMockService } from "@/lib/test-utils";
 
 /* ------------------------------------------------------------------ */
 /*  Chainable DB mock helper                                           */
@@ -129,7 +130,7 @@ describe("services/actions", () => {
     it("returns services from db", async () => {
       vi.resetModules();
       setupMocks({
-        select: vi.fn(() => makeChain([{ id: 1, name: "Classic Full Set", category: "lash" }])),
+        select: vi.fn(() => makeChain([createMockService()])),
         insert: vi.fn(() => ({
           values: vi.fn(() => ({ returning: vi.fn().mockResolvedValue([]) })),
         })),
@@ -169,7 +170,7 @@ describe("services/actions", () => {
       const mockInsertValues = vi.fn(() => ({
         returning: vi
           .fn()
-          .mockResolvedValue([{ id: 1, name: "Classic Full Set", category: "lash" }]),
+          .mockResolvedValue([createMockService()]),
       }));
       setupMocks({
         select: vi.fn(() => makeChain([])),

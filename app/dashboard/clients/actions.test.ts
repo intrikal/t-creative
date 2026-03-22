@@ -4,6 +4,7 @@
 // vi: Vitest's mock utility for creating fake functions and spying on calls
 // beforeEach: runs setup before every test (typically resets mocks)
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { createMockClient } from "@/lib/test-utils";
 
 /* ------------------------------------------------------------------ */
 /*  Chainable DB mock helper                                           */
@@ -182,22 +183,11 @@ describe("clients/actions", () => {
     it("maps rows to ClientRow shape with numeric coercions", async () => {
       vi.resetModules();
       const row = {
-        id: "c-1",
-        firstName: "Jane",
-        lastName: "Doe",
-        email: "jane@example.com",
-        phone: null,
-        source: "instagram",
-        isVip: false,
-        lifecycleStage: "active",
-        internalNotes: null,
-        tags: null,
-        referredByName: null,
+        ...createMockClient({ id: "c-1" }),
+        // Raw SQL aggregate strings — test that numeric coercion works:
         referralCount: "3",
-        createdAt: new Date("2026-01-01"),
         totalBookings: "5",
         totalSpent: "50000",
-        lastVisit: null,
         loyaltyPoints: "200",
       };
       setupMocks({
@@ -225,22 +215,11 @@ describe("clients/actions", () => {
     it("defaults null numeric fields to 0", async () => {
       vi.resetModules();
       const row = {
-        id: "c-1",
-        firstName: "Jane",
-        lastName: "Doe",
-        email: "j@e.com",
-        phone: null,
-        source: null,
-        isVip: false,
-        lifecycleStage: null,
-        internalNotes: null,
-        tags: null,
-        referredByName: null,
+        ...createMockClient({ id: "c-1", email: "j@e.com", source: null, lifecycleStage: null }),
+        // Null aggregates — test that defaults to 0:
         referralCount: null,
-        createdAt: new Date(),
         totalBookings: null,
         totalSpent: null,
-        lastVisit: null,
         loyaltyPoints: null,
       };
       setupMocks({

@@ -21,6 +21,7 @@ import { Turnstile } from "@marsidev/react-turnstile";
 import { useForm } from "@tanstack/react-form";
 import { motion } from "framer-motion";
 import { z } from "zod";
+import { env } from "@/lib/env";
 import { FaInstagram, FaLinkedinIn } from "react-icons/fa";
 import { Footer } from "@/components/landing/Footer";
 import { socials as defaultSocials } from "@/lib/socials";
@@ -352,7 +353,7 @@ export function ContactPage({
                   </form.Field>
 
                   <Turnstile
-                    siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY!}
+                    siteKey={env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
                     onSuccess={handleTurnstileSuccess}
                     onExpire={() => setTurnstileToken("")}
                     options={{ theme: "light" }}

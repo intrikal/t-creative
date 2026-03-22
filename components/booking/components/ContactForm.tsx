@@ -12,6 +12,7 @@ import { Turnstile } from "@marsidev/react-turnstile";
 import { useForm } from "@tanstack/react-form";
 import { QueryClient, QueryClientProvider, useMutation } from "@tanstack/react-query";
 import { LuCheck } from "react-icons/lu";
+import { env } from "@/lib/env";
 
 const qc = new QueryClient();
 
@@ -124,7 +125,7 @@ function Form() {
       </form.Field>
 
       <Turnstile
-        siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY!}
+        siteKey={env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
         onSuccess={handleTurnstileSuccess}
         onExpire={() => setTurnstileToken("")}
         options={{ theme: "light", size: "flexible" }}

@@ -1786,6 +1786,7 @@ async function trySendBookingStatusEmail(
         relatedEntityId: bookingId,
       });
     } else if (status === "completed") {
+      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
       await sendEmail({
         to: row.clientEmail,
         subject: `Thanks for visiting — ${row.serviceName} — ${bp.businessName}`,
@@ -1793,6 +1794,7 @@ async function trySendBookingStatusEmail(
           clientName: row.clientFirstName,
           serviceName: row.serviceName,
           businessName: bp.businessName,
+          receiptUrl: `${siteUrl}/api/receipts/${bookingId}`,
         }),
         entityType: "booking_completed",
         localId: String(bookingId),

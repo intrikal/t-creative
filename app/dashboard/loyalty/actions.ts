@@ -130,35 +130,39 @@ export async function redeemPoints(input: { rewardId: number }): Promise<void> {
 
     if (!reward) throw new Error("Reward not found or no longer available");
 
-    // Re-query balance server-side to prevent races
-    const [pointsRow] = await db
-      .select({ total: sum(loyaltyTransactions.points) })
-      .from(loyaltyTransactions)
-      .where(eq(loyaltyTransactions.profileId, user.id));
+    // Transaction: check balance + deduct points + create redemption.
+    // Prevents race conditions where two concurrent redemptions both pass the
+    // balance check before either deduction settles.
+    await db.transaction(async (tx) => {
+      const [pointsRow] = await tx
+        .select({ total: sum(loyaltyTransactions.points) })
+        .from(loyaltyTransactions)
+        .where(eq(loyaltyTransactions.profileId, user.id));
 
-    const currentPoints = Number(pointsRow?.total ?? 0);
+      const currentPoints = Number(pointsRow?.total ?? 0);
 
-    if (currentPoints < reward.pointsCost) {
-      throw new Error("Not enough points to redeem this reward");
-    }
+      if (currentPoints < reward.pointsCost) {
+        throw new Error("Not enough points to redeem this reward");
+      }
 
-    // Insert the loyalty transaction (negative points)
-    const [tx] = await db
-      .insert(loyaltyTransactions)
-      .values({
+      // Insert the loyalty transaction (negative points)
+      const [txRow] = await tx
+        .insert(loyaltyTransactions)
+        .values({
+          profileId: user.id,
+          points: -reward.pointsCost,
+          type: "redeemed",
+          description: `Redeemed: ${reward.label}`,
+        })
+        .returning({ id: loyaltyTransactions.id });
+
+      // Create the redemption record (pending until applied to a booking)
+      await tx.insert(loyaltyRedemptions).values({
         profileId: user.id,
-        points: -reward.pointsCost,
-        type: "redeemed",
-        description: `Redeemed: ${reward.label}`,
-      })
-      .returning({ id: loyaltyTransactions.id });
-
-    // Create the redemption record (pending until applied to a booking)
-    await db.insert(loyaltyRedemptions).values({
-      profileId: user.id,
-      rewardId: reward.id,
-      transactionId: tx.id,
-      status: "pending",
+        rewardId: reward.id,
+        transactionId: txRow.id,
+        status: "pending",
+      });
     });
 
     revalidatePath("/dashboard/loyalty");
@@ -223,19 +227,20 @@ export async function cancelRedemption(redemptionId: string): Promise<void> {
 
     if (!reward) throw new Error("Reward not found");
 
-    // Refund points
-    await db.insert(loyaltyTransactions).values({
-      profileId: user.id,
-      points: reward.pointsCost,
-      type: "manual_credit",
-      description: `Cancelled: ${reward.label} (points refunded)`,
-    });
+    // Transaction: refund points + mark redemption cancelled atomically.
+    await db.transaction(async (tx) => {
+      await tx.insert(loyaltyTransactions).values({
+        profileId: user.id,
+        points: reward.pointsCost,
+        type: "manual_credit",
+        description: `Cancelled: ${reward.label} (points refunded)`,
+      });
 
-    // Update redemption status
-    await db
-      .update(loyaltyRedemptions)
-      .set({ status: "cancelled" })
-      .where(eq(loyaltyRedemptions.id, redemptionId));
+      await tx
+        .update(loyaltyRedemptions)
+        .set({ status: "cancelled" })
+        .where(eq(loyaltyRedemptions.id, redemptionId));
+    });
 
     revalidatePath("/dashboard/loyalty");
   } catch (err) {

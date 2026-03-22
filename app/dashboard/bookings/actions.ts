@@ -948,34 +948,38 @@ async function generateNextRecurringBooking(bookingId: number): Promise<void> {
         return;
       }
 
-      // Increment sessions used
-      await db
-        .update(bookingSubscriptions)
-        .set({ sessionsUsed: newSessionsUsed })
-        .where(eq(bookingSubscriptions.id, sub.id));
-
       nextStart.setDate(nextStart.getDate() + sub.intervalDays);
 
       // parentBookingId always points at the first booking in the series,
       // creating a flat fan-out (root → child, root → child) rather than a chain.
       const seriesRoot = booking.parentBookingId ?? bookingId;
-      const [newBooking] = await db
-        .insert(bookings)
-        .values({
-          clientId: booking.clientId,
-          serviceId: booking.serviceId,
-          staffId: booking.staffId ?? undefined,
-          startsAt: nextStart,
-          durationMinutes: booking.durationMinutes,
-          totalInCents: booking.totalInCents,
-          location: booking.location ?? undefined,
-          recurrenceRule: booking.recurrenceRule ?? undefined,
-          parentBookingId: seriesRoot,
-          subscriptionId: sub.id,
-          status: "confirmed",
-          confirmedAt: new Date(),
-        })
-        .returning({ id: bookings.id });
+
+      // Transaction: increment sessions + create next booking atomically.
+      // Prevents sessionsUsed being incremented without the booking existing.
+      const [newBooking] = await db.transaction(async (tx) => {
+        await tx
+          .update(bookingSubscriptions)
+          .set({ sessionsUsed: newSessionsUsed })
+          .where(eq(bookingSubscriptions.id, sub.id));
+
+        return tx
+          .insert(bookings)
+          .values({
+            clientId: booking.clientId,
+            serviceId: booking.serviceId,
+            staffId: booking.staffId ?? undefined,
+            startsAt: nextStart,
+            durationMinutes: booking.durationMinutes,
+            totalInCents: booking.totalInCents,
+            location: booking.location ?? undefined,
+            recurrenceRule: booking.recurrenceRule ?? undefined,
+            parentBookingId: seriesRoot,
+            subscriptionId: sub.id,
+            status: "confirmed",
+            confirmedAt: new Date(),
+          })
+          .returning({ id: bookings.id });
+      });
 
       // Send confirmation email for the subscription's next booking
       try {
@@ -2055,30 +2059,31 @@ async function tryRefundCancellationDeposit(
 
           const squareRefundId = refundResponse.refund?.id ?? null;
 
-          // Update payment record with refund info
+          // Transaction: update payment record + log sync atomically.
           const newRefundedTotal =
             depositPayment.refundedInCents + refundAmountInCents;
           const isFullRefund = newRefundedTotal >= depositPayment.amountInCents;
 
-          await db
-            .update(payments)
-            .set({
-              refundedInCents: newRefundedTotal,
-              refundedAt: new Date(),
-              status: isFullRefund ? "refunded" : "partially_refunded",
-              squareRefundId,
-            })
-            .where(eq(payments.id, depositPayment.id));
+          await db.transaction(async (tx) => {
+            await tx
+              .update(payments)
+              .set({
+                refundedInCents: newRefundedTotal,
+                refundedAt: new Date(),
+                status: isFullRefund ? "refunded" : "partially_refunded",
+                squareRefundId,
+              })
+              .where(eq(payments.id, depositPayment.id));
 
-          // Log successful Square refund to sync_log
-          await db.insert(syncLog).values({
-            provider: "square",
-            direction: "outbound",
-            status: "success",
-            entityType: "cancellation_refund",
-            localId: String(depositPayment.id),
-            remoteId: squareRefundId ?? depositPayment.squarePaymentId,
-            message: `Cancellation ${decision.replace("_", " ")}: $${(refundAmountInCents / 100).toFixed(2)} refunded for booking #${bookingId}`,
+            await tx.insert(syncLog).values({
+              provider: "square",
+              direction: "outbound",
+              status: "success",
+              entityType: "cancellation_refund",
+              localId: String(depositPayment.id),
+              remoteId: squareRefundId ?? depositPayment.squarePaymentId,
+              message: `Cancellation ${decision.replace("_", " ")}: $${(refundAmountInCents / 100).toFixed(2)} refunded for booking #${bookingId}`,
+            });
           });
         } catch (err) {
           Sentry.captureException(err);

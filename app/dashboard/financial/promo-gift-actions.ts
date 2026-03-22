@@ -185,26 +185,31 @@ export async function createGiftCard(input: {
 
     const code = `${prefix}-${nextNum}`;
 
-    const [newCard] = await db
-      .insert(giftCards)
-      .values({
-        code,
-        purchasedByClientId: input.purchasedByClientId ?? null,
-        recipientName: input.recipientName ?? null,
-        originalAmountInCents: input.amountInCents,
-        balanceInCents: input.amountInCents,
-        expiresAt: input.expiresAt ? new Date(input.expiresAt) : null,
-        notes: input.notes ?? null,
-      })
-      .returning({ id: giftCards.id });
+    // Transaction: create gift card + record purchase transaction atomically.
+    const [newCard] = await db.transaction(async (tx) => {
+      const [card] = await tx
+        .insert(giftCards)
+        .values({
+          code,
+          purchasedByClientId: input.purchasedByClientId ?? null,
+          recipientName: input.recipientName ?? null,
+          originalAmountInCents: input.amountInCents,
+          balanceInCents: input.amountInCents,
+          expiresAt: input.expiresAt ? new Date(input.expiresAt) : null,
+          notes: input.notes ?? null,
+        })
+        .returning({ id: giftCards.id });
 
-    await db.insert(giftCardTransactions).values({
-      giftCardId: newCard.id,
-      type: "purchase",
-      amountInCents: input.amountInCents,
-      balanceAfterInCents: input.amountInCents,
-      performedBy: user.id,
-      notes: input.notes ?? null,
+      await tx.insert(giftCardTransactions).values({
+        giftCardId: card.id,
+        type: "purchase",
+        amountInCents: input.amountInCents,
+        balanceAfterInCents: input.amountInCents,
+        performedBy: user.id,
+        notes: input.notes ?? null,
+      });
+
+      return [card];
     });
 
     await logAction({
@@ -357,29 +362,32 @@ export async function redeemGiftCard(input: {
 
     await getUser();
 
-    const [card] = await db.select().from(giftCards).where(eq(giftCards.id, input.giftCardId));
-    if (!card) throw new Error("Gift card not found");
-    if (card.status !== "active") throw new Error("Gift card is not active");
-    if (card.balanceInCents < input.amountInCents)
-      throw new Error("Insufficient gift card balance");
+    // Transaction: deduct gift card balance + apply discount to booking atomically.
+    await db.transaction(async (tx) => {
+      const [card] = await tx.select().from(giftCards).where(eq(giftCards.id, input.giftCardId));
+      if (!card) throw new Error("Gift card not found");
+      if (card.status !== "active") throw new Error("Gift card is not active");
+      if (card.balanceInCents < input.amountInCents)
+        throw new Error("Insufficient gift card balance");
 
-    const newBalance = card.balanceInCents - input.amountInCents;
+      const newBalance = card.balanceInCents - input.amountInCents;
 
-    await db
-      .update(giftCards)
-      .set({
-        balanceInCents: newBalance,
-        status: newBalance === 0 ? "redeemed" : "active",
-      })
-      .where(eq(giftCards.id, input.giftCardId));
+      await tx
+        .update(giftCards)
+        .set({
+          balanceInCents: newBalance,
+          status: newBalance === 0 ? "redeemed" : "active",
+        })
+        .where(eq(giftCards.id, input.giftCardId));
 
-    await db
-      .update(bookings)
-      .set({
-        giftCardId: input.giftCardId,
-        discountInCents: input.amountInCents,
-      })
-      .where(eq(bookings.id, input.bookingId));
+      await tx
+        .update(bookings)
+        .set({
+          giftCardId: input.giftCardId,
+          discountInCents: input.amountInCents,
+        })
+        .where(eq(bookings.id, input.bookingId));
+    });
 
     revalidatePath("/dashboard/financial");
   } catch (err) {
@@ -450,38 +458,41 @@ export async function recordRedemption(input: {
 
     const user = await getUser();
 
-    const [card] = await db.select().from(giftCards).where(eq(giftCards.id, input.giftCardId));
-    if (!card) throw new Error("Gift card not found");
-    if (card.status !== "active") throw new Error("Gift card is not active");
-    if (card.balanceInCents < input.amountInCents)
-      throw new Error("Insufficient gift card balance");
+    // Transaction: deduct balance + record transaction + apply discount atomically.
+    await db.transaction(async (tx) => {
+      const [card] = await tx.select().from(giftCards).where(eq(giftCards.id, input.giftCardId));
+      if (!card) throw new Error("Gift card not found");
+      if (card.status !== "active") throw new Error("Gift card is not active");
+      if (card.balanceInCents < input.amountInCents)
+        throw new Error("Insufficient gift card balance");
 
-    const newBalance = card.balanceInCents - input.amountInCents;
+      const newBalance = card.balanceInCents - input.amountInCents;
 
-    await db
-      .update(giftCards)
-      .set({
-        balanceInCents: newBalance,
-        status: newBalance === 0 ? "redeemed" : "active",
-      })
-      .where(eq(giftCards.id, input.giftCardId));
+      await tx
+        .update(giftCards)
+        .set({
+          balanceInCents: newBalance,
+          status: newBalance === 0 ? "redeemed" : "active",
+        })
+        .where(eq(giftCards.id, input.giftCardId));
 
-    await db.insert(giftCardTransactions).values({
-      giftCardId: input.giftCardId,
-      type: "redemption",
-      amountInCents: -input.amountInCents,
-      balanceAfterInCents: newBalance,
-      bookingId: input.bookingId,
-      performedBy: user.id,
-    });
-
-    await db
-      .update(bookings)
-      .set({
+      await tx.insert(giftCardTransactions).values({
         giftCardId: input.giftCardId,
-        discountInCents: input.amountInCents,
-      })
-      .where(eq(bookings.id, input.bookingId));
+        type: "redemption",
+        amountInCents: -input.amountInCents,
+        balanceAfterInCents: newBalance,
+        bookingId: input.bookingId,
+        performedBy: user.id,
+      });
+
+      await tx
+        .update(bookings)
+        .set({
+          giftCardId: input.giftCardId,
+          discountInCents: input.amountInCents,
+        })
+        .where(eq(bookings.id, input.bookingId));
+    });
 
     revalidatePath("/dashboard/financial");
   } catch (err) {

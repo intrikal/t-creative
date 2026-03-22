@@ -28,8 +28,8 @@
 import { useRef, useState, useTransition } from "react";
 import Image from "next/image";
 import { Camera, CheckCircle2, X } from "lucide-react";
-import type { MediaCategory } from "@/lib/types/media.types";
 import { Dialog, DialogFooter, Field, Input, Select, Textarea } from "@/components/ui/dialog";
+import type { MediaCategory } from "@/lib/types/media.types";
 import { cn } from "@/lib/utils";
 import {
   getServiceRecord,
@@ -38,6 +38,7 @@ import {
   promoteToPortfolio,
 } from "../service-record-actions";
 import type { ServiceRecordInput } from "../service-record-actions";
+import { BookingPhotosSection } from "./BookingPhotosSection";
 
 export type ServiceRecordFormState = {
   lashMapping: string;
@@ -481,6 +482,12 @@ export function ServiceRecordDialog({
               onChange={(e) => set("nextVisitNotes", e.target.value)}
             />
           </Field>
+        </div>
+      )}
+      {/* Client photos gallery (before/after/reference) */}
+      {!loading && (
+        <div className="border-t border-border pt-4 mt-4">
+          <BookingPhotosSection bookingId={bookingId} clientId={clientId} />
         </div>
       )}
       <DialogFooter

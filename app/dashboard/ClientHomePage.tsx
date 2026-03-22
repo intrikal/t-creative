@@ -63,6 +63,7 @@ import {
   TrendingUp,
   DollarSign,
   CalendarDays,
+  Camera,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -192,6 +193,7 @@ const QUICK_ACTIONS = [
   { label: "Book a Service", icon: CalendarPlus, href: "/dashboard/book" },
   { label: "My Bookings", icon: CalendarCheck, href: "/dashboard/bookings" },
   { label: "Shop", icon: ShoppingBag, href: "/dashboard/shop" },
+  { label: "My Photos", icon: Camera, href: "/dashboard/my-photos" },
   { label: "Gallery", icon: Images, href: "/dashboard/gallery" },
   { label: "Training", icon: GraduationCap, href: "/dashboard/training" },
   { label: "Aftercare", icon: HeartHandshake, href: "/dashboard/aftercare" },

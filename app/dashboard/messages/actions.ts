@@ -31,6 +31,7 @@
  */
 
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
 import * as Sentry from "@sentry/nextjs";
 import { eq, desc, and, ne, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
@@ -992,6 +993,8 @@ export async function createBookingRequest(input: {
    */
   // Create a pending booking
   const cadenceLabel = input.recurrenceRule ? rruleToCadenceLabel(input.recurrenceRule) : null;
+  const cookieStore = await cookies();
+  const referrerCode = cookieStore.get("referral_ref")?.value?.trim() || null;
   const [booking] = await db
     .insert(bookings)
     .values({
@@ -1005,6 +1008,7 @@ export async function createBookingRequest(input: {
       recurrenceRule: input.recurrenceRule || null,
       tosAcceptedAt: new Date(),
       tosVersion: input.tosVersion,
+      referrerCode,
       // Assemble client notes from optional pieces: preferred dates, recurrence
       // label, and free-text message. Nulls represent missing pieces; .filter(Boolean)
       // strips them so .join() only produces separators between actual content.

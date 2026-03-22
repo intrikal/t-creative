@@ -45,12 +45,13 @@ import { cookies } from "next/headers";
 import { and, eq } from "drizzle-orm";
 import { getPublicBusinessProfile } from "@/app/dashboard/settings/settings-actions";
 import { db } from "@/db";
-import { profiles, loyaltyTransactions } from "@/db/schema";
+import { profiles, loyaltyTransactions, referralCodes, referrals } from "@/db/schema";
 import { assistantProfiles } from "@/db/schema/assistants";
 import { services as servicesTable } from "@/db/schema/services";
 import { LoyaltyPointsAwarded } from "@/emails/LoyaltyPointsAwarded";
 import { ReferralBonus } from "@/emails/ReferralBonus";
 import { WelcomeEmail } from "@/emails/WelcomeEmail";
+import { seedNotificationPreferences } from "@/lib/notification-preferences";
 import {
   onboardingSchema,
   assistantOnboardingSchema,
@@ -61,7 +62,6 @@ import {
 } from "@/lib/onboarding-schema";
 import { trackEvent } from "@/lib/posthog";
 import { sendEmail } from "@/lib/resend";
-import { seedNotificationPreferences } from "@/lib/notification-preferences";
 import { linkSquareCustomer } from "@/lib/square";
 import { upsertZohoContact } from "@/lib/zoho";
 import { syncCampaignsSubscriber } from "@/lib/zoho-campaigns";
@@ -615,6 +615,12 @@ export async function saveOnboardingData(
         .values({ id: user.id, ...profileData })
         .onConflictDoUpdate({ target: profiles.id, set: profileData });
 
+      // Seed referral_codes table (idempotent — ON CONFLICT skips)
+      await tx
+        .insert(referralCodes)
+        .values({ profileId: user.id, code: referralCode })
+        .onConflictDoNothing();
+
       // ── Loyalty points ────────────────────────────────────────────
       // Guard: only award onboarding points once. If a profile_complete row
       // already exists this client has been through onboarding before — skip
@@ -670,6 +676,16 @@ export async function saveOnboardingData(
           description: `Referred ${firstName}${lastName ? ` ${lastName}` : ""}`,
           referenceId: user.id,
         });
+
+        // Create a pending referral row — completed when the referred client's first booking is done.
+        await tx
+          .insert(referrals)
+          .values({
+            referrerId: referredBy,
+            referredId: user.id,
+            status: "pending",
+          })
+          .onConflictDoNothing();
       }
 
       await tx.insert(loyaltyTransactions).values(pointsRows);

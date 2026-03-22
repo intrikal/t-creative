@@ -13,6 +13,7 @@ import { MembershipValueSectionWrapper } from "./sections/MembershipValueSection
 import { OperationalSection } from "./sections/OperationalSection";
 import { PeakTimesSectionWrapper } from "./sections/PeakTimesSectionWrapper";
 import { PromotionRoiSectionWrapper } from "./sections/PromotionRoiSectionWrapper";
+import { ReferralStatsSectionWrapper } from "./sections/ReferralStatsSectionWrapper";
 import { RetentionSectionWrapper } from "./sections/RetentionSectionWrapper";
 import { RevenueByServiceSectionWrapper } from "./sections/RevenueByServiceSectionWrapper";
 import { RevenueForecastSectionWrapper } from "./sections/RevenueForecastSectionWrapper";
@@ -60,6 +61,7 @@ export default async function Page({
       <WaitlistConversionSectionWrapper range={range} />
       <PromotionRoiSectionWrapper range={range} />
       <MembershipValueSectionWrapper range={range} />
+      <ReferralStatsSectionWrapper />
       <GiftCardBreakageSectionWrapper range={range} />
       <PeakTimesSectionWrapper range={range} />
     </AnalyticsShell>

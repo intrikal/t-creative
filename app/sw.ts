@@ -1,3 +1,5 @@
+/// <reference lib="webworker" />
+
 import { defaultCache } from "@serwist/next/worker";
 import type { PrecacheEntry, SerwistGlobalConfig } from "serwist";
 import { Serwist } from "serwist";
@@ -47,7 +49,7 @@ self.addEventListener("push", (event: PushEvent) => {
     };
 
     const title = data.title ?? "T Creative Studio";
-    const options: NotificationOptions = {
+    const options: NotificationOptions & { vibrate?: number[]; renotify?: boolean } = {
       body: data.body ?? "",
       icon: data.icon ?? "/icons/icon-192x192.png",
       badge: data.badge ?? "/icons/icon-72x72.png",
@@ -69,19 +71,17 @@ self.addEventListener("notificationclick", (event: NotificationEvent) => {
   const url = (event.notification.data as { url?: string })?.url ?? "/dashboard";
 
   event.waitUntil(
-    self.clients
-      .matchAll({ type: "window", includeUncontrolled: true })
-      .then((clientList) => {
-        // Focus existing tab if one is already open
-        for (const client of clientList) {
-          if ("focus" in client) {
-            client.focus();
-            client.navigate(url);
-            return;
-          }
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
+      // Focus existing tab if one is already open
+      for (const client of clientList) {
+        if ("focus" in client) {
+          client.focus();
+          client.navigate(url);
+          return;
         }
-        // Otherwise open a new tab
-        return self.clients.openWindow(url);
-      }),
+      }
+      // Otherwise open a new tab
+      return self.clients.openWindow(url);
+    }),
   );
 });

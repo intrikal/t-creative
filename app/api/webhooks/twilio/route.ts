@@ -176,7 +176,8 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     // Find next upcoming booking (pending or confirmed)
-    const targetStatuses = command === "confirm" ? ["pending"] : ["pending", "confirmed"];
+    const targetStatuses: ("pending" | "confirmed")[] =
+      command === "confirm" ? ["pending"] : ["pending", "confirmed"];
 
     const [nextBooking] = await db
       .select({

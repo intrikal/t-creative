@@ -89,3 +89,7 @@ export {
   getGiftCardBreakage,
   getWaitlistConversion,
 } from "./business-analytics-actions";
+
+// Revenue forecast
+export type { RevenueForecastData, ForecastDataPoint } from "./forecast-actions";
+export { getRevenueForecast } from "./forecast-actions";

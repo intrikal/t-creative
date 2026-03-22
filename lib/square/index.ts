@@ -40,5 +40,13 @@ export {
   getSquareSubscriptionStatus,
 } from "./subscriptions";
 
+// Gift Cards API
+export {
+  createSquareGiftCard,
+  getSquareGiftCardBalance,
+  redeemSquareGiftCard,
+  linkGiftCardToCustomer,
+} from "./gift-cards";
+
 // Catalog API
 export { upsertCatalogItem, syncCatalogFromSquare } from "./catalog";

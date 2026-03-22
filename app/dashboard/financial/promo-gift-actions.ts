@@ -26,6 +26,13 @@ import { GiftCardPurchase } from "@/emails/GiftCardPurchase";
 import { logAction } from "@/lib/audit";
 import { requireAdmin } from "@/lib/auth";
 import { getEmailRecipient, sendEmail } from "@/lib/resend";
+import {
+  isSquareConfigured,
+  createSquareGiftCard,
+  redeemSquareGiftCard,
+  getSquareGiftCardBalance,
+  linkGiftCardToCustomer,
+} from "@/lib/square";
 
 const getUser = requireAdmin;
 
@@ -170,27 +177,68 @@ export async function createGiftCard(input: {
 
     const user = await getUser();
 
-    const inventoryConfig = await getPublicInventoryConfig();
-    const prefix = inventoryConfig.giftCardCodePrefix;
+    // Primary: create gift card via Square (handles code generation + balance).
+    // Fallback: custom sequential code if Square is not configured.
+    let code: string;
+    let squareGiftCardId: string | null = null;
 
-    const [lastCard] = await db
-      .select({ code: giftCards.code })
-      .from(giftCards)
-      .orderBy(desc(giftCards.id))
-      .limit(1);
+    if (isSquareConfigured()) {
+      const squareCard = await createSquareGiftCard({
+        amountInCents: input.amountInCents,
+        referenceId: `admin-gc-${Date.now()}`,
+      });
 
-    const nextNum = lastCard
-      ? String(parseInt(lastCard.code.replace(`${prefix}-`, ""), 10) + 1).padStart(3, "0")
-      : "001";
+      if (squareCard) {
+        code = squareCard.gan;
+        squareGiftCardId = squareCard.squareGiftCardId;
 
-    const code = `${prefix}-${nextNum}`;
+        // Link to customer if purchasing for a known client
+        if (input.purchasedByClientId) {
+          const [clientProfile] = await db
+            .select({ squareCustomerId: profiles.squareCustomerId })
+            .from(profiles)
+            .where(eq(profiles.id, input.purchasedByClientId))
+            .limit(1);
 
-    // Transaction: create gift card + record purchase transaction atomically.
+          if (clientProfile?.squareCustomerId) {
+            linkGiftCardToCustomer(squareCard.squareGiftCardId, clientProfile.squareCustomerId).catch(() => {});
+          }
+        }
+      } else {
+        // Square failed — fall back to custom code
+        const inventoryConfig = await getPublicInventoryConfig();
+        const prefix = inventoryConfig.giftCardCodePrefix;
+        const [lastCard] = await db
+          .select({ code: giftCards.code })
+          .from(giftCards)
+          .orderBy(desc(giftCards.id))
+          .limit(1);
+        const nextNum = lastCard
+          ? String(parseInt(lastCard.code.replace(`${prefix}-`, ""), 10) + 1).padStart(3, "0")
+          : "001";
+        code = `${prefix}-${nextNum}`;
+      }
+    } else {
+      const inventoryConfig = await getPublicInventoryConfig();
+      const prefix = inventoryConfig.giftCardCodePrefix;
+      const [lastCard] = await db
+        .select({ code: giftCards.code })
+        .from(giftCards)
+        .orderBy(desc(giftCards.id))
+        .limit(1);
+      const nextNum = lastCard
+        ? String(parseInt(lastCard.code.replace(`${prefix}-`, ""), 10) + 1).padStart(3, "0")
+        : "001";
+      code = `${prefix}-${nextNum}`;
+    }
+
+    // Transaction: create local gift card + purchase transaction atomically.
     const [newCard] = await db.transaction(async (tx) => {
       const [card] = await tx
         .insert(giftCards)
         .values({
           code,
+          squareGiftCardId,
           purchasedByClientId: input.purchasedByClientId ?? null,
           recipientName: input.recipientName ?? null,
           originalAmountInCents: input.amountInCents,
@@ -237,7 +285,7 @@ export async function createGiftCard(input: {
 
         await sendEmail({
           to: buyer.email,
-          subject: `Gift card purchased — TC-GC-${nextNum} — ${bp.businessName}`,
+          subject: `Gift card purchased — ${code} — ${bp.businessName}`,
           react: GiftCardPurchase({
             clientName: buyer.firstName,
             giftCardCode: code,
@@ -375,6 +423,16 @@ export async function redeemGiftCard(input: {
       if (card.balanceInCents < input.amountInCents)
         throw new Error("Insufficient gift card balance");
 
+      // Redeem via Square if the card is Square-managed
+      if (card.squareGiftCardId) {
+        const result = await redeemSquareGiftCard({
+          squareGiftCardId: card.squareGiftCardId,
+          amountInCents: input.amountInCents,
+          referenceId: `booking-${input.bookingId}`,
+        });
+        if (!result) throw new Error("Square gift card redemption failed");
+      }
+
       const newBalance = card.balanceInCents - input.amountInCents;
 
       await tx
@@ -475,6 +533,16 @@ export async function recordRedemption(input: {
       if (card.status !== "active") throw new Error("Gift card is not active");
       if (card.balanceInCents < input.amountInCents)
         throw new Error("Insufficient gift card balance");
+
+      // Redeem via Square if the card is Square-managed
+      if (card.squareGiftCardId) {
+        const result = await redeemSquareGiftCard({
+          squareGiftCardId: card.squareGiftCardId,
+          amountInCents: input.amountInCents,
+          referenceId: `booking-${input.bookingId}`,
+        });
+        if (!result) throw new Error("Square gift card redemption failed");
+      }
 
       const newBalance = card.balanceInCents - input.amountInCents;
 

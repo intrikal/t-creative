@@ -267,6 +267,13 @@
       "when": 1774425600000,
       "tag": "0041_square_subscriptions",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1774512000000,
+      "tag": "0042_square_gift_cards",
+      "breakpoints": true
     }
   ]
 }

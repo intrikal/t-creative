@@ -11,7 +11,7 @@ import {
   updatePolicy as updatePolicyAction,
   deletePolicy as deletePolicyAction,
   createPolicy as createPolicyAction,
-} from "@/lib/types/aftercare.types";
+} from "./actions";
 import { AftercareCard } from "./components/AftercareCard";
 import { NewPolicyDialog } from "./components/NewPolicyDialog";
 import { NewSectionDialog } from "./components/NewSectionDialog";

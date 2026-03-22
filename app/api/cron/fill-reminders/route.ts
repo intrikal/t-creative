@@ -25,6 +25,7 @@ import {
 import { db } from "@/db";
 import { bookings, profiles, services, syncLog } from "@/db/schema";
 import { FillReminder } from "@/emails/FillReminder";
+import { isNotificationEnabled } from "@/lib/notification-preferences";
 import { sendEmail } from "@/lib/resend";
 
 /** Day names indexed by JS Date.getDay() (0 = Sunday). */
@@ -152,7 +153,12 @@ export async function GET(request: Request) {
   let skipped = 0;
 
   for (const candidate of candidates) {
-    if (!candidate.clientEmail || !candidate.notifyEmail || !candidate.notifyMarketing) {
+    if (!candidate.clientEmail || !candidate.notifyEmail) {
+      skipped++;
+      continue;
+    }
+    const fillEnabled = await isNotificationEnabled(candidate.clientId, "email", "fill_reminder");
+    if (!fillEnabled) {
       skipped++;
       continue;
     }

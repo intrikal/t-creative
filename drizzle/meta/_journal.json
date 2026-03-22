@@ -281,6 +281,13 @@
       "when": 1774598400000,
       "tag": "0043_push_subscriptions",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1774684800000,
+      "tag": "0044_notification_preferences",
+      "breakpoints": true
     }
   ]
 }

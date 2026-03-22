@@ -15,6 +15,7 @@ import {
 import { db } from "@/db";
 import { bookings, profiles, services, syncLog } from "@/db/schema";
 import { ReviewRequest } from "@/emails/ReviewRequest";
+import { isNotificationEnabled } from "@/lib/notification-preferences";
 import { sendEmail } from "@/lib/resend";
 
 export async function GET(request: Request) {
@@ -59,6 +60,8 @@ export async function GET(request: Request) {
 
   for (const booking of completedBookings) {
     if (!booking.clientEmail || !booking.notifyEmail) continue;
+    const reviewEnabled = await isNotificationEnabled(booking.clientId, "email", "review_request");
+    if (!reviewEnabled) continue;
 
     const localId = booking.bookingId.toString();
 

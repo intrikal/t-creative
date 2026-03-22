@@ -258,7 +258,7 @@ export function IntakeFormStep({ definitions, prefill, onSubmit, onBack }: Props
                 )}
 
                 {hasError && (
-                  <p className="text-[11px] text-red-500">{errors[errorKey]}</p>
+                  <p className="text-[11px] text-red-500" role="alert" aria-live="polite">{errors[errorKey]}</p>
                 )}
               </div>
             );

@@ -28,7 +28,17 @@ import {
   membershipStatusEnum,
   profiles,
 } from "@/db/schema";
+import { logAction } from "@/lib/audit";
 import { requireAdmin } from "@/lib/auth";
+import {
+  isSquareConfigured,
+  createSquareSubscriptionPlan,
+  createSquareSubscription,
+  cancelSquareSubscription,
+  pauseSquareSubscription,
+  resumeSquareSubscription,
+  getSquareCardOnFile,
+} from "@/lib/square";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -324,6 +334,44 @@ export async function createMembership(input: CreateMembershipInput): Promise<{ 
       })
       .returning({ id: membershipSubscriptions.id });
 
+    // Create Square subscription for auto-billing (non-fatal).
+    // Requires: plan has a Square subscription plan ID, client has a
+    // squareCustomerId, and client has a card on file.
+    if (isSquareConfigured() && plan.squareSubscriptionPlanId) {
+      try {
+        const [clientProfile] = await db
+          .select({ squareCustomerId: profiles.squareCustomerId })
+          .from(profiles)
+          .where(eq(profiles.id, input.clientId))
+          .limit(1);
+
+        if (clientProfile?.squareCustomerId) {
+          const cardId = await getSquareCardOnFile(clientProfile.squareCustomerId);
+
+          if (cardId) {
+            const startDate = now.toISOString().split("T")[0]; // YYYY-MM-DD
+
+            const squareSubId = await createSquareSubscription({
+              squareCustomerId: clientProfile.squareCustomerId,
+              planVariationId: plan.squareSubscriptionPlanId,
+              cardId,
+              localSubscriptionId: sub.id,
+              startDate,
+            });
+
+            if (squareSubId) {
+              await db
+                .update(membershipSubscriptions)
+                .set({ squareSubscriptionId: squareSubId })
+                .where(eq(membershipSubscriptions.id, sub.id));
+            }
+          }
+        }
+      } catch {
+        // Non-fatal — membership works without Square auto-billing
+      }
+    }
+
     revalidatePath("/dashboard/bookings");
     revalidatePath("/dashboard/memberships");
     return { id: sub.id };
@@ -353,6 +401,27 @@ export async function updateMembershipStatus(id: string, status: MembershipStatu
     }
 
     await db.update(membershipSubscriptions).set(updates).where(eq(membershipSubscriptions.id, id));
+
+    // Sync status change to Square subscription (non-fatal)
+    const [sub] = await db
+      .select({ squareSubscriptionId: membershipSubscriptions.squareSubscriptionId })
+      .from(membershipSubscriptions)
+      .where(eq(membershipSubscriptions.id, id))
+      .limit(1);
+
+    if (sub?.squareSubscriptionId) {
+      try {
+        if (status === "cancelled") {
+          await cancelSquareSubscription(sub.squareSubscriptionId);
+        } else if (status === "paused") {
+          await pauseSquareSubscription(sub.squareSubscriptionId);
+        } else if (status === "active") {
+          await resumeSquareSubscription(sub.squareSubscriptionId);
+        }
+      } catch {
+        // Non-fatal — local status is source of truth
+      }
+    }
 
     revalidatePath("/dashboard/bookings");
     revalidatePath("/dashboard/memberships");
@@ -479,6 +548,27 @@ export async function createMembershipPlan(input: CreatePlanInput): Promise<{ id
         perks: input.perks ?? [],
       })
       .returning({ id: membershipPlans.id });
+
+    // Create corresponding Square subscription plan for auto-billing (non-fatal)
+    if (isSquareConfigured()) {
+      try {
+        const squarePlan = await createSquareSubscriptionPlan({
+          localPlanId: plan.id,
+          name: input.name,
+          priceInCents: input.priceInCents,
+          cycleIntervalDays: input.cycleIntervalDays ?? 30,
+        });
+
+        if (squarePlan) {
+          await db
+            .update(membershipPlans)
+            .set({ squareSubscriptionPlanId: squarePlan.planVariationId })
+            .where(eq(membershipPlans.id, plan.id));
+        }
+      } catch {
+        // Non-fatal — plan works without Square auto-billing
+      }
+    }
 
     revalidatePath("/dashboard/bookings");
     revalidatePath("/dashboard/memberships");

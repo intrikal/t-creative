@@ -696,6 +696,210 @@ export async function linkSquareCustomer(params: {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Subscriptions API                                                  */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Maps a cycleIntervalDays value to a Square subscription cadence.
+ * Square supports: DAILY, WEEKLY, EVERY_TWO_WEEKS, THIRTY_DAYS,
+ * SIXTY_DAYS, NINETY_DAYS, MONTHLY, EVERY_TWO_MONTHS, QUARTERLY,
+ * EVERY_FOUR_MONTHS, EVERY_SIX_MONTHS, ANNUAL, EVERY_TWO_YEARS.
+ */
+function mapCadence(
+  days: number,
+): "DAILY" | "WEEKLY" | "EVERY_TWO_WEEKS" | "THIRTY_DAYS" | "SIXTY_DAYS" | "NINETY_DAYS" | "MONTHLY" | "QUARTERLY" | "ANNUAL" {
+  if (days <= 1) return "DAILY";
+  if (days <= 7) return "WEEKLY";
+  if (days <= 14) return "EVERY_TWO_WEEKS";
+  if (days <= 31) return "MONTHLY";
+  if (days <= 60) return "SIXTY_DAYS";
+  if (days <= 90) return "QUARTERLY";
+  return "ANNUAL";
+}
+
+/**
+ * Creates a Square Catalog SUBSCRIPTION_PLAN for a membership plan.
+ * Returns the subscription plan variation ID (used when creating
+ * individual subscriptions), or null on failure.
+ *
+ * Idempotency key: `sub-plan-{localPlanId}` — safe to retry.
+ */
+export async function createSquareSubscriptionPlan(params: {
+  localPlanId: number;
+  name: string;
+  priceInCents: number;
+  cycleIntervalDays: number;
+}): Promise<{ planVariationId: string; catalogObjectId: string } | null> {
+  if (!isSquareConfigured()) return null;
+
+  try {
+    const cadence = mapCadence(params.cycleIntervalDays);
+
+    const response = await squareClient.catalog.batchUpsert({
+      idempotencyKey: `sub-plan-${params.localPlanId}`,
+      batches: [
+        {
+          objects: [
+            {
+              type: "SUBSCRIPTION_PLAN",
+              id: `#sub-plan-${params.localPlanId}`,
+              subscriptionPlanData: {
+                name: params.name,
+                phases: [
+                  {
+                    cadence,
+                    recurringPriceMoney: {
+                      amount: BigInt(params.priceInCents),
+                      currency: "USD",
+                    },
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      ],
+    });
+
+    // The response maps temp IDs (#sub-plan-X) to real IDs.
+    const mapping = response.idMappings?.[0];
+    const catalogObjectId = mapping?.objectId ?? null;
+
+    // The plan variation ID is on the created object's phases.
+    // We need to retrieve the object to get the variation ID.
+    if (catalogObjectId) {
+      const objectResp = await squareClient.catalog.getObject({
+        objectId: catalogObjectId,
+        includeRelatedObjects: true,
+      });
+
+      const planObj = objectResp.object;
+      const variationId =
+        planObj?.subscriptionPlanData?.phases?.[0]?.uid ?? catalogObjectId;
+
+      return { planVariationId: variationId, catalogObjectId };
+    }
+
+    return null;
+  } catch (err) {
+    Sentry.captureException(err);
+    return null;
+  }
+}
+
+/**
+ * Creates a Square Subscription for a client. Requires the client to
+ * have a squareCustomerId and a card on file. Returns the Square
+ * subscription ID, or null on failure.
+ */
+export async function createSquareSubscription(params: {
+  squareCustomerId: string;
+  planVariationId: string;
+  cardId: string;
+  localSubscriptionId: string;
+  startDate?: string;
+}): Promise<string | null> {
+  if (!isSquareConfigured()) return null;
+
+  try {
+    const response = await squareClient.subscriptions.create({
+      idempotencyKey: `sub-${params.localSubscriptionId}`,
+      locationId: SQUARE_LOCATION_ID,
+      customerId: params.squareCustomerId,
+      planVariationId: params.planVariationId,
+      cardId: params.cardId,
+      startDate: params.startDate,
+    });
+
+    return response.subscription?.id ?? null;
+  } catch (err) {
+    Sentry.captureException(err);
+    return null;
+  }
+}
+
+/**
+ * Cancels a Square Subscription. The subscription stops billing at the
+ * end of the current period.
+ */
+export async function cancelSquareSubscription(
+  subscriptionId: string,
+): Promise<boolean> {
+  if (!isSquareConfigured()) return false;
+
+  try {
+    await squareClient.subscriptions.cancel({ subscriptionId });
+    return true;
+  } catch (err) {
+    Sentry.captureException(err);
+    return false;
+  }
+}
+
+/**
+ * Pauses a Square Subscription. Billing stops until resumed.
+ */
+export async function pauseSquareSubscription(
+  subscriptionId: string,
+): Promise<boolean> {
+  if (!isSquareConfigured()) return false;
+
+  try {
+    await squareClient.subscriptions.pause({
+      subscriptionId,
+      pauseReason: "Paused by admin",
+    });
+    return true;
+  } catch (err) {
+    Sentry.captureException(err);
+    return false;
+  }
+}
+
+/**
+ * Resumes a paused Square Subscription.
+ */
+export async function resumeSquareSubscription(
+  subscriptionId: string,
+): Promise<boolean> {
+  if (!isSquareConfigured()) return false;
+
+  try {
+    await squareClient.subscriptions.resume({
+      subscriptionId,
+    });
+    return true;
+  } catch (err) {
+    Sentry.captureException(err);
+    return false;
+  }
+}
+
+/**
+ * Retrieves the current status of a Square Subscription.
+ */
+export async function getSquareSubscriptionStatus(
+  subscriptionId: string,
+): Promise<{ status: string; paidThroughDate?: string; chargedThroughDate?: string } | null> {
+  if (!isSquareConfigured()) return null;
+
+  try {
+    const response = await squareClient.subscriptions.retrieve({ subscriptionId });
+    const sub = response.subscription;
+    if (!sub) return null;
+
+    return {
+      status: sub.status ?? "UNKNOWN",
+      paidThroughDate: sub.paidUntilDate ?? undefined,
+      chargedThroughDate: sub.chargedThroughDate ?? undefined,
+    };
+  } catch (err) {
+    Sentry.captureException(err);
+    return null;
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /*  Card-on-File API                                                   */
 /* ------------------------------------------------------------------ */
 

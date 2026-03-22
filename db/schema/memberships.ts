@@ -92,6 +92,9 @@ export const membershipPlans = pgTable("membership_plans", {
    */
   isActive: boolean("is_active").notNull().default(true),
 
+  /** Square Catalog subscription plan variation ID for auto-billing. */
+  squareSubscriptionPlanId: varchar("square_subscription_plan_id", { length: 100 }),
+
   /** Order in which plans appear in the UI (ascending). */
   displayOrder: integer("display_order").notNull().default(0),
 
@@ -142,6 +145,9 @@ export const membershipSubscriptions = pgTable(
 
     /** End of the current billing cycle (cycleStartAt + plan.cycleIntervalDays). */
     cycleEndsAt: timestamp("cycle_ends_at", { withTimezone: true }).notNull(),
+
+    /** Square Subscription ID for auto-billing. */
+    squareSubscriptionId: varchar("square_subscription_id", { length: 100 }),
 
     /** When the subscription was cancelled (null if not cancelled). */
     cancelledAt: timestamp("cancelled_at", { withTimezone: true }),

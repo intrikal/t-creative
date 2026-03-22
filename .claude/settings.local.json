@@ -8,7 +8,8 @@
       "Bash(git -C /Users/kevinlam/Desktop/t-creative log --oneline -5)",
       "Bash(git -C /Users/kevinlam/Desktop/t-creative log --oneline)",
       "Bash(git -C /Users/kevinlam/Desktop/t-creative log --oneline --all)",
-      "Bash(git -C /Users/kevinlam/Desktop/t-creative show --name-status feat/booking-tos-acceptance)"
+      "Bash(git -C /Users/kevinlam/Desktop/t-creative show --name-status feat/booking-tos-acceptance)",
+      "Bash(xargs grep:*)"
     ]
   }
 }

@@ -16,6 +16,7 @@ import { getPublicBusinessProfile, getPublicRemindersConfig } from "@/app/dashbo
 import { BookingReminder } from "@/emails/BookingReminder";
 import { sendEmail } from "@/lib/resend";
 import { sendSms } from "@/lib/twilio";
+import { sendPushNotification, isPushConfigured } from "@/lib/web-push";
 
 type ReminderWindow = { label: string; hoursUntil: number; minHours: number; maxHours: number };
 
@@ -138,6 +139,47 @@ export async function GET(request: Request) {
 
           if (success) totalSent++;
           else totalFailed++;
+        }
+      }
+
+      // --- Push notification ---
+      if (isPushConfigured()) {
+        const pushEntityType = `booking_reminder_${window.label}_push`;
+
+        const [existingPush] = await db
+          .select({ id: syncLog.id })
+          .from(syncLog)
+          .where(
+            and(
+              eq(syncLog.entityType, pushEntityType),
+              eq(syncLog.localId, localId),
+              eq(syncLog.status, "success"),
+            ),
+          )
+          .limit(1);
+
+        if (!existingPush) {
+          try {
+            const sent = await sendPushNotification(booking.clientId, {
+              title: `Appointment reminder`,
+              body: `Your ${booking.serviceName} is ${startsAtFormatted}`,
+              url: "/dashboard/bookings",
+            });
+
+            if (sent > 0) {
+              await db.insert(syncLog).values({
+                provider: "web_push",
+                direction: "outbound",
+                status: "success",
+                entityType: pushEntityType,
+                localId,
+                message: `Push reminder sent (${sent} device${sent > 1 ? "s" : ""})`,
+              });
+              totalSent++;
+            }
+          } catch {
+            totalFailed++;
+          }
         }
       }
     }

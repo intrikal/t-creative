@@ -40,6 +40,7 @@ export const integrationProviderEnum = pgEnum("integration_provider", [
   "twilio",
   "instagram",
   "easypost",
+  "web_push",
 ]);
 
 /** Direction of the sync operation. */

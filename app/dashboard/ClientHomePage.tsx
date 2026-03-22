@@ -67,6 +67,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { PushNotificationPrompt } from "./components/PushNotificationPrompt";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                               */
@@ -362,6 +363,9 @@ export function ClientHomePage({
           </Link>
         </div>
       )}
+
+      {/* ── Push notification prompt ──────────────────────────────── */}
+      <PushNotificationPrompt />
 
       {/* ── Two-column body ─────────────────────────────────────────── */}
       <div className="grid grid-cols-1 xl:grid-cols-5 gap-4">

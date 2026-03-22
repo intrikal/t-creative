@@ -9,7 +9,7 @@
  */
 "use client";
 
-import { Clock, ChevronDown, ChevronUp, MapPin, Plus, Star } from "lucide-react";
+import { Clock, ChevronDown, ChevronUp, Download, MapPin, Plus, Star } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import type { ClientBookingRow } from "@/lib/types/booking.types";
@@ -174,6 +174,20 @@ export function BookingCard({
               <Star className="w-3.5 h-3.5 text-[#d4a574] fill-[#d4a574]" />
               Review submitted — thank you!
             </p>
+          )}
+
+          {/* Download receipt for completed bookings */}
+          {booking.status === "completed" && (
+            <a
+              href={`/api/receipts/${booking.id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="flex items-center gap-1.5 text-xs font-medium text-accent hover:text-accent/80 transition-colors"
+            >
+              <Download className="w-3.5 h-3.5" />
+              Download receipt
+            </a>
           )}
         </div>
       )}

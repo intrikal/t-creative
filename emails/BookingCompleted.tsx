@@ -6,12 +6,15 @@ export type BookingCompletedProps = {
   clientName: string;
   serviceName: string;
   businessName?: string;
+  /** Absolute URL to the PDF receipt download. */
+  receiptUrl?: string;
 };
 
 export function BookingCompleted({
   clientName,
   serviceName,
   businessName = "T Creative Studio",
+  receiptUrl,
 }: BookingCompletedProps) {
   return (
     <Layout preview={`Thanks for visiting — ${serviceName}`} businessName={businessName}>
@@ -21,6 +24,14 @@ export function BookingCompleted({
           Hey {clientName}, thank you for your {serviceName} appointment! We hope you loved the
           result.
         </Text>
+
+        {receiptUrl && (
+          <Text style={paragraph}>
+            <a href={receiptUrl} style={link}>
+              Download your receipt →
+            </a>
+          </Text>
+        )}
 
         <Text style={paragraph}>
           We&apos;d love to hear how it went — feel free to reply to this email with any feedback.
@@ -51,6 +62,12 @@ const paragraph: React.CSSProperties = {
   lineHeight: "24px",
   color: "#333333",
   margin: "0 0 20px",
+};
+
+const link: React.CSSProperties = {
+  color: "#96604a",
+  fontWeight: "600",
+  textDecoration: "none",
 };
 
 const muted: React.CSSProperties = {

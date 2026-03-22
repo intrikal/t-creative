@@ -11,7 +11,7 @@
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import type { WeeklyBookings, ServiceMixItem } from "../actions";
+import type { WeeklyBookings, ServiceMixItem } from "@/lib/types/analytics.types";
 
 const SERVICE_MIX_COLORS: Record<string, string> = {
   "Lash Services": "bg-[#c4907a]",

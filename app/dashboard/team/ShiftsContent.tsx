@@ -7,7 +7,8 @@
 
 import { useEffect, useState } from "react";
 import { Clock, CheckCircle2, XCircle, CalendarDays } from "lucide-react";
-import { getShifts, type ShiftRow } from "@/app/dashboard/staff/actions";
+import { getShifts } from "@/app/dashboard/staff/actions";
+import type { ShiftRow } from "@/lib/types/staff.types";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";

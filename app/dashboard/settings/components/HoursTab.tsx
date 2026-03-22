@@ -21,7 +21,7 @@ import { useState } from "react";
 import { Check, Plus, Trash2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import type { BusinessHourRow, LunchBreak, TimeOffRow } from "../hours-actions";
+import type { BusinessHourRow, LunchBreak, TimeOffRow } from "@/lib/types/settings.types";
 import { addTimeOff, deleteTimeOff, saveLunchBreak, saveBusinessHours } from "../hours-actions";
 import { StatefulSaveButton, ToggleRow, Toggle } from "./shared";
 

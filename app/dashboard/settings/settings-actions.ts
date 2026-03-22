@@ -39,6 +39,20 @@ import { requireAdmin } from "@/lib/auth";
 import { trackEvent } from "@/lib/posthog";
 import { isSquareConfigured } from "@/lib/square";
 import type { ActionResult } from "@/lib/types/action-result";
+import type {
+  BusinessProfile,
+  PolicySettings,
+  LoyaltyConfig,
+  NotificationPrefs,
+  BookingRulesConfig,
+  ReminderItem,
+  RemindersConfig,
+  InventoryConfig,
+  FinancialConfig,
+  RevenueGoal,
+  SiteContent,
+  CcpaDeletionEntry,
+} from "@/lib/types/settings.types";
 
 /* ------------------------------------------------------------------ */
 /*  Auth guard                                                         */
@@ -61,100 +75,18 @@ async function getPublicSetting<T>(key: string, fallback: T): Promise<T> {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Types                                                              */
+/*  Types — re-exported from lib/types/settings.types                 */
 /* ------------------------------------------------------------------ */
 
-export interface BusinessProfile {
-  businessName: string;
-  owner: string;
-  email: string;
-  phone: string;
-  location: string;
-  timezone: string;
-  currency: string;
-  bookingLink: string;
-  bio: string;
-  emailSenderName: string;
-  emailFromAddress: string;
-}
-
-export interface PolicySettings {
-  cancelWindowHours: number;
-  lateCancelFeePercent: number;
-  noShowFeePercent: number;
-  depositRequired: boolean;
-  depositPercent: number;
-  /** Hours before appointment at which client gets a full deposit refund. */
-  fullRefundHours: number;
-  /** Percent of deposit refunded when cancelled between partialRefundMinHours and fullRefundHours. */
-  partialRefundPct: number;
-  /** Minimum hours before appointment to qualify for a partial refund. */
-  partialRefundMinHours: number;
-  /** Cancellations within this many hours of appointment get no refund. */
-  noRefundHours: number;
-  /** Plain-text cancellation policy shown to clients as a required checkbox. */
-  cancellationPolicy: string;
-  /** Semver-style version string for the ToS (e.g. "2025-01"). */
-  tosVersion: string;
-}
-
-export interface LoyaltyConfig {
-  pointsProfileComplete: number;
-  pointsBirthdayAdded: number;
-  pointsReferral: number;
-  pointsFirstBooking: number;
-  pointsRebook: number;
-  pointsReview: number;
-  tierSilver: number;
-  tierGold: number;
-  tierPlatinum: number;
-  /** Percent discount for birthday promo codes (e.g. 5 = 5% off). */
-  birthdayDiscountPercent: number;
-  /** Days until birthday promo code expires (default: 7). */
-  birthdayPromoExpiryDays: number;
-}
-
-export interface NotificationPrefs {
-  items: Array<{
-    label: string;
-    email: boolean;
-    sms: boolean;
-  }>;
-}
-
-export interface BookingRulesConfig {
-  minNoticeHours: number;
-  maxAdvanceDays: number;
-  bufferMinutes: number;
-  maxDailyBookings: number;
-  cancelWindowHours: number;
-  depositPct: number;
-  depositRequired: boolean;
-  allowOnlineBooking: boolean;
-  /** Hours a waitlist member has to claim an offered slot (default: 24). */
-  waitlistClaimWindowHours: number;
-  /** Days a waiver completion token stays valid (default: 7). */
-  waiverTokenExpiryDays: number;
-}
-
-export interface ReminderItem {
-  id: number;
-  label: string;
-  timing: string;
-  email: boolean;
-  sms: boolean;
-  active: boolean;
-}
-
-export interface RemindersConfig {
-  items: ReminderItem[];
-  /** Days after last lash visit to send fill reminder (default: 18). */
-  fillReminderDays: number;
-  /** Hours after booking completion to send review request (default: 24). */
-  reviewRequestDelayHours: number;
-  /** Hours-before-appointment windows for booking reminders (default: [24, 48]). */
-  bookingReminderHours: number[];
-}
+export type {
+  BusinessProfile,
+  PolicySettings,
+  LoyaltyConfig,
+  NotificationPrefs,
+  BookingRulesConfig,
+  ReminderItem,
+  RemindersConfig,
+} from "@/lib/types/settings.types";
 
 /* ------------------------------------------------------------------ */
 /*  Defaults                                                           */
@@ -576,10 +508,7 @@ export async function saveReminders(data: RemindersConfig): Promise<ActionResult
 /*  Inventory Config                                                   */
 /* ------------------------------------------------------------------ */
 
-export interface InventoryConfig {
-  lowStockThreshold: number;
-  giftCardCodePrefix: string;
-}
+export type { InventoryConfig } from "@/lib/types/settings.types";
 
 const DEFAULT_INVENTORY: InventoryConfig = {
   lowStockThreshold: 5,
@@ -623,10 +552,7 @@ export async function saveInventoryConfig(data: InventoryConfig): Promise<Action
 /*  Financial Config                                                   */
 /* ------------------------------------------------------------------ */
 
-export interface FinancialConfig {
-  revenueGoalMonthly: number;
-  estimatedTaxRate: number;
-}
+export type { FinancialConfig } from "@/lib/types/settings.types";
 
 const DEFAULT_FINANCIAL: FinancialConfig = {
   revenueGoalMonthly: 12000,
@@ -670,11 +596,7 @@ export async function saveFinancialConfig(data: FinancialConfig): Promise<Action
 /*  Revenue Goals                                                      */
 /* ------------------------------------------------------------------ */
 
-export interface RevenueGoal {
-  id: string;
-  month: string; // "YYYY-MM"
-  amount: number;
-}
+export type { RevenueGoal } from "@/lib/types/settings.types";
 
 const KEY_REVENUE_GOALS = "revenue_goals";
 
@@ -713,30 +635,7 @@ export async function saveRevenueGoals(data: RevenueGoal[]): Promise<ActionResul
 /*  Site Content                                                       */
 /* ------------------------------------------------------------------ */
 
-export interface SiteContent {
-  heroHeadline: string;
-  heroSubheadline: string;
-  heroCtaText: string;
-  aboutBio: string;
-  footerTagline: string;
-  seoTitle: string;
-  seoDescription: string;
-  socialLinks: { platform: string; handle: string; url: string }[];
-  faqEntries: { question: string; answer: string }[];
-  consultingServices: {
-    title: string;
-    tag: string;
-    description: string;
-    outcomes: string[];
-    idealClient: string;
-  }[];
-  consultingBenefits: string[];
-  eventDescriptions: {
-    title: string;
-    description: string;
-  }[];
-  showConsultingPage: boolean;
-}
+export type { SiteContent } from "@/lib/types/settings.types";
 
 const DEFAULT_SITE_CONTENT: SiteContent = {
   heroHeadline: "Where Artistry Meets Transformation",
@@ -1106,14 +1005,7 @@ export async function getSquareConnectionStatus(): Promise<SquareConnectionStatu
 /*  CCPA Data Deletion Log (admin view)                                */
 /* ------------------------------------------------------------------ */
 
-export type CcpaDeletionEntry = {
-  id: number;
-  actorId: string | null;
-  email: string;
-  mediaItemsDeleted: number;
-  ipAddress: string | null;
-  createdAt: string;
-};
+export type { CcpaDeletionEntry } from "@/lib/types/settings.types";
 
 /**
  * Fetch all CCPA data deletion requests from the audit log.

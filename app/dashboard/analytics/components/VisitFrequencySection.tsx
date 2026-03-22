@@ -10,7 +10,7 @@
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { VisitFrequencyBucket } from "../actions";
+import type { VisitFrequencyBucket } from "@/lib/types/analytics.types";
 
 const BAR_COLORS = ["bg-[#c4907a]", "bg-[#d4a574]", "bg-[#7ba3a3]", "bg-[#4e6b51]", "bg-[#3a5240]"];
 

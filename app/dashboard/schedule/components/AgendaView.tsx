@@ -12,7 +12,7 @@ import { useMemo } from "react";
 import { Clock, Users } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
-import type { AppointmentRow } from "../actions";
+import type { AppointmentRow } from "@/lib/types/booking.types";
 import {
   fmtDate,
   parseDate,

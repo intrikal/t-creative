@@ -7,7 +7,7 @@
  * - BookingCard (./BookingCard.tsx)
  */
 
-import type { ClientBookingRow } from "../client-actions";
+import type { ClientBookingRow } from "@/lib/types/booking.types";
 
 /* ------------------------------------------------------------------ */
 /*  Date helpers                                                        */

@@ -50,65 +50,32 @@ import {
 import { EnrollmentConfirmation } from "@/emails/EnrollmentConfirmation";
 import { getUser } from "@/lib/auth";
 import { sendEmail, getEmailRecipient } from "@/lib/resend";
+import type {
+  ProgramType,
+  StudentStatus,
+  ProgramRow,
+  SessionRow,
+  StudentRow,
+  TrainingStats,
+  ClientOption,
+  ProgramFormData,
+  EnrollmentFormData,
+  AssistantLesson,
+  AssistantModule,
+  AssistantTrainingData,
+} from "@/lib/types/training.types";
+
+export type {
+  ProgramType,
+  StudentStatus,
+  ProgramRow,
+  SessionRow,
+  StudentRow,
+  TrainingStats,
+  ClientOption,
+} from "@/lib/types/training.types";
 
 const PATH = "/dashboard/training";
-
-/* ------------------------------------------------------------------ */
-/*  Types                                                              */
-/* ------------------------------------------------------------------ */
-
-export type ProgramType = "lash" | "jewelry" | "business" | "crochet";
-export type StudentStatus = "active" | "completed" | "paused" | "waitlist";
-
-export type ProgramRow = {
-  id: number;
-  name: string;
-  type: ProgramType;
-  price: number;
-  sessions: number;
-  description: string;
-  active: boolean;
-  maxSpots: number;
-  waitlistOpen: boolean;
-};
-
-export type SessionRow = {
-  id: number;
-  date: string;
-  topic: string;
-  status: "completed" | "upcoming" | "cancelled";
-  notes?: string;
-};
-
-export type StudentRow = {
-  id: number;
-  name: string;
-  initials: string;
-  program: ProgramType;
-  programId: number;
-  status: StudentStatus;
-  enrolled: string;
-  sessionsCompleted: number;
-  sessionsTotal: number;
-  amountPaid: number;
-  amountTotal: number;
-  certified: boolean;
-  certDate?: string;
-  sessions: SessionRow[];
-};
-
-export type TrainingStats = {
-  activeStudents: number;
-  waitlistStudents: number;
-  certified: number;
-  revenue: number;
-};
-
-export type ClientOption = {
-  id: string;
-  name: string;
-  initials: string;
-};
 
 /* ------------------------------------------------------------------ */
 /*  Mapping helpers                                                    */
@@ -510,16 +477,7 @@ export async function getClients(): Promise<ClientOption[]> {
 /*  Program mutations                                                  */
 /* ------------------------------------------------------------------ */
 
-export type ProgramFormData = {
-  name: string;
-  type: ProgramType;
-  price: number;
-  sessions: number;
-  description: string;
-  active: boolean;
-  maxSpots: number;
-  waitlistOpen: boolean;
-};
+export type { ProgramFormData } from "@/lib/types/training.types";
 
 const ProgramFormSchema = z.object({
   name: z.string().min(1),
@@ -695,12 +653,7 @@ export async function toggleWaitlist(programId: number) {
 /*  Enrollment mutations                                               */
 /* ------------------------------------------------------------------ */
 
-export type EnrollmentFormData = {
-  clientId: string;
-  programId: number;
-  status: StudentStatus;
-  amountPaid: number;
-};
+export type { EnrollmentFormData } from "@/lib/types/training.types";
 
 const EnrollmentFormSchema = z.object({
   clientId: z.string().min(1),
@@ -795,36 +748,7 @@ export async function deleteEnrollment(id: number) {
 /*  Assistant training types                                           */
 /* ------------------------------------------------------------------ */
 
-export type AssistantLesson = {
-  id: number;
-  title: string;
-  content: string | null;
-  resourceUrl: string | null;
-  durationMin: number;
-  completed: boolean;
-};
-
-export type AssistantModule = {
-  id: number;
-  title: string;
-  description: string;
-  category: string;
-  status: "completed" | "in_progress" | "available" | "locked";
-  lessons: AssistantLesson[];
-  dueDate?: string;
-  completedDate?: string;
-};
-
-export type AssistantTrainingData = {
-  modules: AssistantModule[];
-  stats: {
-    modulesCompleted: number;
-    modulesTotal: number;
-    lessonsCompleted: number;
-    lessonsTotal: number;
-    certificates: number;
-  };
-};
+export type { AssistantLesson, AssistantModule, AssistantTrainingData } from "@/lib/types/training.types";
 
 /* ------------------------------------------------------------------ */
 /*  Assistant training queries                                         */

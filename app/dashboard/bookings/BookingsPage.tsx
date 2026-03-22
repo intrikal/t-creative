@@ -60,7 +60,7 @@ import {
   cancelBookingSeries,
   getBookings,
 } from "./actions";
-import type { BookingRow, BookingInput } from "./actions";
+import type { BookingRow, BookingInput } from "@/lib/types/booking.types";
 import type { BookingFormState } from "./components/BookingDialog";
 import { BookingRow as BookingRowComponent } from "./components/BookingRow";
 import {

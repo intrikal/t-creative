@@ -11,7 +11,7 @@ import { useState, useMemo } from "react";
 import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import type { ClientBookingRow } from "../client-actions";
+import type { ClientBookingRow } from "@/lib/types/booking.types";
 import {
   MONTH_NAMES,
   DAY_NAMES,

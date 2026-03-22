@@ -20,7 +20,7 @@ import {
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import type { WaitlistConversionStats } from "../actions";
+import type { WaitlistConversionStats } from "@/lib/types/analytics.types";
 
 function rateColor(rate: number) {
   if (rate >= 60) return "text-[#4e6b51]";

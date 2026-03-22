@@ -18,7 +18,7 @@ import { GraduationCap, Pencil, Trash2, Users, Lock, Unlock } from "lucide-react
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import type { ProgramRow } from "../actions";
+import type { ProgramRow } from "@/lib/types/training.types";
 import { PROGRAM_STYLE } from "./helpers";
 
 export function ProgramCard({

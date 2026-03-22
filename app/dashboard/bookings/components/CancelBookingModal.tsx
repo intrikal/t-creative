@@ -6,7 +6,7 @@
 "use client";
 
 import { X } from "lucide-react";
-import type { ClientBookingRow } from "../client-actions";
+import type { ClientBookingRow } from "@/lib/types/booking.types";
 
 export function CancelBookingModal({
   booking,

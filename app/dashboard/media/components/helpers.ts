@@ -3,7 +3,7 @@
  * Shared constants, types, and utility functions for the media module.
  */
 
-import type { MediaCategory } from "@/app/dashboard/media/actions";
+import type { MediaCategory } from "@/lib/types/media.types";
 
 export type FilterCategory = "all" | MediaCategory;
 

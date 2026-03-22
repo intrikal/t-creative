@@ -9,7 +9,7 @@
 
 import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import type { InventoryConfig } from "../settings-actions";
+import type { InventoryConfig } from "@/lib/types/settings.types";
 import { saveInventoryConfig } from "../settings-actions";
 import { FieldRow, StatefulSaveButton, NUM_INPUT_CLASS, INPUT_CLASS } from "./shared";
 

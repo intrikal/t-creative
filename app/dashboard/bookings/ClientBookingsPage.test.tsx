@@ -9,7 +9,7 @@ import { render, screen, fireEvent, act } from "@testing-library/react";
 // vi: Vitest's mock utility for creating fake functions and spying on calls
 // beforeEach: runs setup before every test (typically resets mocks)
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { ClientBookingRow, ClientBookingsData } from "./client-actions";
+import type { ClientBookingRow, ClientBookingsData } from "@/lib/types/booking.types";
 import { ClientBookingsPage } from "./ClientBookingsPage";
 
 // vi.mock() replaces the client-actions module so tests never call

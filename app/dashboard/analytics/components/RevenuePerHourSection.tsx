@@ -12,7 +12,7 @@
 import { BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import type { RevenuePerHourDay } from "../actions";
+import type { RevenuePerHourDay } from "@/lib/types/analytics.types";
 
 export function RevenuePerHourSection({ data }: { data: RevenuePerHourDay[] }) {
   const totalRevenue = data.reduce((s, d) => s + d.revenue, 0);

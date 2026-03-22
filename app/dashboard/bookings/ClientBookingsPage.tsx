@@ -33,7 +33,7 @@
 import { useState, useTransition, useCallback } from "react";
 import { CalendarDays, Rss, X } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { ClientBookingRow, ClientBookingsData } from "./client-actions";
+import type { ClientBookingRow, ClientBookingsData } from "@/lib/types/booking.types";
 import { submitClientReview, cancelClientBooking, rescheduleClientBooking } from "./client-actions";
 import { BookingCard } from "./components/BookingCard";
 import { BookingsMiniCal } from "./components/BookingsMiniCal";

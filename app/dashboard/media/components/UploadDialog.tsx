@@ -8,7 +8,7 @@
 import { useRef, useState, useTransition } from "react";
 import Image from "next/image";
 import { ImagePlus, Star, X } from "lucide-react";
-import type { MediaCategory } from "@/app/dashboard/media/actions";
+import type { MediaCategory } from "@/lib/types/media.types";
 import { uploadMedia } from "@/app/dashboard/media/actions";
 import { Dialog, DialogFooter, Field, Select, Textarea } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";

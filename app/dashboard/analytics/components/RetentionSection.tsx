@@ -11,7 +11,7 @@
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import type { RetentionWeek, AtRiskClient } from "../actions";
+import type { RetentionWeek, AtRiskClient } from "@/lib/types/analytics.types";
 
 function urgencyColor(urgency: string) {
   if (urgency === "high") return "text-destructive bg-destructive/10";

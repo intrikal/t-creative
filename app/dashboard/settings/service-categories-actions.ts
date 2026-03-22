@@ -20,14 +20,9 @@ import { z } from "zod";
 import { db } from "@/db";
 import { serviceCategories } from "@/db/schema";
 import { requireAdmin } from "@/lib/auth";
+import type { ServiceCategoryRow } from "@/lib/types/settings.types";
 
-export type ServiceCategoryRow = {
-  id: number;
-  name: string;
-  slug: string;
-  displayOrder: number;
-  isActive: boolean;
-};
+export type { ServiceCategoryRow } from "@/lib/types/settings.types";
 
 export async function getServiceCategories(): Promise<ServiceCategoryRow[]> {
   try {

@@ -5,7 +5,7 @@ import { Search, Star, CalendarDays, Clock, Users } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import type { AssistantClientRow, AssistantClientStats } from "./actions";
+import type { AssistantClientRow, AssistantClientStats } from "@/lib/types/client.types";
 
 function categoryDot(cat: string) {
   return (

@@ -19,6 +19,16 @@ import { trackEvent } from "@/lib/posthog";
 import { createZohoDeal } from "@/lib/zoho";
 import { createZohoBooksInvoice } from "@/lib/zoho-books";
 import { getUser } from "@/lib/auth";
+import type {
+  ProgramType,
+  EnrollStatus,
+  ClientProgram,
+  ClientLesson,
+  ClientLessonModule,
+  ClientEnrollment,
+  ClientCertificate,
+  ClientTrainingData,
+} from "@/lib/types/training.types";
 
 const PATH = "/dashboard/training";
 
@@ -26,75 +36,16 @@ const PATH = "/dashboard/training";
 /*  Types                                                              */
 /* ------------------------------------------------------------------ */
 
-export type ProgramType = "lash" | "jewelry" | "business" | "crochet";
-export type EnrollStatus = "enrolled" | "waitlist" | "in_progress" | "completed" | null;
-
-export type ClientProgram = {
-  id: number;
-  name: string;
-  type: ProgramType;
-  price: number;
-  description: string;
-  format: string;
-  certificationProvided: boolean;
-  kitIncluded: boolean;
-  maxSpots: number;
-  spotsLeft: number;
-  waitlistOpen: boolean;
-  modules: { name: string; description: string | null; lessonCount: number }[];
-  /** Next upcoming session for this program */
-  nextSession: {
-    startsAt: string;
-    location: string | null;
-    schedule: string | null;
-  } | null;
-};
-
-export type ClientLesson = {
-  id: number;
-  title: string;
-  content: string | null;
-  resourceUrl: string | null;
-  durationMin: number;
-  completed: boolean;
-};
-
-export type ClientLessonModule = {
-  id: number;
-  name: string;
-  lessons: ClientLesson[];
-};
-
-export type ClientEnrollment = {
-  id: number;
-  programId: number;
-  programName: string;
-  programType: ProgramType;
-  status: EnrollStatus;
-  progressPercent: number;
-  sessionsCompleted: number;
-  amountPaidCents: number;
-  totalPriceCents: number;
-  sessionStartsAt: string | null;
-  sessionLocation: string | null;
-  /** Lesson modules for this program — only populated for active enrollments. */
-  lessonModules: ClientLessonModule[];
-};
-
-export type ClientCertificate = {
-  id: number;
-  programName: string;
-  programType: ProgramType;
-  certificateCode: string;
-  pdfUrl: string | null;
-  issuedAt: string;
-};
-
-export type ClientTrainingData = {
-  programs: ClientProgram[];
-  enrollments: ClientEnrollment[];
-  certificates: ClientCertificate[];
-};
+export type {
+  ProgramType,
+  EnrollStatus,
+  ClientProgram,
+  ClientLesson,
+  ClientLessonModule,
+  ClientEnrollment,
+  ClientCertificate,
+  ClientTrainingData,
+} from "@/lib/types/training.types";
 
 /* ------------------------------------------------------------------ */
 /*  Query                                                              */

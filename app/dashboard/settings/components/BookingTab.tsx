@@ -9,7 +9,7 @@
 
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { BookingRulesConfig } from "../settings-actions";
+import type { BookingRulesConfig } from "@/lib/types/settings.types";
 import { saveBookingRules } from "../settings-actions";
 import { FieldRow, ToggleRow, StatefulSaveButton, NUM_INPUT_CLASS } from "./shared";
 

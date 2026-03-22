@@ -6,7 +6,7 @@
 
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { ClientProgram } from "../client-actions";
+import type { ClientProgram } from "@/lib/types/training.types";
 import { PROG_STYLE, FORMAT_LABEL } from "./client-helpers";
 
 export function EnrollModal({

@@ -11,7 +11,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import type { PromotionRoiItem } from "../actions";
+import type { PromotionRoiItem } from "@/lib/types/analytics.types";
 
 const DISCOUNT_TYPE_LABELS: Record<string, string> = {
   percent: "%",

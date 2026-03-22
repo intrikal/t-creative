@@ -8,7 +8,7 @@
 
 import { CalendarClock } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { AppointmentGapStats } from "../actions";
+import type { AppointmentGapStats } from "@/lib/types/analytics.types";
 
 const BAR_COLORS: Record<string, string> = {
   "Lash Services": "bg-[#c4907a]",

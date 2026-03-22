@@ -25,29 +25,9 @@ const BUCKET = "media";
 /*  Types                                                              */
 /* ------------------------------------------------------------------ */
 
-export type MediaCategory = "lash" | "jewelry" | "crochet" | "consulting";
+import type { MediaCategory, MediaRow, MediaStats } from "@/lib/types/media.types";
 
-export type MediaRow = {
-  id: number;
-  type: "image" | "video" | "before_after";
-  category: MediaCategory | null;
-  client: string | null;
-  title: string | null;
-  caption: string | null;
-  publicUrl: string | null;
-  storagePath: string;
-  fileSizeBytes: number | null;
-  isPublished: boolean;
-  isFeatured: boolean;
-  date: string;
-};
-
-export type MediaStats = {
-  total: number;
-  published: number;
-  featured: number;
-  totalSizeBytes: number;
-};
+export type { MediaCategory, MediaRow, MediaStats } from "@/lib/types/media.types";
 
 /* ------------------------------------------------------------------ */
 /*  Queries                                                            */

@@ -12,7 +12,7 @@ import { useState } from "react";
 import { GripVertical, Pencil, Plus, Trash2, X } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import type { ServiceCategoryRow } from "../service-categories-actions";
+import type { ServiceCategoryRow } from "@/lib/types/settings.types";
 import { deleteServiceCategory, saveServiceCategory } from "../service-categories-actions";
 import { INPUT_CLASS, StatefulSaveButton, Toggle } from "./shared";
 

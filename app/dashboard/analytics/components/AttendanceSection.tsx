@@ -10,7 +10,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import type { AttendanceStats, RebookRate } from "../actions";
+import type { AttendanceStats, RebookRate } from "@/lib/types/analytics.types";
 
 const REBOOK_COLORS: Record<string, string> = {
   "Classic Lash Fill": "bg-[#c4907a]",

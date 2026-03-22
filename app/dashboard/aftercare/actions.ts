@@ -25,31 +25,12 @@ import { getUser } from "@/lib/auth";
 /*  Types                                                              */
 /* ------------------------------------------------------------------ */
 
-export type AftercareSection = {
-  id: number;
-  title: string;
-  category: string | null;
-  dos: string[];
-  donts: string[];
-};
-
-export type PolicyEntry = {
-  id: number;
-  title: string;
-  content: string;
-};
-
-export type AftercareSectionInput = {
-  title: string;
-  category?: string;
-  dos: string[];
-  donts: string[];
-};
-
-export type PolicyInput = {
-  title: string;
-  content: string;
-};
+export type {
+  AftercareSection,
+  PolicyEntry,
+  AftercareSectionInput,
+  PolicyInput,
+} from "@/lib/types/aftercare.types";
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */

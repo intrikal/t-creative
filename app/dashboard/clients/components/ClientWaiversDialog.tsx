@@ -45,7 +45,7 @@ import {
   getActiveForms,
   submitForm,
 } from "@/app/dashboard/services/form-actions";
-import type { FormSubmissionRow, FormRow } from "@/app/dashboard/services/form-actions";
+import type { FormSubmissionRow, FormRow } from "@/lib/types/services.types";
 import type { FormField, FormType } from "@/app/dashboard/services/types";
 import { FORM_TYPE_CONFIG, DEFAULT_FIELDS } from "@/app/dashboard/services/types";
 import { Badge } from "@/components/ui/badge";

@@ -12,74 +12,28 @@ import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
 import { bookings, payments, services, profiles } from "@/db/schema";
 import { getUser, rangeToInterval, weekLabel, CATEGORY_LABELS } from "./_shared";
-import type { Range } from "./_shared";
+import type {
+  Range,
+  WeeklyBookings,
+  ServiceMixItem,
+  AttendanceStats,
+  PeakTimeSlot,
+  AppointmentGapStats,
+  CheckoutRebookStats,
+  TopService,
+  BookingExportRow,
+} from "@/lib/types/analytics.types";
 
-export type WeeklyBookings = {
-  week: string;
-  lash: number;
-  jewelry: number;
-  crochet: number;
-  consulting: number;
-};
-
-export type ServiceMixItem = {
-  label: string;
-  pct: number;
-  count: number;
-};
-
-export type AttendanceStats = {
-  completed: number;
-  noShow: number;
-  cancelled: number;
-  total: number;
-  revenueLost: number;
-};
-
-export type PeakTimeSlot = {
-  label: string;
-  load: number;
-};
-
-export type AppointmentGapStats = {
-  overall: number | null;
-  byCategory: { category: string; avgDays: number }[];
-};
-
-export type CheckoutRebookStats = {
-  overallRate: number;
-  totalCompleted: number;
-  totalRebooked: number;
-  byStaff: {
-    name: string;
-    completed: number;
-    rebooked: number;
-    rate: number;
-  }[];
-  byCategory: {
-    category: string;
-    completed: number;
-    rebooked: number;
-    rate: number;
-  }[];
-};
-
-export type TopService = {
-  service: string;
-  bookings: number;
-  revenue: number;
-};
-
-export type BookingExportRow = {
-  date: string;
-  client: string;
-  service: string;
-  status: string;
-  durationMin: number;
-  priceUsd: string;
-  staff: string;
-  notes: string;
-};
+export type {
+  WeeklyBookings,
+  ServiceMixItem,
+  AttendanceStats,
+  PeakTimeSlot,
+  AppointmentGapStats,
+  CheckoutRebookStats,
+  TopService,
+  BookingExportRow,
+} from "@/lib/types/analytics.types";
 
 export async function getBookingsTrend(range: Range = "30d"): Promise<WeeklyBookings[]> {
   try {

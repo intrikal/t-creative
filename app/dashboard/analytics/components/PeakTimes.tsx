@@ -11,7 +11,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import type { PeakTimeSlot } from "../actions";
+import type { PeakTimeSlot } from "@/lib/types/analytics.types";
 
 function heatColor(load: number) {
   if (load >= 85) return "bg-[#c4907a]";

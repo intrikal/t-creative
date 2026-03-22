@@ -91,6 +91,15 @@ import {
 } from "@/lib/square";
 import { sendSms } from "@/lib/twilio";
 import type { ActionResult } from "@/lib/types/action-result";
+import type {
+  BookingStatus,
+  BookingRow,
+  BookingInput,
+  PaginatedBookings,
+  CancellationRefundResult,
+  AssistantBookingRow,
+  AssistantBookingStats,
+} from "@/lib/types/booking.types";
 import { notifyWaitlistForCancelledBooking } from "@/lib/waitlist-notify";
 import { createZohoDeal, updateZohoDeal } from "@/lib/zoho";
 import { createZohoBooksInvoice } from "@/lib/zoho-books";
@@ -100,60 +109,15 @@ import { createAdminClient } from "@/utils/supabase/admin";
 /*  Type exports                                                       */
 /* ------------------------------------------------------------------ */
 
-/** Union of valid booking lifecycle states. Mirrors bookingStatusEnum in db/schema/enums. */
-export type BookingStatus =
-  | "completed"
-  | "in_progress"
-  | "confirmed"
-  | "pending"
-  | "cancelled"
-  | "no_show";
-
-/**
- * Flat joined row returned by `getBookings`. Consumed by `BookingsPage` and
- * its sub-components (table, calendar, detail drawer). Intentionally flat
- * (no nested objects) so it serializes cleanly across the server-action boundary.
- */
-export type BookingRow = {
-  id: number;
-  status: string;
-  startsAt: Date;
-  durationMinutes: number;
-  totalInCents: number;
-  location: string | null;
-  clientNotes: string | null;
-  clientId: string;
-  clientFirstName: string;
-  clientLastName: string | null;
-  clientPhone: string | null;
-  serviceId: number;
-  serviceName: string;
-  serviceCategory: string;
-  staffId: string | null;
-  staffFirstName: string | null;
-  recurrenceRule: string | null;
-  parentBookingId: number | null;
-  tosAcceptedAt: Date | null;
-  tosVersion: string | null;
-};
-
-/**
- * Input shape for `createBooking` / `updateBooking`. The admin create-booking
- * dialog and edit-booking form both produce this shape. Fields map 1:1 to
- * the bookings table columns (no transforms needed).
- */
-export type BookingInput = {
-  clientId: string;
-  serviceId: number;
-  staffId: string | null;
-  startsAt: Date;
-  durationMinutes: number;
-  totalInCents: number;
-  location?: string;
-  clientNotes?: string;
-  recurrenceRule?: string;
-  subscriptionId?: number;
-};
+export type {
+  BookingStatus,
+  BookingRow,
+  BookingInput,
+  PaginatedBookings,
+  CancellationRefundResult,
+  AssistantBookingRow,
+  AssistantBookingStats,
+} from "@/lib/types/booking.types";
 
 /** Alias for readability — all mutations in this file require admin access. */
 const getUser = requireAdmin;
@@ -301,10 +265,6 @@ async function hasApprovedTimeOffConflict(
 /*  Queries                                                            */
 /* ------------------------------------------------------------------ */
 
-export type PaginatedBookings = {
-  rows: BookingRow[];
-  hasMore: boolean;
-};
 
 const DEFAULT_BOOKINGS_LIMIT = 100;
 
@@ -1987,12 +1947,6 @@ async function tryEnforceLateCancelFee(bookingId: number): Promise<void> {
 /*  Cancellation deposit refund                                        */
 /* ------------------------------------------------------------------ */
 
-export type CancellationRefundResult = {
-  decision: "full_refund" | "partial_refund" | "no_refund" | "no_deposit";
-  refundAmountInCents: number;
-  depositAmountInCents: number;
-  hoursUntilAppointment: number;
-};
 
 /**
  * Refunds the client's deposit (fully or partially) based on how far in
@@ -2268,35 +2222,6 @@ async function trySendBookingReschedule(bookingId: number, oldStartsAt: Date): P
 /*  Assistant-scoped bookings                                          */
 /* ------------------------------------------------------------------ */
 
-/**
- * Presentation-ready booking row for the assistant dashboard.
- * Pre-formats dates, times, initials, and price (dollars not cents)
- * so the React component can render without transforms.
- */
-export type AssistantBookingRow = {
-  id: number;
-  date: string;
-  dayLabel: string;
-  time: string;
-  startTime24: string;
-  endTime: string;
-  service: string;
-  category: string;
-  client: string;
-  clientInitials: string;
-  clientPhone: string | null;
-  status: string;
-  durationMin: number;
-  price: number;
-  notes: string | null;
-};
-
-/** Summary metrics shown in the assistant dashboard header cards. */
-export type AssistantBookingStats = {
-  upcomingCount: number;
-  completedCount: number;
-  completedRevenue: number;
-};
 
 /* ---- Date/time formatting helpers for AssistantBookingRow ---- */
 

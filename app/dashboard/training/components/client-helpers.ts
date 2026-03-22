@@ -4,7 +4,7 @@
  * Kept separate from helpers.ts which serves the admin training page.
  */
 
-import type { ProgramType } from "../client-actions";
+import type { ProgramType } from "@/lib/types/training.types";
 
 export const PROG_STYLE: Record<
   ProgramType,

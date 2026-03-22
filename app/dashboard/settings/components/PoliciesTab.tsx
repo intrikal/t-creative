@@ -16,7 +16,7 @@
 
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { PolicySettings } from "../settings-actions";
+import type { PolicySettings } from "@/lib/types/settings.types";
 import { savePolicies } from "../settings-actions";
 import { FieldRow, ToggleRow, StatefulSaveButton, NUM_INPUT_CLASS, INPUT_CLASS } from "./shared";
 

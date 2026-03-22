@@ -18,7 +18,7 @@
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import type { LoyaltyConfig } from "../settings-actions";
+import type { LoyaltyConfig } from "@/lib/types/settings.types";
 import { saveLoyaltyConfig } from "../settings-actions";
 import { FieldRow, StatefulSaveButton, NUM_INPUT_CLASS } from "./shared";
 

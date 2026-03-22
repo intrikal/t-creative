@@ -4,7 +4,7 @@ import { type ReactNode, useTransition } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { Download } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { BookingExportRow, Range } from "./actions";
+import type { BookingExportRow, Range } from "@/lib/types/analytics.types";
 import { exportBookingsCsv } from "./actions";
 
 const RANGES = ["7d", "30d", "90d", "12m"] as const;

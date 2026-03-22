@@ -11,7 +11,7 @@ import * as Sentry from "@sentry/nextjs";
 import { eq } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { z } from "zod";
-import type { MediaCategory } from "@/app/dashboard/media/actions";
+import type { MediaCategory } from "@/lib/types/media.types";
 import { db } from "@/db";
 import { profiles, serviceRecords, mediaItems, notifications } from "@/db/schema";
 import { trackEvent } from "@/lib/posthog";

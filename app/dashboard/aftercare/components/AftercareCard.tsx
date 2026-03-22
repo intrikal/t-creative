@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { CheckCircle, AlertTriangle, Pencil, Save, X, Trash2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { AftercareSection } from "../actions";
+import type { AftercareSection } from "@/lib/types/aftercare.types";
 import { ItemList } from "./ItemList";
 
 export function AftercareCard({

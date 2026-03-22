@@ -12,7 +12,7 @@
 
 import { ShieldCheck } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import type { CcpaDeletionEntry } from "../settings-actions";
+import type { CcpaDeletionEntry } from "@/lib/types/settings.types";
 
 export function DataDeletionLogTab({ entries }: { entries: CcpaDeletionEntry[] }) {
   return (

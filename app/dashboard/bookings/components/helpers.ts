@@ -20,7 +20,7 @@
  *   STATUS_FILTERS   — chip labels for the status filter bar
  *   PAGE_TABS        — tab labels for Bookings / Waitlist / Memberships
  */
-import type { BookingRow } from "../actions";
+import type { BookingRow } from "@/lib/types/booking.types";
 
 /* ------------------------------------------------------------------ */
 /*  Exported types & helpers (used by child components)                */

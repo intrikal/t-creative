@@ -9,7 +9,7 @@
 import { useState, useTransition } from "react";
 import { X, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { ClientBookingRow } from "../client-actions";
+import type { ClientBookingRow } from "@/lib/types/booking.types";
 import { getAvailableRescheduleSlots } from "../client-actions";
 
 export function RescheduleModal({

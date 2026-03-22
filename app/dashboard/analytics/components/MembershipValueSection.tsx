@@ -11,7 +11,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import type { MembershipValueStats } from "../actions";
+import type { MembershipValueStats } from "@/lib/types/analytics.types";
 
 function churnColor(rate: number) {
   if (rate <= 5) return "text-[#4e6b51]";

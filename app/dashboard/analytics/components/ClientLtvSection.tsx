@@ -8,7 +8,7 @@
 
 import { DollarSign } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { ClientLifetimeValue } from "../actions";
+import type { ClientLifetimeValue } from "@/lib/types/analytics.types";
 
 export function ClientLtvSection({ clients }: { clients: ClientLifetimeValue[] }) {
   return (

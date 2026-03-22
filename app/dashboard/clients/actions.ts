@@ -42,6 +42,7 @@ import { profiles, bookings, services, loyaltyTransactions, clientPreferences } 
 import { logAction } from "@/lib/audit";
 import { getUser } from "@/lib/auth";
 import { trackEvent } from "@/lib/posthog";
+import { redis } from "@/lib/redis";
 import type {
   ClientSource,
   LifecycleStage,
@@ -367,6 +368,9 @@ export async function deleteClient(id: string): Promise<void> {
     z.string().min(1).parse(id);
     const user = await getUser();
     await db.update(profiles).set({ isActive: false }).where(eq(profiles.id, id));
+    // Invalidate the proxy profile cache so the ban-check in proxy.ts takes
+    // effect on the next request rather than waiting for the 5-minute TTL.
+    await redis.del(`profile:${id}`);
     trackEvent(user.id, "client_deleted", { clientId: id });
 
     await logAction({

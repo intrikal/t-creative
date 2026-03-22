@@ -24,8 +24,8 @@
  */
 "use server";
 
-import * as Sentry from "@sentry/nextjs";
 import { revalidatePath } from "next/cache";
+import * as Sentry from "@sentry/nextjs";
 import { createClient as createSupabaseAdmin } from "@supabase/supabase-js";
 import { eq, and } from "drizzle-orm";
 import { z } from "zod";
@@ -44,15 +44,16 @@ import {
   waitlist,
   wishlistItems,
 } from "@/db/schema";
-import { env } from "@/lib/env";
+import { DataDeletionConfirmation } from "@/emails/DataDeletionConfirmation";
 import { logAction } from "@/lib/audit";
+import { getUser } from "@/lib/auth";
+import { env } from "@/lib/env";
 import { trackEvent } from "@/lib/posthog";
+import { redis } from "@/lib/redis";
 import { isResendConfigured, sendEmail } from "@/lib/resend";
 import { isSquareConfigured, squareClient } from "@/lib/square";
 import { syncCampaignsSubscriber, unsubscribeFromCampaigns } from "@/lib/zoho-campaigns";
-import { getUser } from "@/lib/auth";
 import { createClient } from "@/utils/supabase/server";
-import { DataDeletionConfirmation } from "@/emails/DataDeletionConfirmation";
 
 const PATH = "/dashboard/settings";
 
@@ -594,8 +595,8 @@ export async function deleteClientAccount() {
     if (clientMedia.length > 0) {
       try {
         const supabase = await createClient();
-        const pathsToDelete = clientMedia.flatMap((m) =>
-          [m.storagePath, m.beforeStoragePath].filter(Boolean) as string[],
+        const pathsToDelete = clientMedia.flatMap(
+          (m) => [m.storagePath, m.beforeStoragePath].filter(Boolean) as string[],
         );
         if (pathsToDelete.length > 0) {
           await supabase.storage.from("media").remove(pathsToDelete);
@@ -623,14 +624,15 @@ export async function deleteClientAccount() {
       // Non-fatal
     }
 
-    // 9. Delete the Supabase auth user so credentials are purged
+    // 9. Invalidate the proxy profile cache so the ban-check fires immediately
+    await redis.del(`profile:${user.id}`);
+
+    // 10. Delete the Supabase auth user so credentials are purged
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
     if (serviceRoleKey) {
-      const adminClient = createSupabaseAdmin(
-        env.NEXT_PUBLIC_SUPABASE_URL,
-        serviceRoleKey,
-        { auth: { persistSession: false } },
-      );
+      const adminClient = createSupabaseAdmin(env.NEXT_PUBLIC_SUPABASE_URL, serviceRoleKey, {
+        auth: { persistSession: false },
+      });
       await adminClient.auth.admin.deleteUser(user.id);
     } else {
       // Fallback: sign out only (auth user remains but profile is anonymized)

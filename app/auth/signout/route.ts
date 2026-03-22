@@ -3,6 +3,7 @@
  */
 import { NextResponse } from "next/server";
 import { trackEvent } from "@/lib/posthog";
+import { redis } from "@/lib/redis";
 import { createClient } from "@/utils/supabase/server";
 
 export async function POST(request: Request) {
@@ -10,7 +11,10 @@ export async function POST(request: Request) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (user) trackEvent(user.id, "user_signed_out");
+  if (user) {
+    trackEvent(user.id, "user_signed_out");
+    await redis.del(`profile:${user.id}`);
+  }
 
   await supabase.auth.signOut();
 

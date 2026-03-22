@@ -74,8 +74,8 @@ export function PaymentLinkDialog({
         type,
       });
 
-      if (result.success && result.url) {
-        setGeneratedUrl(result.url);
+      if (result.success) {
+        setGeneratedUrl(result.data.url);
         setError(null);
       } else {
         setError(result.error ?? "Failed to create payment link.");

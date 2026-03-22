@@ -398,7 +398,7 @@ async function fetchSquareOrderWithRetry(
       if (order?.metadata || order?.referenceId) {
         return {
           paymentType: order.metadata?.paymentType as string | undefined,
-          referenceId: order.referenceId,
+          referenceId: order.referenceId ?? undefined,
           metadataMissing: false,
         };
       }

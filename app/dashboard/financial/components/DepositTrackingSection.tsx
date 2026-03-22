@@ -26,8 +26,8 @@ export function DepositTrackingSection({ data }: { data: DepositStats }) {
         amountInCents: depositInCents,
         type: "deposit",
       });
-      if (result.success && result.url) {
-        await navigator.clipboard.writeText(result.url);
+      if (result.success && result.data.url) {
+        await navigator.clipboard.writeText(result.data.url);
         setSentIds((prev) => new Set(prev).add(bookingId));
       }
       setActiveId(null);

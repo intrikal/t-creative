@@ -288,6 +288,8 @@ describe("settings-actions", () => {
         partialRefundPct: 50,
         partialRefundMinHours: 24,
         noRefundHours: 24,
+        cancellationPolicy: "",
+        tosVersion: "",
       });
       expect(mockInsertValues).toHaveBeenCalledWith(
         expect.objectContaining({ key: "policy_settings" }),
@@ -308,6 +310,8 @@ describe("settings-actions", () => {
         partialRefundPct: 50,
         partialRefundMinHours: 24,
         noRefundHours: 24,
+        cancellationPolicy: "",
+        tosVersion: "",
       });
       expect(mockTrackEvent).toHaveBeenCalledWith("user-1", "policies_updated");
     });
@@ -326,6 +330,8 @@ describe("settings-actions", () => {
         partialRefundPct: 50,
         partialRefundMinHours: 24,
         noRefundHours: 24,
+        cancellationPolicy: "",
+        tosVersion: "",
       });
       expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/settings");
     });

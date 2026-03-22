@@ -609,7 +609,7 @@ export async function deleteClientAccount() {
     // 7. Delete Square customer record (best-effort)
     if (profile?.squareCustomerId && isSquareConfigured()) {
       try {
-        await squareClient.customers.delete(profile.squareCustomerId);
+        await squareClient.customers.delete({ customerId: profile.squareCustomerId });
       } catch (squareErr) {
         // Non-fatal — profile is already anonymized
         Sentry.captureException(squareErr);

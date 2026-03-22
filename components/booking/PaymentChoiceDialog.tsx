@@ -55,7 +55,7 @@ export function PaymentChoiceDialog({
         type,
       });
 
-      if (result.success && result.data.url) {
+      if (result.success) {
         setPaymentUrl(result.data.url);
         await navigator.clipboard.writeText(result.data.url);
         setCopied(true);

@@ -2506,7 +2506,7 @@ export async function cancelBookingSeries(bookingId: number): Promise<ActionResu
         ),
       );
 
-    if (seriesBookings.length === 0) return;
+    if (seriesBookings.length === 0) return { success: true as const, data: undefined };
 
     // ─── Mutation: bulk-cancel all identified series bookings at once ────
     // UPDATE: sets status to "cancelled" and stamps cancelledAt with the

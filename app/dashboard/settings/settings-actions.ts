@@ -92,6 +92,10 @@ export interface PolicySettings {
   partialRefundMinHours: number;
   /** Cancellations within this many hours of appointment get no refund. */
   noRefundHours: number;
+  /** Plain-text cancellation policy shown to clients as a required checkbox. */
+  cancellationPolicy: string;
+  /** Semver-style version string for the ToS (e.g. "2025-01"). */
+  tosVersion: string;
 }
 
 export interface LoyaltyConfig {
@@ -180,6 +184,8 @@ const DEFAULT_POLICIES: PolicySettings = {
   partialRefundPct: 50,
   partialRefundMinHours: 24,
   noRefundHours: 24,
+  cancellationPolicy: "",
+  tosVersion: "",
 };
 
 const DEFAULT_LOYALTY: LoyaltyConfig = {

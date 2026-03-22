@@ -6,12 +6,15 @@ export type ReviewRequestProps = {
   clientName: string;
   serviceName: string;
   businessName?: string;
+  /** Direct link to the review form for this booking. */
+  reviewUrl?: string;
 };
 
 export function ReviewRequest({
   clientName,
   serviceName,
   businessName = "T Creative Studio",
+  reviewUrl,
 }: ReviewRequestProps) {
   return (
     <Layout preview={`How was your ${serviceName}?`} businessName={businessName}>
@@ -23,13 +26,20 @@ export function ReviewRequest({
         </Text>
 
         <Text style={paragraph}>
-          Your feedback means the world to us and helps us keep improving. Just reply to this email
-          to share your thoughts — we read every response.
+          Your feedback means the world to us and helps us keep improving. It only takes a minute:
         </Text>
 
+        {reviewUrl && (
+          <Text style={ctaWrapper}>
+            <a href={reviewUrl} style={cta}>
+              Leave a Review →
+            </a>
+          </Text>
+        )}
+
         <Text style={paragraph}>
-          If you loved your experience, we&apos;d really appreciate a review on Google or Yelp. It
-          helps other clients find us!
+          Or if you prefer, just reply to this email to share your thoughts — we read every
+          response. A review on Google or Yelp also helps other clients find us!
         </Text>
 
         <Text style={muted}>Ready to book again? Reply to this email or visit our site.</Text>
@@ -56,6 +66,20 @@ const paragraph: React.CSSProperties = {
   lineHeight: "24px",
   color: "#333333",
   margin: "0 0 20px",
+};
+
+const ctaWrapper: React.CSSProperties = {
+  margin: "24px 0",
+};
+
+const cta: React.CSSProperties = {
+  backgroundColor: "#c4907a",
+  color: "#ffffff",
+  padding: "12px 24px",
+  borderRadius: "6px",
+  textDecoration: "none",
+  fontWeight: "600",
+  fontSize: "14px",
 };
 
 const muted: React.CSSProperties = {

@@ -5,7 +5,7 @@
  * Each promo has an optional usage cap (`maxUses`) and date window.
  * `redemptionCount` is incremented server-side on each use.
  */
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import {
   boolean,
   index,
@@ -68,6 +68,11 @@ export const promotions = pgTable(
   (t) => [
     uniqueIndex("promotions_code_idx").on(t.code),
     index("promotions_active_idx").on(t.isActive),
+    // Partial index — live promotions only. Used by the booking flow's
+    // promo-code lookup, which always filters WHERE is_active = true.
+    index("promotions_live_idx")
+      .on(t.startsAt, t.endsAt)
+      .where(sql`${t.isActive} = true`),
   ],
 );
 

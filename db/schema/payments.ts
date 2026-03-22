@@ -10,7 +10,7 @@
  *
  * All monetary values are stored in cents to avoid floating-point errors.
  */
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import {
   boolean,
   index,
@@ -99,6 +99,11 @@ export const payments = pgTable(
     // Composite index for analytics queries filtering on both paid_at and status
     index("payments_status_paid_at_idx").on(t.status, t.paidAt),
     index("payments_client_status_idx").on(t.clientId, t.status),
+    // Partial index — paid payments only. Used by the financial dashboard and
+    // revenue reports, which always filter WHERE status = 'paid'.
+    index("payments_paid_range_idx")
+      .on(t.paidAt)
+      .where(sql`${t.status} = 'paid'`),
   ],
 );
 

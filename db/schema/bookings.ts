@@ -13,7 +13,7 @@
  * Pricing snapshots the service price at booking time so historical
  * records remain accurate even if the service catalog changes.
  */
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import {
   index,
   integer,
@@ -175,6 +175,11 @@ export const bookings = pgTable(
     index("bookings_client_starts_at_idx").on(t.clientId, t.startsAt),
     index("bookings_deleted_at_idx").on(t.deletedAt),
     index("bookings_staff_starts_status_idx").on(t.staffId, t.startsAt, t.status),
+    // Partial index — active (non-deleted, non-cancelled) bookings per client.
+    // Skips cancelled/deleted rows that are never included in normal query paths.
+    index("bookings_active_client_idx")
+      .on(t.clientId, t.startsAt)
+      .where(sql`${t.deletedAt} IS NULL AND ${t.status} NOT IN ('cancelled')`),
   ],
 );
 

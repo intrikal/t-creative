@@ -349,7 +349,7 @@ All Zoho functions check `isZohoAuthConfigured()` / `isZohoBooksConfigured()` / 
 
 ## 5. Twilio (optional, for SMS)
 
-Twilio sends SMS booking reminders and confirmations. The app checks the client's SMS notification preference before sending.
+Twilio sends SMS booking reminders and confirmations, and receives inbound SMS replies for booking confirmations/cancellations. The app checks the client's SMS notification preference before sending.
 
 ### Create an account
 
@@ -370,23 +370,56 @@ TWILIO_AUTH_TOKEN=your-auth-token
 TWILIO_FROM_NUMBER=+14155551234
 ```
 
+### Set up the inbound SMS webhook
+
+The app can receive SMS replies from clients to confirm or cancel bookings. Reminder SMS messages include instructions: "Reply C to confirm or X to cancel."
+
+1. Go to the [Twilio Console](https://console.twilio.com)
+2. Navigate to **Phone Numbers → Manage → Active Numbers**
+3. Click your SMS-enabled number (the one in `TWILIO_FROM_NUMBER`)
+4. Scroll to the **Messaging** section
+5. Under **"A message comes in"**:
+   - Set to: **Webhook**
+   - URL: `https://tcreative.studio/api/webhooks/twilio`
+   - Method: **HTTP POST**
+6. Click **Save configuration**
+
+The webhook handler (`app/api/webhooks/twilio/route.ts`) verifies the Twilio request signature using `TWILIO_AUTH_TOKEN`, matches the sender's phone number to a client profile, finds their next upcoming booking, and updates the status. It always returns TwiML with a reply message. All events are stored in `webhook_events` and logged to `sync_log` for audit/replay.
+
+**Supported SMS commands:**
+
+| Reply            | Action                                              |
+| ---------------- | --------------------------------------------------- |
+| `C` or `CONFIRM` | Confirms the client's next pending booking          |
+| `X` or `CANCEL`  | Cancels the client's next pending/confirmed booking |
+
+**For local development**, use [ngrok](https://ngrok.com) to expose your local server:
+
+```bash
+ngrok http 3000
+```
+
+Then set the Twilio webhook URL to `https://<your-ngrok-id>.ngrok.io/api/webhooks/twilio`.
+
 ### Verify it's working
 
 1. Ensure a client profile has a phone number and SMS notifications enabled
 2. Create a booking for that client
 3. The client should receive an SMS confirmation
-4. Check the `sync_log` table for entries with `provider = 'twilio'`
+4. Reply `C` to confirm or `X` to cancel — the booking status should update
+5. Check the `sync_log` table for entries with `provider = 'twilio'`
+6. Check the `webhook_events` table for inbound SMS events
 
 ### If not configured
 
-SMS sending is skipped entirely. The `isTwilioConfigured()` check in `lib/twilio.ts` verifies all three env vars are present. All SMS sends are non-fatal — the app continues without SMS if Twilio is unavailable or misconfigured.
+SMS sending is skipped entirely. The `isTwilioConfigured()` check in `lib/twilio.ts` verifies all three env vars are present. All SMS sends are non-fatal — the app continues without SMS if Twilio is unavailable or misconfigured. The inbound webhook will still store events but skip signature verification if `TWILIO_AUTH_TOKEN` is not set.
 
 ### Env vars
 
 | Variable             | Required | Description                                               |
 | -------------------- | -------- | --------------------------------------------------------- |
 | `TWILIO_ACCOUNT_SID` | No       | Account SID (starts with `AC`)                            |
-| `TWILIO_AUTH_TOKEN`  | No       | Auth token                                                |
+| `TWILIO_AUTH_TOKEN`  | No       | Auth token (also used for webhook signature verification) |
 | `TWILIO_FROM_NUMBER` | No       | Outbound phone number (E.164 format, e.g. `+14155551234`) |
 
 ---
@@ -688,9 +721,9 @@ The Instagram feed section is hidden entirely. `isInstagramConfigured()` in `lib
 
 ### Env vars
 
-| Variable                  | Required | Description                                  |
-| ------------------------- | -------- | -------------------------------------------- |
-| `INSTAGRAM_ACCESS_TOKEN`  | No       | Long-lived Instagram user token (60-day TTL) |
+| Variable                 | Required | Description                                  |
+| ------------------------ | -------- | -------------------------------------------- |
+| `INSTAGRAM_ACCESS_TOKEN` | No       | Long-lived Instagram user token (60-day TTL) |
 
 ---
 
@@ -763,16 +796,16 @@ The app boots in "pickup-only mode." The `isEasyPostConfigured()` check (`lib/ea
 
 ### Env vars
 
-| Variable                  | Required | Description                                            |
-| ------------------------- | -------- | ------------------------------------------------------ |
-| `EASYPOST_API_KEY`        | No       | API key (test or production)                           |
-| `EASYPOST_WEBHOOK_SECRET` | No       | Webhook signature secret                               |
-| `STUDIO_STREET1`          | No       | Studio street address line 1 (shipping label origin)   |
-| `STUDIO_STREET2`          | No       | Studio street address line 2                           |
-| `STUDIO_CITY`             | No       | Studio city                                            |
-| `STUDIO_STATE`            | No       | Studio state (2-letter code)                           |
-| `STUDIO_ZIP`              | No       | Studio ZIP code                                        |
-| `STUDIO_PHONE`            | No       | Studio phone (E.164 format)                            |
+| Variable                  | Required | Description                                          |
+| ------------------------- | -------- | ---------------------------------------------------- |
+| `EASYPOST_API_KEY`        | No       | API key (test or production)                         |
+| `EASYPOST_WEBHOOK_SECRET` | No       | Webhook signature secret                             |
+| `STUDIO_STREET1`          | No       | Studio street address line 1 (shipping label origin) |
+| `STUDIO_STREET2`          | No       | Studio street address line 2                         |
+| `STUDIO_CITY`             | No       | Studio city                                          |
+| `STUDIO_STATE`            | No       | Studio state (2-letter code)                         |
+| `STUDIO_ZIP`              | No       | Studio ZIP code                                      |
+| `STUDIO_PHONE`            | No       | Studio phone (E.164 format)                          |
 
 ---
 

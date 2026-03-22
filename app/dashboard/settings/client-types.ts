@@ -3,7 +3,7 @@
  *
  * Contains navigation config and payment method types.
  * Notification preferences and profile data are now managed via server actions
- * in `client-settings-actions.ts`.
+ * in `client-settings-actions.tsx`.
  */
 
 import { Bell, CreditCard, Shield, Sparkles, User } from "lucide-react";

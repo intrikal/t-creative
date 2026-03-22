@@ -35,22 +35,6 @@ import {
   Scale,
   ShieldCheck,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { AftercareTab } from "./components/AftercareTab";
-import { BookingTab } from "./components/BookingTab";
-import { BusinessTab } from "./components/BusinessTab";
-import { HoursTab } from "./components/HoursTab";
-import { IntegrationsTab } from "./components/IntegrationsTab";
-import { InventoryTab } from "./components/InventoryTab";
-import { LoyaltyTab } from "./components/LoyaltyTab";
-import { NotificationsTab } from "./components/NotificationsTab";
-import { PoliciesTab } from "./components/PoliciesTab";
-import { RemindersTab } from "./components/RemindersTab";
-import { ServiceCategoriesTab } from "./components/ServiceCategoriesTab";
-import { DataDeletionLogTab } from "./components/DataDeletionLogTab";
-import { WebsiteContentTab } from "./components/WebsiteContentTab";
-import type { LegalDocEntry } from "../legal/actions";
-import { LegalDocumentsPage } from "../legal/LegalDocumentsPage";
 import type {
   BusinessHourRow,
   LunchBreak,
@@ -68,6 +52,22 @@ import type {
   RevenueGoal,
   SiteContent,
 } from "@/lib/types/settings.types";
+import { cn } from "@/lib/utils";
+import type { LegalDocEntry } from "../legal/actions";
+import { LegalDocumentsPage } from "../legal/LegalDocumentsPage";
+import { AftercareTab } from "./components/AftercareTab";
+import { BookingTab } from "./components/BookingTab";
+import { BusinessTab } from "./components/BusinessTab";
+import { DataDeletionLogTab } from "./components/DataDeletionLogTab";
+import { HoursTab } from "./components/HoursTab";
+import { IntegrationsTab, type WebhookHealth } from "./components/IntegrationsTab";
+import { InventoryTab } from "./components/InventoryTab";
+import { LoyaltyTab } from "./components/LoyaltyTab";
+import { NotificationsTab } from "./components/NotificationsTab";
+import { PoliciesTab } from "./components/PoliciesTab";
+import { RemindersTab } from "./components/RemindersTab";
+import { ServiceCategoriesTab } from "./components/ServiceCategoriesTab";
+import { WebsiteContentTab } from "./components/WebsiteContentTab";
 import type { SquareConnectionStatus } from "./settings-actions";
 
 /* ------------------------------------------------------------------ */
@@ -114,6 +114,7 @@ export function SettingsPage({
   initialCategories,
   squareStatus,
   calendarUrl,
+  webhookHealth,
   initialPrivacy,
   initialTerms,
   initialDeletionLog,
@@ -134,6 +135,7 @@ export function SettingsPage({
   initialCategories: ServiceCategoryRow[];
   squareStatus: SquareConnectionStatus;
   calendarUrl?: string;
+  webhookHealth?: WebhookHealth;
   initialPrivacy?: LegalDocEntry | null;
   initialTerms?: LegalDocEntry | null;
   initialDeletionLog?: CcpaDeletionEntry[];
@@ -168,6 +170,7 @@ export function SettingsPage({
         squareEnvironment={squareStatus.environment}
         squareLocationId={squareStatus.locationId}
         calendarUrl={calendarUrl}
+        webhookHealth={webhookHealth}
       />
     ),
     notifications: <NotificationsTab initial={initialNotifications} />,

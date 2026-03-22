@@ -41,8 +41,10 @@ import {
 } from "@/db/schema";
 import { LoyaltyPointsAwarded } from "@/emails/LoyaltyPointsAwarded";
 import { PaymentReceipt } from "@/emails/PaymentReceipt";
+import { sendAlert } from "@/lib/alert";
 import { logAction } from "@/lib/audit";
 import { buyShippingLabel, isEasyPostConfigured } from "@/lib/easypost";
+import { redis } from "@/lib/redis";
 import { sendEmail } from "@/lib/resend";
 import { SQUARE_WEBHOOK_SIGNATURE_KEY, squareClient, isSquareConfigured } from "@/lib/square";
 import { recordZohoBooksPayment } from "@/lib/zoho-books";
@@ -375,9 +377,7 @@ async function handlePaymentCompleted(data: PaymentCreatedEventData | undefined)
  * Returns whatever data was resolved; `metadataMissing` is true when neither
  * `metadata` nor `referenceId` could be read after all attempts.
  */
-async function fetchSquareOrderWithRetry(
-  squareOrderId: string,
-): Promise<{
+async function fetchSquareOrderWithRetry(squareOrderId: string): Promise<{
   paymentType?: string;
   referenceId?: string;
   metadataMissing: boolean;
@@ -426,7 +426,12 @@ async function fetchSquareOrderWithRetry(
  */
 async function findBookingByOrder(
   squareOrderId: string | null,
-): Promise<{ id: number; clientId: string; squareOrderType?: string; needsManualReview?: boolean } | null> {
+): Promise<{
+  id: number;
+  clientId: string;
+  squareOrderType?: string;
+  needsManualReview?: boolean;
+} | null> {
   if (!squareOrderId) return null;
 
   // Strategy 1: direct DB lookup
@@ -667,6 +672,21 @@ export async function POST(request: Request): Promise<Response> {
 
   // Verify signature
   if (SQUARE_WEBHOOK_SIGNATURE_KEY && !verifySignature(body, signature, url)) {
+    // Increment hourly failure counter and alert if threshold exceeded.
+    const failures = await redis.incr("webhook:sig_failures");
+    if (failures === 1) {
+      // Set TTL on the first increment so the window resets after 1 hour.
+      await redis.expire("webhook:sig_failures", 3600);
+    }
+    if (failures >= 5) {
+      Sentry.captureMessage("Square webhook signature verification failing repeatedly", {
+        level: "error",
+        extra: { failures },
+      });
+      await sendAlert(
+        `⚠️ Square webhook signature verification failing — ${failures} failures in the last hour. Possible key rotation. Check Square Dashboard → Webhooks → Signature Key.`,
+      );
+    }
     return new Response("Invalid signature", { status: 403 });
   }
 
@@ -729,11 +749,14 @@ export async function POST(request: Request): Promise<Response> {
         syncStatus = "skipped";
     }
 
-    // Mark processed
-    await db
-      .update(webhookEvents)
-      .set({ isProcessed: true, processedAt: new Date() })
-      .where(eq(webhookEvents.id, webhookRow.id));
+    // Mark processed and record last-success timestamp for health endpoint.
+    await Promise.all([
+      db
+        .update(webhookEvents)
+        .set({ isProcessed: true, processedAt: new Date() })
+        .where(eq(webhookEvents.id, webhookRow.id)),
+      redis.set("webhook:last_success", new Date().toISOString()),
+    ]);
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : "Unknown error";
     syncStatus = "failed";

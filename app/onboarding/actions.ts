@@ -61,6 +61,7 @@ import {
 } from "@/lib/onboarding-schema";
 import { trackEvent } from "@/lib/posthog";
 import { sendEmail } from "@/lib/resend";
+import { linkSquareCustomer } from "@/lib/square";
 import { upsertZohoContact } from "@/lib/zoho";
 import { syncCampaignsSubscriber } from "@/lib/zoho-campaigns";
 import { createClient } from "@/utils/supabase/server";
@@ -787,5 +788,14 @@ export async function saveOnboardingData(
         birthday: birthday?.trim() || undefined,
       });
     }
+
+    // Square: create customer for POS payment matching + card-on-file (non-fatal)
+    linkSquareCustomer({
+      profileId: user.id,
+      email,
+      firstName,
+      lastName: lastName || undefined,
+      phone: phone || undefined,
+    }).catch(() => {});
   }
 }

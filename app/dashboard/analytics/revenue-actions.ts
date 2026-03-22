@@ -18,7 +18,6 @@ import {
   businessHours,
   timeOff,
 } from "@/db/schema";
-import { getUser, rangeToInterval, weekLabel, CATEGORY_LABELS } from "./_shared";
 import type {
   Range,
   KpiStats,
@@ -26,8 +25,15 @@ import type {
   ServiceRevenueItem,
   RevenuePerHourDay,
 } from "@/lib/types/analytics.types";
+import { getUser, rangeToInterval, weekLabel, CATEGORY_LABELS } from "./_shared";
 
-export type { Range, KpiStats, WeeklyRevenue, ServiceRevenueItem, RevenuePerHourDay } from "@/lib/types/analytics.types";
+export type {
+  Range,
+  KpiStats,
+  WeeklyRevenue,
+  ServiceRevenueItem,
+  RevenuePerHourDay,
+} from "@/lib/types/analytics.types";
 
 async function computeKpiForPeriod(periodStart: Date, periodEnd: Date) {
   const [revRow, bookRow, clientRow, statusRow] = await Promise.all([
@@ -129,23 +135,20 @@ export async function getRevenueTrend(range: Range = "30d"): Promise<WeeklyReven
   try {
     await getUser();
 
-    const rows = await db
-      .select({
-        weekStart: sql<Date>`date_trunc('week', coalesce(${payments.paidAt}, ${payments.createdAt}))`,
-        total: sql<number>`coalesce(sum(${payments.amountInCents}), 0)`,
-      })
-      .from(payments)
-      .where(
-        and(
-          eq(payments.status, "paid"),
-          gte(payments.paidAt, sql`now() - interval ${sql.raw(`'${rangeToInterval(range)}'`)}`),
-        ),
-      )
-      .groupBy(sql`date_trunc('week', coalesce(${payments.paidAt}, ${payments.createdAt}))`)
-      .orderBy(sql`date_trunc('week', coalesce(${payments.paidAt}, ${payments.createdAt}))`);
+    // Reads from revenue_by_service_daily materialized view (refreshed every 4h)
+    // instead of the raw payments table — avoids the bookings + services join.
+    const rows = await db.execute<{ week_start: Date; total: string }>(sql`
+      SELECT
+        date_trunc('week', day)   AS week_start,
+        sum(revenue_cents)        AS total
+      FROM revenue_by_service_daily
+      WHERE day >= now() - interval ${sql.raw(`'${rangeToInterval(range)}'`)}
+      GROUP BY date_trunc('week', day)
+      ORDER BY date_trunc('week', day)
+    `);
 
     return rows.map((r) => ({
-      week: weekLabel(new Date(r.weekStart)),
+      week: weekLabel(new Date(r.week_start)),
       revenue: Math.round(Number(r.total) / 100),
     }));
   } catch (err) {
@@ -158,39 +161,36 @@ export async function getRevenueByService(range: Range = "30d"): Promise<Service
   try {
     await getUser();
 
-    const rows = await db
-      .select({
-        serviceName: services.name,
-        category: services.category,
-        revenue: sql<number>`coalesce(sum(${payments.amountInCents}), 0)`,
-        bookingCount: sql<number>`count(distinct ${bookings.id})`,
-      })
-      .from(payments)
-      .innerJoin(bookings, eq(payments.bookingId, bookings.id))
-      .innerJoin(services, eq(bookings.serviceId, services.id))
-      .where(
-        and(
-          eq(payments.status, "paid"),
-          gte(payments.paidAt, sql`now() - interval ${sql.raw(`'${rangeToInterval(range)}'`)}`),
-        ),
-      )
-      .groupBy(services.name, services.category)
-      .orderBy(sql`sum(${payments.amountInCents}) desc`);
+    // Reads from revenue_by_service_daily materialized view (refreshed every 4h).
+    const rows = await db.execute<{
+      service_name: string;
+      service_category: string;
+      revenue: string;
+      booking_count: string;
+    }>(sql`
+      SELECT
+        service_name,
+        service_category,
+        sum(revenue_cents)  AS revenue,
+        sum(booking_count)  AS booking_count
+      FROM revenue_by_service_daily
+      WHERE day >= now() - interval ${sql.raw(`'${rangeToInterval(range)}'`)}
+      GROUP BY service_name, service_category
+      ORDER BY sum(revenue_cents) DESC
+    `);
 
     const totalRevenue = rows.reduce((s, r) => s + Number(r.revenue), 0);
 
-    return rows
-      .filter((r) => r.serviceName)
-      .map((r) => {
-        const rev = Math.round(Number(r.revenue) / 100);
-        return {
-          service: r.serviceName!,
-          category: CATEGORY_LABELS[r.category!] ?? r.category!,
-          revenue: rev,
-          bookings: Number(r.bookingCount),
-          pct: totalRevenue > 0 ? Math.round((Number(r.revenue) / totalRevenue) * 100) : 0,
-        };
-      });
+    return rows.map((r) => {
+      const rev = Math.round(Number(r.revenue) / 100);
+      return {
+        service: r.service_name,
+        category: CATEGORY_LABELS[r.service_category] ?? r.service_category,
+        revenue: rev,
+        bookings: Number(r.booking_count),
+        pct: totalRevenue > 0 ? Math.round((Number(r.revenue) / totalRevenue) * 100) : 0,
+      };
+    });
   } catch (err) {
     Sentry.captureException(err);
     throw err;
@@ -232,10 +232,7 @@ export async function getRevenuePerHour(range: Range = "30d"): Promise<RevenuePe
         })
         .from(businessHours)
         .where(sql`${businessHours.staffId} is null`),
-      db
-        .select({ value: settings.value })
-        .from(settings)
-        .where(eq(settings.key, "lunch_break")),
+      db.select({ value: settings.value }).from(settings).where(eq(settings.key, "lunch_break")),
       db
         .select({ startDate: timeOff.startDate, endDate: timeOff.endDate })
         .from(timeOff)

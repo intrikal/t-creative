@@ -10,7 +10,6 @@ import * as Sentry from "@sentry/nextjs";
 import { desc, eq, inArray, sql, and, gte, isNotNull } from "drizzle-orm";
 import { db } from "@/db";
 import { bookings, payments, services, profiles } from "@/db/schema";
-import { getUser, rangeToInterval, weekLabel } from "./_shared";
 import type {
   Range,
   RetentionWeek,
@@ -21,6 +20,7 @@ import type {
   RebookRate,
   CancellationReasonItem,
 } from "@/lib/types/analytics.types";
+import { getUser, rangeToInterval, weekLabel } from "./_shared";
 
 export type {
   RetentionWeek,
@@ -36,8 +36,30 @@ export async function getRetentionTrend(range: Range = "30d"): Promise<Retention
   try {
     await getUser();
 
-    // Use a CTE with min(starts_at) per client to determine first-ever visit,
-    // then classify each booking week as new vs returning without a correlated subquery.
+    // For 90d / 1y ranges use the client_retention_monthly materialized view
+    // (refreshed every 4h). Monthly granularity is appropriate at that scale and
+    // avoids the expensive booking-level CTE.
+    if (range === "90d" || range === "1y") {
+      const months = range === "90d" ? 3 : 12;
+      const rows = await db.execute<{
+        month: Date;
+        new_clients: string;
+        returning_clients: string;
+      }>(sql`
+        SELECT month, new_clients, returning_clients
+        FROM client_retention_monthly
+        WHERE month >= date_trunc('month', now() - interval ${sql.raw(`'${months} months'`)})
+        ORDER BY month
+      `);
+
+      return rows.map((r) => ({
+        week: weekLabel(new Date(r.month)),
+        newClients: Number(r.new_clients),
+        returning: Number(r.returning_clients),
+      }));
+    }
+
+    // For 7d / 30d ranges keep weekly booking-level CTE — weekly detail matters here.
     const result = await db.execute(sql`
       WITH first_visits AS (
         SELECT client_id, min(starts_at) AS first_at

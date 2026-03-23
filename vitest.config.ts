@@ -13,9 +13,5 @@ export default defineConfig({
     environment: "jsdom",
     setupFiles: ["./vitest.setup.ts"],
     include: ["**/*.test.{ts,tsx}"],
-    environmentMatchGlobs: [
-      // Migration integration tests run in Node — no DOM needed
-      ["tests/**/*.test.ts", "node"],
-    ],
   },
 });

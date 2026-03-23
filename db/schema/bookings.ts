@@ -133,6 +133,14 @@ export const bookings = pgTable(
      */
     parentBookingId: integer("parent_booking_id"),
 
+    /**
+     * Groups all bookings in a recurring series. Set to the same UUID for
+     * every booking created by `createRecurringBooking`. Allows efficient
+     * bulk operations (cancel all future, filter by series) without
+     * walking the parentBookingId chain.
+     */
+    recurrenceGroupId: uuid("recurrence_group_id"),
+
     /* ------ Deposit tracking ------ */
 
     /** Deposit amount collected in cents. Null = no deposit collected yet. */
@@ -187,6 +195,7 @@ export const bookings = pgTable(
     index("bookings_deleted_at_idx").on(t.deletedAt),
     index("bookings_location_idx").on(t.locationId),
     index("bookings_staff_starts_status_idx").on(t.staffId, t.startsAt, t.status),
+    index("bookings_recurrence_group_idx").on(t.recurrenceGroupId),
     // Partial index — active (non-deleted, non-cancelled) bookings per client.
     // Skips cancelled/deleted rows that are never included in normal query paths.
     index("bookings_active_client_idx")

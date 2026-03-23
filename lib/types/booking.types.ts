@@ -75,6 +75,8 @@ export type BookingRow = {
   staffFirstName: string | null;
   recurrenceRule: string | null;
   parentBookingId: number | null;
+  /** Groups all bookings in a recurring series. */
+  recurrenceGroupId: string | null;
   tosAcceptedAt: Date | null;
   tosVersion: string | null;
   locationId: number | null;

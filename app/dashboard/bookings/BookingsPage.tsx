@@ -51,16 +51,17 @@ import {
   CalendarX,
 } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import type { BookingRow, BookingInput } from "@/lib/types/booking.types";
 import { cn } from "@/lib/utils";
 import {
   updateBookingStatus,
   createBooking,
+  createRecurringBooking,
   updateBooking,
   deleteBooking,
   cancelBookingSeries,
   getBookings,
 } from "./actions";
-import type { BookingRow, BookingInput } from "@/lib/types/booking.types";
 import type { BookingFormState } from "./components/BookingDialog";
 import { BookingRow as BookingRowComponent } from "./components/BookingRow";
 import {
@@ -149,6 +150,7 @@ export function BookingsPage({
   const [pageTab, setPageTab] = useState<PageTab>("Bookings");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("All");
+  const [showRecurringOnly, setShowRecurringOnly] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<Booking | null>(null);
   const [menuOpen, setMenuOpen] = useState<number | null>(null);
@@ -170,7 +172,8 @@ export function BookingsPage({
       b.client.toLowerCase().includes(search.toLowerCase()) ||
       b.service.toLowerCase().includes(search.toLowerCase());
     const matchStatus = statusFilter === "All" || statusConfig(b.status).label === statusFilter;
-    return matchSearch && matchStatus;
+    const matchRecurring = !showRecurringOnly || !!b.recurrenceRule;
+    return matchSearch && matchStatus && matchRecurring;
   });
 
   const todayCount = bookings.filter((b) => b.date === "Today").length;
@@ -293,7 +296,7 @@ export function BookingsPage({
       if (!data.clientId || data.serviceId === "" || !data.date || !data.time) return;
       const startsAt = new Date(`${data.date}T${data.time}`);
       startTransition(async () => {
-        const result = await createBooking({
+        const input: BookingInput = {
           clientId: data.clientId,
           serviceId: Number(data.serviceId),
           staffId: data.staffId || null,
@@ -304,8 +307,22 @@ export function BookingsPage({
           clientNotes: data.notes || undefined,
           recurrenceRule,
           subscriptionId: data.subscriptionId !== "" ? Number(data.subscriptionId) : undefined,
-        } satisfies BookingInput);
-        if (!result.success) setMutationError(result.error);
+        };
+
+        if (recurrenceRule) {
+          // Batch-create all recurring bookings upfront
+          const result = await createRecurringBooking(input);
+          if (!result.success) {
+            setMutationError(result.error);
+          } else if (result.skipped.length > 0) {
+            setMutationError(
+              `Created ${result.created} bookings. Skipped ${result.skipped.length} date(s) due to conflicts: ${result.skipped.join(", ")}`,
+            );
+          }
+        } else {
+          const result = await createBooking(input);
+          if (!result.success) setMutationError(result.error);
+        }
       });
     }
   }
@@ -479,6 +496,17 @@ export function BookingsPage({
                   </button>
                 ))}
               </div>
+              <button
+                onClick={() => setShowRecurringOnly(!showRecurringOnly)}
+                className={cn(
+                  "px-3 py-1.5 rounded-lg text-xs font-medium transition-colors",
+                  showRecurringOnly
+                    ? "bg-foreground text-background"
+                    : "bg-surface text-muted hover:bg-foreground/8 hover:text-foreground",
+                )}
+              >
+                Recurring
+              </button>
             </div>
           </CardHeader>
 
@@ -487,7 +515,7 @@ export function BookingsPage({
               <div className="py-10 text-center">
                 <CalendarX className="w-7 h-7 text-foreground/15 mx-auto mb-2" />
                 <p className="text-sm text-muted/60 font-medium">
-                  {search || statusFilter !== "All"
+                  {search || statusFilter !== "All" || showRecurringOnly
                     ? "No bookings match your filters"
                     : "No bookings yet"}
                 </p>

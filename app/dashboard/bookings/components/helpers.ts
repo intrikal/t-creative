@@ -55,6 +55,8 @@ export interface Booking {
   serviceId: number;
   staffId: string | null;
   recurrenceRule?: string;
+  /** Groups all bookings in a recurring series. */
+  recurrenceGroupId?: string | null;
   tosAcceptedAt?: Date | null;
   tosVersion?: string | null;
   /** All service IDs in a multi-service booking (ordered). */
@@ -154,6 +156,7 @@ export function mapBookingRow(row: BookingRow): Booking {
     serviceId: row.serviceId,
     staffId: row.staffId,
     recurrenceRule: row.recurrenceRule ?? undefined,
+    recurrenceGroupId: row.recurrenceGroupId ?? null,
     tosAcceptedAt: row.tosAcceptedAt ?? null,
     tosVersion: row.tosVersion ?? null,
     serviceIds:

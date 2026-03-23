@@ -495,6 +495,7 @@ describe("settings-actions", () => {
         comboDepositType: "highest",
         fixedComboDepositInCents: 5000,
         maxServicesPerBooking: 4,
+        seriesDepositType: "per_booking",
       });
       expect(mockTrackEvent).toHaveBeenCalledWith("user-1", "booking_rules_updated");
     });
@@ -517,6 +518,7 @@ describe("settings-actions", () => {
         comboDepositType: "highest",
         fixedComboDepositInCents: 5000,
         maxServicesPerBooking: 4,
+        seriesDepositType: "per_booking",
       });
       expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/settings");
     });

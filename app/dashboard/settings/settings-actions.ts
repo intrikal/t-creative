@@ -163,6 +163,7 @@ const DEFAULT_BOOKING_RULES: BookingRulesConfig = {
   comboDepositType: "highest",
   fixedComboDepositInCents: 5000,
   maxServicesPerBooking: 4,
+  seriesDepositType: "per_booking",
 };
 
 const DEFAULT_REMINDERS: RemindersConfig = {
@@ -512,6 +513,7 @@ const bookingRulesSchema = z.object({
   comboDepositType: z.enum(["sum", "fixed", "highest"]).default("highest"),
   fixedComboDepositInCents: z.number().int().nonnegative().default(5000),
   maxServicesPerBooking: z.number().int().min(1).max(10).default(4),
+  seriesDepositType: z.enum(["per_booking", "single"]).default("per_booking"),
 });
 
 export async function saveBookingRules(data: BookingRulesConfig): Promise<ActionResult<void>> {

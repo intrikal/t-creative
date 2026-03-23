@@ -42,23 +42,23 @@ function SectionSkeleton() {
 
 const EditorialPortfolio = dynamic(
   () => import("@/components/landing/EditorialPortfolio").then((m) => m.EditorialPortfolio),
-  { loading: () => <SectionSkeleton />, ssr: false },
+  { loading: () => <SectionSkeleton /> },
 );
 const InstagramFeed = dynamic(
   () => import("@/components/landing/InstagramFeed").then((m) => m.InstagramFeed),
-  { loading: () => <SectionSkeleton />, ssr: false },
+  { loading: () => <SectionSkeleton /> },
 );
 const Testimonials = dynamic(
   () => import("@/components/landing/Testimonials").then((m) => m.Testimonials),
-  { loading: () => <SectionSkeleton />, ssr: false },
+  { loading: () => <SectionSkeleton /> },
 );
 const TrainingTeaser = dynamic(
   () => import("@/components/landing/TrainingTeaser").then((m) => m.TrainingTeaser),
-  { loading: () => <SectionSkeleton />, ssr: false },
+  { loading: () => <SectionSkeleton /> },
 );
 const FeaturedProducts = dynamic(
   () => import("@/components/landing/FeaturedProducts").then((m) => m.FeaturedProducts),
-  { loading: () => <SectionSkeleton />, ssr: false },
+  { loading: () => <SectionSkeleton /> },
 );
 import { db } from "@/db";
 import { bookings, instagramPosts, profiles, reviews, services } from "@/db/schema";

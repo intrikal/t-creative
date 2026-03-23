@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import {
   Activity,
   LayoutDashboard,
+  Mails,
   Users,
   MessageSquare,
   UserCheck,
@@ -84,6 +85,7 @@ const ADMIN_NAV_GROUPS: NavGroup[] = [
       { href: "/dashboard/analytics", label: "Analytics", icon: BarChart2 },
       { href: "/dashboard/staff-performance", label: "Staff Performance", icon: Activity },
       { href: "/dashboard/reviews", label: "Reviews", icon: Star },
+      { href: "/dashboard/sequences", label: "Sequences", icon: Mails },
     ],
   },
   {

@@ -309,3 +309,15 @@ export {
 
 /* Email queue (rate-limit fallback for Resend sends) */
 export { emailQueueStatusEnum, emailQueue, type EmailQueueMeta } from "./email-queue";
+
+/* Email sequences (lifecycle drip campaigns) */
+export {
+  sequenceTriggerEnum,
+  seqEnrollmentStatusEnum,
+  emailSequences,
+  emailSequenceSteps,
+  emailSequenceEnrollments,
+  emailSequencesRelations,
+  emailSequenceStepsRelations,
+  emailSequenceEnrollmentsRelations,
+} from "./email-sequences";

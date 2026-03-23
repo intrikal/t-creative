@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { getCurrentUser } from "@/lib/auth";
 import { getAdminSetupData } from "./admin-setup-data";
 import { AdminBottomSection } from "./sections/AdminBottomSection";
+import { AdminCronHealthSection } from "./sections/AdminCronHealthSection";
 import { AdminHeaderSection } from "./sections/AdminHeaderSection";
 import { AdminInquiriesSection } from "./sections/AdminInquiriesSection";
 import { AdminRevenueChartSection } from "./sections/AdminRevenueChartSection";
@@ -12,6 +13,7 @@ import {
   StatsSkeletonFallback,
   ScheduleInquiriesSkeletonFallback,
   RevenueChartSkeletonFallback,
+  CronHealthSkeletonFallback,
   BottomSkeletonFallback,
 } from "./sections/AdminSectionSkeletons";
 import { AdminSetupSection } from "./sections/AdminSetupSection";
@@ -95,6 +97,11 @@ export default async function Page() {
       {/* Revenue chart — streams as payment queries resolve */}
       <Suspense fallback={<RevenueChartSkeletonFallback />}>
         <AdminRevenueChartSection />
+      </Suspense>
+
+      {/* Cron health — streams last, admin-only */}
+      <Suspense fallback={<CronHealthSkeletonFallback />}>
+        <AdminCronHealthSection />
       </Suspense>
 
       {/* Team + Recent clients — streams last */}

@@ -33,7 +33,10 @@ export function ScheduleInquiriesSkeletonFallback() {
         </div>
         <div className="px-5 pb-4 pt-2 space-y-0">
           {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="flex items-center gap-3 py-2.5 border-b border-border/50 last:border-0">
+            <div
+              key={i}
+              className="flex items-center gap-3 py-2.5 border-b border-border/50 last:border-0"
+            >
               <div className="w-14 shrink-0 flex flex-col items-center gap-1">
                 <div className="w-1.5 h-1.5 bg-surface rounded-full animate-pulse" />
                 <div className="h-3 w-10 bg-surface rounded animate-pulse" />
@@ -91,6 +94,30 @@ export function RevenueChartSkeletonFallback() {
   );
 }
 
+export function CronHealthSkeletonFallback() {
+  return (
+    <div className="bg-background border border-border rounded-xl">
+      <div className="px-5 pt-4 pb-0 flex items-center justify-between">
+        <div className="h-4 w-24 bg-surface rounded animate-pulse" />
+        <div className="h-5 w-16 bg-surface rounded-full animate-pulse" />
+      </div>
+      <div className="px-5 pb-4 pt-2 space-y-0">
+        {Array.from({ length: 8 }).map((_, i) => (
+          <div
+            key={i}
+            className="flex items-center gap-3 py-2 border-b border-border/50 last:border-0"
+          >
+            <div className="w-3.5 h-3.5 rounded-full bg-surface animate-pulse shrink-0" />
+            <div className="flex-1 h-3 bg-surface rounded animate-pulse" />
+            <div className="h-3 w-8 bg-surface rounded animate-pulse shrink-0" />
+            <div className="h-3 w-10 bg-surface rounded animate-pulse shrink-0" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function BottomSkeletonFallback() {
   return (
     <div className="grid grid-cols-1 xl:grid-cols-5 gap-3">
@@ -102,7 +129,10 @@ export function BottomSkeletonFallback() {
         </div>
         <div className="px-5 pb-4 pt-2">
           {Array.from({ length: 2 }).map((_, i) => (
-            <div key={i} className="flex items-center gap-2.5 py-2.5 border-b border-border/50 last:border-0">
+            <div
+              key={i}
+              className="flex items-center gap-2.5 py-2.5 border-b border-border/50 last:border-0"
+            >
               <div className="w-7 h-7 rounded-full bg-surface animate-pulse shrink-0" />
               <div className="flex-1 space-y-1.5">
                 <div className="h-3.5 w-24 bg-surface rounded animate-pulse" />
@@ -121,7 +151,10 @@ export function BottomSkeletonFallback() {
         </div>
         <div className="px-5 pb-4 pt-2">
           {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="flex items-center gap-3 py-2.5 border-b border-border/50 last:border-0">
+            <div
+              key={i}
+              className="flex items-center gap-3 py-2.5 border-b border-border/50 last:border-0"
+            >
               <div className="w-7 h-7 rounded-full bg-surface animate-pulse shrink-0" />
               <div className="flex-1 space-y-1.5">
                 <div className="h-3.5 w-28 bg-surface rounded animate-pulse" />

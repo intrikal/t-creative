@@ -3,8 +3,8 @@
  * @module lib/square/invoices
  */
 import * as Sentry from "@sentry/nextjs";
-import { squareClient, SQUARE_LOCATION_ID, isSquareConfigured } from "./client";
 import { withRetry } from "@/lib/retry";
+import { squareClient, SQUARE_LOCATION_ID, isSquareConfigured } from "./client";
 
 /**
  * Creates and publishes a Square Invoice for a fee (no-show / late cancel).
@@ -28,31 +28,39 @@ export async function createSquareInvoice(params: {
 }): Promise<{ invoiceId: string; orderId: string } | null> {
   if (!isSquareConfigured()) return null;
 
+  if (params.amountInCents === 0) return null;
+
+  if (!params.squareCustomerId) {
+    Sentry.captureException(new Error("client has no Square customer ID"));
+    return null;
+  }
+
   try {
     // 1. Create an order for the fee
     const orderResponse = await withRetry(
-      () => squareClient.orders.create({
-        order: {
-          locationId: SQUARE_LOCATION_ID,
-          referenceId: String(params.bookingId),
-          customerId: params.squareCustomerId,
-          lineItems: [
-            {
-              name: params.title,
-              quantity: "1",
-              basePriceMoney: {
-                amount: BigInt(params.amountInCents),
-                currency: "USD",
+      () =>
+        squareClient.orders.create({
+          order: {
+            locationId: SQUARE_LOCATION_ID,
+            referenceId: String(params.bookingId),
+            customerId: params.squareCustomerId,
+            lineItems: [
+              {
+                name: params.title,
+                quantity: "1",
+                basePriceMoney: {
+                  amount: BigInt(params.amountInCents),
+                  currency: "USD",
+                },
               },
+            ],
+            metadata: {
+              bookingId: String(params.bookingId),
+              paymentType: "fee_invoice",
             },
-          ],
-          metadata: {
-            bookingId: String(params.bookingId),
-            paymentType: "fee_invoice",
           },
-        },
-        idempotencyKey: `fee-invoice-order-${params.bookingId}`,
-      }),
+          idempotencyKey: `fee-invoice-order-${params.bookingId}`,
+        }),
       { label: "square.orders.create(invoice)" },
     );
 
@@ -61,32 +69,33 @@ export async function createSquareInvoice(params: {
 
     // 2. Create a draft invoice
     const invoiceResponse = await withRetry(
-      () => squareClient.invoices.create({
-        invoice: {
-          locationId: SQUARE_LOCATION_ID,
-          orderId,
-          primaryRecipient: {
-            customerId: params.squareCustomerId,
-          },
-          paymentRequests: [
-            {
-              requestType: "BALANCE",
-              dueDate: params.dueDate,
+      () =>
+        squareClient.invoices.create({
+          invoice: {
+            locationId: SQUARE_LOCATION_ID,
+            orderId,
+            primaryRecipient: {
+              customerId: params.squareCustomerId,
             },
-          ],
-          deliveryMethod: "EMAIL",
-          title: params.title,
-          description: params.description,
-          acceptedPaymentMethods: {
-            card: true,
-            squareGiftCard: false,
-            bankAccount: false,
-            buyNowPayLater: false,
-            cashAppPay: true,
+            paymentRequests: [
+              {
+                requestType: "BALANCE",
+                dueDate: params.dueDate,
+              },
+            ],
+            deliveryMethod: "EMAIL",
+            title: params.title,
+            description: params.description,
+            acceptedPaymentMethods: {
+              card: true,
+              squareGiftCard: false,
+              bankAccount: false,
+              buyNowPayLater: false,
+              cashAppPay: true,
+            },
           },
-        },
-        idempotencyKey: `fee-invoice-${params.bookingId}`,
-      }),
+          idempotencyKey: `fee-invoice-${params.bookingId}`,
+        }),
       { label: "square.invoices.create" },
     );
 
@@ -96,11 +105,12 @@ export async function createSquareInvoice(params: {
 
     // 3. Publish the invoice — Square emails the payment link to the client
     await withRetry(
-      () => squareClient.invoices.publish({
-        invoiceId,
-        version: invoiceVersion,
-        idempotencyKey: `fee-invoice-publish-${params.bookingId}`,
-      }),
+      () =>
+        squareClient.invoices.publish({
+          invoiceId,
+          version: invoiceVersion,
+          idempotencyKey: `fee-invoice-publish-${params.bookingId}`,
+        }),
       { label: "square.invoices.publish" },
     );
 

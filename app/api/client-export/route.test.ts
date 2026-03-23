@@ -250,7 +250,7 @@ vi.mock("drizzle-orm", () => ({
 /* ------------------------------------------------------------------ */
 
 describe("GET /api/client-export", () => {
-  let GET: () => Promise<Response>;
+  let GET: (request?: Request) => Promise<Response>;
 
   beforeEach(async () => {
     vi.clearAllMocks();

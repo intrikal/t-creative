@@ -11,6 +11,10 @@ import * as Sentry from "@sentry/nextjs";
 import { eq, desc, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { z } from "zod";
+import {
+  getPublicBusinessProfile,
+  getPublicInventoryConfig,
+} from "@/app/dashboard/settings/settings-actions";
 import { db } from "@/db";
 import {
   giftCards,
@@ -20,11 +24,11 @@ import {
   services,
   profiles,
 } from "@/db/schema";
-import { getPublicBusinessProfile, getPublicInventoryConfig } from "@/app/dashboard/settings/settings-actions";
 import { GiftCardDelivery } from "@/emails/GiftCardDelivery";
 import { GiftCardPurchase } from "@/emails/GiftCardPurchase";
 import { logAction } from "@/lib/audit";
 import { requireAdmin } from "@/lib/auth";
+import logger from "@/lib/logger";
 import { getEmailRecipient, sendEmail } from "@/lib/resend";
 import {
   isSquareConfigured,
@@ -201,7 +205,10 @@ export async function createGiftCard(input: {
             .limit(1);
 
           if (clientProfile?.squareCustomerId) {
-            linkGiftCardToCustomer(squareCard.squareGiftCardId, clientProfile.squareCustomerId).catch(() => {});
+            linkGiftCardToCustomer(
+              squareCard.squareGiftCardId,
+              clientProfile.squareCustomerId,
+            ).catch(() => {});
           }
         }
       } else {
@@ -451,6 +458,16 @@ export async function redeemGiftCard(input: {
         })
         .where(eq(bookings.id, input.bookingId));
     });
+
+    logger.info(
+      {
+        action: "redeemGiftCard",
+        bookingId: input.bookingId,
+        giftCardId: input.giftCardId,
+        amountInCents: input.amountInCents,
+      },
+      "gift card redeemed",
+    );
 
     revalidatePath("/dashboard/financial");
   } catch (err) {

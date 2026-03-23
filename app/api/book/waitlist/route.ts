@@ -10,6 +10,7 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import { profiles, services, waitlist } from "@/db/schema";
+import { withRequestLogger } from "@/lib/middleware/request-logger";
 import { isResendConfigured, sendEmailHtml } from "@/lib/resend";
 import { verifyTurnstileToken } from "@/lib/turnstile";
 import { createClient } from "@/utils/supabase/server";
@@ -23,7 +24,7 @@ const schema = z.object({
   turnstileToken: z.string().optional(),
 });
 
-export async function POST(request: Request) {
+export const POST = withRequestLogger(async function POST(request: Request) {
   let raw: unknown;
   try {
     raw = await request.json();
@@ -106,4 +107,4 @@ export async function POST(request: Request) {
   }
 
   return NextResponse.json({ success: true });
-}
+});

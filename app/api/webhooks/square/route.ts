@@ -21,8 +21,9 @@ import { createHmac } from "crypto";
 import { eq, and } from "drizzle-orm";
 import { db } from "@/db";
 import { webhookEvents } from "@/db/schema";
-import { SQUARE_WEBHOOK_SIGNATURE_KEY } from "@/lib/square";
 import { inngest } from "@/inngest/client";
+import { withRequestLogger } from "@/lib/middleware/request-logger";
+import { SQUARE_WEBHOOK_SIGNATURE_KEY } from "@/lib/square";
 
 /* ------------------------------------------------------------------ */
 /*  Signature verification                                             */
@@ -42,7 +43,7 @@ function verifySignature(body: string, signature: string, url: string): boolean 
 /*  Route handler                                                      */
 /* ------------------------------------------------------------------ */
 
-export async function POST(request: Request): Promise<Response> {
+export const POST = withRequestLogger(async function POST(request: Request): Promise<Response> {
   const body = await request.text();
   const signature = request.headers.get("x-square-hmacsha256-signature") ?? "";
   const url = request.url;
@@ -103,4 +104,4 @@ export async function POST(request: Request): Promise<Response> {
   });
 
   return new Response("OK", { status: 200 });
-}
+});

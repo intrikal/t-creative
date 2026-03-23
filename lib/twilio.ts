@@ -13,9 +13,9 @@
 import * as Sentry from "@sentry/nextjs";
 import { eq } from "drizzle-orm";
 import twilio from "twilio";
-import { withRetry } from "@/lib/retry";
 import { db } from "@/db";
-import { syncLog, profiles } from "@/db/schema";
+import { syncLog, profiles, clientNotes } from "@/db/schema";
+import { withRetry } from "@/lib/retry";
 
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
 const authToken = process.env.TWILIO_AUTH_TOKEN;
@@ -76,19 +76,25 @@ export async function sendSms(params: {
   entityType: string;
   /** Local record ID for sync_log tracing */
   localId: string;
+  /** When provided, auto-creates a client_note entry for the communication history. */
+  profileId?: string;
 }): Promise<boolean> {
   if (!isTwilioConfigured()) {
-    Sentry.captureMessage(`[twilio] Not configured — skipping SMS: ${params.entityType}`, "warning");
+    Sentry.captureMessage(
+      `[twilio] Not configured — skipping SMS: ${params.entityType}`,
+      "warning",
+    );
     return false;
   }
 
   try {
     const message = await withRetry(
-      () => getTwilioClient().messages.create({
-        from: fromNumber!,
-        to: params.to,
-        body: params.body,
-      }),
+      () =>
+        getTwilioClient().messages.create({
+          from: fromNumber!,
+          to: params.to,
+          body: params.body,
+        }),
       { label: "twilio.messages.create" },
     );
 
@@ -102,6 +108,21 @@ export async function sendSms(params: {
       message: `Sent ${params.entityType} SMS to ${params.to}`,
       payload: { to: params.to, sid: message.sid },
     });
+
+    // Auto-log to client communication history (non-fatal)
+    if (params.profileId) {
+      try {
+        await db.insert(clientNotes).values({
+          profileId: params.profileId,
+          authorId: params.profileId,
+          type: "sms",
+          content: `[${params.entityType}] ${params.body.slice(0, 200)}`,
+          isPinned: false,
+        });
+      } catch {
+        // Non-fatal
+      }
+    }
 
     return true;
   } catch (err) {

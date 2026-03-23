@@ -34,6 +34,7 @@
 
 import * as Sentry from "@sentry/nextjs";
 import { and, eq, desc, sql, isNull } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
 import {
   profiles,
@@ -43,6 +44,7 @@ import {
   serviceRecords,
   loyaltyTransactions,
   clientPreferences,
+  clientNotes,
   threads,
   messages,
   formSubmissions,
@@ -199,7 +201,20 @@ export type ClientDetailData = {
   loyaltyTransactions: ClientLoyaltyRow[];
   loyaltyBalance: number;
   threads: ClientThreadRow[];
+  notes: ClientNoteRow[];
+  pinnedNotes: ClientNoteRow[];
   formSubmissions: ClientFormSubmissionRow[];
+};
+
+/** Single note row for the "Notes & History" tab. */
+export type ClientNoteRow = {
+  id: number;
+  type: string;
+  content: string;
+  isPinned: boolean;
+  authorName: string;
+  authorId: string;
+  createdAt: Date;
 };
 
 /* ------------------------------------------------------------------ */
@@ -275,6 +290,8 @@ export async function getClientDetail(clientId: string): Promise<ClientDetailDat
     // threads, and form submissions share no data dependency. This reduces the
     // detail page load time from the sum of all queries to the slowest single one.
     // Destructuring assigns each result to a named variable for readability.
+    const noteAuthor = alias(profiles, "noteAuthor");
+
     const [
       referrerResult,
       referralCountResult,
@@ -284,6 +301,8 @@ export async function getClientDetail(clientId: string): Promise<ClientDetailDat
       serviceRecordsResult,
       loyaltyResult,
       threadsResult,
+      notesResult,
+      pinnedNotesResult,
       formSubsResult,
     ] = await Promise.all([
       // Referrer name
@@ -305,11 +324,7 @@ export async function getClientDetail(clientId: string): Promise<ClientDetailDat
         .where(eq(profiles.referredBy, clientId)),
 
       // 2. Preferences
-      db
-        .select()
-        .from(clientPreferences)
-        .where(eq(clientPreferences.profileId, clientId))
-        .limit(1),
+      db.select().from(clientPreferences).where(eq(clientPreferences.profileId, clientId)).limit(1),
 
       // 3. Bookings (with service name + staff name)
       db
@@ -412,7 +427,41 @@ export async function getClientDetail(clientId: string): Promise<ClientDetailDat
         .where(eq(threads.clientId, clientId))
         .orderBy(desc(threads.lastMessageAt)),
 
-      // 8. Form submissions
+      // 8. Client notes (all)
+      db
+        .select({
+          id: clientNotes.id,
+          type: clientNotes.type,
+          content: clientNotes.content,
+          isPinned: clientNotes.isPinned,
+          authorId: clientNotes.authorId,
+          authorFirstName: noteAuthor.firstName,
+          authorLastName: noteAuthor.lastName,
+          createdAt: clientNotes.createdAt,
+        })
+        .from(clientNotes)
+        .leftJoin(noteAuthor, eq(clientNotes.authorId, noteAuthor.id))
+        .where(eq(clientNotes.profileId, clientId))
+        .orderBy(desc(clientNotes.createdAt)),
+
+      // 9. Pinned notes only (for profile header banner)
+      db
+        .select({
+          id: clientNotes.id,
+          type: clientNotes.type,
+          content: clientNotes.content,
+          isPinned: clientNotes.isPinned,
+          authorId: clientNotes.authorId,
+          authorFirstName: noteAuthor.firstName,
+          authorLastName: noteAuthor.lastName,
+          createdAt: clientNotes.createdAt,
+        })
+        .from(clientNotes)
+        .leftJoin(noteAuthor, eq(clientNotes.authorId, noteAuthor.id))
+        .where(and(eq(clientNotes.profileId, clientId), eq(clientNotes.isPinned, true)))
+        .orderBy(desc(clientNotes.createdAt)),
+
+      // 10. Form submissions
       db
         .select({
           id: formSubmissions.id,
@@ -530,6 +579,24 @@ export async function getClientDetail(clientId: string): Promise<ClientDetailDat
         ...t,
         messageCount: Number(t.messageCount),
         unreadCount: Number(t.unreadCount),
+      })),
+      notes: notesResult.map((n) => ({
+        id: n.id,
+        type: n.type,
+        content: n.content,
+        isPinned: n.isPinned,
+        authorId: n.authorId,
+        authorName: [n.authorFirstName, n.authorLastName].filter(Boolean).join(" ") || "System",
+        createdAt: n.createdAt,
+      })),
+      pinnedNotes: pinnedNotesResult.map((n) => ({
+        id: n.id,
+        type: n.type,
+        content: n.content,
+        isPinned: n.isPinned,
+        authorId: n.authorId,
+        authorName: [n.authorFirstName, n.authorLastName].filter(Boolean).join(" ") || "System",
+        createdAt: n.createdAt,
       })),
       formSubmissions: formSubsResult,
     };

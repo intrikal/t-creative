@@ -4,7 +4,7 @@
  * key stats, and allergy/health alerts.
  */
 
-import { Star, AlertTriangle, Phone, Mail, Users, Cake } from "lucide-react";
+import { Star, AlertTriangle, Phone, Mail, Users, Cake, Pin } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -128,6 +128,20 @@ export function ProfileHeader({ data }: ProfileHeaderProps) {
             </div>
           </div>
         </div>
+
+        {/* Pinned notes banner */}
+        {data.pinnedNotes && data.pinnedNotes.length > 0 && (
+          <div className="mt-4 flex items-start gap-2 p-3 rounded-lg bg-[#7a5c10]/8 border border-[#7a5c10]/15">
+            <Pin className="w-4 h-4 text-[#7a5c10] shrink-0 mt-0.5" />
+            <div className="text-xs text-[#7a5c10] space-y-1">
+              {data.pinnedNotes.map((note) => (
+                <p key={note.id}>
+                  <span className="font-semibold">{note.authorName}:</span> {note.content}
+                </p>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Allergy / health alert */}
         {(allergies || preferences?.healthNotes) && (

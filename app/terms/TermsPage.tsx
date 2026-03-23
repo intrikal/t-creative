@@ -15,6 +15,11 @@ interface TermsPageProps {
   effectiveDate: string | null;
   intro: string | null;
   sections: LegalSection[];
+  businessName?: string;
+  location?: string;
+  email?: string;
+  footerTagline?: string;
+  socialLinks?: { platform: string; handle: string; url: string }[];
 }
 
 function Section({ title, paragraphs }: LegalSection) {
@@ -47,7 +52,16 @@ function Section({ title, paragraphs }: LegalSection) {
   );
 }
 
-export function TermsPage({ effectiveDate, intro, sections }: TermsPageProps) {
+export function TermsPage({
+  effectiveDate,
+  intro,
+  sections,
+  businessName,
+  location,
+  email,
+  footerTagline,
+  socialLinks,
+}: TermsPageProps) {
   const formattedDate = effectiveDate
     ? new Date(effectiveDate + "T00:00:00").toLocaleDateString("en-US", {
         year: "numeric",
@@ -148,7 +162,13 @@ export function TermsPage({ effectiveDate, intro, sections }: TermsPageProps) {
           </div>
         </section>
       </main>
-      <Footer />
+      <Footer
+        businessName={businessName}
+        location={location}
+        email={email}
+        tagline={footerTagline}
+        socialLinks={socialLinks}
+      />
     </>
   );
 }

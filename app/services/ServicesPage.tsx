@@ -282,10 +282,16 @@ export function ServicesPage({
   services,
   businessName,
   location,
+  email,
+  footerTagline,
+  socialLinks,
 }: {
   services: PublicService[];
   businessName?: string;
   location?: string;
+  email?: string;
+  footerTagline?: string;
+  socialLinks?: { platform: string; handle: string; url: string }[];
 }) {
   const categories: ServiceCategory[] =
     services.length > 0 ? groupByCategory(services) : FALLBACK_CATEGORIES;
@@ -415,7 +421,13 @@ export function ServicesPage({
           </motion.div>
         </section>
       </main>
-      <Footer businessName={businessName} location={location} />
+      <Footer
+        businessName={businessName}
+        location={location}
+        email={email}
+        tagline={footerTagline}
+        socialLinks={socialLinks}
+      />
     </>
   );
 }

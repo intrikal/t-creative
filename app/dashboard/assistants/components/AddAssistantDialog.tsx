@@ -96,7 +96,7 @@ export function AddAssistantDialog({
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="name@tcreative.studio"
+              placeholder="name@example.com"
             />
           </Field>
         </div>

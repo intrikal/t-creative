@@ -2,6 +2,7 @@
  * Training — Server Component route wrapper with metadata and ISR.
  */
 import type { Metadata } from "next";
+import { SITE_URL } from "@/lib/site-config";
 import { getSiteData } from "@/lib/site-data";
 import { getPublishedPrograms } from "./actions";
 import { TrainingPage } from "./TrainingPage";
@@ -26,7 +27,7 @@ export const metadata: Metadata = {
   },
 };
 
-const BASE_URL = "https://tcreativestudio.com";
+const BASE_URL = SITE_URL;
 
 const FORMAT_MODE: Record<string, string> = {
   in_person: "onsite",
@@ -34,11 +35,15 @@ const FORMAT_MODE: Record<string, string> = {
   hybrid: "blended",
 };
 
-function buildTrainingJsonLd(programs: Awaited<ReturnType<typeof getPublishedPrograms>>) {
+function buildTrainingJsonLd(
+  programs: Awaited<ReturnType<typeof getPublishedPrograms>>,
+  bizName: string,
+  ownerName: string,
+) {
   return {
     "@context": "https://schema.org",
     "@type": "ItemList",
-    name: "T Creative Studio Training Programs",
+    name: `${bizName} Training Programs`,
     url: `${BASE_URL}/training`,
     itemListElement: programs.map((program, index) => {
       const courseInstance: Record<string, unknown> = {
@@ -47,8 +52,8 @@ function buildTrainingJsonLd(programs: Awaited<ReturnType<typeof getPublishedPro
         inLanguage: "en",
         instructor: {
           "@type": "Person",
-          name: "Trini",
-          worksFor: { "@type": "Organization", name: "T Creative Studio" },
+          name: ownerName,
+          worksFor: { "@type": "Organization", name: bizName },
         },
         ...(program.maxStudents && { maximumAttendeeCapacity: program.maxStudents }),
         ...(program.nextSession && {
@@ -75,7 +80,7 @@ function buildTrainingJsonLd(programs: Awaited<ReturnType<typeof getPublishedPro
           name: program.name,
           url: `${BASE_URL}/training#${program.slug}`,
           ...(program.description && { description: program.description }),
-          provider: { "@type": "Organization", name: "T Creative Studio", url: BASE_URL },
+          provider: { "@type": "Organization", name: bizName, url: BASE_URL },
           ...(program.certificationProvided && {
             educationalCredentialAwarded: "Certificate of Completion",
           }),
@@ -105,17 +110,27 @@ function buildTrainingJsonLd(programs: Awaited<ReturnType<typeof getPublishedPro
 }
 
 export default async function Page() {
-  const [programs, { business }] = await Promise.all([getPublishedPrograms(), getSiteData()]);
+  const [programs, { business, content }] = await Promise.all([
+    getPublishedPrograms(),
+    getSiteData(),
+  ]);
   return (
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(buildTrainingJsonLd(programs)) }}
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(
+            buildTrainingJsonLd(programs, business.businessName, business.owner),
+          ),
+        }}
       />
       <TrainingPage
         programs={programs}
         businessName={business.businessName}
         location={business.location}
+        email={business.email}
+        footerTagline={content.footerTagline}
+        socialLinks={content.socialLinks}
       />
     </>
   );

@@ -7,9 +7,11 @@
  */
 import type { Metadata } from "next";
 import { getLegalDocument } from "@/lib/legal-queries";
+import { SITE_URL } from "@/lib/site-config";
+import { getSiteData } from "@/lib/site-data";
 import { PrivacyPage } from "./PrivacyPage";
 
-const BASE_URL = "https://tcreativestudio.com";
+const BASE_URL = SITE_URL;
 
 const webPageJsonLd = {
   "@context": "https://schema.org",
@@ -48,7 +50,10 @@ export const metadata: Metadata = {
 };
 
 export default async function Page() {
-  const doc = await getLegalDocument("privacy_policy");
+  const [doc, { business, content }] = await Promise.all([
+    getLegalDocument("privacy_policy"),
+    getSiteData(),
+  ]);
 
   return (
     <>
@@ -60,6 +65,11 @@ export default async function Page() {
         effectiveDate={doc?.effectiveDate ?? null}
         intro={doc?.intro ?? null}
         sections={doc?.sections ?? []}
+        businessName={business.businessName}
+        location={business.location}
+        email={business.email}
+        footerTagline={content.footerTagline}
+        socialLinks={content.socialLinks}
       />
     </>
   );

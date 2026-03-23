@@ -2,11 +2,10 @@
  * Portfolio — Server Component route wrapper with metadata and ISR.
  */
 import type { Metadata } from "next";
+import { SITE_URL } from "@/lib/site-config";
 import { getSiteData } from "@/lib/site-data";
 import { getPublishedMedia } from "./actions";
 import { PortfolioPage } from "./PortfolioPage";
-
-const BASE_URL = "https://tcreativestudio.com";
 
 export const metadata: Metadata = {
   title: "Portfolio | T Creative Studio",
@@ -28,18 +27,22 @@ export const metadata: Metadata = {
   },
 };
 
-function buildPortfolioJsonLd(media: Awaited<ReturnType<typeof getPublishedMedia>>) {
+function buildPortfolioJsonLd(
+  media: Awaited<ReturnType<typeof getPublishedMedia>>,
+  bizName: string,
+  ownerName: string,
+) {
   return {
     "@context": "https://schema.org",
     "@type": "ImageGallery",
-    name: "T Creative Studio Portfolio",
-    url: `${BASE_URL}/portfolio`,
+    name: `${bizName} Portfolio`,
+    url: `${SITE_URL}/portfolio`,
     description:
       "Portfolio of lash extensions, permanent jewelry, and custom crochet work by Trini Lam.",
     author: {
       "@type": "Person",
-      name: "Trini Lam",
-      worksFor: { "@type": "Organization", name: "T Creative Studio", url: BASE_URL },
+      name: ownerName,
+      worksFor: { "@type": "Organization", name: bizName, url: SITE_URL },
     },
     associatedMedia: media.map((item) => ({
       "@type": "ImageObject",
@@ -47,23 +50,30 @@ function buildPortfolioJsonLd(media: Awaited<ReturnType<typeof getPublishedMedia
       ...(item.caption && { description: item.caption }),
       ...(item.title && { name: item.title }),
       ...(item.category && { keywords: item.category }),
-      creator: { "@type": "Person", name: "Trini Lam" },
+      creator: { "@type": "Person", name: ownerName },
     })),
   };
 }
 
 export default async function Page() {
-  const [media, { business }] = await Promise.all([getPublishedMedia(), getSiteData()]);
+  const [media, { business, content }] = await Promise.all([getPublishedMedia(), getSiteData()]);
   return (
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(buildPortfolioJsonLd(media)) }}
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(
+            buildPortfolioJsonLd(media, business.businessName, business.owner),
+          ),
+        }}
       />
       <PortfolioPage
         media={media}
         businessName={business.businessName}
         location={business.location}
+        email={business.email}
+        footerTagline={content.footerTagline}
+        socialLinks={content.socialLinks}
       />
     </>
   );

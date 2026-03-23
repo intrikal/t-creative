@@ -42,9 +42,8 @@ import { TrustBar } from "@/components/landing/TrustBar";
 import { db } from "@/db";
 import { bookings, instagramPosts, profiles, reviews, services } from "@/db/schema";
 import { getFeaturedReviews } from "@/lib/public-reviews";
+import { SITE_URL } from "@/lib/site-config";
 import { getSiteData } from "@/lib/site-data";
-
-const BASE_URL = "https://tcreativestudio.com";
 
 export async function generateMetadata(): Promise<Metadata> {
   const { business, content } = await getSiteData();
@@ -57,7 +56,7 @@ export async function generateMetadata(): Promise<Metadata> {
     openGraph: {
       title: business.businessName,
       description: content.seoDescription,
-      url: BASE_URL,
+      url: SITE_URL,
       siteName: business.businessName,
       type: "website",
     },
@@ -69,76 +68,78 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-const eventServicesJsonLd = {
-  "@context": "https://schema.org",
-  "@type": "ItemList",
-  name: "T Creative Studio Event Services",
-  url: `${BASE_URL}/#events`,
-  itemListElement: [
-    {
-      "@type": "ListItem",
-      position: 1,
-      item: {
-        "@type": "Service",
-        name: "Private Lash Parties",
-        description:
-          "Book the studio for you and your group. Everyone gets lashed while you celebrate — birthdays, bachelorettes, girls' night.",
-        serviceType: "Private Event",
-        provider: { "@type": "LocalBusiness", name: "T Creative Studio", url: BASE_URL },
-        areaServed: {
-          "@type": "City",
-          name: "San Jose",
-          containedInPlace: { "@type": "State", name: "California" },
-        },
-        audience: { "@type": "Audience", audienceType: "Groups up to 6 guests" },
-      },
-    },
-    {
-      "@type": "ListItem",
-      position: 2,
-      item: {
-        "@type": "Service",
-        name: "Pop-Up Events",
-        description:
-          "Permanent jewelry welding at your venue, market, or storefront. Full setup provided — we bring the studio to you.",
-        serviceType: "Pop-Up Event",
-        provider: { "@type": "LocalBusiness", name: "T Creative Studio", url: BASE_URL },
-        areaServed: { "@type": "State", name: "California" },
-      },
-    },
-    {
-      "@type": "ListItem",
-      position: 3,
-      item: {
-        "@type": "Service",
-        name: "Bridal & Wedding Services",
-        description:
-          "Day-of lash services and permanent jewelry for the bridal party. Coordinated scheduling so everyone is ready on time.",
-        serviceType: "Bridal Event",
-        provider: { "@type": "LocalBusiness", name: "T Creative Studio", url: BASE_URL },
-        areaServed: {
-          "@type": "City",
-          name: "San Jose",
-          containedInPlace: { "@type": "State", name: "California" },
+function buildEventServicesJsonLd(bizName: string) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    name: `${bizName} Event Services`,
+    url: `${SITE_URL}/#events`,
+    itemListElement: [
+      {
+        "@type": "ListItem",
+        position: 1,
+        item: {
+          "@type": "Service",
+          name: "Private Lash Parties",
+          description:
+            "Book the studio for you and your group. Everyone gets lashed while you celebrate — birthdays, bachelorettes, girls' night.",
+          serviceType: "Private Event",
+          provider: { "@type": "LocalBusiness", name: bizName, url: SITE_URL },
+          areaServed: {
+            "@type": "City",
+            name: "San Jose",
+            containedInPlace: { "@type": "State", name: "California" },
+          },
+          audience: { "@type": "Audience", audienceType: "Groups up to 6 guests" },
         },
       },
-    },
-    {
-      "@type": "ListItem",
-      position: 4,
-      item: {
-        "@type": "Service",
-        name: "Corporate & Team Events",
-        description:
-          "Team bonding with permanent jewelry or beauty services. Great for offsites, retreats, and company milestones.",
-        serviceType: "Corporate Event",
-        provider: { "@type": "LocalBusiness", name: "T Creative Studio", url: BASE_URL },
-        audience: { "@type": "Audience", audienceType: "Groups of 10 or more" },
-        areaServed: { "@type": "State", name: "California" },
+      {
+        "@type": "ListItem",
+        position: 2,
+        item: {
+          "@type": "Service",
+          name: "Pop-Up Events",
+          description:
+            "Permanent jewelry welding at your venue, market, or storefront. Full setup provided — we bring the studio to you.",
+          serviceType: "Pop-Up Event",
+          provider: { "@type": "LocalBusiness", name: bizName, url: SITE_URL },
+          areaServed: { "@type": "State", name: "California" },
+        },
       },
-    },
-  ],
-};
+      {
+        "@type": "ListItem",
+        position: 3,
+        item: {
+          "@type": "Service",
+          name: "Bridal & Wedding Services",
+          description:
+            "Day-of lash services and permanent jewelry for the bridal party. Coordinated scheduling so everyone is ready on time.",
+          serviceType: "Bridal Event",
+          provider: { "@type": "LocalBusiness", name: bizName, url: SITE_URL },
+          areaServed: {
+            "@type": "City",
+            name: "San Jose",
+            containedInPlace: { "@type": "State", name: "California" },
+          },
+        },
+      },
+      {
+        "@type": "ListItem",
+        position: 4,
+        item: {
+          "@type": "Service",
+          name: "Corporate & Team Events",
+          description:
+            "Team bonding with permanent jewelry or beauty services. Great for offsites, retreats, and company milestones.",
+          serviceType: "Corporate Event",
+          provider: { "@type": "LocalBusiness", name: bizName, url: SITE_URL },
+          audience: { "@type": "Audience", audienceType: "Groups of 10 or more" },
+          areaServed: { "@type": "State", name: "California" },
+        },
+      },
+    ],
+  };
+}
 
 async function computeLiveStats() {
   const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
@@ -236,7 +237,9 @@ export default async function Home() {
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(eventServicesJsonLd) }}
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(buildEventServicesJsonLd(business.businessName)),
+        }}
       />
       <main id="main-content">
         <Hero

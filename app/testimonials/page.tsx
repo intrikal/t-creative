@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { getAllFeaturedReviews, getReviewStats } from "@/lib/public-reviews";
 import { SITE_URL } from "@/lib/site-config";
+import { getSiteData } from "@/lib/site-data";
 import { TestimonialsPage } from "./TestimonialsPage";
 
 export const metadata: Metadata = {
@@ -12,12 +13,16 @@ export const metadata: Metadata = {
 };
 
 export default async function Page() {
-  const [reviews, stats] = await Promise.all([getAllFeaturedReviews(), getReviewStats()]);
+  const [reviews, stats, { business }] = await Promise.all([
+    getAllFeaturedReviews(),
+    getReviewStats(),
+    getSiteData(),
+  ]);
 
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "LocalBusiness",
-    name: "T Creative Studio",
+    name: business.businessName ?? "T Creative Studio",
     url: SITE_URL,
     ...(stats.count > 0
       ? {

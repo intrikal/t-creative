@@ -60,6 +60,7 @@ import { ImageResponse } from "next/og";
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
 import { profiles } from "@/db/schema";
+import { SITE_DOMAIN } from "@/lib/site-config";
 
 export const runtime = "nodejs";
 export const alt = "Book a session";
@@ -270,7 +271,7 @@ export default async function OGImage({ params }: { params: Promise<{ slug: stri
               fontFamily: "system-ui, -apple-system, sans-serif",
             }}
           >
-            tcreative.studio/book/{slug}
+            {SITE_DOMAIN}/book/{slug}
           </div>
         </div>
       </div>

@@ -6,10 +6,11 @@
  */
 
 import type { Metadata } from "next";
+import { getPublicBusinessProfile } from "@/app/dashboard/settings/settings-actions";
 import { getClaimPageData } from "./actions";
 import { ClaimUI } from "./ClaimUI";
 
-export const metadata: Metadata = { title: "Claim Your Spot — T Creative Studio" };
+export const metadata: Metadata = { title: "Claim Your Spot" };
 
 interface Props {
   params: Promise<{ token: string }>;
@@ -17,7 +18,14 @@ interface Props {
 
 export default async function ClaimPage({ params }: Props) {
   const { token } = await params;
-  const data = await getClaimPageData(token);
+  const [data, business] = await Promise.all([getClaimPageData(token), getPublicBusinessProfile()]);
 
-  return <ClaimUI token={token} data={data} />;
+  return (
+    <ClaimUI
+      token={token}
+      data={data}
+      businessName={business.businessName}
+      email={business.email}
+    />
+  );
 }

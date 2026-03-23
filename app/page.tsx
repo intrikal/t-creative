@@ -258,6 +258,8 @@ export default async function Home() {
         <FAQ entries={content.faqEntries} policies={policies} />
         <CallToAction />
         <Footer
+          businessName={business.businessName}
+          location={business.location}
           email={business.email}
           tagline={content.footerTagline}
           socialLinks={content.socialLinks}

@@ -29,6 +29,7 @@ import { GiftCardPurchase } from "@/emails/GiftCardPurchase";
 import { logAction } from "@/lib/audit";
 import { requireAdmin } from "@/lib/auth";
 import logger from "@/lib/logger";
+import { trackEvent } from "@/lib/posthog";
 import { getEmailRecipient, sendEmail } from "@/lib/resend";
 import {
   isSquareConfigured,
@@ -417,6 +418,9 @@ export async function redeemGiftCard(input: {
 
     await getUser();
 
+    let redeemClientId: string | null = null;
+    let redeemRemainingBalance: number | null = null;
+
     // Transaction: deduct gift card balance + apply discount to booking atomically.
     // FOR UPDATE locks the gift card row to prevent double-spend from concurrent requests.
     await db.transaction(async (tx) => {
@@ -441,6 +445,7 @@ export async function redeemGiftCard(input: {
       }
 
       const newBalance = card.balanceInCents - input.amountInCents;
+      redeemRemainingBalance = newBalance;
 
       await tx
         .update(giftCards)
@@ -450,13 +455,16 @@ export async function redeemGiftCard(input: {
         })
         .where(eq(giftCards.id, input.giftCardId));
 
-      await tx
+      const [updatedBooking] = await tx
         .update(bookings)
         .set({
           giftCardId: input.giftCardId,
           discountInCents: input.amountInCents,
         })
-        .where(eq(bookings.id, input.bookingId));
+        .where(eq(bookings.id, input.bookingId))
+        .returning({ clientId: bookings.clientId });
+
+      redeemClientId = updatedBooking?.clientId ?? null;
     });
 
     logger.info(
@@ -468,6 +476,13 @@ export async function redeemGiftCard(input: {
       },
       "gift card redeemed",
     );
+
+    if (redeemClientId) {
+      trackEvent(redeemClientId, "gift_card_redeemed", {
+        amountInCents: input.amountInCents,
+        remainingBalance: redeemRemainingBalance,
+      });
+    }
 
     revalidatePath("/dashboard/financial");
   } catch (err) {

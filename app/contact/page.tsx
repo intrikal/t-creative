@@ -29,6 +29,7 @@ export default async function Page() {
   const { business, content } = await getSiteData();
   return (
     <ContactPage
+      businessName={business.businessName}
       location={business.location}
       email={business.email}
       footerTagline={content.footerTagline}

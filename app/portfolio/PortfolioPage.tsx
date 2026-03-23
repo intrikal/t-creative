@@ -99,7 +99,15 @@ function toWorkItems(media: PublicMediaItem[]): WorkItem[] {
 /*  Component                                                          */
 /* ------------------------------------------------------------------ */
 
-export function PortfolioPage({ media }: { media: PublicMediaItem[] }) {
+export function PortfolioPage({
+  media,
+  businessName,
+  location,
+}: {
+  media: PublicMediaItem[];
+  businessName?: string;
+  location?: string;
+}) {
   const [active, setActive] = useState<Category>("all");
 
   const works: WorkItem[] = media.length > 0 ? toWorkItems(media) : FALLBACK_WORKS;
@@ -246,7 +254,7 @@ export function PortfolioPage({ media }: { media: PublicMediaItem[] }) {
           </div>
         </section>
       </main>
-      <Footer />
+      <Footer businessName={businessName} location={location} />
     </>
   );
 }

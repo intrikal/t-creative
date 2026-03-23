@@ -2,6 +2,7 @@
  * Services — Server Component route wrapper with metadata and ISR.
  */
 import type { Metadata } from "next";
+import { getSiteData } from "@/lib/site-data";
 import { getPublishedServices } from "./actions";
 import { ServicesPage } from "./ServicesPage";
 
@@ -79,14 +80,18 @@ function buildServicesJsonLd(services: Awaited<ReturnType<typeof getPublishedSer
 }
 
 export default async function Page() {
-  const services = await getPublishedServices();
+  const [services, { business }] = await Promise.all([getPublishedServices(), getSiteData()]);
   return (
     <>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(buildServicesJsonLd(services)) }}
       />
-      <ServicesPage services={services} />
+      <ServicesPage
+        services={services}
+        businessName={business.businessName}
+        location={business.location}
+      />
     </>
   );
 }

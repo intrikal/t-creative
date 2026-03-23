@@ -63,11 +63,13 @@ const labelClasses = "text-xs tracking-wide uppercase text-muted mb-2 block";
 const errorClasses = "text-xs text-error mt-1.5";
 
 export function ContactPage({
+  businessName,
   location,
   email,
   footerTagline,
   socialLinks,
 }: {
+  businessName?: string;
   location?: string;
   email?: string;
   footerTagline?: string;
@@ -428,7 +430,13 @@ export function ContactPage({
           </div>
         </section>
       </main>
-      <Footer email={email} tagline={footerTagline} socialLinks={socialLinks} />
+      <Footer
+        businessName={businessName}
+        location={location}
+        email={email}
+        tagline={footerTagline}
+        socialLinks={socialLinks}
+      />
     </>
   );
 }

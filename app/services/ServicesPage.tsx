@@ -278,7 +278,15 @@ function groupByCategory(dbServices: PublicService[]): ServiceCategory[] {
   });
 }
 
-export function ServicesPage({ services }: { services: PublicService[] }) {
+export function ServicesPage({
+  services,
+  businessName,
+  location,
+}: {
+  services: PublicService[];
+  businessName?: string;
+  location?: string;
+}) {
   const categories: ServiceCategory[] =
     services.length > 0 ? groupByCategory(services) : FALLBACK_CATEGORIES;
 
@@ -407,7 +415,7 @@ export function ServicesPage({ services }: { services: PublicService[] }) {
           </motion.div>
         </section>
       </main>
-      <Footer />
+      <Footer businessName={businessName} location={location} />
     </>
   );
 }

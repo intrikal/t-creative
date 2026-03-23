@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
-import { getPublishedProducts } from "./queries";
+import { getSiteData } from "@/lib/site-data";
 import { PublicShopPage } from "./PublicShopPage";
+import { getPublishedProducts } from "./queries";
 
 export const metadata: Metadata = {
   title: "Shop | Aftercare Products & Studio Merch | T Creative Studio",
@@ -88,14 +89,18 @@ function buildShopJsonLd(products: Awaited<ReturnType<typeof getPublishedProduct
 }
 
 export default async function Page() {
-  const products = await getPublishedProducts();
+  const [products, { business }] = await Promise.all([getPublishedProducts(), getSiteData()]);
   return (
     <>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(buildShopJsonLd(products)) }}
       />
-      <PublicShopPage products={products} />
+      <PublicShopPage
+        products={products}
+        businessName={business.businessName}
+        location={business.location}
+      />
     </>
   );
 }

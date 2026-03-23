@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  Activity,
   LayoutDashboard,
   Users,
   MessageSquare,
@@ -81,6 +82,7 @@ const ADMIN_NAV_GROUPS: NavGroup[] = [
       { href: "/dashboard/financial", label: "Financial", icon: DollarSign },
       { href: "/dashboard/commissions", label: "Commissions", icon: Receipt },
       { href: "/dashboard/analytics", label: "Analytics", icon: BarChart2 },
+      { href: "/dashboard/staff-performance", label: "Staff Performance", icon: Activity },
       { href: "/dashboard/reviews", label: "Reviews", icon: Star },
     ],
   },

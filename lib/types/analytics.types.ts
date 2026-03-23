@@ -297,3 +297,31 @@ export type RevenueForecastData = {
     high: number;
   }[];
 };
+
+/* ------------------------------------------------------------------ */
+/*  Staff performance dashboard                                        */
+/* ------------------------------------------------------------------ */
+
+export type StaffKpi = {
+  staffId: string;
+  name: string;
+  avatar: string;
+  role: string;
+  bookingsWeek: number;
+  bookingsMonth: number;
+  bookingsAllTime: number;
+  revenue: number;
+  avgActualMinutes: number | null;
+  avgScheduledMinutes: number | null;
+  durationDelta: number | null;
+  retentionRate: number | null;
+  noShowRate: number;
+  avgRating: number | null;
+  reviewCount: number;
+  commissionThisPeriod: number;
+  commissionThisMonth: number;
+  commissionType: "percentage" | "flat_fee";
+  commissionRate: number;
+  flatFeeInCents: number;
+  tipSplitPercent: number;
+};

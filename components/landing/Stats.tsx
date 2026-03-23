@@ -4,28 +4,32 @@
  * Used on the landing page as a compact credibility band between content sections.
  * Client Component — uses Framer Motion for staggered number reveals.
  *
- * No props — stat values are static marketing numbers.
+ * Values are computed server-side (live DB counts) and can be overridden via SiteContent.
  */
 "use client";
 
 import { motion } from "framer-motion";
 
-// Four key metrics — value + label pairs. Array structure for .map() with stagger.
-const STATS = [
-  { value: "500+", label: "Clients Served" },
-  { value: "4.9", label: "Average Rating" },
-  { value: "98%", label: "Rebooking Rate" },
-  { value: "4", label: "Services Under One Roof" },
-];
+interface StatsProps {
+  clientsServed: string;
+  averageRating: string;
+  rebookingRate: string;
+  servicesCount: string;
+}
 
-export function Stats() {
+export function Stats({ clientsServed, averageRating, rebookingRate, servicesCount }: StatsProps) {
+  const stats = [
+    { value: clientsServed, label: "Clients Served" },
+    { value: averageRating, label: "Average Rating" },
+    { value: rebookingRate, label: "Rebooking Rate" },
+    { value: servicesCount, label: "Services Under One Roof" },
+  ];
+
   return (
     <section className="py-20 md:py-28 px-6 bg-surface">
       <div className="mx-auto max-w-5xl">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-8 md:gap-12">
-          {/* .map() over STATS to render metric cards with staggered entrance (delay: i * 0.1).
-              Responsive grid: 2 columns on mobile, 4 on desktop. */}
-          {STATS.map((stat, i) => (
+          {stats.map((stat, i) => (
             <motion.div
               key={stat.label}
               className="text-center"

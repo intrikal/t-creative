@@ -12,8 +12,8 @@
 import { useState } from "react";
 import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
 import type { SiteContent } from "@/lib/types/settings.types";
+import { cn } from "@/lib/utils";
 import { saveSiteContent } from "../settings-actions";
 import { FieldRow, StatefulSaveButton, Toggle, INPUT_CLASS } from "./shared";
 
@@ -547,6 +547,72 @@ export function WebsiteContentTab({ initial }: { initial: SiteContent }) {
           >
             <Plus className="w-4 h-4" /> Add Event Type
           </button>
+        </CardContent>
+      </Card>
+
+      {/* Stats Overrides */}
+      <SectionHeader
+        title="Stats"
+        description="Override the live-computed numbers on the landing page. Leave blank to use real data."
+      />
+      <Card className="gap-0">
+        <CardContent className="px-5 pb-5 pt-5 space-y-4">
+          <FieldRow label="Clients Served">
+            <input
+              type="text"
+              placeholder="e.g. 500+ (blank = live count)"
+              value={data.statsOverrides.clientsServed ?? ""}
+              onChange={(e) =>
+                update("statsOverrides", {
+                  ...data.statsOverrides,
+                  clientsServed: e.target.value || undefined,
+                })
+              }
+              className={INPUT_CLASS}
+            />
+          </FieldRow>
+          <FieldRow label="Average Rating">
+            <input
+              type="text"
+              placeholder="e.g. 4.9 (blank = live average)"
+              value={data.statsOverrides.averageRating ?? ""}
+              onChange={(e) =>
+                update("statsOverrides", {
+                  ...data.statsOverrides,
+                  averageRating: e.target.value || undefined,
+                })
+              }
+              className={INPUT_CLASS}
+            />
+          </FieldRow>
+          <FieldRow label="Rebooking Rate">
+            <input
+              type="text"
+              placeholder="e.g. 98% (blank = live rate)"
+              value={data.statsOverrides.rebookingRate ?? ""}
+              onChange={(e) =>
+                update("statsOverrides", {
+                  ...data.statsOverrides,
+                  rebookingRate: e.target.value || undefined,
+                })
+              }
+              className={INPUT_CLASS}
+            />
+          </FieldRow>
+          <FieldRow label="Services Count">
+            <input
+              type="text"
+              placeholder="e.g. 4 (blank = live count)"
+              value={data.statsOverrides.servicesCount ?? ""}
+              onChange={(e) =>
+                update("statsOverrides", {
+                  ...data.statsOverrides,
+                  servicesCount: e.target.value || undefined,
+                })
+              }
+              className={INPUT_CLASS}
+            />
+          </FieldRow>
         </CardContent>
       </Card>
 

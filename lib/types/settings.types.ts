@@ -153,6 +153,12 @@ export interface SiteContent {
     description: string;
   }[];
   showConsultingPage: boolean;
+  statsOverrides: {
+    clientsServed?: string;
+    averageRating?: string;
+    rebookingRate?: string;
+    servicesCount?: string;
+  };
 }
 
 export type CcpaDeletionEntry = {

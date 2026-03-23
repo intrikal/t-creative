@@ -24,6 +24,7 @@ Step-by-step instructions for configuring every third-party service used by T Cr
 10. [Instagram (optional, for feed sync)](#10-instagram-optional-for-feed-sync)
 11. [EasyPost (optional, for shipping)](#11-easypost-optional-for-shipping)
 12. [App Configuration](#12-app-configuration)
+13. [Inngest (required for background jobs)](#13-inngest-required-for-background-jobs)
 
 ---
 
@@ -149,6 +150,9 @@ SQUARE_ENVIRONMENT=sandbox   # Change to "production" when ready for real paymen
    - `payment.updated`
    - `refund.created`
    - `refund.updated`
+   - `subscription.updated`
+   - `invoice.payment_made`
+   - `gift_card.activity.created`
 5. Click **Save**
 6. Copy the **Signature Key** shown after saving
 
@@ -156,7 +160,7 @@ SQUARE_ENVIRONMENT=sandbox   # Change to "production" when ready for real paymen
 SQUARE_WEBHOOK_SIGNATURE_KEY=your-signature-key
 ```
 
-The webhook handler (`app/api/webhooks/square/route.ts`) verifies HMAC-SHA256 signatures, stores raw events for audit/replay, auto-links payments to bookings and product orders, sends receipt emails, records payments in Zoho Books, and awards loyalty points. It always returns HTTP 200 to Square — processing failures are tracked in the `webhook_events` table.
+The webhook route (`app/api/webhooks/square/route.ts`) runs on **Vercel Edge Runtime** for independent concurrency scaling. It verifies the HMAC-SHA256 signature (Web Crypto), stores the raw event in `webhook_events` for idempotency and audit/replay, then enqueues a `square/webhook.received` Inngest event and returns HTTP 200 immediately. Heavy processing (payment auto-linking, receipt emails, Zoho Books recording, loyalty points, EasyPost label purchase) runs asynchronously in the `square-webhook-processor` Inngest function with up to 3 retries.
 
 ### Configure sales tax
 
@@ -920,3 +924,56 @@ Run this once for `CRON_SECRET` and once for `INVITE_SECRET` — use different v
 | `CRON_SECRET`                    | App       | Yes        |
 | `INVITE_SECRET`                  | App       | Yes        |
 | `ADMIN_EMAIL`                    | App       | Yes        |
+| `INNGEST_EVENT_KEY`              | Inngest   | Yes        |
+| `INNGEST_SIGNING_KEY`            | Inngest   | Yes        |
+
+---
+
+## 13. Inngest (required for background jobs)
+
+Inngest runs all background processing: booking reminders, review requests, loyalty campaigns, Zoho sync, catalog sync, and Square webhook event processing. The app uses Inngest for durable retry logic and step-level observability.
+
+### Create an account
+
+1. Go to [app.inngest.com](https://app.inngest.com) and sign in (or create an account)
+2. Create a new app — name it `t-creative` (must match the `id` in `inngest/client.ts`)
+
+### Get API keys
+
+1. In your Inngest app, go to **Manage → API Keys**
+2. Copy the **Event Key** (used to send events from the app) and **Signing Key** (used to authenticate the serve handler)
+
+```env
+INNGEST_EVENT_KEY=signkey-prod-...
+INNGEST_SIGNING_KEY=signkey-prod-...
+```
+
+> **Two separate keys:** `INNGEST_EVENT_KEY` authenticates calls to `inngest.send()` (sending events into Inngest). `INNGEST_SIGNING_KEY` authenticates the `/api/inngest` serve endpoint (Inngest calling your app to execute function steps). Both are required.
+
+### Connect the serve endpoint
+
+After deploying to Vercel, register your app with Inngest:
+
+1. Go to **Apps** in the Inngest dashboard
+2. Click **Sync New App**
+3. Enter your production serve URL: `https://tcreativestudio.com/api/inngest`
+4. Click **Sync** — Inngest will discover all registered functions
+
+Inngest re-syncs automatically on each deploy via the `PUT /api/inngest` handler.
+
+### Verify it's working
+
+1. Deploy the app with both env vars set
+2. In the Inngest dashboard → **Functions**, confirm all 16 functions appear (15 cron jobs + `square-webhook-processor`)
+3. Trigger a test Square webhook from the Square Dashboard sandbox — the `square-webhook-processor` function should appear in **Runs** within seconds
+
+### If not configured
+
+The app will boot normally but background processing will fail silently — `inngest.send()` calls from the Edge webhook route will return errors, which currently cause the webhook route to return HTTP 500 (Square will retry). Set both keys before enabling the Square webhook in production.
+
+### Env vars
+
+| Variable             | Required | Description                                          |
+| -------------------- | -------- | ---------------------------------------------------- |
+| `INNGEST_EVENT_KEY`  | Yes      | Authenticates `inngest.send()` calls from the app    |
+| `INNGEST_SIGNING_KEY`| Yes      | Authenticates Inngest's requests to `/api/inngest`   |

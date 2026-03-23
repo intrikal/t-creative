@@ -43,6 +43,8 @@ Follow [docs/INTEGRATION_SETUP.md](./INTEGRATION_SETUP.md) for detailed instruct
       → [Setup instructions](./INTEGRATION_SETUP.md#1-supabase-required)
 - [ ] **Square** — Create application, get access token and location ID
       → [Setup instructions](./INTEGRATION_SETUP.md#2-square-required-for-payments)
+- [ ] **Inngest** — Create app, get Event Key and Signing Key
+      → [Setup instructions](./INTEGRATION_SETUP.md#13-inngest-required-for-background-jobs)
 - [ ] **Resend** — Get API key, verify sending domain
       → [Setup instructions](./INTEGRATION_SETUP.md#3-resend-required-for-emails)
 - [ ] **Cloudflare Turnstile** — Create widget, get site key and secret key
@@ -122,10 +124,24 @@ These migrations set up:
    - [ ] `payment.updated`
    - [ ] `refund.created`
    - [ ] `refund.updated`
+   - [ ] `subscription.updated`
+   - [ ] `invoice.payment_made`
+   - [ ] `gift_card.activity.created`
 
 ---
 
-## 9. Verify cron jobs are running
+## 9. Sync Inngest functions
+
+1. Go to [app.inngest.com](https://app.inngest.com) → **Apps**
+2. Click **Sync New App** and enter: `https://tcreativestudio.com/api/inngest`
+3. Click **Sync** — all 16 functions should appear under **Functions**
+4. Confirm `square-webhook-processor` is listed (handles Square webhook processing)
+
+> Inngest re-syncs automatically on each subsequent Vercel deploy via the `PUT /api/inngest` handler. This manual sync is only needed on first setup.
+
+---
+
+## 10. Verify cron jobs are running
 
 1. Go to your Vercel project → **Settings → Cron Jobs**
 2. Confirm that cron routes are registered (defined in `vercel.json`)
@@ -141,7 +157,7 @@ LIMIT 10;
 
 ---
 
-## 10. Test the health endpoint
+## 11. Test the health endpoint
 
 ```bash
 curl https://tcreativestudio.com/api/health
@@ -151,7 +167,7 @@ Expected response: HTTP 200 with a JSON body confirming the app is running.
 
 ---
 
-## 11. Test a booking flow end to end
+## 12. Test a booking flow end to end
 
 - [ ] Sign in with Google as the admin account
 - [ ] Create a test service in the admin dashboard
@@ -163,7 +179,7 @@ Expected response: HTTP 200 with a JSON body confirming the app is running.
 
 ---
 
-## 12. Configure custom domain
+## 13. Configure custom domain
 
 1. Go to your Vercel project → **Settings → Domains**
 2. Add `tcreativestudio.com` (and `www.tcreativestudio.com` if desired)

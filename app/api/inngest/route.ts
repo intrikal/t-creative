@@ -22,6 +22,7 @@ import {
   instagramSync,
   catalogSync,
   refreshViews,
+  squareWebhook,
 } from "@/inngest/functions";
 
 const handler = serve({
@@ -42,6 +43,7 @@ const handler = serve({
     instagramSync,
     catalogSync,
     refreshViews,
+    squareWebhook,
   ],
 });
 

@@ -293,3 +293,6 @@ export {
   membershipPlansRelations,
   membershipSubscriptionsRelations,
 } from "./memberships";
+
+/* Email queue (rate-limit fallback for Resend sends) */
+export { emailQueueStatusEnum, emailQueue, type EmailQueueMeta } from "./email-queue";

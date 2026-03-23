@@ -198,10 +198,16 @@ export function TrainingPage({
   programs,
   businessName,
   location,
+  email,
+  footerTagline,
+  socialLinks,
 }: {
   programs: PublicProgram[];
   businessName?: string;
   location?: string;
+  email?: string;
+  footerTagline?: string;
+  socialLinks?: { platform: string; handle: string; url: string }[];
 }) {
   // Use DB-driven programs when available; fall back to hardcoded data so
   // the page still renders useful content even if no programs exist yet.
@@ -356,7 +362,13 @@ export function TrainingPage({
           </div>
         </section>
       </main>
-      <Footer businessName={businessName} location={location} />
+      <Footer
+        businessName={businessName}
+        location={location}
+        email={email}
+        tagline={footerTagline}
+        socialLinks={socialLinks}
+      />
     </>
   );
 }

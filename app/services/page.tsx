@@ -2,6 +2,7 @@
  * Services — Server Component route wrapper with metadata and ISR.
  */
 import type { Metadata } from "next";
+import { SITE_URL } from "@/lib/site-config";
 import { getSiteData } from "@/lib/site-data";
 import { getPublishedServices } from "./actions";
 import { ServicesPage } from "./ServicesPage";
@@ -26,14 +27,15 @@ export const metadata: Metadata = {
   },
 };
 
-const BASE_URL = "https://tcreativestudio.com";
-
-function buildServicesJsonLd(services: Awaited<ReturnType<typeof getPublishedServices>>) {
+function buildServicesJsonLd(
+  services: Awaited<ReturnType<typeof getPublishedServices>>,
+  bizName: string,
+) {
   return {
     "@context": "https://schema.org",
     "@type": "ItemList",
-    name: "T Creative Studio Services",
-    url: `${BASE_URL}/services`,
+    name: `${bizName} Services`,
+    url: `${SITE_URL}/services`,
     itemListElement: services.map((service, index) => {
       let priceSpec: Record<string, unknown> | undefined;
       if (service.priceInCents) {
@@ -65,7 +67,7 @@ function buildServicesJsonLd(services: Awaited<ReturnType<typeof getPublishedSer
           name: service.name,
           ...(service.description && { description: service.description }),
           serviceType: service.category,
-          provider: { "@type": "LocalBusiness", name: "T Creative Studio", url: BASE_URL },
+          provider: { "@type": "LocalBusiness", name: bizName, url: SITE_URL },
           areaServed: {
             "@type": "City",
             name: "San Jose",
@@ -80,17 +82,25 @@ function buildServicesJsonLd(services: Awaited<ReturnType<typeof getPublishedSer
 }
 
 export default async function Page() {
-  const [services, { business }] = await Promise.all([getPublishedServices(), getSiteData()]);
+  const [services, { business, content }] = await Promise.all([
+    getPublishedServices(),
+    getSiteData(),
+  ]);
   return (
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(buildServicesJsonLd(services)) }}
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(buildServicesJsonLd(services, business.businessName)),
+        }}
       />
       <ServicesPage
         services={services}
         businessName={business.businessName}
         location={business.location}
+        email={business.email}
+        footerTagline={content.footerTagline}
+        socialLinks={content.socialLinks}
       />
     </>
   );

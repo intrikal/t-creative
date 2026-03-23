@@ -103,10 +103,16 @@ export function PortfolioPage({
   media,
   businessName,
   location,
+  email,
+  footerTagline,
+  socialLinks,
 }: {
   media: PublicMediaItem[];
   businessName?: string;
   location?: string;
+  email?: string;
+  footerTagline?: string;
+  socialLinks?: { platform: string; handle: string; url: string }[];
 }) {
   const [active, setActive] = useState<Category>("all");
 
@@ -254,7 +260,13 @@ export function PortfolioPage({
           </div>
         </section>
       </main>
-      <Footer businessName={businessName} location={location} />
+      <Footer
+        businessName={businessName}
+        location={location}
+        email={email}
+        tagline={footerTagline}
+        socialLinks={socialLinks}
+      />
     </>
   );
 }

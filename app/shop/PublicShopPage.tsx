@@ -187,10 +187,16 @@ export function PublicShopPage({
   products,
   businessName,
   location,
+  email,
+  footerTagline,
+  socialLinks,
 }: {
   products: ShopProduct[];
   businessName?: string;
   location?: string;
+  email?: string;
+  footerTagline?: string;
+  socialLinks?: { platform: string; handle: string; url: string }[];
 }) {
   // Whether the cart drawer is visible. Separate from the Zustand store
   // because drawer visibility is purely UI state, not persisted data.
@@ -388,7 +394,13 @@ export function PublicShopPage({
 
       <CartDrawer open={cartOpen} onClose={() => setCartOpen(false)} />
 
-      <Footer businessName={businessName} location={location} />
+      <Footer
+        businessName={businessName}
+        location={location}
+        email={email}
+        tagline={footerTagline}
+        socialLinks={socialLinks}
+      />
     </>
   );
 }

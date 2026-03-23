@@ -54,6 +54,7 @@ export function ConsultingPage({
   services: svcProp,
   benefits: benefitsProp,
   businessName,
+  location,
   email,
   footerTagline,
   socialLinks,
@@ -67,6 +68,7 @@ export function ConsultingPage({
   }[];
   benefits?: string[];
   businessName?: string;
+  location?: string;
   email?: string;
   footerTagline?: string;
   socialLinks?: { platform: string; handle: string; url: string }[];
@@ -200,6 +202,7 @@ export function ConsultingPage({
       </main>
       <Footer
         businessName={businessName}
+        location={location}
         email={email}
         tagline={footerTagline}
         socialLinks={socialLinks}

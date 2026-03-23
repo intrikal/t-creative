@@ -8,13 +8,15 @@ import { claimWaitlistSlot } from "./actions";
 interface Props {
   token: string;
   data: ClaimPageData;
+  businessName?: string;
+  email?: string;
 }
 
-export function ClaimUI({ token, data }: Props) {
+export function ClaimUI({ token, data, businessName, email }: Props) {
   if (!data.valid) {
     return (
-      <PageShell>
-        <InvalidState reason={data.reason} />
+      <PageShell businessName={businessName}>
+        <InvalidState reason={data.reason} email={email} />
       </PageShell>
     );
   }
@@ -23,7 +25,7 @@ export function ClaimUI({ token, data }: Props) {
   const expiresAt = new Date(data.expiresAt);
 
   return (
-    <PageShell>
+    <PageShell businessName={businessName}>
       <ActiveClaim
         token={token}
         serviceName={data.serviceName}
@@ -124,7 +126,13 @@ function ActiveClaim({
 /*  Invalid / expired state                                            */
 /* ------------------------------------------------------------------ */
 
-function InvalidState({ reason }: { reason: "invalid_token" | "expired" | "already_claimed" }) {
+function InvalidState({
+  reason,
+  email: contactEmail,
+}: {
+  reason: "invalid_token" | "expired" | "already_claimed";
+  email?: string;
+}) {
   const messages = {
     expired: {
       title: "This offer has expired",
@@ -148,8 +156,8 @@ function InvalidState({ reason }: { reason: "invalid_token" | "expired" | "alrea
       <p style={body}>{bodyText}</p>
       <p style={muted}>
         Questions? Reply to your notification email or reach us at{" "}
-        <a href="mailto:hello@tcreativestudio.com" style={link}>
-          hello@tcreativestudio.com
+        <a href={`mailto:${contactEmail ?? "hello@tcreativestudio.com"}`} style={link}>
+          {contactEmail ?? "hello@tcreativestudio.com"}
         </a>
         .
       </p>
@@ -161,11 +169,17 @@ function InvalidState({ reason }: { reason: "invalid_token" | "expired" | "alrea
 /*  Page shell                                                         */
 /* ------------------------------------------------------------------ */
 
-function PageShell({ children }: { children: React.ReactNode }) {
+function PageShell({
+  children,
+  businessName,
+}: {
+  children: React.ReactNode;
+  businessName?: string;
+}) {
   return (
     <div style={shell}>
       <div style={inner}>
-        <p style={brand}>T Creative Studio</p>
+        <p style={brand}>{businessName ?? "T Creative Studio"}</p>
         {children}
       </div>
     </div>

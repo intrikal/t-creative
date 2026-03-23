@@ -5,13 +5,16 @@
  * at build time. Displayed when the URL is shared on social platforms.
  */
 import { ImageResponse } from "next/og";
+import { getPublicBusinessProfile } from "@/app/dashboard/settings/settings-actions";
 
-export const runtime = "edge";
-export const alt = "T Creative Studio — Premium Beauty & Creative Services in San Jose";
+export const runtime = "nodejs";
+export const alt = "Premium Beauty & Creative Services";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
-export default function Image() {
+export default async function Image() {
+  const business = await getPublicBusinessProfile();
+
   return new ImageResponse(
     <div
       style={{
@@ -43,7 +46,7 @@ export default function Image() {
             lineHeight: 1.1,
           }}
         >
-          T Creative Studio
+          {business.businessName}
         </div>
         <div
           style={{
@@ -70,7 +73,7 @@ export default function Image() {
             marginTop: 8,
           }}
         >
-          San Jose, California
+          {business.location}
         </div>
       </div>
     </div>,

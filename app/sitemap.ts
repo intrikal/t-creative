@@ -34,8 +34,9 @@
 import type { MetadataRoute } from "next";
 import { getPublishedProducts } from "@/app/shop/queries";
 import { getPublishedPrograms } from "@/app/training/actions";
+import { SITE_URL } from "@/lib/site-config";
 
-const BASE_URL = "https://tcreativestudio.com";
+const BASE_URL = SITE_URL;
 
 /**
  * sitemap — returns the full list of public URLs for Google to index.

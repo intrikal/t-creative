@@ -11,11 +11,12 @@ import * as Sentry from "@sentry/nextjs";
 import { eq } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { z } from "zod";
-import type { MediaCategory } from "@/lib/types/media.types";
+import { getPublicBusinessProfile } from "@/app/dashboard/settings/settings-actions";
 import { db } from "@/db";
 import { profiles, serviceRecords, mediaItems, notifications } from "@/db/schema";
-import { trackEvent } from "@/lib/posthog";
 import { getUser } from "@/lib/auth";
+import { trackEvent } from "@/lib/posthog";
+import type { MediaCategory } from "@/lib/types/media.types";
 import { createClient } from "@/utils/supabase/server";
 
 export type ServiceRecordRow = {
@@ -290,7 +291,7 @@ export async function promoteToPortfolio(input: {
       channel: "internal",
       status: "sent",
       title: "Your photos are ready for the portfolio",
-      body: "T Creative would like to feature your before & after photos in the portfolio. Open your gallery to approve.",
+      body: `${(await getPublicBusinessProfile()).businessName} would like to feature your before & after photos in the portfolio. Open your gallery to approve.`,
       relatedEntityType: "media_item",
       relatedEntityId: inserted.id,
       sentAt: new Date(),

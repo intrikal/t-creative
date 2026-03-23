@@ -16,11 +16,11 @@ import { ConditionalNavbar } from "@/components/ConditionalNavbar";
 import { NavbarWrapper } from "@/components/NavbarWrapper";
 import { PostHogProvider } from "@/components/providers/PostHogProvider";
 import { ServiceWorkerRegistration } from "@/components/providers/ServiceWorkerRegistration";
-import { WebVitals } from "@/components/providers/WebVitals";
 import { SmoothScroll } from "@/components/providers/SmoothScroll";
+import { WebVitals } from "@/components/providers/WebVitals";
 import { GrainOverlay } from "@/components/ui/GrainOverlay";
-
 import { ScrollProgress } from "@/components/ui/ScrollProgress";
+import { SITE_URL } from "@/lib/site-config";
 import { getSiteData } from "@/lib/site-data";
 import "./globals.css";
 
@@ -41,7 +41,7 @@ const cormorant = Cormorant_Garamond({
   display: "swap",
 });
 
-const BASE_URL = "https://tcreativestudio.com";
+const BASE_URL = SITE_URL;
 
 export const viewport: Viewport = {
   themeColor: "#2c2420",
@@ -126,7 +126,6 @@ export default async function RootLayout({
         <ServiceWorkerRegistration />
         <WebVitals />
         <PostHogProvider>
-
           <GrainOverlay />
           <ScrollProgress />
           <ConditionalNavbar>

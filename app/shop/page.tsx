@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { SITE_URL } from "@/lib/site-config";
 import { getSiteData } from "@/lib/site-data";
 import { PublicShopPage } from "./PublicShopPage";
 import { getPublishedProducts } from "./queries";
@@ -23,7 +24,7 @@ export const metadata: Metadata = {
   },
 };
 
-const BASE_URL = "https://tcreativestudio.com";
+const BASE_URL = SITE_URL;
 
 const AVAILABILITY_MAP: Record<string, string> = {
   in_stock: "https://schema.org/InStock",
@@ -32,11 +33,14 @@ const AVAILABILITY_MAP: Record<string, string> = {
   out_of_stock: "https://schema.org/OutOfStock",
 };
 
-function buildShopJsonLd(products: Awaited<ReturnType<typeof getPublishedProducts>>) {
+function buildShopJsonLd(
+  products: Awaited<ReturnType<typeof getPublishedProducts>>,
+  bizName: string,
+) {
   return {
     "@context": "https://schema.org",
     "@type": "ItemList",
-    name: "T Creative Studio Shop",
+    name: `${bizName} Shop`,
     url: `${BASE_URL}/shop`,
     itemListElement: products.map((product, index) => {
       let offer: Record<string, unknown> | undefined;
@@ -80,7 +84,7 @@ function buildShopJsonLd(products: Awaited<ReturnType<typeof getPublishedProduct
           ...(product.description && { description: product.description }),
           ...(product.imageUrl && { image: product.imageUrl }),
           ...(product.tags.length > 0 && { keywords: product.tags.join(", ") }),
-          brand: { "@type": "Brand", name: "T Creative Studio" },
+          brand: { "@type": "Brand", name: bizName },
           ...(offer && { offers: offer }),
         },
       };
@@ -89,17 +93,25 @@ function buildShopJsonLd(products: Awaited<ReturnType<typeof getPublishedProduct
 }
 
 export default async function Page() {
-  const [products, { business }] = await Promise.all([getPublishedProducts(), getSiteData()]);
+  const [products, { business, content }] = await Promise.all([
+    getPublishedProducts(),
+    getSiteData(),
+  ]);
   return (
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(buildShopJsonLd(products)) }}
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(buildShopJsonLd(products, business.businessName)),
+        }}
       />
       <PublicShopPage
         products={products}
         businessName={business.businessName}
         location={business.location}
+        email={business.email}
+        footerTagline={content.footerTagline}
+        socialLinks={content.socialLinks}
       />
     </>
   );

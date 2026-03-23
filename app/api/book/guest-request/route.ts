@@ -6,12 +6,10 @@
  */
 import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
-import { Resend } from "resend";
 import { z } from "zod";
-import { env } from "@/lib/env";
 import { db } from "@/db";
 import { profiles, services } from "@/db/schema";
-import { RESEND_FROM, isResendConfigured } from "@/lib/resend";
+import { isResendConfigured, sendEmailHtml } from "@/lib/resend";
 import { verifyTurnstileToken } from "@/lib/turnstile";
 
 const schema = z.object({
@@ -78,16 +76,16 @@ export async function POST(request: Request) {
     .limit(1);
 
   if (admin && isResendConfigured()) {
-    const resend = new Resend(env.RESEND_API_KEY);
     const price = service.priceInCents
       ? `$${(service.priceInCents / 100).toFixed(0)}`
       : "Contact for quote";
 
-    await resend.emails.send({
-      from: RESEND_FROM,
+    await sendEmailHtml({
       to: admin.email,
       replyTo: email.trim(),
       subject: `New Booking Request: ${service.name}`,
+      entityType: "guest_booking_request",
+      localId: `guest-req-${Date.now()}`,
       html: `
         <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">
           <h2 style="margin:0 0 16px;font-size:20px;color:#1c1917">New Booking Request</h2>

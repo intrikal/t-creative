@@ -29,6 +29,8 @@ const schema = z.object({
 
   // ── Email ─────────────────────────────────────────────────────────────────
   RESEND_API_KEY: z.string().min(1),
+  /** Daily send limit. 100 for free tier, 50000 for Pro. */
+  RESEND_DAILY_LIMIT: z.coerce.number().int().positive().optional(),
 
   // ── CAPTCHA ───────────────────────────────────────────────────────────────
   NEXT_PUBLIC_TURNSTILE_SITE_KEY: z.string().min(1),
@@ -52,6 +54,7 @@ if (typeof window === "undefined" && process.env.NEXT_PHASE !== "phase-productio
     NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
     RESEND_API_KEY: process.env.RESEND_API_KEY,
+    RESEND_DAILY_LIMIT: process.env.RESEND_DAILY_LIMIT,
     NEXT_PUBLIC_TURNSTILE_SITE_KEY: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY,
     UPSTASH_REDIS_REST_URL: process.env.UPSTASH_REDIS_REST_URL,
     UPSTASH_REDIS_REST_TOKEN: process.env.UPSTASH_REDIS_REST_TOKEN,
@@ -74,6 +77,9 @@ export const env = {
   NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
   SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY as string,
   RESEND_API_KEY: process.env.RESEND_API_KEY as string,
+  RESEND_DAILY_LIMIT: process.env.RESEND_DAILY_LIMIT
+    ? parseInt(process.env.RESEND_DAILY_LIMIT, 10)
+    : undefined,
   NEXT_PUBLIC_TURNSTILE_SITE_KEY: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY as string,
   UPSTASH_REDIS_REST_URL: process.env.UPSTASH_REDIS_REST_URL as string,
   UPSTASH_REDIS_REST_TOKEN: process.env.UPSTASH_REDIS_REST_TOKEN as string,

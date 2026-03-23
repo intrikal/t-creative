@@ -24,15 +24,13 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { eq } from "drizzle-orm";
-import { Resend } from "resend";
 import { z } from "zod";
 import { db } from "@/db";
 import { bookings, bookingAddOns, payments, profiles, services, syncLog } from "@/db/schema";
 import { logAction } from "@/lib/audit";
 import { rruleToCadenceLabel } from "@/lib/cadence";
-import { env } from "@/lib/env";
 import { trackEvent } from "@/lib/posthog";
-import { RESEND_FROM, isResendConfigured } from "@/lib/resend";
+import { isResendConfigured, sendEmailHtml } from "@/lib/resend";
 import { isSquareConfigured, createSquarePayment } from "@/lib/square";
 import { verifyTurnstileToken } from "@/lib/turnstile";
 import { createClient } from "@/utils/supabase/server";
@@ -287,11 +285,11 @@ export async function POST(request: Request) {
       : "";
 
     try {
-      const resend = new Resend(env.RESEND_API_KEY);
-      await resend.emails.send({
-        from: RESEND_FROM,
+      await sendEmailHtml({
         to: admin.email,
         subject: `New Booking Request (deposit paid): ${service.name}`,
+        entityType: "deposit_booking_request",
+        localId: String(bookingId),
         html: `
           <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">
             <h2 style="margin:0 0 16px;font-size:20px;color:#1c1917">New Booking Request</h2>

@@ -11,6 +11,9 @@ import posthog from "posthog-js";
  * This is the client-side counterpart to the server-side `identifyUser()`
  * call in the auth callback.
  */
+// Single-tenant constant — swap for dynamic value when multi-tenant.
+const STUDIO_ID = "t-creative";
+
 export function PostHogIdentify({
   userId,
   email,
@@ -25,6 +28,7 @@ export function PostHogIdentify({
   useEffect(() => {
     if (!userId) return;
     posthog.identify(userId, { email, role, name });
+    posthog.group("studio", STUDIO_ID);
   }, [userId, email, role, name]);
 
   return null;

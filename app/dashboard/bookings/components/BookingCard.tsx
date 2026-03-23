@@ -11,8 +11,8 @@
 
 import { Clock, ChevronDown, ChevronUp, Download, MapPin, Plus, Star } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
 import type { ClientBookingRow } from "@/lib/types/booking.types";
+import { cn } from "@/lib/utils";
 import { statusConfig, CAT_DOT } from "./client-helpers";
 
 function hoursUntilBooking(startsAtISO: string): number {
@@ -78,8 +78,23 @@ export function BookingCard({
         <div className="px-5 pb-4 pt-1 bg-surface/30 border-t border-border/30 space-y-3">
           <div className="grid grid-cols-2 gap-3 text-xs">
             <div>
-              <p className="text-muted font-medium">Service</p>
-              <p className="text-foreground mt-0.5">{booking.service}</p>
+              <p className="text-muted font-medium">
+                {booking.services && booking.services.length > 1 ? "Services" : "Service"}
+              </p>
+              {booking.services && booking.services.length > 1 ? (
+                <div className="mt-0.5 space-y-0.5">
+                  {booking.services.map((s, i) => (
+                    <p key={i} className="text-foreground">
+                      {s.serviceName}{" "}
+                      <span className="text-muted">
+                        ({s.durationMinutes}min · ${(s.priceInCents / 100).toFixed(0)})
+                      </span>
+                    </p>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-foreground mt-0.5">{booking.service}</p>
+              )}
             </div>
             <div>
               <p className="text-muted font-medium">Assistant</p>

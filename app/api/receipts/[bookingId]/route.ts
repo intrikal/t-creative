@@ -7,11 +7,18 @@
 import { NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { and, eq } from "drizzle-orm";
-import { db } from "@/db";
-import { bookings, bookingAddOns, payments, profiles, services } from "@/db/schema";
-import { createClient } from "@/utils/supabase/server";
 import { getPublicBusinessProfile } from "@/app/dashboard/settings/settings-actions";
+import { db } from "@/db";
+import {
+  bookings,
+  bookingAddOns,
+  bookingServices,
+  payments,
+  profiles,
+  services,
+} from "@/db/schema";
 import { generateReceiptPdf, type ReceiptData } from "@/lib/generate-receipt-pdf";
+import { createClient } from "@/utils/supabase/server";
 
 export async function GET(
   _request: Request,
@@ -88,17 +95,22 @@ export async function GET(
     }
 
     /* ── Fetch related data ── */
-    const [paymentRows, addOnRows, businessProfile] = await Promise.all([
+    const [paymentRows, addOnRows, serviceRows, businessProfile] = await Promise.all([
       db
         .select()
         .from(payments)
-        .where(
-          and(eq(payments.bookingId, bookingId), eq(payments.status, "paid")),
-        ),
+        .where(and(eq(payments.bookingId, bookingId), eq(payments.status, "paid"))),
+      db.select().from(bookingAddOns).where(eq(bookingAddOns.bookingId, bookingId)),
       db
-        .select()
-        .from(bookingAddOns)
-        .where(eq(bookingAddOns.bookingId, bookingId)),
+        .select({
+          serviceName: services.name,
+          priceInCents: bookingServices.priceInCents,
+          durationMinutes: bookingServices.durationMinutes,
+        })
+        .from(bookingServices)
+        .leftJoin(services, eq(bookingServices.serviceId, services.id))
+        .where(eq(bookingServices.bookingId, bookingId))
+        .orderBy(bookingServices.orderIndex),
       getPublicBusinessProfile(),
     ]);
 
@@ -116,9 +128,7 @@ export async function GET(
     }
 
     const startsAt = new Date(booking.startsAt);
-    const clientName = [booking.clientFirstName, booking.clientLastName]
-      .filter(Boolean)
-      .join(" ");
+    const clientName = [booking.clientFirstName, booking.clientLastName].filter(Boolean).join(" ");
 
     const receiptData: ReceiptData = {
       businessName: businessProfile.businessName,
@@ -143,6 +153,14 @@ export async function GET(
       location: booking.location,
 
       serviceAmountInCents: booking.totalInCents,
+      services:
+        serviceRows.length > 1
+          ? serviceRows.map((s) => ({
+              serviceName: s.serviceName ?? "Service",
+              priceInCents: s.priceInCents,
+              durationMinutes: s.durationMinutes,
+            }))
+          : undefined,
       addOns: addOnRows.map((a) => ({
         name: a.addOnName,
         priceInCents: a.priceInCents,
@@ -180,9 +198,6 @@ export async function GET(
     });
   } catch (err) {
     Sentry.captureException(err);
-    return NextResponse.json(
-      { error: "Failed to generate receipt" },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: "Failed to generate receipt" }, { status: 500 });
   }
 }

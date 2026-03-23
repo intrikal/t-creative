@@ -223,9 +223,15 @@ export function mapBookingToCalEvent(row: BookingRow): CalEvent {
   const startTime = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
   const clientName = [row.clientFirstName, row.clientLastName].filter(Boolean).join(" ");
 
+  // Multi-service: show combined title like "Lash Fill + Wax"
+  const title =
+    row.services && row.services.length > 1
+      ? row.services.map((s) => s.serviceName).join(" + ")
+      : row.serviceName;
+
   return {
     id: row.id,
-    title: row.serviceName,
+    title,
     type: categoryToEventType(row.serviceCategory),
     date,
     startTime,

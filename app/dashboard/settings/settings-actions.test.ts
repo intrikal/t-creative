@@ -492,6 +492,9 @@ describe("settings-actions", () => {
         allowOnlineBooking: true,
         waitlistClaimWindowHours: 24,
         waiverTokenExpiryDays: 7,
+        comboDepositType: "highest",
+        fixedComboDepositInCents: 5000,
+        maxServicesPerBooking: 4,
       });
       expect(mockTrackEvent).toHaveBeenCalledWith("user-1", "booking_rules_updated");
     });
@@ -511,6 +514,9 @@ describe("settings-actions", () => {
         allowOnlineBooking: true,
         waitlistClaimWindowHours: 24,
         waiverTokenExpiryDays: 7,
+        comboDepositType: "highest",
+        fixedComboDepositInCents: 5000,
+        maxServicesPerBooking: 4,
       });
       expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/settings");
     });

@@ -33,6 +33,7 @@ import { db } from "@/db";
 import {
   bookings,
   bookingAddOns,
+  bookingServices,
   services,
   profiles,
   reviews,
@@ -51,9 +52,9 @@ import { calendarUrl } from "@/lib/calendar-token";
 import { trackEvent } from "@/lib/posthog";
 import { sendEmail, getEmailRecipient } from "@/lib/resend";
 import { squareClient, isSquareConfigured } from "@/lib/square";
+import type { ClientBookingRow, ClientBookingsData } from "@/lib/types/booking.types";
 import { notifyWaitlistForCancelledBooking } from "@/lib/waitlist-notify";
 import { updateZohoDeal, logZohoNote } from "@/lib/zoho";
-import type { ClientBookingRow, ClientBookingsData } from "@/lib/types/booking.types";
 
 const PATH = "/dashboard/bookings";
 
@@ -114,6 +115,51 @@ export async function getClientBookings(): Promise<ClientBookingsData> {
       }
     }
 
+    // Fetch booking_services for all bookings
+    const bsMap = new Map<
+      number,
+      {
+        serviceId: number;
+        serviceName: string;
+        serviceCategory: string;
+        priceInCents: number;
+        durationMinutes: number;
+        depositInCents: number;
+        orderIndex: number;
+      }[]
+    >();
+    if (bookingIds.length > 0) {
+      const bsRows = await db
+        .select({
+          bookingId: bookingServices.bookingId,
+          serviceId: bookingServices.serviceId,
+          orderIndex: bookingServices.orderIndex,
+          priceInCents: bookingServices.priceInCents,
+          durationMinutes: bookingServices.durationMinutes,
+          depositInCents: bookingServices.depositInCents,
+          serviceName: services.name,
+          serviceCategory: services.category,
+        })
+        .from(bookingServices)
+        .leftJoin(services, eq(bookingServices.serviceId, services.id))
+        .where(sql`${bookingServices.bookingId} = ANY(${bookingIds})`)
+        .orderBy(bookingServices.orderIndex);
+
+      for (const bs of bsRows) {
+        const list = bsMap.get(bs.bookingId) ?? [];
+        list.push({
+          serviceId: bs.serviceId,
+          serviceName: bs.serviceName ?? "",
+          serviceCategory: bs.serviceCategory ?? "lash",
+          priceInCents: bs.priceInCents,
+          durationMinutes: bs.durationMinutes,
+          depositInCents: bs.depositInCents,
+          orderIndex: bs.orderIndex,
+        });
+        bsMap.set(bs.bookingId, list);
+      }
+    }
+
     // Check which bookings already have a review from this client
     const reviewedBookingIds = new Set<number>();
     if (bookingIds.length > 0) {
@@ -168,6 +214,7 @@ export async function getClientBookings(): Promise<ClientBookingsData> {
         notes: r.clientNotes,
         location: r.location,
         addOns: addOnMap.get(r.id) ?? [],
+        services: bsMap.get(r.id) ?? [],
         reviewLeft: reviewedBookingIds.has(r.id),
         depositPaid: (r.depositPaidInCents ?? 0) > 0,
       };

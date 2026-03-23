@@ -57,6 +57,8 @@ export interface Booking {
   recurrenceRule?: string;
   tosAcceptedAt?: Date | null;
   tosVersion?: string | null;
+  /** All service IDs in a multi-service booking (ordered). */
+  serviceIds?: number[];
 }
 
 export function statusConfig(status: BookingStatus) {
@@ -154,6 +156,10 @@ export function mapBookingRow(row: BookingRow): Booking {
     recurrenceRule: row.recurrenceRule ?? undefined,
     tosAcceptedAt: row.tosAcceptedAt ?? null,
     tosVersion: row.tosVersion ?? null,
+    serviceIds:
+      row.services && row.services.length > 0
+        ? row.services.map((s) => s.serviceId)
+        : [row.serviceId],
   };
 }
 

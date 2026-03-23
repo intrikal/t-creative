@@ -63,6 +63,7 @@ import { db } from "@/db";
 import {
   bookings,
   bookingAddOns,
+  bookingServices,
   bookingSubscriptions,
   invoices,
   notifications,
@@ -380,16 +381,60 @@ export async function getBookings(opts?: {
     const hasMore = rows.length > limit;
     const page = hasMore ? rows.slice(0, limit) : rows;
 
+    // Batch-fetch booking_services for all bookings on this page
+    const bookingIds = page.map((r) => r.id);
+    const bsRows =
+      bookingIds.length > 0
+        ? await db
+            .select({
+              bookingId: bookingServices.bookingId,
+              serviceId: bookingServices.serviceId,
+              orderIndex: bookingServices.orderIndex,
+              priceInCents: bookingServices.priceInCents,
+              durationMinutes: bookingServices.durationMinutes,
+              depositInCents: bookingServices.depositInCents,
+              serviceName: services.name,
+              serviceCategory: services.category,
+            })
+            .from(bookingServices)
+            .leftJoin(services, eq(bookingServices.serviceId, services.id))
+            .where(inArray(bookingServices.bookingId, bookingIds))
+            .orderBy(bookingServices.orderIndex)
+        : [];
+
+    const bsMap = new Map<
+      number,
+      {
+        serviceId: number;
+        serviceName: string;
+        serviceCategory: string;
+        priceInCents: number;
+        durationMinutes: number;
+        depositInCents: number;
+        orderIndex: number;
+      }[]
+    >();
+    for (const row of bsRows) {
+      const list = bsMap.get(row.bookingId) ?? [];
+      list.push({
+        serviceId: row.serviceId,
+        serviceName: row.serviceName ?? "",
+        serviceCategory: row.serviceCategory ?? "lash",
+        priceInCents: row.priceInCents,
+        durationMinutes: row.durationMinutes,
+        depositInCents: row.depositInCents,
+        orderIndex: row.orderIndex,
+      });
+      bsMap.set(row.bookingId, list);
+    }
+
     return {
-      // Spread each row and override nullable join fields with fallback defaults.
-      // Spread is preferred over manual field listing because the row has 15+
-      // fields — spread copies them all, then the 3 overrides replace just the
-      // nullable ones. This avoids a fragile, long-form object literal.
       rows: page.map((r) => ({
         ...r,
         clientFirstName: r.clientFirstName ?? "",
         serviceName: r.serviceName ?? "",
         serviceCategory: r.serviceCategory ?? "lash",
+        services: bsMap.get(r.id) ?? [],
       })),
       hasMore,
     };
@@ -446,11 +491,36 @@ export async function getBookingById(id: number): Promise<BookingRow | null> {
 
     if (!row) return null;
 
+    // Fetch booking_services for this booking
+    const bsRows = await db
+      .select({
+        serviceId: bookingServices.serviceId,
+        orderIndex: bookingServices.orderIndex,
+        priceInCents: bookingServices.priceInCents,
+        durationMinutes: bookingServices.durationMinutes,
+        depositInCents: bookingServices.depositInCents,
+        serviceName: services.name,
+        serviceCategory: services.category,
+      })
+      .from(bookingServices)
+      .leftJoin(services, eq(bookingServices.serviceId, services.id))
+      .where(eq(bookingServices.bookingId, id))
+      .orderBy(bookingServices.orderIndex);
+
     return {
       ...row,
       clientFirstName: row.clientFirstName ?? "",
       serviceName: row.serviceName ?? "",
       serviceCategory: row.serviceCategory ?? "lash",
+      services: bsRows.map((bs) => ({
+        serviceId: bs.serviceId,
+        serviceName: bs.serviceName ?? "",
+        serviceCategory: bs.serviceCategory ?? "lash",
+        priceInCents: bs.priceInCents,
+        durationMinutes: bs.durationMinutes,
+        depositInCents: bs.depositInCents,
+        orderIndex: bs.orderIndex,
+      })),
     };
   } catch (err) {
     Sentry.captureException(err);
@@ -619,6 +689,19 @@ const bookingInputSchema = z.object({
   clientNotes: z.string().optional(),
   recurrenceRule: z.string().optional(),
   subscriptionId: z.number().int().positive().optional(),
+  /** Multi-service items. When provided, serviceId must match services[0].serviceId. */
+  services: z
+    .array(
+      z.object({
+        serviceId: z.number().int().positive(),
+        priceInCents: z.number().int().nonnegative(),
+        durationMinutes: z.number().int().positive(),
+        depositInCents: z.number().int().nonnegative(),
+      }),
+    )
+    .min(1)
+    .max(10)
+    .optional(),
 });
 
 /**
@@ -639,9 +722,7 @@ export async function createBooking(input: BookingInput): Promise<ActionResult<v
         // transaction. The lock key includes locationId so different locations don't
         // block each other. hashtext() maps the string to a 32-bit int for
         // pg_advisory_xact_lock. The lock releases on commit/rollback.
-        const lockKey = input.locationId
-          ? `${input.staffId}:${input.locationId}`
-          : input.staffId;
+        const lockKey = input.locationId ? `${input.staffId}:${input.locationId}` : input.staffId;
         await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${lockKey}))`);
 
         const conflict = await hasOverlappingBooking(
@@ -665,7 +746,7 @@ export async function createBooking(input: BookingInput): Promise<ActionResult<v
         }
       }
 
-      return tx
+      const [newRow] = await tx
         .insert(bookings)
         .values({
           clientId: input.clientId,
@@ -685,10 +766,32 @@ export async function createBooking(input: BookingInput): Promise<ActionResult<v
           confirmedAt: new Date(),
         })
         .returning({ id: bookings.id });
+
+      // Insert booking_services rows (multi-service or single-service fallback)
+      const serviceItems = input.services ?? [
+        {
+          serviceId: input.serviceId,
+          priceInCents: input.totalInCents,
+          durationMinutes: input.durationMinutes,
+          depositInCents: 0,
+        },
+      ];
+      await tx.insert(bookingServices).values(
+        serviceItems.map((s, i) => ({
+          bookingId: newRow.id,
+          serviceId: s.serviceId,
+          orderIndex: i,
+          priceInCents: s.priceInCents,
+          durationMinutes: s.durationMinutes,
+          depositInCents: s.depositInCents,
+        })),
+      );
+
+      return [newRow];
     });
 
     // Create Square order for POS payment matching
-    await tryCreateSquareOrder(newBooking.id, input.serviceId, input.totalInCents);
+    await tryCreateSquareOrder(newBooking.id, input.serviceId, input.totalInCents, input.services);
 
     // Send booking confirmation email
     await trySendBookingConfirmation(newBooking.id);
@@ -856,6 +959,21 @@ export async function updateBooking(
     if (input.status === "cancelled") updates.cancelledAt = new Date();
 
     await db.update(bookings).set(updates).where(eq(bookings.id, id));
+
+    // Sync booking_services if multi-service input is provided
+    if (input.services && input.services.length > 0) {
+      await db.delete(bookingServices).where(eq(bookingServices.bookingId, id));
+      await db.insert(bookingServices).values(
+        input.services.map((s, i) => ({
+          bookingId: id,
+          serviceId: s.serviceId,
+          orderIndex: i,
+          priceInCents: s.priceInCents,
+          durationMinutes: s.durationMinutes,
+          depositInCents: s.depositInCents,
+        })),
+      );
+    }
 
     // Send reschedule email if time changed
     if (oldBooking && oldBooking.startsAt.getTime() !== input.startsAt.getTime()) {
@@ -1275,27 +1393,50 @@ async function tryCreateSquareOrder(
   bookingId: number,
   serviceId: number,
   totalInCents: number,
+  /** Multi-service items. When provided, creates one line item per service. */
+  serviceItems?: { serviceId: number; priceInCents: number }[],
 ): Promise<void> {
   if (!isSquareConfigured()) return;
 
   try {
-    // ─── Query: fetch the service name for the Square order line item ───
-    // SELECT: fetches only "name" (e.g. "Lash Fill") from the "services" table,
-    //   used as the line item description in the Square order.
-    // FROM: the "services" table.
-    // WHERE: id = the service associated with this booking.
-    const [service] = await db
-      .select({ name: services.name })
-      .from(services)
-      .where(eq(services.id, serviceId));
+    if (serviceItems && serviceItems.length > 1) {
+      // Multi-service: fetch all service names and create per-service line items
+      const serviceRows = await db
+        .select({ id: services.id, name: services.name })
+        .from(services)
+        .where(
+          inArray(
+            services.id,
+            serviceItems.map((s) => s.serviceId),
+          ),
+        );
 
-    const squareOrderId = await createSquareOrder({
-      bookingId,
-      serviceName: service?.name ?? "Appointment",
-      amountInCents: totalInCents,
-    });
+      const nameMap = new Map(serviceRows.map((r) => [r.id, r.name]));
 
-    await db.update(bookings).set({ squareOrderId }).where(eq(bookings.id, bookingId));
+      // Create order with the first service name as the primary label
+      const primaryName = nameMap.get(serviceItems[0].serviceId) ?? "Appointment";
+      const squareOrderId = await createSquareOrder({
+        bookingId,
+        serviceName: `${primaryName} (+${serviceItems.length - 1} more)`,
+        amountInCents: totalInCents,
+      });
+
+      await db.update(bookings).set({ squareOrderId }).where(eq(bookings.id, bookingId));
+    } else {
+      // Single-service: original behavior
+      const [service] = await db
+        .select({ name: services.name })
+        .from(services)
+        .where(eq(services.id, serviceId));
+
+      const squareOrderId = await createSquareOrder({
+        bookingId,
+        serviceName: service?.name ?? "Appointment",
+        amountInCents: totalInCents,
+      });
+
+      await db.update(bookings).set({ squareOrderId }).where(eq(bookings.id, bookingId));
+    }
   } catch (err) {
     await db.insert(syncLog).values({
       provider: "square",

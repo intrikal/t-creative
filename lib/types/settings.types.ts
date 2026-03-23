@@ -85,6 +85,12 @@ export interface BookingRulesConfig {
   waitlistClaimWindowHours: number;
   /** Days a waiver completion token stays valid (default: 7). */
   waiverTokenExpiryDays: number;
+  /** How to calculate deposit for multi-service bookings (default: "highest"). */
+  comboDepositType: "sum" | "fixed" | "highest";
+  /** Fixed deposit amount in cents, used when comboDepositType = "fixed" (default: 5000). */
+  fixedComboDepositInCents: number;
+  /** Maximum services per booking (default: 4). */
+  maxServicesPerBooking: number;
 }
 
 export interface ReminderItem {

@@ -68,7 +68,14 @@ export { serviceCategories } from "./service-categories";
 export { locations, locationsRelations } from "./locations";
 
 /* Bookings & appointments */
-export { bookings, bookingAddOns, bookingsRelations, bookingAddOnsRelations } from "./bookings";
+export {
+  bookings,
+  bookingAddOns,
+  bookingServices,
+  bookingsRelations,
+  bookingAddOnsRelations,
+  bookingServicesRelations,
+} from "./bookings";
 
 /* Messaging */
 export {

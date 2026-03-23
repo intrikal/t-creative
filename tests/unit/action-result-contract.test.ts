@@ -226,12 +226,10 @@ vi.mock("@/lib/waitlist-notify", () => ({
 vi.mock("@supabase/ssr", () => ({
   createServerClient: vi.fn(() => ({
     auth: {
-      getUser: vi
-        .fn()
-        .mockResolvedValue({
-          data: { user: { id: FAKE_USER.id, email: FAKE_USER.email } },
-          error: null,
-        }),
+      getUser: vi.fn().mockResolvedValue({
+        data: { user: { id: FAKE_USER.id, email: FAKE_USER.email } },
+        error: null,
+      }),
     },
     from: vi.fn(() => ({
       select: vi.fn().mockReturnThis(),
@@ -244,12 +242,10 @@ vi.mock("@supabase/ssr", () => ({
 vi.mock("@/utils/supabase/server", () => ({
   createClient: vi.fn().mockResolvedValue({
     auth: {
-      getUser: vi
-        .fn()
-        .mockResolvedValue({
-          data: { user: { id: FAKE_USER.id, email: FAKE_USER.email } },
-          error: null,
-        }),
+      getUser: vi.fn().mockResolvedValue({
+        data: { user: { id: FAKE_USER.id, email: FAKE_USER.email } },
+        error: null,
+      }),
     },
   }),
 }));
@@ -738,6 +734,9 @@ describe("settings-actions.ts — ActionResult contract", () => {
       allowOnlineBooking: true,
       waitlistClaimWindowHours: 24,
       waiverTokenExpiryDays: 7,
+      comboDepositType: "highest",
+      fixedComboDepositInCents: 5000,
+      maxServicesPerBooking: 4,
     });
     assertActionResult(result);
   });

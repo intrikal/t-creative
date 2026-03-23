@@ -91,6 +91,8 @@ export interface BookingRulesConfig {
   fixedComboDepositInCents: number;
   /** Maximum services per booking (default: 4). */
   maxServicesPerBooking: number;
+  /** Whether recurring series charge deposit per booking or once for the series (default: "per_booking"). */
+  seriesDepositType: "per_booking" | "single";
 }
 
 export interface ReminderItem {

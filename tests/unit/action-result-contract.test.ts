@@ -737,6 +737,7 @@ describe("settings-actions.ts — ActionResult contract", () => {
       comboDepositType: "highest",
       fixedComboDepositInCents: 5000,
       maxServicesPerBooking: 4,
+      seriesDepositType: "per_booking",
     });
     assertActionResult(result);
   });

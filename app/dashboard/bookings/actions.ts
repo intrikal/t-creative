@@ -365,6 +365,7 @@ export async function getBookings(opts?: {
         staffFirstName: staffProfile.firstName,
         recurrenceRule: bookings.recurrenceRule,
         parentBookingId: bookings.parentBookingId,
+        recurrenceGroupId: bookings.recurrenceGroupId,
         tosAcceptedAt: bookings.tosAcceptedAt,
         tosVersion: bookings.tosVersion,
         locationId: bookings.locationId,
@@ -478,6 +479,7 @@ export async function getBookingById(id: number): Promise<BookingRow | null> {
         staffFirstName: staffProfile.firstName,
         recurrenceRule: bookings.recurrenceRule,
         parentBookingId: bookings.parentBookingId,
+        recurrenceGroupId: bookings.recurrenceGroupId,
         tosAcceptedAt: bookings.tosAcceptedAt,
         tosVersion: bookings.tosVersion,
         locationId: bookings.locationId,
@@ -883,6 +885,176 @@ export async function createBooking(input: BookingInput): Promise<ActionResult<v
   }
 }
 
+/* ------------------------------------------------------------------ */
+/*  Recurring booking (batch upfront creation)                         */
+/* ------------------------------------------------------------------ */
+
+export type RecurringBookingResult =
+  | { success: true; created: number; skipped: string[] }
+  | { success: false; error: string };
+
+/**
+ * Creates all bookings in a recurring series upfront in a single transaction.
+ *
+ * Generates dates from the RRULE, checks each date for staff conflicts,
+ * and creates all non-conflicting bookings with a shared `recurrenceGroupId`.
+ * Returns which dates were skipped due to conflicts so the UI can inform the user.
+ */
+export async function createRecurringBooking(input: BookingInput): Promise<RecurringBookingResult> {
+  try {
+    bookingInputSchema.parse(input);
+    const user = await getUser();
+
+    if (!input.recurrenceRule) {
+      return { success: false, error: "Recurrence rule is required" };
+    }
+
+    const interval = parseRRule(input.recurrenceRule);
+    if (!interval) {
+      return { success: false, error: "Invalid recurrence rule" };
+    }
+
+    // Generate all occurrence dates
+    const maxOccurrences = interval.count ?? 12;
+    const dates: Date[] = [input.startsAt];
+
+    for (let i = 1; i < maxOccurrences; i++) {
+      const prev = dates[dates.length - 1];
+      const next = new Date(prev);
+      if (interval.days) {
+        next.setDate(next.getDate() + interval.days);
+      } else if (interval.months) {
+        next.setMonth(next.getMonth() + interval.months);
+      }
+      // Respect UNTIL constraint
+      if (interval.until && next > interval.until) break;
+      dates.push(next);
+    }
+
+    if (dates.length === 0) {
+      return { success: false, error: "No valid dates generated from recurrence rule" };
+    }
+
+    // Check all dates for conflicts (outside transaction for read-only)
+    const skipped: string[] = [];
+    const validDates: Date[] = [];
+
+    if (input.staffId) {
+      for (const date of dates) {
+        const conflict = await hasOverlappingBooking(
+          input.staffId,
+          date,
+          input.durationMinutes,
+          undefined,
+          input.locationId,
+        );
+        const timeOffConflict = await hasApprovedTimeOffConflict(
+          input.staffId,
+          date,
+          input.durationMinutes,
+        );
+        if (conflict || timeOffConflict) {
+          skipped.push(
+            date.toLocaleDateString("en-US", {
+              weekday: "short",
+              month: "short",
+              day: "numeric",
+              year: "numeric",
+            }),
+          );
+        } else {
+          validDates.push(date);
+        }
+      }
+    } else {
+      validDates.push(...dates);
+    }
+
+    if (validDates.length === 0) {
+      return { success: false, error: "All dates conflict with existing bookings" };
+    }
+
+    // Create all bookings in a single transaction
+    const groupId = crypto.randomUUID();
+
+    await db.transaction(async (tx) => {
+      if (input.staffId) {
+        const lockKey = input.locationId ? `${input.staffId}:${input.locationId}` : input.staffId;
+        await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${lockKey}))`);
+      }
+
+      for (let i = 0; i < validDates.length; i++) {
+        const [newBooking] = await tx
+          .insert(bookings)
+          .values({
+            clientId: input.clientId,
+            serviceId: input.serviceId,
+            staffId: input.staffId ?? undefined,
+            startsAt: validDates[i],
+            durationMinutes: input.durationMinutes,
+            totalInCents: input.totalInCents,
+            location: input.location ?? undefined,
+            locationId: input.locationId ?? undefined,
+            clientNotes: input.clientNotes ?? undefined,
+            recurrenceRule: input.recurrenceRule,
+            recurrenceGroupId: groupId,
+            status: "confirmed",
+            confirmedAt: new Date(),
+          })
+          .returning({ id: bookings.id });
+
+        // Insert booking_services rows
+        const serviceItems = input.services ?? [
+          {
+            serviceId: input.serviceId,
+            priceInCents: input.totalInCents,
+            durationMinutes: input.durationMinutes,
+            depositInCents: 0,
+          },
+        ];
+        await tx.insert(bookingServices).values(
+          serviceItems.map((s, idx) => ({
+            bookingId: newBooking.id,
+            serviceId: s.serviceId,
+            orderIndex: idx,
+            priceInCents: s.priceInCents,
+            durationMinutes: s.durationMinutes,
+            depositInCents: s.depositInCents,
+          })),
+        );
+      }
+    });
+
+    trackEvent(input.clientId, "recurring_booking_created", {
+      groupId,
+      count: validDates.length,
+      skipped: skipped.length,
+      serviceId: input.serviceId,
+    });
+
+    await logAction({
+      actorId: user.id,
+      action: "create",
+      entityType: "booking",
+      entityId: groupId,
+      description: `Recurring series created: ${validDates.length} bookings`,
+      metadata: {
+        clientId: input.clientId,
+        serviceId: input.serviceId,
+        count: validDates.length,
+        skipped,
+      },
+    });
+
+    revalidatePath("/dashboard/bookings");
+    return { success: true, created: validDates.length, skipped };
+  } catch (err) {
+    Sentry.captureException(err);
+    const message = err instanceof Error ? err.message : "Failed to create recurring bookings";
+    return { success: false, error: message };
+  }
+}
+
 /** Extends the create schema with status — updateBooking can also change status. */
 const updateBookingInputSchema = bookingInputSchema.extend({
   status: z.enum(["completed", "in_progress", "confirmed", "pending", "cancelled", "no_show"]),
@@ -1111,6 +1283,7 @@ async function generateNextRecurringBooking(bookingId: number): Promise<void> {
         location: bookings.location,
         recurrenceRule: bookings.recurrenceRule,
         parentBookingId: bookings.parentBookingId,
+        recurrenceGroupId: bookings.recurrenceGroupId,
         subscriptionId: bookings.subscriptionId,
       })
       .from(bookings)
@@ -2740,38 +2913,33 @@ export async function cancelBookingSeries(bookingId: number): Promise<ActionResu
     //   - id = the booking the user clicked "cancel series" on.
     //   - isNull(deletedAt) — skip soft-deleted bookings.
     const [booking] = await db
-      .select({ parentBookingId: bookings.parentBookingId })
+      .select({
+        parentBookingId: bookings.parentBookingId,
+        recurrenceGroupId: bookings.recurrenceGroupId,
+      })
       .from(bookings)
       .where(and(eq(bookings.id, bookingId), isNull(bookings.deletedAt)));
 
     if (!booking) throw new Error("Booking not found");
 
-    const seriesRoot = booking.parentBookingId ?? bookingId;
     const now = new Date();
 
-    // ─── Query: find all future cancellable bookings in the recurring series ───
-    // SELECT: fetches "id" and "status" from the "bookings" table for each
-    //   booking that will be cancelled. We need the IDs for the bulk UPDATE
-    //   and the count for the audit log.
-    // FROM: the "bookings" table.
-    // WHERE (all conditions combined with AND):
-    //   - sql`(id = seriesRoot OR parentBookingId = seriesRoot)` — matches both
-    //     the root booking and all its children. The sql`` template literal is
-    //     used here because Drizzle's or() helper doesn't compose cleanly with
-    //     other raw SQL fragments in the same and() call.
-    //   - sql`startsAt >= now` — only future bookings (past ones are already done).
-    //   - sql`status NOT IN ('cancelled', 'completed', 'no_show')` — only
-    //     bookings that are still active (pending, confirmed, in_progress).
-    //     Already-terminal bookings should not be re-cancelled.
-    //   - isNull(deletedAt) — skip soft-deleted bookings.
-    // Raw SQL for the OR because Drizzle's `or()` doesn't compose well inside
-    // `and()` with other raw SQL fragments.
+    // Find all future cancellable bookings in the series.
+    // Prefer recurrenceGroupId (batch-created series) over parentBookingId chain.
+    let seriesCondition;
+    if (booking.recurrenceGroupId) {
+      seriesCondition = eq(bookings.recurrenceGroupId, booking.recurrenceGroupId);
+    } else {
+      const seriesRoot = booking.parentBookingId ?? bookingId;
+      seriesCondition = sql`(${bookings.id} = ${seriesRoot} OR ${bookings.parentBookingId} = ${seriesRoot})`;
+    }
+
     const seriesBookings = await db
       .select({ id: bookings.id, status: bookings.status })
       .from(bookings)
       .where(
         and(
-          sql`(${bookings.id} = ${seriesRoot} OR ${bookings.parentBookingId} = ${seriesRoot})`,
+          seriesCondition,
           sql`${bookings.startsAt} >= ${now.toISOString()}`,
           sql`${bookings.status} NOT IN ('cancelled', 'completed', 'no_show')`,
           isNull(bookings.deletedAt),
@@ -2806,7 +2974,11 @@ export async function cancelBookingSeries(bookingId: number): Promise<ActionResu
       entityType: "booking",
       entityId: String(bookingId),
       description: `Recurring series cancelled — ${seriesBookings.length} future booking(s) cancelled`,
-      metadata: { seriesRoot, cancelledCount: seriesBookings.length },
+      metadata: {
+        recurrenceGroupId: booking.recurrenceGroupId ?? undefined,
+        parentBookingId: booking.parentBookingId ?? bookingId,
+        cancelledCount: seriesBookings.length,
+      },
     });
 
     revalidatePath("/dashboard/bookings");

@@ -96,6 +96,7 @@ export function createMockBooking(overrides: Partial<BookingRow> = {}): BookingR
     staffFirstName: null,
     recurrenceRule: null,
     parentBookingId: null,
+    recurrenceGroupId: null,
     tosAcceptedAt: null,
     tosVersion: null,
     locationId: null,

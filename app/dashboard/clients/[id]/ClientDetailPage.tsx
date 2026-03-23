@@ -11,6 +11,8 @@ import {
   MessageSquare,
   FileText,
   StickyNote,
+  History,
+  Pin,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ClientDetailData } from "./actions";
@@ -18,6 +20,7 @@ import { BookingsTab } from "./components/BookingsTab";
 import { FormsTab } from "./components/FormsTab";
 import { LoyaltyTab } from "./components/LoyaltyTab";
 import { MessagesTab } from "./components/MessagesTab";
+import { NotesTab } from "./components/NotesTab";
 import { OverviewTab } from "./components/OverviewTab";
 import { PaymentsTab } from "./components/PaymentsTab";
 import { ProfileHeader } from "./components/ProfileHeader";
@@ -34,6 +37,7 @@ const TABS = [
   { id: "payments", label: "Payments", icon: CreditCard },
   { id: "loyalty", label: "Loyalty", icon: Gift },
   { id: "messages", label: "Messages", icon: MessageSquare },
+  { id: "notes", label: "Notes & History", icon: History },
   { id: "forms", label: "Forms", icon: FileText },
 ] as const;
 
@@ -89,6 +93,9 @@ export function ClientDetailPage({ data }: { data: ClientDetailData }) {
       {activeTab === "payments" && <PaymentsTab data={data} />}
       {activeTab === "loyalty" && <LoyaltyTab data={data} />}
       {activeTab === "messages" && <MessagesTab data={data} />}
+      {activeTab === "notes" && (
+        <NotesTab profileId={data.profile.id} initialNotes={data.notes ?? []} />
+      )}
       {activeTab === "forms" && <FormsTab data={data} />}
     </div>
   );

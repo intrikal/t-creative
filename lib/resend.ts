@@ -20,7 +20,7 @@ import { eq as drizzleEq } from "drizzle-orm";
 import { Resend } from "resend";
 import { getPublicBusinessProfile } from "@/app/dashboard/settings/settings-actions";
 import { db } from "@/db";
-import { syncLog, profiles, emailQueue } from "@/db/schema";
+import { syncLog, profiles, emailQueue, clientNotes } from "@/db/schema";
 import { withRetry } from "@/lib/retry";
 
 const apiKey = process.env.RESEND_API_KEY;
@@ -169,6 +169,8 @@ export async function sendEmail(params: {
   /** Local record ID for sync_log tracing */
   localId: string;
   replyTo?: string;
+  /** When provided, auto-creates a client_note entry for the communication history. */
+  profileId?: string;
 }): Promise<boolean> {
   if (!isResendConfigured()) {
     Sentry.captureMessage(`[resend] Not configured — skipping email: ${params.subject}`, "warning");
@@ -253,6 +255,21 @@ export async function sendEmail(params: {
         dailySendCount: newCount,
       },
     });
+
+    // Auto-log to client communication history (non-fatal)
+    if (params.profileId) {
+      try {
+        await db.insert(clientNotes).values({
+          profileId: params.profileId,
+          authorId: params.profileId,
+          type: "email",
+          content: `[${params.entityType}] ${params.subject}`,
+          isPinned: false,
+        });
+      } catch {
+        // Non-fatal — don't break email sending
+      }
+    }
 
     return true;
   } catch (err) {

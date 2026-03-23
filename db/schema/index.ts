@@ -280,6 +280,9 @@ export { giftCardTransactions, giftCardTransactionsRelations } from "./gift-card
 /* Client preferences (beauty/service prefs) */
 export { clientPreferences, clientPreferencesRelations } from "./client-preferences";
 
+/* Client notes (communication history) */
+export { clientNoteTypeEnum, clientNotes, clientNotesRelations } from "./client-notes";
+
 /* Booking subscriptions (pre-paid session packages) */
 export { bookingSubscriptions, bookingSubscriptionsRelations } from "./subscriptions";
 

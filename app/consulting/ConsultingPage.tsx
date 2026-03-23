@@ -53,6 +53,7 @@ const defaultBenefits = [
 export function ConsultingPage({
   services: svcProp,
   benefits: benefitsProp,
+  businessName,
   email,
   footerTagline,
   socialLinks,
@@ -65,6 +66,7 @@ export function ConsultingPage({
     idealClient: string;
   }[];
   benefits?: string[];
+  businessName?: string;
   email?: string;
   footerTagline?: string;
   socialLinks?: { platform: string; handle: string; url: string }[];
@@ -196,7 +198,12 @@ export function ConsultingPage({
           </div>
         </section>
       </main>
-      <Footer email={email} tagline={footerTagline} socialLinks={socialLinks} />
+      <Footer
+        businessName={businessName}
+        email={email}
+        tagline={footerTagline}
+        socialLinks={socialLinks}
+      />
     </>
   );
 }

@@ -56,6 +56,7 @@ export default async function Page() {
       />
       <AboutPage
         ownerName={business.owner}
+        businessName={business.businessName}
         bio={content.aboutBio}
         location={business.location}
         email={business.email}

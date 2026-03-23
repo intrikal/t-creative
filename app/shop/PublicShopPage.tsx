@@ -183,7 +183,15 @@ function CartDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
 /*  Main Page                                                          */
 /* ------------------------------------------------------------------ */
 
-export function PublicShopPage({ products }: { products: ShopProduct[] }) {
+export function PublicShopPage({
+  products,
+  businessName,
+  location,
+}: {
+  products: ShopProduct[];
+  businessName?: string;
+  location?: string;
+}) {
   // Whether the cart drawer is visible. Separate from the Zustand store
   // because drawer visibility is purely UI state, not persisted data.
   const [cartOpen, setCartOpen] = useState(false);
@@ -380,7 +388,7 @@ export function PublicShopPage({ products }: { products: ShopProduct[] }) {
 
       <CartDrawer open={cartOpen} onClose={() => setCartOpen(false)} />
 
-      <Footer />
+      <Footer businessName={businessName} location={location} />
     </>
   );
 }

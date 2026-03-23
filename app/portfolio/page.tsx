@@ -2,6 +2,7 @@
  * Portfolio — Server Component route wrapper with metadata and ISR.
  */
 import type { Metadata } from "next";
+import { getSiteData } from "@/lib/site-data";
 import { getPublishedMedia } from "./actions";
 import { PortfolioPage } from "./PortfolioPage";
 
@@ -52,14 +53,18 @@ function buildPortfolioJsonLd(media: Awaited<ReturnType<typeof getPublishedMedia
 }
 
 export default async function Page() {
-  const media = await getPublishedMedia();
+  const [media, { business }] = await Promise.all([getPublishedMedia(), getSiteData()]);
   return (
     <>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(buildPortfolioJsonLd(media)) }}
       />
-      <PortfolioPage media={media} />
+      <PortfolioPage
+        media={media}
+        businessName={business.businessName}
+        location={business.location}
+      />
     </>
   );
 }

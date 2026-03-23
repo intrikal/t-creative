@@ -31,6 +31,7 @@ const platformIcons: Record<string, React.ComponentType<{ size?: number }>> = {
 
 export function AboutPage({
   ownerName,
+  businessName,
   bio,
   location,
   email,
@@ -38,6 +39,7 @@ export function AboutPage({
   socialLinks,
 }: {
   ownerName?: string;
+  businessName?: string;
   bio?: string;
   location?: string;
   email?: string;
@@ -60,10 +62,11 @@ export function AboutPage({
   const bioParagraphs = (
     bio ??
     "A creative entrepreneur passionate about helping others feel confident and beautiful. With expertise spanning lash artistry, permanent jewelry design, handcrafted crochet, and business consulting, I bring intention and care to every creation.\n\nBased in the San Francisco Bay Area, I combine artistic vision with business acumen to transform both looks and businesses. I also work as an HR professional, bringing strategic expertise to help companies build better teams and processes."
-  // Split the bio text on double-newlines to produce one string per paragraph.
-  // This lets us wrap each paragraph in its own <p> tag with independent spacing,
-  // rather than using a single block with CSS white-space or dangerouslySetInnerHTML.
-  ).split("\n\n");
+  )
+    // Split the bio text on double-newlines to produce one string per paragraph.
+    // This lets us wrap each paragraph in its own <p> tag with independent spacing,
+    // rather than using a single block with CSS white-space or dangerouslySetInnerHTML.
+    .split("\n\n");
 
   return (
     <>
@@ -263,7 +266,13 @@ export function AboutPage({
           </div>
         </section>
       </main>
-      <Footer email={email} tagline={footerTagline} socialLinks={socialLinks} />
+      <Footer
+        businessName={businessName}
+        location={location}
+        email={email}
+        tagline={footerTagline}
+        socialLinks={socialLinks}
+      />
     </>
   );
 }

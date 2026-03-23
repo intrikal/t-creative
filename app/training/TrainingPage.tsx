@@ -194,7 +194,15 @@ function toDisplay(programs: PublicProgram[]): ProgramDisplay[] {
 /*  Component                                                          */
 /* ------------------------------------------------------------------ */
 
-export function TrainingPage({ programs }: { programs: PublicProgram[] }) {
+export function TrainingPage({
+  programs,
+  businessName,
+  location,
+}: {
+  programs: PublicProgram[];
+  businessName?: string;
+  location?: string;
+}) {
   // Use DB-driven programs when available; fall back to hardcoded data so
   // the page still renders useful content even if no programs exist yet.
   const displayPrograms: ProgramDisplay[] =
@@ -348,7 +356,7 @@ export function TrainingPage({ programs }: { programs: PublicProgram[] }) {
           </div>
         </section>
       </main>
-      <Footer />
+      <Footer businessName={businessName} location={location} />
     </>
   );
 }

@@ -1,8 +1,8 @@
 /**
  * Consulting — Server Component route wrapper with metadata.
  */
-import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import type { Metadata } from "next";
 import { getSiteData } from "@/lib/site-data";
 import { ConsultingPage } from "./ConsultingPage";
 
@@ -67,6 +67,7 @@ export default async function Page() {
       <ConsultingPage
         services={content.consultingServices}
         benefits={content.consultingBenefits}
+        businessName={business.businessName}
         email={business.email}
         footerTagline={content.footerTagline}
         socialLinks={content.socialLinks}

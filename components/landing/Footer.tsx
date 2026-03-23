@@ -49,10 +49,14 @@ const columns = [
 ];
 
 export function Footer({
+  businessName,
+  location,
   email,
   tagline,
   socialLinks,
 }: {
+  businessName?: string;
+  location?: string;
   email?: string;
   tagline?: string;
   socialLinks?: { platform: string; handle: string; url: string }[];
@@ -82,14 +86,14 @@ export function Footer({
           {/* Brand */}
           <div className="md:col-span-2">
             <p className="text-sm font-medium tracking-wide text-foreground mb-3">
-              T Creative Studio
+              {businessName ?? "T Creative Studio"}
             </p>
             <p className="text-sm text-muted leading-relaxed max-w-sm mb-2">
               {tagline ??
                 "Lash extensions, crochet hair, permanent jewelry, custom craft, 3D printing, and business consulting. Structure makes beautiful things."}
             </p>
             <p className="text-xs text-muted/60 mb-4">
-              San Jose · Bay Area · Certifications &amp; training available.
+              {location ?? "San Jose, CA"} · Certifications &amp; training available.
             </p>
             <p className="text-sm text-muted mb-6">{email ?? "hello@tcreativestudio.com"}</p>
             {/* Social icons row */}
@@ -140,7 +144,8 @@ export function Footer({
         {/* Bottom bar */}
         <div className="pt-8 border-t border-foreground/5 flex flex-col sm:flex-row items-center justify-between gap-4">
           <p className="text-xs text-muted">
-            &copy; {new Date().getFullYear()} T Creative Studio. All rights reserved.
+            &copy; {new Date().getFullYear()} {businessName ?? "T Creative Studio"}. All rights
+            reserved.
           </p>
           <div className="flex gap-6">
             <Link href="/privacy" className="text-xs text-muted hover:text-muted transition-colors">

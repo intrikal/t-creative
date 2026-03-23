@@ -49,6 +49,7 @@ export async function handleGiftCardActivity(
       id: giftCards.id,
       balanceInCents: giftCards.balanceInCents,
       status: giftCards.status,
+      purchasedByClientId: giftCards.purchasedByClientId,
     })
     .from(giftCards)
     .where(eq(giftCards.squareGiftCardId, squareGiftCardId))
@@ -88,8 +89,8 @@ export async function handleGiftCardActivity(
       notes: `Synced from Square POS (${activityType ?? "unknown"})`,
     });
 
-    if (txType === "redemption") {
-      trackEvent(`gift_card:${localCard.id}`, "gift_card_redeemed", {
+    if (txType === "redemption" && localCard.purchasedByClientId) {
+      trackEvent(localCard.purchasedByClientId, "gift_card_redeemed", {
         amountInCents: balanceDelta,
         remainingBalance: newBalance,
       });

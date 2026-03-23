@@ -2,6 +2,7 @@
  * Training — Server Component route wrapper with metadata and ISR.
  */
 import type { Metadata } from "next";
+import { getSiteData } from "@/lib/site-data";
 import { getPublishedPrograms } from "./actions";
 import { TrainingPage } from "./TrainingPage";
 
@@ -104,14 +105,18 @@ function buildTrainingJsonLd(programs: Awaited<ReturnType<typeof getPublishedPro
 }
 
 export default async function Page() {
-  const programs = await getPublishedPrograms();
+  const [programs, { business }] = await Promise.all([getPublishedPrograms(), getSiteData()]);
   return (
     <>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(buildTrainingJsonLd(programs)) }}
       />
-      <TrainingPage programs={programs} />
+      <TrainingPage
+        programs={programs}
+        businessName={business.businessName}
+        location={business.location}
+      />
     </>
   );
 }

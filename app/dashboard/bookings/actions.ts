@@ -727,10 +727,21 @@ export async function updateBookingStatus(
 
       logger.info({ action: "markNoShow", bookingId: id }, "booking marked no-show");
 
-      trackEvent(id.toString(), "no_show_marked", {
-        bookingId: id,
-        feeInCents: noShowFeeInCents,
-      });
+      try {
+        const [noShowRow] = await db
+          .select({ clientId: bookings.clientId })
+          .from(bookings)
+          .where(eq(bookings.id, id))
+          .limit(1);
+        if (noShowRow) {
+          trackEvent(noShowRow.clientId, "no_show_marked", {
+            bookingId: id,
+            feeInCents: noShowFeeInCents,
+          });
+        }
+      } catch {
+        // Non-fatal
+      }
     }
 
     trackEvent(id.toString(), "booking_status_changed", {
@@ -2289,7 +2300,7 @@ async function tryEnforceFee(
     const feePercent =
       feeType === "no_show" ? policies.noShowFeePercent : policies.lateCancelFeePercent;
 
-    if (feePercent <= 0) return;
+    if (feePercent <= 0) return null;
 
     // alias() creates a reference to "profiles" under the name "feeClient".
     // In SQL: "profiles AS feeClient".
@@ -2329,10 +2340,10 @@ async function tryEnforceFee(
       .innerJoin(services, eq(bookings.serviceId, services.id))
       .where(and(eq(bookings.id, bookingId), isNull(bookings.deletedAt)));
 
-    if (!row) return;
+    if (!row) return null;
 
     const feeAmountInCents = Math.round((row.totalInCents * feePercent) / 100);
-    if (feeAmountInCents <= 0) return;
+    if (feeAmountInCents <= 0) return null;
 
     const dateFormatted = row.startsAt.toLocaleDateString("en-US", {
       weekday: "long",

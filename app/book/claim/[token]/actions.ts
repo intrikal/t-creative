@@ -137,10 +137,7 @@ export async function claimWaitlistSlot(token: string): Promise<ClaimResult> {
 
     // 5. Audit + analytics
     trackEvent(entry.clientId, "waitlist_converted", {
-      waitlistId: entry.id,
-      bookingId: newBooking.id,
-      serviceId: entry.serviceId,
-      waitTime: entry.createdAt
+      waitTimeDays: entry.createdAt
         ? Math.round((Date.now() - entry.createdAt.getTime()) / 86_400_000)
         : null,
     });

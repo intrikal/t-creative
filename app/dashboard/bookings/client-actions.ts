@@ -307,8 +307,7 @@ export async function submitClientReview(data: {
     trackEvent(user.id, "review_submitted", {
       bookingId: data.bookingId,
       rating: data.rating,
-      serviceName: service?.name ?? "Service",
-      hasComment: !!data.comment,
+      hasText: !!data.comment,
     });
 
     // Zoho CRM: add review as note on contact

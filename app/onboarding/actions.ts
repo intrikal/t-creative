@@ -773,7 +773,7 @@ export async function saveOnboardingData(
 
     trackEvent(user.id, "client_signup_completed", {
       source,
-      referralCode: referral.referrerCode?.trim() || null,
+      hasReferralCode: !!referral.referrerCode?.trim(),
     });
 
     trackEvent(user.id, "onboarding_completed", {

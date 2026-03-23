@@ -838,6 +838,7 @@ const DEFAULT_SITE_CONTENT: SiteContent = {
     },
   ],
   showConsultingPage: true,
+  statsOverrides: {},
 };
 
 const KEY_SITE_CONTENT = "site_content";
@@ -848,7 +849,9 @@ const KEY_SITE_CONTENT = "site_content";
  */
 export async function getSiteContent(): Promise<SiteContent> {
   try {
-    return getPublicSetting(KEY_SITE_CONTENT, DEFAULT_SITE_CONTENT);
+    const stored = await getPublicSetting(KEY_SITE_CONTENT, DEFAULT_SITE_CONTENT);
+    // Merge so that new fields added to DEFAULT_SITE_CONTENT backfill for existing rows.
+    return { ...DEFAULT_SITE_CONTENT, ...stored };
   } catch (err) {
     Sentry.captureException(err);
     return DEFAULT_SITE_CONTENT;
@@ -893,6 +896,12 @@ const siteContentSchema = z.object({
     }),
   ),
   showConsultingPage: z.boolean(),
+  statsOverrides: z.object({
+    clientsServed: z.string().optional(),
+    averageRating: z.string().optional(),
+    rebookingRate: z.string().optional(),
+    servicesCount: z.string().optional(),
+  }),
 });
 
 export async function saveSiteContent(data: SiteContent): Promise<ActionResult<void>> {

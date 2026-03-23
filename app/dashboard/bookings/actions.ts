@@ -611,6 +611,7 @@ export async function updateBookingStatus(
           serviceId: bookings.serviceId,
           totalInCents: bookings.totalInCents,
           createdAt: bookings.createdAt,
+          clientId: bookings.clientId,
         })
         .from(bookings)
         .where(and(eq(bookings.id, id), isNull(bookings.deletedAt)));
@@ -625,12 +626,14 @@ export async function updateBookingStatus(
       // Auto-send deposit payment link if the service requires one
       await tryAutoSendDepositLink(id);
 
-      trackEvent(id.toString(), "booking_confirmed", {
-        bookingId: id,
-        minutesSinceRequest: booking?.createdAt
-          ? Math.round((Date.now() - booking.createdAt.getTime()) / 60_000)
-          : null,
-      });
+      if (booking?.clientId) {
+        trackEvent(booking.clientId, "booking_confirmed", {
+          bookingId: id,
+          minutesSinceRequest: booking.createdAt
+            ? Math.round((Date.now() - booking.createdAt.getTime()) / 60_000)
+            : null,
+        });
+      }
     }
 
     if (status === "cancelled") {
@@ -719,13 +722,14 @@ export async function updateBookingStatus(
     }
 
     if (status === "no_show") {
-      await tryEnforceNoShowFee(id);
+      const noShowFeeInCents = await tryEnforceNoShowFee(id);
       await trySendBookingStatusEmail(id, "no_show");
 
       logger.info({ action: "markNoShow", bookingId: id }, "booking marked no-show");
 
       trackEvent(id.toString(), "no_show_marked", {
         bookingId: id,
+        feeInCents: noShowFeeInCents,
       });
     }
 
@@ -900,14 +904,6 @@ export async function createBooking(input: BookingInput): Promise<ActionResult<v
       "booking created",
     );
 
-    trackEvent(input.clientId, "booking_requested", {
-      bookingId: newBooking.id,
-      serviceId: input.serviceId,
-      staffId: input.staffId ?? null,
-      totalInCents: input.totalInCents,
-      source: "dashboard",
-    });
-
     await logAction({
       actorId: user.id,
       action: "create",
@@ -949,6 +945,17 @@ export async function createBooking(input: BookingInput): Promise<ActionResult<v
       .from(services)
       .where(eq(services.id, input.serviceId))
       .limit(1);
+
+    trackEvent(input.clientId, "booking_requested", {
+      bookingId: newBooking.id,
+      serviceId: input.serviceId,
+      serviceName: serviceForZoho?.name ?? null,
+      staffId: input.staffId ?? null,
+      totalInCents: input.totalInCents,
+      source: "dashboard",
+      isRecurring: !!input.recurrenceRule,
+      isMultiService: (input.services?.length ?? 1) > 1,
+    });
 
     if (clientForZoho) {
       createZohoDeal({
@@ -2276,7 +2283,7 @@ async function trySendBookingStatusEmail(
 async function tryEnforceFee(
   bookingId: number,
   feeType: "no_show" | "late_cancellation",
-): Promise<void> {
+): Promise<number | null> {
   try {
     const policies = await getPolicies();
     const feePercent =
@@ -2522,15 +2529,17 @@ async function tryEnforceFee(
       feePercent,
       charged,
     });
+    return feeAmountInCents;
   } catch (err) {
     Sentry.captureException(err);
     // Non-fatal — fee enforcement failure should not block status change
+    return null;
   }
 }
 
 /** Charges the configured no-show fee when a booking is marked as no_show. */
-async function tryEnforceNoShowFee(bookingId: number): Promise<void> {
-  await tryEnforceFee(bookingId, "no_show");
+async function tryEnforceNoShowFee(bookingId: number): Promise<number | null> {
+  return tryEnforceFee(bookingId, "no_show");
 }
 
 /**

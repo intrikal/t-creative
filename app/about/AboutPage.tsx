@@ -108,6 +108,7 @@ export function AboutPage({
                   fill
                   className="object-cover"
                   priority
+                  sizes="(max-width: 768px) 288px, 320px"
                 />
               </div>
             </motion.div>

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import { LuLock } from "react-icons/lu";
 import { AuthBrandingPanel } from "@/components/auth/AuthBrandingPanel";
 import { AuthLayout } from "@/components/auth/AuthLayout";
@@ -12,16 +12,16 @@ export function UnauthorizedPage() {
     <AuthLayout panel={<AuthBrandingPanel />}>
       <div className="w-full max-w-sm text-center space-y-8">
         {/* Lock icon */}
-        <motion.div
+        <m.div
           initial={{ scale: 0, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           transition={{ duration: 0.5, ease: "easeOut" }}
           className="mx-auto w-16 h-16 rounded-full bg-surface flex items-center justify-center"
         >
           <LuLock className="w-7 h-7 text-muted" />
-        </motion.div>
+        </m.div>
 
-        <motion.div
+        <m.div
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3, duration: 0.4 }}
@@ -34,9 +34,9 @@ export function UnauthorizedPage() {
             You don&apos;t have permission to view this page. If you think this is a mistake, please
             contact us.
           </p>
-        </motion.div>
+        </m.div>
 
-        <motion.div
+        <m.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.5, duration: 0.4 }}
@@ -44,7 +44,7 @@ export function UnauthorizedPage() {
           <Button asChild variant="default">
             <Link href="/">Go Home</Link>
           </Button>
-        </motion.div>
+        </m.div>
       </div>
     </AuthLayout>
   );

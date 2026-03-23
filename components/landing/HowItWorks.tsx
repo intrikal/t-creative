@@ -12,7 +12,7 @@
 "use client";
 
 import { useRef } from "react";
-import { motion, useInView } from "framer-motion";
+import { m, useInView } from "framer-motion";
 
 // Three booking steps — simple funnel: Choose → Book → Arrive.
 // Array structure enables .map() with per-step stagger and connector lines between items.
@@ -49,7 +49,7 @@ function ConnectorLine({ className }: { className?: string }) {
 
   return (
     <svg ref={ref} className={className} viewBox="0 0 100 2" preserveAspectRatio="none" fill="none">
-      <motion.line
+      <m.line
         x1="0"
         y1="1"
         x2="100"
@@ -75,7 +75,7 @@ function ConnectorLineVertical({ className }: { className?: string }) {
 
   return (
     <svg ref={ref} className={className} viewBox="0 0 2 40" preserveAspectRatio="none" fill="none">
-      <motion.line
+      <m.line
         x1="1"
         y1="0"
         x2="1"
@@ -99,7 +99,7 @@ export function HowItWorks() {
     >
       <div className="mx-auto max-w-5xl">
         {/* Header */}
-        <motion.div
+        <m.div
           className="text-center mb-20 md:mb-28"
           initial={{ opacity: 0, y: 24 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -112,7 +112,7 @@ export function HowItWorks() {
           <h2 className="font-display text-4xl md:text-6xl font-light tracking-tight text-foreground leading-[1.1]">
             Three steps. One studio.
           </h2>
-        </motion.div>
+        </m.div>
 
         {/* Steps — horizontal on desktop, vertical on mobile */}
         <div className="flex flex-col md:flex-row items-start md:items-center gap-0">
@@ -123,7 +123,7 @@ export function HowItWorks() {
           {STEPS.map((step, i) => (
             <div key={step.number} className="contents">
               {/* Step card */}
-              <motion.div
+              <m.div
                 className="flex-1 text-center px-4 md:px-8"
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
@@ -131,7 +131,7 @@ export function HowItWorks() {
                 transition={{ duration: 0.7, delay: i * 0.15, ease: [0.16, 1, 0.3, 1] }}
               >
                 {/* Number */}
-                <motion.span
+                <m.span
                   className="font-display text-5xl md:text-6xl font-light text-accent/20 block mb-4"
                   initial={{ scale: 0, opacity: 0 }}
                   whileInView={{ scale: 1, opacity: 1 }}
@@ -143,7 +143,7 @@ export function HowItWorks() {
                   }}
                 >
                   {step.number}
-                </motion.span>
+                </m.span>
 
                 <h3 className="font-display text-2xl md:text-3xl font-light text-foreground mb-3 tracking-tight">
                   {step.title}
@@ -152,7 +152,7 @@ export function HowItWorks() {
                 <p className="text-sm text-muted leading-relaxed max-w-[260px] mx-auto">
                   {step.description}
                 </p>
-              </motion.div>
+              </m.div>
 
               {/* Connector line between steps */}
               {i < STEPS.length - 1 && (

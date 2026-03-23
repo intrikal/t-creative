@@ -19,7 +19,7 @@
  * @prop phone        — from form field "emergencyContactPhone" (raw digits)
  * @prop relationship — from form field "emergencyContactRelation"
  */
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import { LuShieldCheck, LuLock, LuPhone } from "react-icons/lu";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -53,7 +53,7 @@ export function PanelEmergencyContact({ name, phone, relationship }: PanelEmerge
 
   return (
     <div className="flex flex-col items-center justify-center h-full px-6">
-      <motion.div
+      <m.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
@@ -61,14 +61,14 @@ export function PanelEmergencyContact({ name, phone, relationship }: PanelEmerge
       >
         {/* Shield icon with heading */}
         <div className="text-center">
-          <motion.div
+          <m.div
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ duration: 0.5, delay: 0.1 }}
             className="mx-auto mb-4 w-16 h-16 rounded-2xl bg-accent/8 flex items-center justify-center"
           >
             <LuShieldCheck className="w-7 h-7 text-accent" />
-          </motion.div>
+          </m.div>
           <h2 className="text-lg font-medium text-foreground mb-1">Safety First</h2>
           <p className="text-sm text-muted leading-relaxed">
             Just in case — we keep this on file for emergencies.
@@ -76,7 +76,7 @@ export function PanelEmergencyContact({ name, phone, relationship }: PanelEmerge
         </div>
 
         {/* Live contact card */}
-        <motion.div
+        <m.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.25, duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
@@ -114,19 +114,19 @@ export function PanelEmergencyContact({ name, phone, relationship }: PanelEmerge
 
                 {/* Relationship */}
                 {hasRelationship && (
-                  <motion.span
+                  <m.span
                     initial={{ opacity: 0, y: 4 }}
                     animate={{ opacity: 1, y: 0 }}
                     className="inline-block mt-1 text-[10px] px-2 py-0.5 rounded-full bg-foreground/6 text-muted/70"
                   >
                     {relationship.trim()}
-                  </motion.span>
+                  </m.span>
                 )}
               </div>
 
               {/* Filled indicator */}
               {hasAny && (
-                <motion.div
+                <m.div
                   initial={{ scale: 0 }}
                   animate={{ scale: 1 }}
                   className="w-1.5 h-1.5 rounded-full bg-accent/60 shrink-0"
@@ -134,10 +134,10 @@ export function PanelEmergencyContact({ name, phone, relationship }: PanelEmerge
               )}
             </CardContent>
           </Card>
-        </motion.div>
+        </m.div>
 
         {/* Privacy note */}
-        <motion.div
+        <m.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.5, duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
@@ -147,8 +147,8 @@ export function PanelEmergencyContact({ name, phone, relationship }: PanelEmerge
           <p className="text-[11px] text-muted leading-relaxed">
             Stored securely — only visible to studio admin.
           </p>
-        </motion.div>
-      </motion.div>
+        </m.div>
+      </m.div>
     </div>
   );
 }

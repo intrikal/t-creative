@@ -35,7 +35,7 @@
  * - app/onboarding/actions.ts                          — persists availability + notifications
  */
 import { useState, useEffect, useCallback } from "react";
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import type { OnboardingForm } from "../OnboardingFlow";
 
 type AvailField = "weekdays" | "weekends" | "mornings" | "afternoons" | "evenings";
@@ -150,7 +150,7 @@ export function StepPreferences({ form, onNext, stepNum }: StepProps) {
   return (
     <div className="space-y-5">
       {/* Step header */}
-      <motion.div
+      <m.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
@@ -168,10 +168,10 @@ export function StepPreferences({ form, onNext, stepNum }: StepProps) {
         <p className="text-muted text-sm mt-2">
           One last thing — scheduling, reminders, and a quick question.
         </p>
-      </motion.div>
+      </m.div>
 
       {/* Availability — pill toggles */}
-      <motion.div
+      <m.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1, duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
@@ -183,7 +183,7 @@ export function StepPreferences({ form, onNext, stepNum }: StepProps) {
           {AVAILABILITY_OPTIONS.map((option, i) => {
             const isSelected = selected[option.field];
             return (
-              <motion.button
+              <m.button
                 key={option.field}
                 type="button"
                 initial={{ opacity: 0, y: 8 }}
@@ -204,14 +204,14 @@ export function StepPreferences({ form, onNext, stepNum }: StepProps) {
                 <span className={`text-[10px] ${isSelected ? "text-accent/70" : "text-muted/45"}`}>
                   {option.hint}
                 </span>
-              </motion.button>
+              </m.button>
             );
           })}
         </div>
-      </motion.div>
+      </m.div>
 
       {/* Notification preferences — toggle switches (plain local state, no form.Field) */}
-      <motion.div
+      <m.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.3, duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
@@ -223,7 +223,7 @@ export function StepPreferences({ form, onNext, stepNum }: StepProps) {
           {NOTIFICATION_OPTIONS.map((option, i) => {
             const on = notifs[option.field];
             return (
-              <motion.button
+              <m.button
                 key={option.field}
                 type="button"
                 initial={{ opacity: 0, y: 8 }}
@@ -239,20 +239,20 @@ export function StepPreferences({ form, onNext, stepNum }: StepProps) {
                     ${on ? "bg-accent" : "bg-foreground/15"}
                   `}
                 >
-                  <motion.div
+                  <m.div
                     className="absolute top-0.5 w-4 h-4 rounded-full bg-white shadow-sm"
                     animate={{ left: on ? 18 : 2 }}
                     transition={{ duration: 0.2, ease: "easeOut" }}
                   />
                 </div>
-              </motion.button>
+              </m.button>
             );
           })}
         </div>
-      </motion.div>
+      </m.div>
 
       {/* Photo consent — two compact side-by-side buttons */}
-      <motion.div
+      <m.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.5, duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
@@ -261,7 +261,7 @@ export function StepPreferences({ form, onNext, stepNum }: StepProps) {
           Can we feature your results on social?
         </p>
         <div className="flex gap-2">
-          <motion.button
+          <m.button
             type="button"
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
@@ -278,7 +278,7 @@ export function StepPreferences({ form, onNext, stepNum }: StepProps) {
             `}
           >
             {choice === "yes" && (
-              <motion.svg
+              <m.svg
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
                 width="12"
@@ -294,12 +294,12 @@ export function StepPreferences({ form, onNext, stepNum }: StepProps) {
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 />
-              </motion.svg>
+              </m.svg>
             )}
             Yes, feature me
-          </motion.button>
+          </m.button>
 
-          <motion.button
+          <m.button
             type="button"
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
@@ -316,7 +316,7 @@ export function StepPreferences({ form, onNext, stepNum }: StepProps) {
             `}
           >
             {choice === "no" && (
-              <motion.svg
+              <m.svg
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
                 width="12"
@@ -332,15 +332,15 @@ export function StepPreferences({ form, onNext, stepNum }: StepProps) {
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 />
-              </motion.svg>
+              </m.svg>
             )}
             No thanks
-          </motion.button>
+          </m.button>
         </div>
-      </motion.div>
+      </m.div>
 
       {/* OK button — gated on photo consent being chosen */}
-      <motion.div
+      <m.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.65 }}
@@ -376,7 +376,7 @@ export function StepPreferences({ form, onNext, stepNum }: StepProps) {
             or press <strong className="text-muted/70">Enter &crarr;</strong>
           </span>
         )}
-      </motion.div>
+      </m.div>
     </div>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import { AuthBrandingPanel } from "@/components/auth/AuthBrandingPanel";
 import { AuthLayout } from "@/components/auth/AuthLayout";
 import { Button } from "@/components/ui/Button";
@@ -11,14 +11,14 @@ export function SignedOutPage() {
     <AuthLayout panel={<AuthBrandingPanel />}>
       <div className="w-full max-w-sm text-center space-y-8">
         {/* Animated checkmark */}
-        <motion.div
+        <m.div
           initial={{ scale: 0, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           transition={{ duration: 0.5, ease: "easeOut" }}
           className="mx-auto w-16 h-16 rounded-full bg-accent/10 flex items-center justify-center"
         >
-          <motion.svg width="32" height="32" viewBox="0 0 32 32" fill="none">
-            <motion.path
+          <m.svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+            <m.path
               d="M8 16.5L13.5 22L24 11"
               stroke="currentColor"
               strokeWidth="2.5"
@@ -29,10 +29,10 @@ export function SignedOutPage() {
               animate={{ pathLength: 1 }}
               transition={{ delay: 0.3, duration: 0.5 }}
             />
-          </motion.svg>
-        </motion.div>
+          </m.svg>
+        </m.div>
 
-        <motion.div
+        <m.div
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.4, duration: 0.4 }}
@@ -44,9 +44,9 @@ export function SignedOutPage() {
           <p className="text-sm text-muted">
             Thanks for visiting T Creative Studio. See you next time!
           </p>
-        </motion.div>
+        </m.div>
 
-        <motion.div
+        <m.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.6, duration: 0.4 }}
@@ -54,7 +54,7 @@ export function SignedOutPage() {
           <Button asChild variant="default">
             <Link href="/login">Sign back in</Link>
           </Button>
-        </motion.div>
+        </m.div>
       </div>
     </AuthLayout>
   );

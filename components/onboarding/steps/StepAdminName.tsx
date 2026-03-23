@@ -33,7 +33,7 @@
  * @prop fullName - Google full name used for the identity chip and initials fallback
  */
 import { useEffect, useCallback, useRef } from "react";
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import type { AdminOnboardingForm } from "../OnboardingFlow";
 
@@ -79,7 +79,7 @@ export function StepAdminName({ form, onNext, stepNum, avatarUrl, fullName }: St
 
   return (
     <div className="space-y-5">
-      <motion.div
+      <m.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
@@ -137,10 +137,10 @@ export function StepAdminName({ form, onNext, stepNum, avatarUrl, fullName }: St
             let&apos;s give it a home. What should we call you?
           </p>
         </div>
-      </motion.div>
+      </m.div>
 
       {/* First + last name inputs stacked */}
-      <motion.div
+      <m.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2, duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
@@ -202,14 +202,14 @@ export function StepAdminName({ form, onNext, stepNum, avatarUrl, fullName }: St
             </div>
           )}
         </form.Field>
-      </motion.div>
+      </m.div>
 
       {/* Continue */}
       <form.Field name="firstName">
         {(field) => {
           const canContinue = field.state.value.trim().length > 0;
           return (
-            <motion.div
+            <m.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.4 }}
@@ -245,7 +245,7 @@ export function StepAdminName({ form, onNext, stepNum, avatarUrl, fullName }: St
                   press <strong className="text-muted/70">Enter &crarr;</strong>
                 </span>
               )}
-            </motion.div>
+            </m.div>
           );
         }}
       </form.Field>

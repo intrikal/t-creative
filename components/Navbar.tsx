@@ -29,7 +29,7 @@ import { useState, useRef, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
+import { m, AnimatePresence } from "framer-motion";
 import { TCLogo } from "./TCLogo";
 
 /** All top-level navigation destinations. Update this array to add/remove links. */
@@ -129,7 +129,7 @@ export function Navbar({ user = null }: NavbarProps) {
               </button>
               <AnimatePresence>
                 {profileOpen && (
-                  <motion.div
+                  <m.div
                     initial={{ opacity: 0, y: 4 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: 4 }}
@@ -164,7 +164,7 @@ export function Navbar({ user = null }: NavbarProps) {
                         </button>
                       </form>
                     </div>
-                  </motion.div>
+                  </m.div>
                 )}
               </AnimatePresence>
             </div>
@@ -188,7 +188,7 @@ export function Navbar({ user = null }: NavbarProps) {
         {/*
          * Mobile hamburger button — only visible on small screens (< lg).
          *
-         * The three <motion.span> elements are the three bars of the hamburger icon.
+         * The three <m.span> elements are the three bars of the hamburger icon.
          * When `mobileOpen` is true, they animate into an "×":
          * - Top bar:    rotates +45° and moves down  → forms the top-left to bottom-right stroke
          * - Middle bar: fades out (opacity 0)         → disappears entirely
@@ -199,17 +199,17 @@ export function Navbar({ user = null }: NavbarProps) {
           onClick={() => setMobileOpen(!mobileOpen)}
           aria-label={mobileOpen ? "Close menu" : "Open menu"}
         >
-          <motion.span
+          <m.span
             className="block w-5 h-px bg-foreground origin-center"
             animate={mobileOpen ? { rotate: 45, y: 3.5 } : { rotate: 0, y: 0 }}
             transition={{ duration: 0.2 }}
           />
-          <motion.span
+          <m.span
             className="block w-5 h-px bg-foreground"
             animate={mobileOpen ? { opacity: 0 } : { opacity: 1 }}
             transition={{ duration: 0.2 }}
           />
-          <motion.span
+          <m.span
             className="block w-5 h-px bg-foreground origin-center"
             animate={mobileOpen ? { rotate: -45, y: -3.5 } : { rotate: 0, y: 0 }}
             transition={{ duration: 0.2 }}
@@ -228,7 +228,7 @@ export function Navbar({ user = null }: NavbarProps) {
        */}
       <AnimatePresence>
         {mobileOpen && (
-          <motion.div
+          <m.div
             className="lg:hidden bg-background border-b border-foreground/5"
             initial={{ height: 0, opacity: 0 }} // starts collapsed and invisible
             animate={{ height: "auto", opacity: 1 }} // expands to natural height
@@ -309,7 +309,7 @@ export function Navbar({ user = null }: NavbarProps) {
                 </Link>
               </div>
             </div>
-          </motion.div>
+          </m.div>
         )}
       </AnimatePresence>
     </nav>

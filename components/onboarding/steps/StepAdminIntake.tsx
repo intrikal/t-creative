@@ -35,7 +35,7 @@
  */
 import { useEffect, useCallback, useRef } from "react";
 import type { DeepKeys } from "@tanstack/react-form";
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import { LuEye, LuGem, LuScissors, LuLightbulb } from "react-icons/lu";
 import type { AdminOnboardingForm } from "../OnboardingFlow";
 
@@ -146,7 +146,7 @@ export function StepAdminIntake({ form, onNext, stepNum }: StepProps) {
   return (
     <div className="space-y-3">
       {/* Heading */}
-      <motion.div
+      <m.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
@@ -163,7 +163,7 @@ export function StepAdminIntake({ form, onNext, stepNum }: StepProps) {
         <p className="text-sm text-foreground/60 mt-0.5">
           Prep auto-sends after booking. Questions fill out at checkout.
         </p>
-      </motion.div>
+      </m.div>
 
       {/* Per-service intake — only enabled services */}
       <form.Subscribe selector={(s) => s.values.services}>
@@ -182,7 +182,7 @@ export function StepAdminIntake({ form, onNext, stepNum }: StepProps) {
             <div className="space-y-2 max-w-[420px]">
               {enabled.map(
                 ({ key, name, icon: Icon, color, bg, suggestedPrep, prepField, questions }, i) => (
-                  <motion.div
+                  <m.div
                     key={key}
                     initial={{ opacity: 0, y: 12 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -280,7 +280,7 @@ export function StepAdminIntake({ form, onNext, stepNum }: StepProps) {
                         ))}
                       </div>
                     </div>
-                  </motion.div>
+                  </m.div>
                 ),
               )}
             </div>
@@ -289,7 +289,7 @@ export function StepAdminIntake({ form, onNext, stepNum }: StepProps) {
       </form.Subscribe>
 
       {/* Next */}
-      <motion.div
+      <m.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.4 }}
@@ -314,7 +314,7 @@ export function StepAdminIntake({ form, onNext, stepNum }: StepProps) {
         <span className="text-xs text-muted/50">
           press <strong className="text-muted/70">Enter ↵</strong>
         </span>
-      </motion.div>
+      </m.div>
     </div>
   );
 }

@@ -5,7 +5,7 @@
  */
 "use client";
 
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 
 interface SectionWrapperProps {
   children: React.ReactNode;
@@ -15,7 +15,7 @@ interface SectionWrapperProps {
 
 export function SectionWrapper({ children, className = "", id }: SectionWrapperProps) {
   return (
-    <motion.section
+    <m.section
       id={id}
       initial={{ opacity: 0, y: 40 }}
       whileInView={{ opacity: 1, y: 0 }}
@@ -24,6 +24,6 @@ export function SectionWrapper({ children, className = "", id }: SectionWrapperP
       className={className}
     >
       {children}
-    </motion.section>
+    </m.section>
   );
 }

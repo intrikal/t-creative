@@ -21,7 +21,7 @@
 import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { motion, AnimatePresence } from "framer-motion";
+import { m, AnimatePresence } from "framer-motion";
 import { Footer } from "@/components/landing/Footer";
 import { useCartStore, cartTotalInCents, cartItemCount } from "@/stores/useCartStore";
 import type { ShopProduct } from "./actions";
@@ -69,14 +69,14 @@ function CartDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
     <AnimatePresence>
       {open && (
         <>
-          <motion.div
+          <m.div
             className="fixed inset-0 bg-black/30 z-40"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
           />
-          <motion.aside
+          <m.aside
             className="fixed right-0 top-0 bottom-0 w-full max-w-md bg-background border-l border-foreground/8 z-50 flex flex-col"
             initial={{ x: "100%" }}
             animate={{ x: 0 }}
@@ -172,7 +172,7 @@ function CartDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
                 </button>
               </div>
             )}
-          </motion.aside>
+          </m.aside>
         </>
       )}
     </AnimatePresence>
@@ -216,23 +216,23 @@ export function PublicShopPage({
         {/* Hero */}
         <section className="py-24 md:py-32 px-6">
           <div className="mx-auto max-w-5xl text-center">
-            <motion.span
+            <m.span
               className="text-xs tracking-widest uppercase text-muted mb-6 block"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6 }}
             >
               Shop
-            </motion.span>
-            <motion.h1
+            </m.span>
+            <m.h1
               className="text-4xl md:text-6xl font-light tracking-tight text-foreground mb-6"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.1 }}
             >
               Take the studio home.
-            </motion.h1>
-            <motion.p
+            </m.h1>
+            <m.p
               className="text-base md:text-lg text-muted max-w-xl mx-auto"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -240,7 +240,7 @@ export function PublicShopPage({
             >
               Aftercare products, handmade items, training packages, and studio merch. Browse below
               — no account needed.
-            </motion.p>
+            </m.p>
           </div>
         </section>
 
@@ -256,7 +256,7 @@ export function PublicShopPage({
                 {/* Render one animated card per product. The index drives a staggered
                     delay for a cascading fade-in effect as the grid enters the viewport. */}
                 {products.map((product, i) => (
-                  <motion.div
+                  <m.div
                     key={product.id}
                     className={`border border-foreground/8 flex flex-col ${product.availability === "out_of_stock" ? "opacity-60" : ""}`}
                     initial={{ opacity: 0, y: 20 }}
@@ -347,7 +347,7 @@ export function PublicShopPage({
                         </div>
                       </div>
                     </div>
-                  </motion.div>
+                  </m.div>
                 ))}
               </div>
             )}
@@ -357,7 +357,7 @@ export function PublicShopPage({
         {/* Client portal CTA */}
         <section className="py-24 px-6 bg-surface border-t border-foreground/8">
           <div className="mx-auto max-w-3xl text-center">
-            <motion.div
+            <m.div
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
@@ -377,7 +377,7 @@ export function PublicShopPage({
               >
                 Shop via Client Portal
               </Link>
-            </motion.div>
+            </m.div>
           </div>
         </section>
       </main>

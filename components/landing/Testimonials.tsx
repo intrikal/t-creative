@@ -12,7 +12,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { m, AnimatePresence } from "framer-motion";
 import type { FeaturedReview } from "@/lib/public-reviews";
 
 // Auto-advance interval in milliseconds. 6 seconds balances readability with engagement —
@@ -45,7 +45,7 @@ function WordStagger({ text }: { text: string }) {
       {/* .map() renders each word as an individually animated inline-block span.
           mr-[0.3em] adds natural word spacing since inline-block collapses whitespace. */}
       {words.map((word, i) => (
-        <motion.span
+        <m.span
           key={`${word}-${i}`}
           className="inline-block mr-[0.3em]"
           initial={{ opacity: 0, y: 8 }}
@@ -58,7 +58,7 @@ function WordStagger({ text }: { text: string }) {
           }}
         >
           {word}
-        </motion.span>
+        </m.span>
       ))}
     </>
   );
@@ -161,7 +161,7 @@ export function Testimonials({ reviews: dbReviews }: { reviews?: FeaturedReview[
         onBlur={() => setIsPaused(false)}
       >
         {/* Section label */}
-        <motion.span
+        <m.span
           className="text-[10px] tracking-[0.3em] uppercase text-muted mb-16 md:mb-24 block text-center"
           initial={{ opacity: 0 }}
           whileInView={{ opacity: 1 }}
@@ -169,12 +169,12 @@ export function Testimonials({ reviews: dbReviews }: { reviews?: FeaturedReview[
           transition={{ duration: 0.6 }}
         >
           What clients say
-        </motion.span>
+        </m.span>
 
         {/* Full-bleed typographic quote */}
         <div className="relative min-h-[280px] md:min-h-[320px] flex items-center justify-center">
           <AnimatePresence mode="wait">
-            <motion.div
+            <m.div
               key={review.id}
               className="text-center w-full"
               initial={{ opacity: 0 }}
@@ -192,7 +192,7 @@ export function Testimonials({ reviews: dbReviews }: { reviews?: FeaturedReview[
                 </span>
               </blockquote>
 
-              <motion.div
+              <m.div
                 className="flex flex-col items-center gap-1"
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -206,8 +206,8 @@ export function Testimonials({ reviews: dbReviews }: { reviews?: FeaturedReview[
                 <p className="text-[10px] tracking-[0.3em] uppercase text-muted">
                   {serviceLabel[review.service] ?? review.service}
                 </p>
-              </motion.div>
-            </motion.div>
+              </m.div>
+            </m.div>
           </AnimatePresence>
         </div>
 
@@ -228,7 +228,7 @@ export function Testimonials({ reviews: dbReviews }: { reviews?: FeaturedReview[
                 aria-label={`Review ${i + 1}`}
                 className="group p-1"
               >
-                <motion.div
+                <m.div
                   animate={{
                     width: i === active ? 32 : 6,
                     backgroundColor: i === active ? "#96604a" : "#6b5d52",
@@ -240,12 +240,12 @@ export function Testimonials({ reviews: dbReviews }: { reviews?: FeaturedReview[
                   {/* Conditional render: progress fill bar only renders on the active dot.
                       Width is driven by the progress state (0→100%) for smooth fill animation. */}
                   {i === active && (
-                    <motion.div
+                    <m.div
                       className="absolute inset-y-0 left-0 bg-accent"
                       style={{ width: `${progress * 100}%` }}
                     />
                   )}
-                </motion.div>
+                </m.div>
               </button>
             ))}
           </div>

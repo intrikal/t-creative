@@ -10,13 +10,13 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 
 export function Welcome() {
   return (
     <section className="bg-foreground text-background py-24 md:py-32 px-6">
       <div className="mx-auto max-w-5xl flex flex-col md:flex-row items-center gap-12 md:gap-20">
-        <motion.div
+        <m.div
           className="flex-shrink-0"
           initial={{ opacity: 0, x: -30 }}
           whileInView={{ opacity: 1, x: 0 }}
@@ -32,9 +32,9 @@ export function Welcome() {
               className="object-cover w-full h-full"
             />
           </div>
-        </motion.div>
+        </m.div>
 
-        <motion.div
+        <m.div
           className="text-center md:text-left"
           initial={{ opacity: 0, y: 30 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -57,7 +57,7 @@ export function Welcome() {
           >
             Explore Services
           </Link>
-        </motion.div>
+        </m.div>
       </div>
     </section>
   );

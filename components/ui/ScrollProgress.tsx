@@ -8,7 +8,7 @@
  */
 "use client";
 
-import { motion, useScroll, useTransform } from "framer-motion";
+import { m, useScroll, useTransform } from "framer-motion";
 
 /** Zone color segments mapped to approximate scroll positions */
 const SEGMENTS = [
@@ -40,7 +40,7 @@ export function ScrollProgress() {
       <div className="absolute inset-0 bg-foreground/[0.04]" />
 
       {/* Fill */}
-      <motion.div
+      <m.div
         className="absolute top-0 left-0 right-0 origin-top"
         style={{ height, backgroundColor }}
       />

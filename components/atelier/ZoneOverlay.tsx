@@ -9,7 +9,7 @@
 
 import { useEffect, useRef } from "react";
 import Link from "next/link";
-import { motion, AnimatePresence } from "framer-motion";
+import { m, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/Button";
 import { ZONES } from "@/lib/zones";
 import { useStudioStore } from "@/stores/useStudioStore";
@@ -45,7 +45,7 @@ export function ZoneOverlay() {
   return (
     <AnimatePresence>
       {isVisible && zone && (
-        <motion.div
+        <m.div
           className="fixed right-0 top-0 bottom-0 z-[70] w-full max-w-md pointer-events-auto"
           initial={{ x: "100%", opacity: 0 }}
           animate={{ x: 0, opacity: 1 }}
@@ -67,47 +67,47 @@ export function ZoneOverlay() {
             <div className="w-8 h-px mb-8" style={{ backgroundColor: zone.color }} />
 
             {/* Label */}
-            <motion.p
+            <m.p
               className="text-[10px] tracking-[0.3em] uppercase text-muted mb-3"
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.15 }}
             >
               {zone.label}
-            </motion.p>
+            </m.p>
 
             {/* Heading */}
-            <motion.h3
+            <m.h3
               className="text-3xl md:text-4xl font-light tracking-tight text-foreground mb-4"
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2 }}
             >
               {zone.heading}
-            </motion.h3>
+            </m.h3>
 
             {/* Subtitle */}
-            <motion.p
+            <m.p
               className="text-sm italic text-muted/70 mb-6"
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.25 }}
             >
               {zone.subtitle}
-            </motion.p>
+            </m.p>
 
             {/* Description */}
-            <motion.p
+            <m.p
               className="text-base leading-relaxed text-muted mb-10"
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.3 }}
             >
               {zone.description}
-            </motion.p>
+            </m.p>
 
             {/* CTA */}
-            <motion.div
+            <m.div
               className="flex gap-3"
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
@@ -119,9 +119,9 @@ export function ZoneOverlay() {
               <Button variant="secondary" onClick={unfocusZone}>
                 Back
               </Button>
-            </motion.div>
+            </m.div>
           </div>
-        </motion.div>
+        </m.div>
       )}
     </AnimatePresence>
   );

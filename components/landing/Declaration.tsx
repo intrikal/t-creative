@@ -10,7 +10,7 @@
 "use client";
 
 import { useRef } from "react";
-import { motion, useScroll, useTransform, MotionValue } from "framer-motion";
+import { m, useScroll, useTransform, MotionValue } from "framer-motion";
 
 interface WordRevealProps {
   word: string;
@@ -27,19 +27,19 @@ interface WordRevealProps {
  */
 function WordReveal({ word, opacity, y, lineWidth }: WordRevealProps) {
   return (
-    <motion.div
+    <m.div
       style={{ opacity }}
       className="absolute inset-0 flex flex-col items-center justify-center select-none"
     >
-      <motion.p
+      <m.p
         style={{ y }}
         className="font-display text-[80px] sm:text-[112px] md:text-[144px] lg:text-[176px] font-light tracking-[0.03em] text-foreground leading-none"
       >
         {word}
-      </motion.p>
+      </m.p>
       {/* Hairline rule grows from left */}
-      <motion.div style={{ width: lineWidth }} className="h-px bg-foreground/20 mt-6 origin-left" />
-    </motion.div>
+      <m.div style={{ width: lineWidth }} className="h-px bg-foreground/20 mt-6 origin-left" />
+    </m.div>
   );
 }
 
@@ -91,9 +91,9 @@ function TypewriterChar({
   // Each character has a unique [start, end] window so they appear sequentially.
   const opacity = useTransform(progress, [start, end], [0, 1]);
   return (
-    <motion.span style={{ opacity }} className="inline" aria-hidden>
+    <m.span style={{ opacity }} className="inline" aria-hidden>
       {char}
-    </motion.span>
+    </m.span>
   );
 }
 
@@ -141,7 +141,7 @@ export function Declaration() {
           <WordReveal word="Transform." opacity={op3} y={y3} lineWidth={line3} />
 
           {/* Brand thesis — typewriter effect after word 3 */}
-          <motion.div
+          <m.div
             style={{ opacity: useTransform(scrollYProgress, [0.74, 0.78], [0, 1]) }}
             className="absolute bottom-20 md:bottom-28 left-0 right-0 flex flex-col items-center gap-5 px-6"
           >
@@ -152,18 +152,18 @@ export function Declaration() {
             />
 
             {/* Signature rule — grows from center */}
-            <motion.div
+            <m.div
               style={{ width: ruleWidth, opacity: ruleOpacity }}
               className="h-px bg-foreground/15 mx-auto"
             />
 
-            <motion.p
+            <m.p
               style={{ opacity: useTransform(scrollYProgress, [0.92, 1], [0, 1]) }}
               className="text-[10px] tracking-[0.3em] uppercase text-muted"
             >
               San Jose · Bay Area
-            </motion.p>
-          </motion.div>
+            </m.p>
+          </m.div>
         </div>
       </div>
     </section>

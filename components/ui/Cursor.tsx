@@ -12,7 +12,7 @@
 "use client";
 
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { motion, useMotionValue, useSpring } from "framer-motion";
+import { m, useMotionValue, useSpring } from "framer-motion";
 
 // useSyncExternalStore lets us provide different server vs client snapshots,
 // which avoids calling setState inside effects just to track "is mounted".
@@ -72,7 +72,7 @@ export function Cursor() {
   if (!mounted || isTouch) return null;
 
   return (
-    <motion.div
+    <m.div
       className="fixed top-0 left-0 pointer-events-none z-[9999]"
       style={{
         x: springX,
@@ -82,7 +82,7 @@ export function Cursor() {
         mixBlendMode: hovered ? "difference" : "normal",
       }}
     >
-      <motion.div
+      <m.div
         className="rounded-full bg-white"
         animate={{
           width: hovered ? 36 : 12,
@@ -91,6 +91,6 @@ export function Cursor() {
         }}
         transition={{ duration: 0.2, ease: "easeOut" }}
       />
-    </motion.div>
+    </m.div>
   );
 }

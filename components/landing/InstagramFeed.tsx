@@ -12,7 +12,7 @@
  */
 "use client";
 
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import { FaInstagram } from "react-icons/fa";
 
 export interface InstagramPost {
@@ -38,10 +38,10 @@ function PostTile({ post, index }: { post: InstagramPost; index: number }) {
   // Ternary: VIDEO posts use thumbnailUrl for the static preview image; if no thumbnail
   // is available (null), falls back to mediaUrl. Image posts use mediaUrl directly.
   // Nullish coalescing (??) handles the case where thumbnailUrl is null.
-  const imgSrc = post.mediaType === "VIDEO" ? post.thumbnailUrl ?? post.mediaUrl : post.mediaUrl;
+  const imgSrc = post.mediaType === "VIDEO" ? (post.thumbnailUrl ?? post.mediaUrl) : post.mediaUrl;
 
   return (
-    <motion.a
+    <m.a
       href={post.permalink}
       target="_blank"
       rel="noopener noreferrer"
@@ -70,7 +70,7 @@ function PostTile({ post, index }: { post: InstagramPost; index: number }) {
           <div className="w-0 h-0 border-l-[5px] border-l-foreground border-y-[3px] border-y-transparent ml-0.5" />
         </div>
       )}
-    </motion.a>
+    </m.a>
   );
 }
 
@@ -95,7 +95,7 @@ export function InstagramFeed({ posts }: { posts: InstagramPost[] }) {
     <section className="py-20 md:py-28 px-6 overflow-hidden" aria-label="Instagram Feed">
       <div className="mx-auto max-w-6xl">
         {/* Header */}
-        <motion.div
+        <m.div
           className="flex items-center justify-between mb-8 md:mb-12"
           initial={{ opacity: 0, y: 16 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -118,11 +118,10 @@ export function InstagramFeed({ posts }: { posts: InstagramPost[] }) {
               rel="noopener noreferrer"
               className="flex items-center gap-2 text-xs tracking-[0.15em] uppercase text-accent hover:text-foreground transition-colors"
             >
-              <FaInstagram className="w-4 h-4" />
-              @{username}
+              <FaInstagram className="w-4 h-4" />@{username}
             </a>
           )}
-        </motion.div>
+        </m.div>
 
         {/* Mobile: horizontal scroll strip — md:hidden hides on desktop.
             posts.map() renders all posts as horizontally scrollable tiles with snap points. */}

@@ -15,7 +15,7 @@
 import { Suspense, useEffect } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { motion, AnimatePresence } from "framer-motion";
+import { m, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/Button";
 import { ZONES } from "@/lib/zones";
 import { useStudioStore } from "@/stores/useStudioStore";
@@ -67,7 +67,7 @@ export function StudioDiorama() {
   return (
     <section className="py-28 md:py-40 px-6 bg-background" aria-label="3D Studio">
       <div className="mx-auto max-w-7xl">
-        <motion.div
+        <m.div
           className="mb-12 md:mb-16 text-center"
           initial={{ opacity: 0, y: 30 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -83,10 +83,10 @@ export function StudioDiorama() {
           <p className="text-muted text-base max-w-lg mx-auto">
             Explore the studio in 3D. Drag to rotate. Click a zone to learn more.
           </p>
-        </motion.div>
+        </m.div>
 
         {/* Canvas wrapper — position:relative so the sidesheet is anchored here */}
-        <motion.div
+        <m.div
           className="relative w-full aspect-[16/10] md:aspect-[16/9] rounded-lg overflow-hidden border border-foreground/8 bg-[#FAF6F1]"
           initial={{ opacity: 0, y: 40 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -110,7 +110,7 @@ export function StudioDiorama() {
               Conditional render: only mounts when a zone is focused (zone is truthy). */}
           <AnimatePresence mode="wait">
             {zone && (
-              <motion.div
+              <m.div
                 key={zone.id}
                 className="absolute right-0 top-0 bottom-0 w-full max-w-sm z-10 pointer-events-auto"
                 initial={{ x: "100%", opacity: 0 }}
@@ -137,37 +137,37 @@ export function StudioDiorama() {
                   </p>
 
                   {/* Heading */}
-                  <motion.h3
+                  <m.h3
                     className="text-2xl md:text-3xl font-light tracking-tight text-foreground mb-2"
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.1 }}
                   >
                     {zone.heading}
-                  </motion.h3>
+                  </m.h3>
 
                   {/* Subtitle */}
-                  <motion.p
+                  <m.p
                     className="text-sm italic text-muted/70 mb-5"
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.15 }}
                   >
                     {zone.subtitle}
-                  </motion.p>
+                  </m.p>
 
                   {/* Description */}
-                  <motion.p
+                  <m.p
                     className="text-sm leading-relaxed text-muted mb-8"
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.2 }}
                   >
                     {zone.description}
-                  </motion.p>
+                  </m.p>
 
                   {/* CTA */}
-                  <motion.div
+                  <m.div
                     className="flex flex-col gap-2"
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -179,12 +179,12 @@ export function StudioDiorama() {
                     <Button variant="secondary" onClick={unfocusZone}>
                       Back
                     </Button>
-                  </motion.div>
+                  </m.div>
                 </div>
-              </motion.div>
+              </m.div>
             )}
           </AnimatePresence>
-        </motion.div>
+        </m.div>
       </div>
     </section>
   );

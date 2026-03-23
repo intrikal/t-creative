@@ -11,7 +11,7 @@
 
 import { startTransition, Suspense, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import { StudioNav } from "@/components/atelier/StudioNav";
 import { ZoneOverlay } from "@/components/atelier/ZoneOverlay";
 import { HeroFallback } from "@/components/three/HeroFallback";
@@ -77,7 +77,7 @@ export function StudioSection() {
             When user enters the studio, this block unmounts entirely. */}
         {!isInStudio && (
           <div className="py-24 md:py-32 px-6 text-center">
-            <motion.div
+            <m.div
               className="mx-auto max-w-2xl"
               initial={{ opacity: 0, y: 30 }}
               whileInView={{ opacity: 1, y: 0 }}
@@ -103,7 +103,7 @@ export function StudioSection() {
                   3D studio available on desktop with motion enabled.
                 </p>
               )}
-            </motion.div>
+            </m.div>
           </div>
         )}
 

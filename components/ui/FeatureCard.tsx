@@ -5,7 +5,7 @@
  */
 "use client";
 
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 
 interface FeatureCardProps {
   title: string;
@@ -15,7 +15,7 @@ interface FeatureCardProps {
 
 export function FeatureCard({ title, description, index }: FeatureCardProps) {
   return (
-    <motion.div
+    <m.div
       initial={{ opacity: 0, y: 30 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
@@ -24,6 +24,6 @@ export function FeatureCard({ title, description, index }: FeatureCardProps) {
     >
       <h3 className="text-sm font-medium tracking-wide uppercase text-foreground">{title}</h3>
       <p className="text-sm leading-relaxed text-muted">{description}</p>
-    </motion.div>
+    </m.div>
   );
 }

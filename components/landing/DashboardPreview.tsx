@@ -8,7 +8,7 @@
  */
 "use client";
 
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 
 // Static sidebar labels — mirrors the real dashboard nav structure to give visitors a
 // preview of what the admin panel looks like. Array order matches the visual top-to-bottom layout.
@@ -36,7 +36,7 @@ export function DashboardPreview() {
   return (
     <section className="py-32 md:py-48 px-6 bg-surface">
       <div className="mx-auto max-w-6xl">
-        <motion.div
+        <m.div
           className="mb-16 md:mb-20 text-center"
           initial={{ opacity: 0, y: 30 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -53,10 +53,10 @@ export function DashboardPreview() {
             Bookings, clients, analytics, and media — all from one dashboard built for creative
             professionals.
           </p>
-        </motion.div>
+        </m.div>
 
         {/* Dashboard mockup */}
-        <motion.div
+        <m.div
           className="bg-foreground rounded-lg overflow-hidden shadow-2xl"
           initial={{ opacity: 0, y: 40 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -84,7 +84,7 @@ export function DashboardPreview() {
                   Each item gets a delay offset (0.4 + i * 0.05) so they cascade in sequence.
                   Array approach chosen over hardcoded JSX to keep stagger logic DRY. */}
               {sidebarItems.map((item, i) => (
-                <motion.div
+                <m.div
                   key={item}
                   // Ternary: first item (i === 0) gets active styling (accent text + highlight bg)
                   // to simulate a selected nav state; all others get muted appearance.
@@ -97,7 +97,7 @@ export function DashboardPreview() {
                   transition={{ duration: 0.3, delay: 0.4 + i * 0.05 }}
                 >
                   {item}
-                </motion.div>
+                </m.div>
               ))}
             </div>
 
@@ -108,7 +108,7 @@ export function DashboardPreview() {
                 {/* .map() over stats array to render 4 metric cards in a responsive grid.
                     Stagger delay (0.5 + i * 0.08) creates a left-to-right cascade effect. */}
                 {stats.map((stat, i) => (
-                  <motion.div
+                  <m.div
                     key={stat.label}
                     className="bg-white/5 rounded-md p-4"
                     initial={{ opacity: 0, y: 10 }}
@@ -121,7 +121,7 @@ export function DashboardPreview() {
                     {/* Conditional render: only show change indicator if stat.change is truthy.
                         Repeat Rate has empty string change, so no badge renders for it. */}
                     {stat.change && <p className="text-xs text-accent mt-1">{stat.change}</p>}
-                  </motion.div>
+                  </m.div>
                 ))}
               </div>
 
@@ -134,7 +134,7 @@ export function DashboardPreview() {
                       because these are purely visual — no semantic data worth naming.
                       Bars animate from height:0 to their target height for a growth effect. */}
                   {[40, 55, 35, 65, 50, 70, 60, 80, 75, 90, 85, 95].map((h, i) => (
-                    <motion.div
+                    <m.div
                       key={i}
                       className="flex-1 bg-accent/40 rounded-t-sm"
                       initial={{ height: 0 }}
@@ -160,7 +160,7 @@ export function DashboardPreview() {
                   "Permanent Bracelet — 2:00 PM",
                   "Volume Fill — 4:30 PM",
                 ].map((booking, i) => (
-                  <motion.div
+                  <m.div
                     key={booking}
                     className="flex items-center justify-between bg-white/5 rounded-md px-4 py-3"
                     initial={{ opacity: 0 }}
@@ -170,12 +170,12 @@ export function DashboardPreview() {
                   >
                     <span className="text-xs text-white/70">{booking}</span>
                     <span className="text-xs text-accent">Confirmed</span>
-                  </motion.div>
+                  </m.div>
                 ))}
               </div>
             </div>
           </div>
-        </motion.div>
+        </m.div>
       </div>
     </section>
   );

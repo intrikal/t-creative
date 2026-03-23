@@ -26,7 +26,7 @@
  * - components/onboarding/OnboardingFlow.tsx       — conditionally adds allergies step
  *                                                    based on whether interests includes "lash"/"jewelry"
  */
-import { motion, AnimatePresence } from "framer-motion";
+import { m, AnimatePresence } from "framer-motion";
 import { type IconType } from "react-icons";
 import {
   PiEyeClosedBold,
@@ -89,7 +89,7 @@ export function PanelInterests({ interests = [] }: Props) {
 
   return (
     <div className="flex flex-col items-center justify-center h-full px-6">
-      <motion.div
+      <m.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.4 }}
@@ -99,12 +99,12 @@ export function PanelInterests({ interests = [] }: Props) {
           What we offer
         </p>
 
-        <motion.div variants={stagger} initial="hidden" animate="show" className="space-y-2.5">
+        <m.div variants={stagger} initial="hidden" animate="show" className="space-y-2.5">
           {SERVICES.map((s) => {
             const isSelected = interests.includes(s.id);
             return (
-              <motion.div key={s.id} variants={fadeUp}>
-                <motion.div
+              <m.div key={s.id} variants={fadeUp}>
+                <m.div
                   animate={{
                     opacity: anySelected && !isSelected ? 0.45 : 1,
                   }}
@@ -135,7 +135,7 @@ export function PanelInterests({ interests = [] }: Props) {
                   {/* Animated checkmark — appears when selected */}
                   <AnimatePresence>
                     {isSelected && (
-                      <motion.div
+                      <m.div
                         key="check"
                         initial={{ scale: 0, opacity: 0 }}
                         animate={{ scale: 1, opacity: 1 }}
@@ -152,15 +152,15 @@ export function PanelInterests({ interests = [] }: Props) {
                             strokeLinejoin="round"
                           />
                         </svg>
-                      </motion.div>
+                      </m.div>
                     )}
                   </AnimatePresence>
-                </motion.div>
-              </motion.div>
+                </m.div>
+              </m.div>
             );
           })}
-        </motion.div>
-      </motion.div>
+        </m.div>
+      </m.div>
     </div>
   );
 }

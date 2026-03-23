@@ -10,14 +10,14 @@
 "use client";
 
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import posthog from "posthog-js";
 import { Button } from "@/components/ui/Button";
 
 export function CallToAction() {
   return (
     <section id="booking" className="bg-hover py-32 md:py-48 px-6">
-      <motion.div
+      <m.div
         className="mx-auto max-w-2xl text-center"
         initial={{ opacity: 0, y: 30 }}
         whileInView={{ opacity: 1, y: 0 }}
@@ -58,7 +58,7 @@ export function CallToAction() {
             </Link>
           </Button>
         </div>
-      </motion.div>
+      </m.div>
     </section>
   );
 }

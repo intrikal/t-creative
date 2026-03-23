@@ -9,7 +9,7 @@
 "use client";
 
 import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { m, AnimatePresence } from "framer-motion";
 import { ChevronDown } from "lucide-react";
 
 interface PolicyValues {
@@ -98,7 +98,7 @@ function FAQItem({ question, answer }: { question: string; answer: string }) {
           Conditional render: answer content only mounts when open is true. */}
       <AnimatePresence>
         {open && (
-          <motion.div
+          <m.div
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
@@ -106,7 +106,7 @@ function FAQItem({ question, answer }: { question: string; answer: string }) {
             className="overflow-hidden"
           >
             <p className="text-sm text-muted leading-relaxed pb-5">{answer}</p>
-          </motion.div>
+          </m.div>
         )}
       </AnimatePresence>
     </div>
@@ -132,7 +132,7 @@ export function FAQ({
   return (
     <section className="py-28 md:py-40 px-6 bg-background" aria-label="FAQ">
       <div className="mx-auto max-w-3xl">
-        <motion.div
+        <m.div
           className="mb-12 md:mb-16 text-center"
           initial={{ opacity: 0, y: 24 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -143,9 +143,9 @@ export function FAQ({
           <h2 className="font-display text-3xl md:text-5xl font-light tracking-tight text-foreground">
             Common questions.
           </h2>
-        </motion.div>
+        </m.div>
 
-        <motion.div
+        <m.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
@@ -161,7 +161,7 @@ export function FAQ({
               answer={policies ? interpolatePolicies(item.answer, policies) : item.answer}
             />
           ))}
-        </motion.div>
+        </m.div>
       </div>
     </section>
   );

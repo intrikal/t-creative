@@ -33,7 +33,7 @@
  * @prop stepNum - displayed as the step badge number
  */
 import { useEffect, useCallback, useRef } from "react";
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import { LuLock, LuBell, LuMail, LuTriangleAlert } from "react-icons/lu";
 import type { AdminOnboardingForm } from "../OnboardingFlow";
 
@@ -73,7 +73,7 @@ export function StepAdminContact({ form, onNext, stepNum }: StepProps) {
   return (
     <div className="space-y-3">
       {/* Heading */}
-      <motion.div
+      <m.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
@@ -90,13 +90,13 @@ export function StepAdminContact({ form, onNext, stepNum }: StepProps) {
         <p className="text-sm text-foreground/60 mt-0.5 leading-relaxed">
           Every booking, payment, and no-show — you&apos;ll know the second it happens.
         </p>
-      </motion.div>
+      </m.div>
 
       {/* Email — read-only, no label */}
       <form.Field name="email">
         {(field) =>
           field.state.value ? (
-            <motion.div
+            <m.div
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1, duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
@@ -105,7 +105,7 @@ export function StepAdminContact({ form, onNext, stepNum }: StepProps) {
               <LuMail className="w-3 h-3 text-muted/40 shrink-0" />
               <span className="text-xs text-muted/60">{field.state.value}</span>
               <LuLock className="w-2.5 h-2.5 text-muted/25 shrink-0" />
-            </motion.div>
+            </m.div>
           ) : null
         }
       </form.Field>
@@ -116,7 +116,7 @@ export function StepAdminContact({ form, onNext, stepNum }: StepProps) {
           const rawDigits = field.state.value ?? "";
           const displayValue = rawDigits.length > 0 ? formatPhone(rawDigits) : "";
           return (
-            <motion.div
+            <m.div
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.15, duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
@@ -151,13 +151,13 @@ export function StepAdminContact({ form, onNext, stepNum }: StepProps) {
                   placeholder:text-muted/30 text-foreground focus:outline-none focus:border-accent
                   transition-colors duration-200"
               />
-            </motion.div>
+            </m.div>
           );
         }}
       </form.Field>
 
       {/* Notifications */}
-      <motion.div
+      <m.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2, duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
@@ -266,10 +266,10 @@ export function StepAdminContact({ form, onNext, stepNum }: StepProps) {
             </button>
           )}
         </form.Field>
-      </motion.div>
+      </m.div>
 
       {/* Continue */}
-      <motion.div
+      <m.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.35 }}
@@ -294,7 +294,7 @@ export function StepAdminContact({ form, onNext, stepNum }: StepProps) {
         <span className="text-xs text-muted/50">
           press <strong className="text-muted/70">Enter &crarr;</strong>
         </span>
-      </motion.div>
+      </m.div>
     </div>
   );
 }

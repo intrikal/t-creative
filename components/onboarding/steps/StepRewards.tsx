@@ -30,7 +30,7 @@
  * - app/onboarding/actions.ts                      — awards the matching point values
  */
 import { useState, useEffect, useCallback } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { m, AnimatePresence } from "framer-motion";
 import type { OnboardingForm } from "../OnboardingFlow";
 
 const SOURCE_OPTIONS = [
@@ -114,7 +114,7 @@ export function StepRewards({ form, onNext, stepNum }: StepProps) {
   return (
     <div className="space-y-5">
       {/* Step header */}
-      <motion.div
+      <m.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
@@ -129,10 +129,10 @@ export function StepRewards({ form, onNext, stepNum }: StepProps) {
         <p className="text-muted text-sm mt-2">
           Earn points on every visit, birthday, and referral.
         </p>
-      </motion.div>
+      </m.div>
 
       {/* Birthday — optional, earns birthday bonus points */}
-      <motion.div
+      <m.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1, duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
@@ -169,10 +169,10 @@ export function StepRewards({ form, onNext, stepNum }: StepProps) {
             />
           )}
         </form.Field>
-      </motion.div>
+      </m.div>
 
       {/* Source — how they found T Creative */}
-      <motion.div
+      <m.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2, duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
@@ -184,7 +184,7 @@ export function StepRewards({ form, onNext, stepNum }: StepProps) {
               {SOURCE_OPTIONS.map((option, i) => {
                 const isSelected = field.state.value === option.id;
                 return (
-                  <motion.button
+                  <m.button
                     key={option.id}
                     type="button"
                     initial={{ opacity: 0, y: 8 }}
@@ -202,18 +202,18 @@ export function StepRewards({ form, onNext, stepNum }: StepProps) {
                     `}
                   >
                     {option.label}
-                  </motion.button>
+                  </m.button>
                 );
               })}
             </div>
           )}
         </form.Field>
-      </motion.div>
+      </m.div>
 
       {/* Referral code input — animates in when "Friend Referral" is selected */}
       <AnimatePresence>
         {isReferral && (
-          <motion.div
+          <m.div
             key="referral-fields"
             initial={{ opacity: 0, y: 12, height: 0 }}
             animate={{ opacity: 1, y: 0, height: "auto" }}
@@ -244,12 +244,12 @@ export function StepRewards({ form, onNext, stepNum }: StepProps) {
                 Your friend&apos;s code — found in their loyalty dashboard
               </p>
             </div>
-          </motion.div>
+          </m.div>
         )}
       </AnimatePresence>
 
       {/* OK button */}
-      <motion.div
+      <m.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.45 }}
@@ -285,7 +285,7 @@ export function StepRewards({ form, onNext, stepNum }: StepProps) {
             press <strong className="text-muted/70">Enter &crarr;</strong>
           </span>
         )}
-      </motion.div>
+      </m.div>
     </div>
   );
 }

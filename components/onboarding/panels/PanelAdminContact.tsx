@@ -31,7 +31,7 @@
  * @prop contact.notifySms - whether SMS alerts are enabled
  * @prop contact.notifyEmail - whether email notifications are enabled
  */
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import {
   LuShieldCheck,
   LuBell,
@@ -112,14 +112,14 @@ export function PanelAdminContact({ contact }: Props) {
 
   return (
     <div className="flex flex-col justify-center h-full px-6 py-5">
-      <motion.div
+      <m.div
         variants={stagger}
         initial="hidden"
         animate="show"
         className="w-full max-w-[380px] space-y-3"
       >
         {/* Header */}
-        <motion.div variants={fadeUp} className="space-y-1">
+        <m.div variants={fadeUp} className="space-y-1">
           <div className="flex items-center gap-2">
             <span className="relative flex h-2 w-2">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
@@ -136,10 +136,10 @@ export function PanelAdminContact({ contact }: Props) {
             Every booking and payment across lashes, jewelry, crochet, and consulting — straight to
             your phone.
           </p>
-        </motion.div>
+        </m.div>
 
         {/* Activity feed */}
-        <motion.div
+        <m.div
           variants={fadeUp}
           className="rounded-2xl bg-surface border border-foreground/8 overflow-hidden"
         >
@@ -175,10 +175,10 @@ export function PanelAdminContact({ contact }: Props) {
               ${todayTotal} via Square
             </span>
           </div>
-        </motion.div>
+        </m.div>
 
         {/* Connector — booking → alert */}
-        <motion.div variants={fadeUp} className="flex flex-col items-center gap-0.5 py-0.5">
+        <m.div variants={fadeUp} className="flex flex-col items-center gap-0.5 py-0.5">
           <div className="flex items-center gap-2 w-full">
             <div className="flex-1 border-t border-dashed border-foreground/10" />
             <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-accent/8 border border-accent/15">
@@ -193,10 +193,10 @@ export function PanelAdminContact({ contact }: Props) {
             <div className="flex-1 border-t border-dashed border-foreground/10" />
           </div>
           <LuArrowDown className="w-3 h-3 text-accent/40" />
-        </motion.div>
+        </m.div>
 
         {/* Live alert channels */}
-        <motion.div variants={fadeUp} className="space-y-1.5">
+        <m.div variants={fadeUp} className="space-y-1.5">
           <p className="text-[10px] font-semibold text-muted/50 uppercase tracking-wider">
             Where your alerts go
           </p>
@@ -287,14 +287,14 @@ export function PanelAdminContact({ contact }: Props) {
               <p className="text-xs text-muted/50">In-app dashboard always shows the full feed</p>
             </div>
           </div>
-        </motion.div>
+        </m.div>
 
         {/* Privacy note */}
-        <motion.div variants={fadeUp} className="flex items-center gap-2">
+        <m.div variants={fadeUp} className="flex items-center gap-2">
           <LuShieldCheck className="w-3 h-3 text-muted/40 shrink-0" />
           <p className="text-xs text-muted/50">Only used to keep you in the loop — never shared.</p>
-        </motion.div>
-      </motion.div>
+        </m.div>
+      </m.div>
     </div>
   );
 }

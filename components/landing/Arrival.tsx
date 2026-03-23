@@ -16,7 +16,7 @@
 "use client";
 
 import { useRef } from "react";
-import { motion, useScroll, useTransform } from "framer-motion";
+import { m, useScroll, useTransform } from "framer-motion";
 
 export function Arrival() {
   // useRef tracks the section element so Framer Motion can measure its scroll position.
@@ -42,7 +42,7 @@ export function Arrival() {
   const textY = useTransform(scrollYProgress, [0, 1], ["0%", "-10%"]);
 
   return (
-    <motion.section
+    <m.section
       ref={ref}
       style={{ backgroundColor: bg }}
       className="relative h-[180vh]"
@@ -55,7 +55,7 @@ export function Arrival() {
       </h1>
 
       <div className="sticky top-0 h-screen flex items-center justify-center overflow-hidden">
-        <motion.p
+        <m.p
           style={{ opacity: textOpacity, y: textY }}
           initial={{ opacity: 0, scale: 1 }}
           animate={{ opacity: 1, scale: [1, 1.015, 1] }}
@@ -67,8 +67,8 @@ export function Arrival() {
           aria-hidden
         >
           Studio.
-        </motion.p>
+        </m.p>
       </div>
-    </motion.section>
+    </m.section>
   );
 }

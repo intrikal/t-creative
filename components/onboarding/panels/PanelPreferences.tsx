@@ -26,7 +26,7 @@
  * - components/onboarding/steps/StepPreferences.tsx — the paired left-side form
  * - components/onboarding/OnboardingFlow.tsx         — wires the Subscribe → props
  */
-import { motion, AnimatePresence } from "framer-motion";
+import { m, AnimatePresence } from "framer-motion";
 import { LuCalendarDays, LuBell, LuCamera, LuSparkles } from "react-icons/lu";
 import { fadeUp, stagger } from "./shared";
 
@@ -67,7 +67,7 @@ export function PanelPreferences({ availability, notifications, photoConsent }: 
 
   return (
     <div className="flex flex-col items-center justify-center h-full px-6">
-      <motion.div
+      <m.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
@@ -82,7 +82,7 @@ export function PanelPreferences({ availability, notifications, photoConsent }: 
             <AnimatePresence mode="popLayout">
               {selectedAvail.length > 0 ? (
                 selectedAvail.map(([key, label]) => (
-                  <motion.span
+                  <m.span
                     key={key}
                     initial={{ opacity: 0, scale: 0.85 }}
                     animate={{ opacity: 1, scale: 1 }}
@@ -91,10 +91,10 @@ export function PanelPreferences({ availability, notifications, photoConsent }: 
                     className="text-[11px] px-2.5 py-1 rounded-full border border-accent/30 bg-accent/8 text-accent font-medium"
                   >
                     {label}
-                  </motion.span>
+                  </m.span>
                 ))
               ) : (
-                <motion.span
+                <m.span
                   key="placeholder"
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
@@ -102,7 +102,7 @@ export function PanelPreferences({ availability, notifications, photoConsent }: 
                   className="text-[11px] text-muted/35 italic"
                 >
                   No windows selected yet
-                </motion.span>
+                </m.span>
               )}
             </AnimatePresence>
           </div>
@@ -118,7 +118,7 @@ export function PanelPreferences({ availability, notifications, photoConsent }: 
               {notifEntries.map(([key, label]) => {
                 const on = (notifications as Record<string, boolean>)[key];
                 return (
-                  <motion.div
+                  <m.div
                     key={key}
                     layout
                     className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-[11px] font-medium transition-colors duration-200 ${
@@ -131,7 +131,7 @@ export function PanelPreferences({ availability, notifications, photoConsent }: 
                       className={`w-1.5 h-1.5 rounded-full shrink-0 transition-colors duration-200 ${on ? "bg-accent" : "bg-foreground/20"}`}
                     />
                     {label}
-                  </motion.div>
+                  </m.div>
                 );
               })}
             </div>
@@ -140,7 +140,7 @@ export function PanelPreferences({ availability, notifications, photoConsent }: 
 
         {/* Photo consent */}
         {photoConsent && (
-          <motion.div
+          <m.div
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3 }}
@@ -158,7 +158,7 @@ export function PanelPreferences({ availability, notifications, photoConsent }: 
               <LuCamera className="w-3 h-3 shrink-0" />
               {photoConsent === "yes" ? "Yes — feature my results" : "No thanks"}
             </div>
-          </motion.div>
+          </m.div>
         )}
 
         {/* Divider */}
@@ -167,8 +167,8 @@ export function PanelPreferences({ availability, notifications, photoConsent }: 
         {/* Why we ask */}
         <p className="text-[10px] font-medium text-muted uppercase tracking-widest">Why we ask</p>
 
-        <motion.div variants={stagger} initial="hidden" animate="show" className="space-y-4">
-          <motion.div variants={fadeUp} className="flex items-start gap-3">
+        <m.div variants={stagger} initial="hidden" animate="show" className="space-y-4">
+          <m.div variants={fadeUp} className="flex items-start gap-3">
             <div className="w-8 h-8 rounded-lg bg-accent/8 flex items-center justify-center shrink-0 mt-0.5">
               <LuCalendarDays className="w-3.5 h-3.5 text-accent" />
             </div>
@@ -178,9 +178,9 @@ export function PanelPreferences({ availability, notifications, photoConsent }: 
                 We&apos;ll suggest times that fit your schedule — no back-and-forth.
               </p>
             </div>
-          </motion.div>
+          </m.div>
 
-          <motion.div variants={fadeUp} className="flex items-start gap-3">
+          <m.div variants={fadeUp} className="flex items-start gap-3">
             <div className="w-8 h-8 rounded-lg bg-accent/8 flex items-center justify-center shrink-0 mt-0.5">
               <LuBell className="w-3.5 h-3.5 text-accent" />
             </div>
@@ -190,9 +190,9 @@ export function PanelPreferences({ availability, notifications, photoConsent }: 
                 Confirmations and 24-hour reminders so you&apos;re never caught off guard.
               </p>
             </div>
-          </motion.div>
+          </m.div>
 
-          <motion.div variants={fadeUp} className="flex items-start gap-3">
+          <m.div variants={fadeUp} className="flex items-start gap-3">
             <div className="w-8 h-8 rounded-lg bg-accent/8 flex items-center justify-center shrink-0 mt-0.5">
               <LuCamera className="w-3.5 h-3.5 text-accent" />
             </div>
@@ -202,10 +202,10 @@ export function PanelPreferences({ availability, notifications, photoConsent }: 
                 Your results could inspire someone else. You can change this anytime in settings.
               </p>
             </div>
-          </motion.div>
-        </motion.div>
+          </m.div>
+        </m.div>
 
-        <motion.div
+        <m.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.7, duration: 0.4 }}
@@ -216,8 +216,8 @@ export function PanelPreferences({ availability, notifications, photoConsent }: 
             Most clients love seeing their work on our Instagram — it&apos;s free marketing for the
             looks they&apos;re proud of.
           </p>
-        </motion.div>
-      </motion.div>
+        </m.div>
+      </m.div>
     </div>
   );
 }

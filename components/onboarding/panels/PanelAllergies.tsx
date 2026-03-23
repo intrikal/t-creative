@@ -27,7 +27,7 @@
  * - components/onboarding/steps/StepAllergies.tsx — the paired left-side form
  * - app/onboarding/actions.ts                     — persists allergies to JSONB
  */
-import { motion, AnimatePresence } from "framer-motion";
+import { m, AnimatePresence } from "framer-motion";
 import { LuShieldCheck, LuTriangleAlert, LuHeart } from "react-icons/lu";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -62,7 +62,7 @@ export function PanelAllergies({ allergies }: Props) {
 
   return (
     <div className="flex flex-col items-center justify-center h-full px-6">
-      <motion.div
+      <m.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
@@ -87,7 +87,7 @@ export function PanelAllergies({ allergies }: Props) {
               },
               { icon: LuHeart, text: "Sessions adapted to your specific sensitivities" },
             ].map((item, i) => (
-              <motion.div
+              <m.div
                 key={i}
                 initial={{ opacity: 0, x: -12 }}
                 animate={{ opacity: 1, x: 0 }}
@@ -98,13 +98,13 @@ export function PanelAllergies({ allergies }: Props) {
                   <item.icon className="w-3 h-3 text-accent" />
                 </div>
                 <p className="text-sm text-foreground/80 leading-relaxed">{item.text}</p>
-              </motion.div>
+              </m.div>
             ))}
 
             {/* Live sensitivity badges + notes */}
             <AnimatePresence>
               {hasAnyInfo && (
-                <motion.div
+                <m.div
                   key="noted"
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -120,7 +120,7 @@ export function PanelAllergies({ allergies }: Props) {
                   {active.length > 0 && (
                     <div className="flex flex-wrap gap-1.5">
                       {active.map(([key, label]) => (
-                        <motion.span
+                        <m.span
                           key={key}
                           initial={{ opacity: 0, scale: 0.85 }}
                           animate={{ opacity: 1, scale: 1 }}
@@ -129,7 +129,7 @@ export function PanelAllergies({ allergies }: Props) {
                           className="text-[10px] px-2 py-0.5 rounded-full bg-accent/10 text-accent border border-accent/20 font-medium"
                         >
                           {label}
-                        </motion.span>
+                        </m.span>
                       ))}
                     </div>
                   )}
@@ -144,7 +144,7 @@ export function PanelAllergies({ allergies }: Props) {
 
                   {/* Free-text notes */}
                   {notes.length > 0 && (
-                    <motion.div
+                    <m.div
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
@@ -153,14 +153,14 @@ export function PanelAllergies({ allergies }: Props) {
                     >
                       <span className="text-muted/40 text-xs mt-0.5 shrink-0">✎</span>
                       <p className="text-xs text-foreground/70 leading-relaxed">{notes}</p>
-                    </motion.div>
+                    </m.div>
                   )}
-                </motion.div>
+                </m.div>
               )}
             </AnimatePresence>
           </CardContent>
         </Card>
-      </motion.div>
+      </m.div>
     </div>
   );
 }

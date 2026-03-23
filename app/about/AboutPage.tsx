@@ -19,7 +19,7 @@
 "use client";
 
 import Image from "next/image";
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import { FaInstagram, FaLinkedinIn } from "react-icons/fa";
 import { Footer } from "@/components/landing/Footer";
 import { socials as defaultSocials } from "@/lib/socials";
@@ -74,7 +74,7 @@ export function AboutPage({
         {/* Hero — dark background with photo */}
         <section className="bg-foreground text-background py-24 md:py-32 px-6">
           <div className="mx-auto max-w-5xl grid grid-cols-1 md:grid-cols-2 gap-12 md:gap-16 items-center">
-            <motion.div
+            <m.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8 }}
@@ -93,9 +93,9 @@ export function AboutPage({
                   {p}
                 </p>
               ))}
-            </motion.div>
+            </m.div>
 
-            <motion.div
+            <m.div
               className="flex justify-center md:justify-end"
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -111,14 +111,14 @@ export function AboutPage({
                   sizes="(max-width: 768px) 288px, 320px"
                 />
               </div>
-            </motion.div>
+            </m.div>
           </div>
         </section>
 
         {/* What I Do */}
         <section className="py-24 md:py-32 px-6">
           <div className="mx-auto max-w-4xl">
-            <motion.div
+            <m.div
               className="text-center mb-16"
               initial={{ opacity: 0, y: 30 }}
               whileInView={{ opacity: 1, y: 0 }}
@@ -131,7 +131,7 @@ export function AboutPage({
               <p className="text-base text-muted max-w-xl mx-auto">
                 Helping you feel confident, beautiful, and empowered.
               </p>
-            </motion.div>
+            </m.div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               {/* Render the four service pillar cards from a literal array. Using
@@ -164,7 +164,7 @@ export function AboutPage({
                   color: "#5B8A8A",
                 },
               ].map((item, i) => (
-                <motion.div
+                <m.div
                   key={item.title}
                   className="flex items-start gap-4"
                   initial={{ opacity: 0, y: 20 }}
@@ -180,7 +180,7 @@ export function AboutPage({
                     <h3 className="text-sm font-medium text-foreground mb-1">{item.title}</h3>
                     <p className="text-sm text-muted leading-relaxed">{item.description}</p>
                   </div>
-                </motion.div>
+                </m.div>
               ))}
             </div>
           </div>
@@ -189,7 +189,7 @@ export function AboutPage({
         {/* Connect — Social Links */}
         <section className="py-24 md:py-32 px-6 bg-surface">
           <div className="mx-auto max-w-4xl">
-            <motion.div
+            <m.div
               className="text-center mb-12"
               initial={{ opacity: 0, y: 30 }}
               whileInView={{ opacity: 1, y: 0 }}
@@ -202,7 +202,7 @@ export function AboutPage({
               <h2 className="text-3xl md:text-4xl font-light tracking-tight text-foreground">
                 Follow along.
               </h2>
-            </motion.div>
+            </m.div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
               {/* Render each social link as an animated card with icon, handle, and
@@ -210,7 +210,7 @@ export function AboutPage({
               {socials.map((s, i) => {
                 const Icon = s.icon;
                 return (
-                  <motion.a
+                  <m.a
                     key={s.label}
                     href={s.href}
                     target="_blank"
@@ -231,7 +231,7 @@ export function AboutPage({
                       </span>
                       <span className="text-xs text-muted">{s.description}</span>
                     </div>
-                  </motion.a>
+                  </m.a>
                 );
               })}
             </div>
@@ -241,7 +241,7 @@ export function AboutPage({
         {/* Location */}
         <section className="py-24 md:py-32 px-6">
           <div className="mx-auto max-w-3xl text-center">
-            <motion.div
+            <m.div
               initial={{ opacity: 0, y: 30 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
@@ -263,7 +263,7 @@ export function AboutPage({
               >
                 Get in Touch
               </a>
-            </motion.div>
+            </m.div>
           </div>
         </section>
       </main>

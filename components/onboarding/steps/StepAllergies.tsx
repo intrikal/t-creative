@@ -38,7 +38,7 @@
 // useState: holds component-local state. useEffect: runs side effects (like event listeners).
 // useCallback: wraps a function so it's only recreated when its dependencies change.
 import { useState, useEffect, useCallback } from "react";
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import type { OnboardingForm } from "../OnboardingFlow";
 
 // `as const` after each field value tells TypeScript to treat it as the literal string
@@ -135,7 +135,7 @@ export function StepAllergies({ form, onNext, stepNum }: StepProps) {
 
   return (
     <div className="space-y-6">
-      <motion.div
+      <m.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
@@ -150,14 +150,14 @@ export function StepAllergies({ form, onNext, stepNum }: StepProps) {
         <p className="text-muted text-sm mt-2">
           This helps us keep your experience safe and comfortable.
         </p>
-      </motion.div>
+      </m.div>
 
       <div className="space-y-2.5">
         {/* .map() transforms each element in the array into a piece of UI (a button here). */}
         {ALLERGY_OPTIONS.map((option, i) => {
           const isSelected = selected[option.field];
           return (
-            <motion.button
+            <m.button
               key={option.field}
               type="button"
               initial={{ opacity: 0, y: 16 }}
@@ -189,7 +189,7 @@ export function StepAllergies({ form, onNext, stepNum }: StepProps) {
               </span>
               <span className="text-sm text-foreground">{option.label}</span>
               {isSelected && (
-                <motion.svg
+                <m.svg
                   initial={{ scale: 0 }}
                   animate={{ scale: 1 }}
                   width="16"
@@ -205,9 +205,9 @@ export function StepAllergies({ form, onNext, stepNum }: StepProps) {
                     strokeLinecap="round"
                     strokeLinejoin="round"
                   />
-                </motion.svg>
+                </m.svg>
               )}
-            </motion.button>
+            </m.button>
           );
         })}
       </div>
@@ -217,7 +217,7 @@ export function StepAllergies({ form, onNext, stepNum }: StepProps) {
           {(field) => ...} is that function — it receives the field object and returns JSX. */}
       <form.Field name="allergies.notes">
         {(field) => (
-          <motion.div
+          <m.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.45, duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
@@ -242,11 +242,11 @@ export function StepAllergies({ form, onNext, stepNum }: StepProps) {
                 focus:outline-none focus:border-accent
                 transition-colors duration-200 leading-relaxed"
             />
-          </motion.div>
+          </m.div>
         )}
       </form.Field>
 
-      <motion.div
+      <m.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.5 }}
@@ -282,7 +282,7 @@ export function StepAllergies({ form, onNext, stepNum }: StepProps) {
             press <strong className="text-muted/70">Enter &crarr;</strong>
           </span>
         )}
-      </motion.div>
+      </m.div>
     </div>
   );
 }

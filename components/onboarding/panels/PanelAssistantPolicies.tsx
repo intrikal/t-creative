@@ -29,7 +29,7 @@
  * - components/onboarding/steps/StepAssistantPolicies.tsx — paired left-side step
  * - components/onboarding/OnboardingFlow.tsx — renders this as the panel for step 7
  */
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import { LuCamera, LuLock, LuSparkles, LuBanknote } from "react-icons/lu";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -67,7 +67,7 @@ const POLICY_DETAILS = [
 export function PanelAssistantPolicies() {
   return (
     <div className="flex flex-col items-center justify-center h-full px-6">
-      <motion.div
+      <m.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
@@ -82,7 +82,7 @@ export function PanelAssistantPolicies() {
             {POLICY_DETAILS.map((policy, i) => {
               const Icon = policy.icon;
               return (
-                <motion.div
+                <m.div
                   key={policy.letter}
                   initial={{ opacity: 0, x: -8 }}
                   animate={{ opacity: 1, x: 0 }}
@@ -98,13 +98,13 @@ export function PanelAssistantPolicies() {
                     </p>
                     <p className="text-[11px] text-muted leading-relaxed">{policy.detail}</p>
                   </div>
-                </motion.div>
+                </m.div>
               );
             })}
           </CardContent>
         </Card>
 
-        <motion.div
+        <m.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.55, duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
@@ -114,8 +114,8 @@ export function PanelAssistantPolicies() {
           <p className="text-[11px] text-muted leading-relaxed">
             These exist to protect you, your clients, and the studio — not to restrict you.
           </p>
-        </motion.div>
-      </motion.div>
+        </m.div>
+      </m.div>
     </div>
   );
 }

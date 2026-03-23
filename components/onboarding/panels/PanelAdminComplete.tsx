@@ -24,7 +24,7 @@
  * ## Props
  * @prop studioName - used to derive the booking URL slug via `toSlug()`
  */
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import {
   LuCalendarCheck,
   LuLink,
@@ -84,14 +84,14 @@ export function PanelAdminComplete({ studioName }: Props) {
   const bookingSlug = toSlug(studioName ?? "");
   return (
     <div className="flex flex-col justify-center h-full px-6 py-5">
-      <motion.div
+      <m.div
         variants={stagger}
         initial="hidden"
         animate="show"
         className="w-full max-w-[400px] space-y-2.5"
       >
         {/* Studio live header */}
-        <motion.div variants={fadeUp} className="space-y-2">
+        <m.div variants={fadeUp} className="space-y-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-accent/20 to-accent/8 border border-accent/15 flex items-center justify-center">
@@ -122,10 +122,10 @@ export function PanelAdminComplete({ studioName }: Props) {
               Your studio is open for business.
             </h2>
           </div>
-        </motion.div>
+        </m.div>
 
         {/* What's live now — 2×2 grid */}
-        <motion.div variants={fadeUp}>
+        <m.div variants={fadeUp}>
           <p className="text-[10px] font-semibold text-muted/50 uppercase tracking-wider mb-1.5">
             Active now
           </p>
@@ -147,10 +147,10 @@ export function PanelAdminComplete({ studioName }: Props) {
               </div>
             ))}
           </div>
-        </motion.div>
+        </m.div>
 
         {/* Booking link card */}
-        <motion.div variants={fadeUp}>
+        <m.div variants={fadeUp}>
           <p className="text-[10px] font-semibold text-muted/50 uppercase tracking-wider mb-1.5">
             Your booking link
           </p>
@@ -169,10 +169,10 @@ export function PanelAdminComplete({ studioName }: Props) {
               <LuCopy className="text-muted/50" style={{ width: 11, height: 11 }} />
             </div>
           </div>
-        </motion.div>
+        </m.div>
 
         {/* Action plan */}
-        <motion.div variants={fadeUp}>
+        <m.div variants={fadeUp}>
           <p className="text-[10px] font-semibold text-muted/50 uppercase tracking-wider mb-1.5">
             Do these first
           </p>
@@ -197,16 +197,16 @@ export function PanelAdminComplete({ studioName }: Props) {
               </div>
             ))}
           </div>
-        </motion.div>
+        </m.div>
 
         {/* Footer */}
-        <motion.div variants={fadeUp} className="flex items-center gap-2 px-1">
+        <m.div variants={fadeUp} className="flex items-center gap-2 px-1">
           <LuLayoutDashboard className="w-3 h-3 text-muted/30 shrink-0" />
           <p className="text-xs text-muted/40 leading-relaxed">
             Square &amp; Zoho connect from Settings. Your full dashboard is on the other side.
           </p>
-        </motion.div>
-      </motion.div>
+        </m.div>
+      </m.div>
     </div>
   );
 }

@@ -48,7 +48,7 @@
  * @prop onBack / onNext - step navigation callbacks from OnboardingFlow
  */
 import { type ReactNode, useRef, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { m, AnimatePresence } from "framer-motion";
 
 const slideVariants = {
   enter: (d: number) => ({ y: d > 0 ? "40vh" : "-40vh", opacity: 0 }),
@@ -97,7 +97,7 @@ export function OnboardingShell({
       {/* Progress bar */}
       {!isComplete && (
         <div className="absolute top-0 left-0 right-0 h-[3px] bg-surface z-20">
-          <motion.div
+          <m.div
             className="h-full bg-accent"
             initial={{ width: 0 }}
             animate={{ width: `${((step + 1) / totalSteps) * 100}%` }}
@@ -118,7 +118,7 @@ export function OnboardingShell({
           <div ref={scrollRef} className="md:flex-1 md:overflow-y-auto scrollbar-none">
             <div className="flex md:min-h-full items-center px-6 sm:px-10 md:px-14 lg:px-20 py-4">
               <AnimatePresence mode="wait" custom={direction}>
-                <motion.div
+                <m.div
                   key={stepId ?? "complete"}
                   custom={direction}
                   variants={slideVariants}
@@ -129,7 +129,7 @@ export function OnboardingShell({
                   className="w-full max-w-lg"
                 >
                   {isComplete ? completionContent : stepContent}
-                </motion.div>
+                </m.div>
               </AnimatePresence>
             </div>
           </div>
@@ -190,7 +190,7 @@ export function OnboardingShell({
         <div className="order-2 shrink-0 md:h-auto md:w-[45%] lg:w-1/2 relative bg-surface md:overflow-y-auto scrollbar-none">
           <div className="flex md:min-h-full items-center justify-center p-6 md:p-8 lg:p-12">
             <AnimatePresence mode="wait">
-              <motion.div
+              <m.div
                 key={isComplete ? "summary" : stepId}
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
@@ -199,7 +199,7 @@ export function OnboardingShell({
                 className="w-full h-full"
               >
                 {isComplete ? completionPanel : panelContent}
-              </motion.div>
+              </m.div>
             </AnimatePresence>
           </div>
         </div>

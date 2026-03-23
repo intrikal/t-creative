@@ -14,7 +14,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, m } from "framer-motion";
 import posthog from "posthog-js";
 
 export function StickyMobileCTA() {
@@ -55,7 +55,7 @@ export function StickyMobileCTA() {
     // Conditional render: bar only mounts when scroll position is in the valid range.
     <AnimatePresence>
       {visible && (
-        <motion.div
+        <m.div
           initial={{ y: 80, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: 80, opacity: 0 }}
@@ -77,7 +77,7 @@ export function StickyMobileCTA() {
               Book Now
             </Link>
           </div>
-        </motion.div>
+        </m.div>
       )}
     </AnimatePresence>
   );

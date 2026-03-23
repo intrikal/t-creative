@@ -35,7 +35,7 @@
  * @prop availableLunchDuration  — duration in minutes as a string (e.g. "30")
  */
 import { useMemo } from "react";
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import { LuCalendar } from "react-icons/lu";
 import { fadeUp, stagger } from "./shared";
 
@@ -143,14 +143,14 @@ export function PanelShiftAvailability({
 
   return (
     <div className="flex flex-col justify-center h-full px-6 py-5">
-      <motion.div
+      <m.div
         variants={stagger}
         initial="hidden"
         animate="show"
         className="w-full max-w-[380px] space-y-4"
       >
         {/* Header */}
-        <motion.div variants={fadeUp}>
+        <m.div variants={fadeUp}>
           <p className="text-[11px] font-semibold text-accent uppercase tracking-[0.15em] mb-0.5">
             Your availability
           </p>
@@ -158,10 +158,10 @@ export function PanelShiftAvailability({
           <p className="text-sm text-muted/60 mt-0.5 leading-snug">
             Tap dates on the left to mark yourself available — tap again to remove.
           </p>
-        </motion.div>
+        </m.div>
 
         {/* 2-month mini calendar heatmap */}
-        <motion.div variants={fadeUp} className="grid grid-cols-2 gap-3">
+        <m.div variants={fadeUp} className="grid grid-cols-2 gap-3">
           {months.map(({ year, month }) => {
             const firstDow = new Date(year, month - 1, 1).getDay();
             const daysInMonth = new Date(year, month, 0).getDate();
@@ -215,11 +215,11 @@ export function PanelShiftAvailability({
               </div>
             );
           })}
-        </motion.div>
+        </m.div>
 
         {/* Timeline bar */}
         {totalMin > 0 && (
-          <motion.div variants={fadeUp} className="space-y-1.5">
+          <m.div variants={fadeUp} className="space-y-1.5">
             <div className="flex items-center justify-between text-xs text-muted/50 font-medium">
               <span>{formatTime(availableDefaultStart)}</span>
               <span className="text-[10px] text-muted/35">{workHrs} / day</span>
@@ -239,11 +239,11 @@ export function PanelShiftAvailability({
                 Lunch {formatTime(availableLunchStart)} · {availableLunchDuration}m break
               </p>
             )}
-          </motion.div>
+          </m.div>
         )}
 
         {/* Stats */}
-        <motion.div variants={fadeUp} className="grid grid-cols-2 gap-2">
+        <m.div variants={fadeUp} className="grid grid-cols-2 gap-2">
           <div className="px-2 py-2.5 rounded-xl bg-surface border border-foreground/8 text-center">
             <p className="text-xl font-bold text-foreground">{selectedCount}</p>
             <p className="text-[10px] text-muted/50 mt-0.5 leading-tight">days open</p>
@@ -254,18 +254,18 @@ export function PanelShiftAvailability({
               {availableLunchBreak ? "work hrs" : "hrs / day"}
             </p>
           </div>
-        </motion.div>
+        </m.div>
 
         {/* Footer */}
-        <motion.div variants={fadeUp} className="flex items-start gap-2 px-1">
+        <m.div variants={fadeUp} className="flex items-start gap-2 px-1">
           <LuCalendar className="w-3 h-3 text-muted/30 shrink-0 mt-0.5" />
           <p className="text-xs text-muted/40 leading-relaxed">
             {selectedCount > 0
               ? `${selectedCount} day${selectedCount !== 1 ? "s" : ""} selected${overrideCount > 0 ? ` — ${overrideCount} with custom hours` : ""}.`
               : "Select dates on the left calendar to see your schedule here."}
           </p>
-        </motion.div>
-      </motion.div>
+        </m.div>
+      </m.div>
     </div>
   );
 }

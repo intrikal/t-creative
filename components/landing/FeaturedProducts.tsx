@@ -10,7 +10,7 @@
 "use client";
 
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import { SectionWrapper } from "@/components/ui/SectionWrapper";
 
 // Static product catalog — each entry includes name, description, price, a Tailwind bg class
@@ -57,7 +57,7 @@ export function FeaturedProducts() {
   return (
     <SectionWrapper id="shop" className="py-32 md:py-48 px-6">
       <div className="mx-auto max-w-6xl">
-        <motion.div
+        <m.div
           className="mb-16 md:mb-20 flex items-end justify-between gap-4 flex-wrap"
           initial={{ opacity: 0, y: 30 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -80,14 +80,14 @@ export function FeaturedProducts() {
           >
             View All Products
           </Link>
-        </motion.div>
+        </m.div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
           {/* .map() over FEATURED to render product cards in a responsive grid (1→2→5 columns).
               Each card gets stagger delay (i * 0.08) and a whileHover y:-6 lift for tactile feel.
               Array approach keeps the animation timing DRY across all products. */}
           {FEATURED.map((product, i) => (
-            <motion.div
+            <m.div
               key={product.name}
               className="border border-foreground/8 flex flex-col transition-all duration-300 hover:border-foreground/20 hover:shadow-[0_8px_30px_-12px_rgba(0,0,0,0.12)]"
               initial={{ opacity: 0, y: 20 }}
@@ -115,7 +115,7 @@ export function FeaturedProducts() {
                   </Link>
                 </div>
               </div>
-            </motion.div>
+            </m.div>
           ))}
         </div>
       </div>

@@ -37,7 +37,7 @@
 // useEffect: React hook that runs side effects (like adding event listeners) after render.
 // useCallback: React hook that memoizes a function so it's not recreated every render.
 import { useState, useEffect, useCallback } from "react";
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import type { OnboardingForm } from "../OnboardingFlow";
 
 // interface: defines a TypeScript type contract — the shape an object must match.
@@ -100,7 +100,7 @@ export function StepPolicies({ form, onNext, stepNum }: StepProps) {
   return (
     <div className="space-y-4">
       {/* Step number + arrow header */}
-      <motion.div
+      <m.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
@@ -113,10 +113,10 @@ export function StepPolicies({ form, onNext, stepNum }: StepProps) {
           Policies &amp; agreements
         </h1>
         <p className="text-muted text-sm mt-2">Review the waiver on the right, then agree below.</p>
-      </motion.div>
+      </m.div>
 
       {/* Cancellation policy items — 3 compact items with inline bold titles */}
-      <motion.div
+      <m.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2, duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
@@ -142,7 +142,7 @@ export function StepPolicies({ form, onNext, stepNum }: StepProps) {
             desc: "A fee of up to 50% of the service cost may apply for missed appointments.",
           },
         ].map((item, i) => (
-          <motion.div
+          <m.div
             key={item.title}
             initial={{ opacity: 0, x: -12 }}
             animate={{ opacity: 1, x: 0 }}
@@ -151,12 +151,12 @@ export function StepPolicies({ form, onNext, stepNum }: StepProps) {
             <p className="text-xs text-muted leading-relaxed">
               <span className="font-bold text-foreground">{item.title}:</span> {item.desc}
             </p>
-          </motion.div>
+          </m.div>
         ))}
-      </motion.div>
+      </m.div>
 
       {/* Toggle A — waiver agreement */}
-      <motion.button
+      <m.button
         type="button"
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
@@ -191,7 +191,7 @@ export function StepPolicies({ form, onNext, stepNum }: StepProps) {
         {/* Animated checkmark — only renders when agreed.
             motion.svg animates the scale from 0 to 1 for a pop-in effect. */}
         {waiverAgreed && (
-          <motion.svg
+          <m.svg
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             width="16"
@@ -207,12 +207,12 @@ export function StepPolicies({ form, onNext, stepNum }: StepProps) {
               strokeLinecap="round"
               strokeLinejoin="round"
             />
-          </motion.svg>
+          </m.svg>
         )}
-      </motion.button>
+      </m.button>
 
       {/* Toggle B — cancellation agreement */}
-      <motion.button
+      <m.button
         type="button"
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
@@ -243,7 +243,7 @@ export function StepPolicies({ form, onNext, stepNum }: StepProps) {
         </span>
         <span className="text-sm text-foreground">I understand the cancellation policy</span>
         {cancellationAgreed && (
-          <motion.svg
+          <m.svg
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             width="16"
@@ -259,12 +259,12 @@ export function StepPolicies({ form, onNext, stepNum }: StepProps) {
               strokeLinecap="round"
               strokeLinejoin="round"
             />
-          </motion.svg>
+          </m.svg>
         )}
-      </motion.button>
+      </m.button>
 
       {/* OK button — disabled until BOTH agreements are checked */}
-      <motion.div
+      <m.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.6 }}
@@ -300,7 +300,7 @@ export function StepPolicies({ form, onNext, stepNum }: StepProps) {
             press <strong className="text-muted/70">Enter &crarr;</strong>
           </span>
         )}
-      </motion.div>
+      </m.div>
     </div>
   );
 }

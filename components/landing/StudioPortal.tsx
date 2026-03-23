@@ -21,7 +21,7 @@
 
 import { startTransition, Suspense, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import { motion, useScroll, useTransform, useMotionValueEvent } from "framer-motion";
+import { m, useScroll, useTransform, useMotionValueEvent } from "framer-motion";
 import { HeroFallback } from "@/components/three/HeroFallback";
 import { Button } from "@/components/ui/Button";
 import { ZONES } from "@/lib/zones";
@@ -145,60 +145,60 @@ export function StudioPortal() {
         {/* Conditional render: 3D canvas vs. static fallback based on device capability.
             Ternary rather than && because both branches need the same opacity wrapper. */}
         {use3D ? (
-          <motion.div style={{ opacity: canvasOpacity }} className="absolute inset-0">
+          <m.div style={{ opacity: canvasOpacity }} className="absolute inset-0">
             <Suspense fallback={<HeroFallback />}>
               <ScrollQuietRoom scrollProgress={scrollValue} />
             </Suspense>
-          </motion.div>
+          </m.div>
         ) : (
-          <motion.div style={{ opacity: canvasOpacity }} className="absolute inset-0">
+          <m.div style={{ opacity: canvasOpacity }} className="absolute inset-0">
             <HeroFallback />
-          </motion.div>
+          </m.div>
         )}
 
         {/* Intro overlay — fades out as camera enters */}
         {!isInStudio && (
-          <motion.div
+          <m.div
             style={{ opacity: introOpacity, y: introY }}
             className="absolute inset-0 flex flex-col items-center justify-center z-10 pointer-events-none"
           >
-            <motion.span
+            <m.span
               className="text-[10px] tracking-[0.3em] uppercase text-foreground/50 mb-6 block"
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8, delay: 0.3 }}
             >
               The Studio
-            </motion.span>
-            <motion.h2
+            </m.span>
+            <m.h2
               className="font-display text-5xl md:text-7xl font-light text-foreground/90 text-center leading-[1.1] mb-10"
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 1, delay: 0.5, ease: [0.16, 1, 0.3, 1] }}
             >
               Step inside.
-            </motion.h2>
+            </m.h2>
 
             {use3D ? (
-              <motion.div
+              <m.div
                 className="pointer-events-auto"
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.8, delay: 0.8 }}
               >
                 <Button onClick={enterStudio}>Enter the Studio</Button>
-              </motion.div>
+              </m.div>
             ) : (
-              <motion.p
+              <m.p
                 className="text-xs text-foreground/40 tracking-wide"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.8, delay: 0.8 }}
               >
                 3D studio available on desktop with motion enabled.
-              </motion.p>
+              </m.p>
             )}
-          </motion.div>
+          </m.div>
         )}
 
         {/* Conditional render: zone overlay text only shows when NOT in free-explore studio mode
@@ -212,7 +212,7 @@ export function StudioPortal() {
         )}
 
         {/* Scroll indicator */}
-        <motion.div
+        <m.div
           style={{
             opacity: useTransform(scrollYProgress, [0.3, 0.38, 0.48, 0.52], [0, 1, 1, 0]),
           }}
@@ -221,13 +221,13 @@ export function StudioPortal() {
           <span className="text-[9px] tracking-[0.3em] uppercase text-foreground/30">
             Scroll to explore
           </span>
-          <motion.div
+          <m.div
             className="w-px h-8 bg-foreground/20"
             animate={{ scaleY: [1, 0.4, 1] }}
             transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
             style={{ transformOrigin: "top" }}
           />
-        </motion.div>
+        </m.div>
       </div>
     </section>
   );
@@ -249,7 +249,7 @@ function ZoneOverlayText({ overlay }: { overlay: (typeof ZONE_OVERLAYS)[number] 
   const isLeft = overlay.enterFrom === "left";
 
   return (
-    <motion.div
+    <m.div
       className={`absolute z-20 ${
         isLeft ? "left-8 md:left-16" : "right-8 md:right-16"
       } top-1/2 -translate-y-1/2 max-w-sm`}
@@ -278,6 +278,6 @@ function ZoneOverlayText({ overlay }: { overlay: (typeof ZONE_OVERLAYS)[number] 
         <span className="nav-link-reveal pb-px">{overlay.cta.label}</span>
         <span className="transition-transform duration-200 group-hover:translate-x-1">→</span>
       </a>
-    </motion.div>
+    </m.div>
   );
 }

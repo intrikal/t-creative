@@ -50,7 +50,7 @@
  * - components/onboarding/OnboardingFlow.tsx — renders this as step 2
  */
 import { useState, useEffect, useCallback, useRef } from "react";
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import type { AssistantOnboardingForm } from "../OnboardingFlow";
 
 const SKILL_OPTIONS: {
@@ -192,7 +192,7 @@ export function StepRoleSkills({ form, onNext, stepNum }: StepProps) {
   return (
     <div className="space-y-4">
       {/* Header */}
-      <motion.div
+      <m.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
@@ -205,12 +205,12 @@ export function StepRoleSkills({ form, onNext, stepNum }: StepProps) {
           Tell us about your role
         </h1>
         <p className="text-muted text-sm mt-1">Your title, skills, and experience level.</p>
-      </motion.div>
+      </m.div>
 
       {/* Preferred title */}
       <form.Field name="preferredTitle">
         {(field) => (
-          <motion.div
+          <m.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1, duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
@@ -232,12 +232,12 @@ export function StepRoleSkills({ form, onNext, stepNum }: StepProps) {
               className="w-full max-w-[360px] px-0 py-1.5 text-base bg-transparent border-b-2 border-foreground/15
                 placeholder:text-muted/30 text-foreground focus:outline-none focus:border-accent transition-colors duration-200"
             />
-          </motion.div>
+          </m.div>
         )}
       </form.Field>
 
       {/* Skills */}
-      <motion.div
+      <m.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2, duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
@@ -249,7 +249,7 @@ export function StepRoleSkills({ form, onNext, stepNum }: StepProps) {
           {SKILL_OPTIONS.map((option, i) => {
             const isSelected = selectedSkills.includes(option.id);
             return (
-              <motion.button
+              <m.button
                 key={option.id}
                 type="button"
                 initial={{ opacity: 0, y: 8 }}
@@ -290,14 +290,14 @@ export function StepRoleSkills({ form, onNext, stepNum }: StepProps) {
                     />
                   </svg>
                 )}
-              </motion.button>
+              </m.button>
             );
           })}
         </div>
-      </motion.div>
+      </m.div>
 
       {/* Experience level — pills */}
-      <motion.div
+      <m.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.35, duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
@@ -337,12 +337,12 @@ export function StepRoleSkills({ form, onNext, stepNum }: StepProps) {
             </div>
           )}
         </form.Field>
-      </motion.div>
+      </m.div>
 
       {/* Bio */}
       <form.Field name="bio">
         {(field) => (
-          <motion.div
+          <m.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.45, duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
@@ -363,12 +363,12 @@ export function StepRoleSkills({ form, onNext, stepNum }: StepProps) {
               className="w-full max-w-[360px] px-0 py-1.5 text-sm bg-transparent border-b-2 border-foreground/15
                 placeholder:text-muted/30 text-foreground focus:outline-none focus:border-accent transition-colors duration-200"
             />
-          </motion.div>
+          </m.div>
         )}
       </form.Field>
 
       {/* Certifications */}
-      <motion.div
+      <m.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.5, duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
@@ -416,10 +416,10 @@ export function StepRoleSkills({ form, onNext, stepNum }: StepProps) {
             );
           })}
         </div>
-      </motion.div>
+      </m.div>
 
       {/* Work style — pills */}
-      <motion.div
+      <m.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.55, duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
@@ -453,10 +453,10 @@ export function StepRoleSkills({ form, onNext, stepNum }: StepProps) {
             </div>
           )}
         </form.Field>
-      </motion.div>
+      </m.div>
 
       {/* Training toggle */}
-      <motion.div
+      <m.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.6, duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
@@ -489,7 +489,7 @@ export function StepRoleSkills({ form, onNext, stepNum }: StepProps) {
         </button>
 
         {offersTraining && (
-          <motion.div
+          <m.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
             transition={{ duration: 0.25 }}
@@ -518,12 +518,12 @@ export function StepRoleSkills({ form, onNext, stepNum }: StepProps) {
                 );
               })}
             </div>
-          </motion.div>
+          </m.div>
         )}
-      </motion.div>
+      </m.div>
 
       {/* OK */}
-      <motion.div
+      <m.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.75 }}
@@ -559,7 +559,7 @@ export function StepRoleSkills({ form, onNext, stepNum }: StepProps) {
             press <strong className="text-muted/70">Enter &crarr;</strong>
           </span>
         )}
-      </motion.div>
+      </m.div>
     </div>
   );
 }

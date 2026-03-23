@@ -30,7 +30,7 @@
  * studio's four real Instagram accounts. They are not connected to the form.
  */
 import { useState } from "react";
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import { FaInstagram } from "react-icons/fa";
 import { LuX, LuCheckCheck, LuTable, LuLink, LuCopy, LuCheck } from "react-icons/lu";
 import { fadeUp, stagger } from "./shared";
@@ -126,24 +126,24 @@ export function PanelAdminWelcome() {
 
   return (
     <div className="flex flex-col justify-center h-full px-6 py-4 overflow-y-auto">
-      <motion.div
+      <m.div
         variants={stagger}
         initial="hidden"
         animate="show"
         className="w-full max-w-[400px] space-y-3"
       >
         {/* Header — compact, no logo */}
-        <motion.div variants={fadeUp}>
+        <m.div variants={fadeUp}>
           <p className="text-[11px] font-semibold text-accent uppercase tracking-[0.15em] mb-0.5">
             Built for T Creative Studio
           </p>
           <h2 className="text-xl font-semibold text-foreground leading-tight">
             No more DMs. No more spreadsheets.
           </h2>
-        </motion.div>
+        </m.div>
 
         {/* Before — multi-account chaos */}
-        <motion.div variants={fadeUp} className="space-y-1.5">
+        <m.div variants={fadeUp} className="space-y-1.5">
           <div className="flex items-center gap-1.5">
             <FaInstagram className="w-3 h-3 text-pink-400" />
             <span className="text-[10px] font-semibold text-foreground/40 uppercase tracking-wider">
@@ -212,10 +212,10 @@ export function PanelAdminWelcome() {
               </span>
             </div>
           </div>
-        </motion.div>
+        </m.div>
 
         {/* Divider */}
-        <motion.div variants={fadeUp} className="flex items-center gap-3">
+        <m.div variants={fadeUp} className="flex items-center gap-3">
           <div className="flex-1 h-px bg-foreground/8" />
           <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
             <LuCheckCheck className="w-3 h-3 text-emerald-500" />
@@ -224,10 +224,10 @@ export function PanelAdminWelcome() {
             </span>
           </div>
           <div className="flex-1 h-px bg-foreground/8" />
-        </motion.div>
+        </m.div>
 
         {/* Booking link — interactive */}
-        <motion.div
+        <m.div
           variants={fadeUp}
           className="rounded-2xl bg-surface border border-foreground/8 overflow-hidden"
         >
@@ -296,8 +296,8 @@ export function PanelAdminWelcome() {
               <span className="text-[11px] text-accent font-medium">{BOOKING_LINK}</span>
             </div>
           </div>
-        </motion.div>
-      </motion.div>
+        </m.div>
+      </m.div>
     </div>
   );
 }

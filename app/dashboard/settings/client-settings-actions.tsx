@@ -44,15 +44,15 @@ import {
   waitlist,
   wishlistItems,
 } from "@/db/schema";
+import type { NotifChannel, NotifType } from "@/db/schema";
 import { DataDeletionConfirmation } from "@/emails/DataDeletionConfirmation";
 import { logAction } from "@/lib/audit";
 import { getUser } from "@/lib/auth";
+import { env } from "@/lib/env";
 import {
   getNotificationPreferences,
   setNotificationPreference,
 } from "@/lib/notification-preferences";
-import type { NotifChannel, NotifType } from "@/db/schema";
-import { env } from "@/lib/env";
 import { trackEvent } from "@/lib/posthog";
 import { redis } from "@/lib/redis";
 import { isResendConfigured, sendEmail } from "@/lib/resend";
@@ -72,6 +72,8 @@ export type ClientProfile = {
   email: string;
   phone: string;
   allergies: string;
+  birthday: string;
+  preferredContactMethod: string;
 };
 
 export type ClientNotifications = {
@@ -169,6 +171,8 @@ export async function getClientSettings(): Promise<ClientSettingsData> {
         email: row?.email ?? "",
         phone: row?.phone ?? "",
         allergies,
+        birthday: prefRow?.birthday ?? "",
+        preferredContactMethod: prefRow?.preferredContactMethod ?? "",
       },
       notifications: await getClientNotificationPrefs(),
       preferences: prefRow
@@ -274,6 +278,193 @@ export async function saveClientProfile(data: {
   } catch (err) {
     Sentry.captureException(err);
     throw err;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  My Profile mutation (name, phone, email, birthday, contact pref)  */
+/* ------------------------------------------------------------------ */
+
+/**
+ * E.164 phone format: optional +, 1–15 digits.
+ * Accepts empty string (phone is optional).
+ */
+const E164_REGEX = /^\+?[1-9]\d{1,14}$/;
+
+const updateClientProfileSchema = z.object({
+  firstName: z.string().min(1, "First name is required"),
+  lastName: z.string().min(1, "Last name is required"),
+  phone: z
+    .string()
+    .transform((v) => v.replace(/[\s\-().]/g, ""))
+    .refine((v) => v === "" || E164_REGEX.test(v), {
+      message: "Phone must be a valid number (e.g. +12125551234)",
+    }),
+  email: z.string().email("Enter a valid email address"),
+  birthday: z
+    .string()
+    .refine((v) => v === "" || /^\d{4}-\d{2}-\d{2}$/.test(v), {
+      message: "Birthday must be a valid date (YYYY-MM-DD)",
+    })
+    .nullable(),
+  preferredContactMethod: z.enum(["", "text", "email", "instagram DM", "phone call"]).nullable(),
+});
+
+export type UpdateClientProfileInput = z.infer<typeof updateClientProfileSchema>;
+
+export type UpdateClientProfileResult =
+  | { success: true; emailChangePending: boolean }
+  | { success: false; error: string };
+
+/**
+ * Update the client's My Profile section: name, phone, email, birthday,
+ * and preferred contact method.
+ *
+ * ## Email change flow
+ * Email is special — `profiles.email` must stay in sync with `auth.users.email`.
+ * When the email changes we call `supabase.auth.updateUser({ email: newEmail })`
+ * which sends a confirmation link to the new address. Supabase updates
+ * `auth.users.email` only after the user clicks the link (and fires the
+ * USER_UPDATED auth event). We do NOT write the new email to `profiles.email`
+ * here — it is updated via the auth webhook / callback once confirmed.
+ * The caller receives `{ emailChangePending: true }` so the UI can show a
+ * "Check your inbox" banner.
+ *
+ * ## Phone change
+ * Phone is updated immediately. We validate E.164 format so downstream
+ * systems (Twilio SMS) can use it without further normalisation.
+ *
+ * ## RLS enforcement
+ * `getUser()` throws if not authenticated. The WHERE clause on every
+ * write is `eq(profiles.id, user.id)` — equivalent to RLS
+ * `auth.uid() = profile_id`, enforced in application code.
+ *
+ * ## Audit log
+ * Every call appends a row to `audit_log` with action="update",
+ * entityType="profile", and a before/after diff in `metadata`.
+ *
+ * ## Square sync
+ * If `squareCustomerId` is set and Square is configured, the customer
+ * record is updated to match the new name and phone.
+ */
+export async function updateClientProfile(
+  data: UpdateClientProfileInput,
+): Promise<UpdateClientProfileResult> {
+  try {
+    const parsed = updateClientProfileSchema.safeParse(data);
+    if (!parsed.success) {
+      return { success: false, error: parsed.error.errors[0]?.message ?? "Invalid input" };
+    }
+
+    const { firstName, lastName, phone, email, birthday, preferredContactMethod } = parsed.data;
+
+    const user = await getUser();
+
+    // Fetch current profile to diff and to get squareCustomerId
+    const [current] = await db
+      .select({
+        firstName: profiles.firstName,
+        lastName: profiles.lastName,
+        email: profiles.email,
+        phone: profiles.phone,
+        squareCustomerId: profiles.squareCustomerId,
+      })
+      .from(profiles)
+      .where(eq(profiles.id, user.id))
+      .limit(1);
+
+    if (!current) throw new Error("Profile not found");
+
+    const emailChanged = email.toLowerCase() !== current.email.toLowerCase();
+    let emailChangePending = false;
+
+    // ── Email change: trigger Supabase auth flow, do NOT write to profiles ──
+    if (emailChanged) {
+      const supabase = await createClient();
+      const { error: authError } = await supabase.auth.updateUser({ email });
+      if (authError) {
+        return { success: false, error: authError.message };
+      }
+      emailChangePending = true;
+      // profiles.email is intentionally NOT updated here — it will be updated
+      // once the user confirms the new address via the Supabase auth webhook.
+    }
+
+    // ── Write name, phone to profiles ─────────────────────────────────────
+    await db
+      .update(profiles)
+      .set({
+        firstName,
+        lastName,
+        phone: phone || null,
+      })
+      .where(eq(profiles.id, user.id));
+
+    // ── Write birthday + preferredContactMethod to client_preferences ──────
+    await db
+      .insert(clientPreferences)
+      .values({
+        profileId: user.id,
+        birthday: birthday || null,
+        preferredContactMethod: preferredContactMethod || null,
+      })
+      .onConflictDoUpdate({
+        target: clientPreferences.profileId,
+        set: {
+          birthday: birthday || null,
+          preferredContactMethod: preferredContactMethod || null,
+        },
+      });
+
+    // ── Audit log ─────────────────────────────────────────────────────────
+    await logAction({
+      actorId: user.id,
+      action: "update",
+      entityType: "profile",
+      entityId: user.id,
+      description: "Client updated their profile",
+      metadata: {
+        before: {
+          firstName: current.firstName,
+          lastName: current.lastName,
+          phone: current.phone,
+          email: current.email,
+        },
+        after: {
+          firstName,
+          lastName,
+          phone: phone || null,
+          // Record the intended new email; actual profiles.email only changes post-confirm
+          email: emailChanged ? `${email} (pending confirmation)` : email,
+        },
+        emailChangePending,
+      },
+    });
+
+    // ── Square customer sync (best-effort) ────────────────────────────────
+    if (current.squareCustomerId && isSquareConfigured()) {
+      try {
+        await squareClient.customers.update({
+          customerId: current.squareCustomerId,
+          givenName: firstName,
+          familyName: lastName || undefined,
+          phoneNumber: phone || undefined,
+        });
+      } catch (squareErr) {
+        // Non-fatal — local profile is already updated
+        Sentry.captureException(squareErr);
+      }
+    }
+
+    trackEvent(user.id, "client_profile_updated", { emailChangePending });
+
+    revalidatePath(PATH);
+
+    return { success: true, emailChangePending };
+  } catch (err) {
+    Sentry.captureException(err);
+    if (err instanceof Error) return { success: false, error: err.message };
+    return { success: false, error: "An unexpected error occurred" };
   }
 }
 
@@ -651,7 +842,13 @@ export async function deleteClientAccount() {
 /* ------------------------------------------------------------------ */
 
 const VALID_CHANNELS = ["email", "sms", "push"] as const;
-const VALID_TYPES = ["booking_reminder", "review_request", "fill_reminder", "birthday_promo", "marketing"] as const;
+const VALID_TYPES = [
+  "booking_reminder",
+  "review_request",
+  "fill_reminder",
+  "birthday_promo",
+  "marketing",
+] as const;
 
 /**
  * Load all notification preferences for the current client.
@@ -673,9 +870,7 @@ export async function getClientNotificationPrefs(): Promise<Record<string, boole
  * Save granular notification preferences from the settings UI.
  * Input is a Record keyed by `${channel}:${type}` → enabled.
  */
-export async function saveNotificationPreferences(
-  prefs: Record<string, boolean>,
-): Promise<void> {
+export async function saveNotificationPreferences(prefs: Record<string, boolean>): Promise<void> {
   try {
     const user = await getUser();
 

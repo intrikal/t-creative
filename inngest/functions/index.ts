@@ -16,3 +16,4 @@ export { birthdayPromos } from "./birthday-promos";
 export { instagramSync } from "./instagram-sync";
 export { catalogSync } from "./catalog-sync";
 export { refreshViews } from "./refresh-views";
+export { squareWebhook } from "./square-webhook";

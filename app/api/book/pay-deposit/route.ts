@@ -29,6 +29,7 @@ import { db } from "@/db";
 import { bookings, bookingAddOns, payments, profiles, services, syncLog } from "@/db/schema";
 import { logAction } from "@/lib/audit";
 import { rruleToCadenceLabel } from "@/lib/cadence";
+import { withRequestLogger } from "@/lib/middleware/request-logger";
 import { trackEvent } from "@/lib/posthog";
 import { isResendConfigured, sendEmailHtml } from "@/lib/resend";
 import { isSquareConfigured, createSquarePayment } from "@/lib/square";
@@ -53,7 +54,7 @@ const schema = z.object({
   turnstileToken: z.string().optional(),
 });
 
-export async function POST(request: Request) {
+export const POST = withRequestLogger(async function POST(request: Request) {
   if (!isSquareConfigured()) {
     return NextResponse.json({ error: "Payments not configured" }, { status: 503 });
   }
@@ -330,4 +331,4 @@ export async function POST(request: Request) {
   }
 
   return NextResponse.json({ success: true, bookingId });
-}
+});

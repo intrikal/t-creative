@@ -18,6 +18,7 @@ import { getPublicBusinessProfile } from "@/app/dashboard/settings/settings-acti
 import { db } from "@/db";
 import { bookings, profiles, services } from "@/db/schema";
 import { verifyCalendarToken } from "@/lib/calendar-token";
+import { withRequestLogger } from "@/lib/middleware/request-logger";
 import { SITE_DOMAIN, SITE_SLUG } from "@/lib/site-config";
 
 /* ------------------------------------------------------------------ */
@@ -75,10 +76,8 @@ interface IcsEvent {
 /*  Route handler                                                       */
 /* ------------------------------------------------------------------ */
 
-export async function GET(
-  request: Request,
-  { params }: { params: Promise<{ profileId: string }> },
-) {
+export const GET = withRequestLogger(async function GET(request: Request, context?: unknown) {
+  const { params } = context as { params: Promise<{ profileId: string }> };
   const { profileId } = await params;
   const { searchParams } = new URL(request.url);
   const token = searchParams.get("token") ?? "";
@@ -180,4 +179,4 @@ export async function GET(
       "Cache-Control": "no-store",
     },
   });
-}
+});

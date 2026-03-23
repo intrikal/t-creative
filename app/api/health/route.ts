@@ -32,6 +32,7 @@
 
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
+import { withRequestLogger } from "@/lib/middleware/request-logger";
 import { redis } from "@/lib/redis";
 import { squareClient, isSquareConfigured } from "@/lib/square";
 
@@ -111,7 +112,7 @@ async function checkSquare(): Promise<{ status: "pass" | "fail" | "skipped" }> {
 /*  Route handler                                                      */
 /* ------------------------------------------------------------------ */
 
-export async function GET() {
+export const GET = withRequestLogger(async function GET(request: Request) {
   const [database, redisCheck, square] = await Promise.all([
     checkDatabase(),
     checkRedis(),
@@ -144,4 +145,4 @@ export async function GET() {
       },
     },
   );
-}
+});

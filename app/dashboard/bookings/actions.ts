@@ -85,6 +85,7 @@ import { PaymentLinkEmail } from "@/emails/PaymentLinkEmail";
 import { RecurringBookingConfirmation } from "@/emails/RecurringBookingConfirmation";
 import { logAction } from "@/lib/audit";
 import { requireAdmin, requireStaff } from "@/lib/auth";
+import logger from "@/lib/logger";
 import { trackEvent } from "@/lib/posthog";
 import { getEmailRecipient, sendEmail } from "@/lib/resend";
 import {
@@ -638,6 +639,11 @@ export async function updateBookingStatus(
       await trySendBookingStatusEmail(id, "cancelled", cancellationReason, refundResult);
       await tryNotifyWaitlist(id);
 
+      logger.info(
+        { action: "cancelBooking", bookingId: id, reason: cancellationReason ?? null },
+        "booking cancelled",
+      );
+
       trackEvent(id.toString(), "booking_cancelled", {
         bookingId: id,
         reason: cancellationReason ?? null,
@@ -664,6 +670,16 @@ export async function updateBookingStatus(
           .where(eq(bookings.id, id))
           .limit(1);
         if (completedRow) {
+          logger.info(
+            {
+              action: "completeBooking",
+              bookingId: id,
+              clientId: completedRow.clientId,
+              durationMinutes: completedRow.durationMinutes,
+              totalInCents: completedRow.totalInCents,
+            },
+            "booking completed",
+          );
           trackEvent(completedRow.clientId, "booking_completed", {
             bookingId: id,
             durationMinutes: completedRow.durationMinutes,
@@ -705,6 +721,8 @@ export async function updateBookingStatus(
     if (status === "no_show") {
       await tryEnforceNoShowFee(id);
       await trySendBookingStatusEmail(id, "no_show");
+
+      logger.info({ action: "markNoShow", bookingId: id }, "booking marked no-show");
 
       trackEvent(id.toString(), "no_show_marked", {
         bookingId: id,
@@ -870,6 +888,17 @@ export async function createBooking(input: BookingInput): Promise<ActionResult<v
 
     // Auto-send deposit payment link if the service requires one
     await tryAutoSendDepositLink(newBooking.id);
+
+    logger.info(
+      {
+        action: "createBooking",
+        bookingId: newBooking.id,
+        clientId: input.clientId,
+        serviceId: input.serviceId,
+        staffId: input.staffId ?? null,
+      },
+      "booking created",
+    );
 
     trackEvent(input.clientId, "booking_requested", {
       bookingId: newBooking.id,

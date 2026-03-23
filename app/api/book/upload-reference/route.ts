@@ -11,9 +11,10 @@
  *
  * Limits: images only, max 8 MB, max filename length enforced.
  */
-import * as Sentry from "@sentry/nextjs";
 import { NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { withRequestLogger } from "@/lib/middleware/request-logger";
 
 const BUCKET = "media";
 const MAX_SIZE_BYTES = 8 * 1024 * 1024; // 8 MB
@@ -28,7 +29,7 @@ function getAdminClient() {
   return createClient(url, key, { auth: { persistSession: false } });
 }
 
-export async function POST(request: Request) {
+export const POST = withRequestLogger(async function POST(request: Request) {
   let formData: FormData;
   try {
     formData = await request.formData();
@@ -78,4 +79,4 @@ export async function POST(request: Request) {
   } = supabase.storage.from(BUCKET).getPublicUrl(path);
 
   return NextResponse.json({ url: publicUrl });
-}
+});

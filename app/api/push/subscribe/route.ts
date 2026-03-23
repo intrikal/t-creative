@@ -11,6 +11,7 @@ import { z } from "zod";
 import { db } from "@/db";
 import { pushSubscriptions } from "@/db/schema";
 import { getUser } from "@/lib/auth";
+import { withRequestLogger } from "@/lib/middleware/request-logger";
 
 const subscribeSchema = z.object({
   endpoint: z.string().url(),
@@ -25,7 +26,7 @@ const unsubscribeSchema = z.object({
   endpoint: z.string().url(),
 });
 
-export async function POST(request: Request) {
+export const POST = withRequestLogger(async function POST(request: Request) {
   try {
     const user = await getUser();
     const body = await request.json();
@@ -42,10 +43,7 @@ export async function POST(request: Request) {
       .select({ id: pushSubscriptions.id })
       .from(pushSubscriptions)
       .where(
-        and(
-          eq(pushSubscriptions.profileId, user.id),
-          eq(pushSubscriptions.endpoint, endpoint),
-        ),
+        and(eq(pushSubscriptions.profileId, user.id), eq(pushSubscriptions.endpoint, endpoint)),
       )
       .limit(1);
 
@@ -72,9 +70,9 @@ export async function POST(request: Request) {
   } catch {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-}
+});
 
-export async function DELETE(request: Request) {
+export const DELETE = withRequestLogger(async function DELETE(request: Request) {
   try {
     const user = await getUser();
     const body = await request.json();
@@ -97,4 +95,4 @@ export async function DELETE(request: Request) {
   } catch {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-}
+});

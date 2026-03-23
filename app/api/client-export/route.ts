@@ -37,9 +37,10 @@ import {
   services,
 } from "@/db/schema";
 import { logAction } from "@/lib/audit";
+import { withRequestLogger } from "@/lib/middleware/request-logger";
 import { createClient } from "@/utils/supabase/server";
 
-export async function GET() {
+export const GET = withRequestLogger(async function GET(request: Request) {
   /* -- Auth: authenticated client only -- */
   const supabase = await createClient();
   const {
@@ -310,4 +311,4 @@ export async function GET() {
     Sentry.captureException(err, { extra: { context: "[client-export] Failed" } });
     return NextResponse.json({ error: "Export failed" }, { status: 500 });
   }
-}
+});

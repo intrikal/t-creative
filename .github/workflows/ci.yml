@@ -256,10 +256,49 @@ jobs:
         run: npm run build
 
       - name: Run Lighthouse CI
+        id: lighthouse
         uses: treosh/lighthouse-ci-action@v12
         with:
           configPath: ./lighthouserc.json
           uploadArtifacts: true
+
+      - name: Post Lighthouse scores as PR comment
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const results = ${{ steps.lighthouse.outputs.manifest }};
+            if (!results || results.length === 0) return;
+
+            const rows = results.map(({ url, summary }) => {
+              const score = (key) => summary[key] != null ? `${Math.round(summary[key] * 100)}` : 'N/A';
+              const icon  = (key, threshold) => {
+                const v = summary[key];
+                return v == null ? '—' : v >= threshold ? '✅' : '❌';
+              };
+              return [
+                `| \`${url}\``,
+                `${icon('performance', 0.9)} ${score('performance')}`,
+                `${icon('accessibility', 0.95)} ${score('accessibility')}`,
+                `${icon('best-practices', 0.95)} ${score('best-practices')}`,
+                `${icon('seo', 0.95)} ${score('seo')} |`,
+              ].join(' | ');
+            }).join('\n');
+
+            const body = [
+              '## Lighthouse CI Results',
+              '',
+              '| URL | Perf ≥90 | A11y ≥95 | Best ≥95 | SEO ≥95 |',
+              '|-----|----------|----------|----------|---------|',
+              rows,
+            ].join('\n');
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body,
+            });
 
   # ─────────────────────────────────────────────────────────────────────────────
   # Job 7: Database Migration Check (runs in parallel with other jobs)

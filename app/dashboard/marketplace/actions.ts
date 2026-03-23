@@ -19,7 +19,7 @@ import {
   getPublicInventoryConfig,
 } from "@/app/dashboard/settings/settings-actions";
 import { db } from "@/db";
-import { products, orders, supplies, profiles } from "@/db/schema";
+import { products, orders, supplies, profiles, inventoryAdjustments } from "@/db/schema";
 import { CommissionQuote } from "@/emails/CommissionQuote";
 import { OrderStatusUpdate } from "@/emails/OrderStatusUpdate";
 import { requireAdmin } from "@/lib/auth";
@@ -537,12 +537,18 @@ export async function toggleProductStatus(id: number) {
  * Increment or decrement stock by `delta`. Clamps to zero — negative
  * inventory is never allowed. Automatically flips availability to
  * "out_of_stock" when count hits 0, and back to "in_stock" otherwise.
+ * Logs every adjustment to `inventory_adjustments` for audit trail.
  */
-export async function adjustProductStock(id: number, delta: number) {
+export async function adjustProductStock(
+  id: number,
+  delta: number,
+  reason: "sale" | "restock" | "damage" | "correction" | "return" = "correction",
+  notes?: string,
+) {
   try {
     z.number().int().positive().parse(id);
     z.number().int().parse(delta);
-    await getUser();
+    const user = await getUser();
 
     const [row] = await db
       .select({ stockCount: products.stockCount })
@@ -559,9 +565,122 @@ export async function adjustProductStock(id: number, delta: number) {
           updatedAt: new Date(),
         })
         .where(eq(products.id, id));
+
+      // Log the adjustment for audit trail
+      await db.insert(inventoryAdjustments).values({
+        productId: id,
+        quantityDelta: delta,
+        quantityAfter: newStock,
+        reason,
+        notes: notes ?? undefined,
+        actorId: user.id,
+      });
     }
 
     revalidatePath(PATH);
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Inventory reports                                                  */
+/* ------------------------------------------------------------------ */
+
+export type InventoryReport = {
+  totalValue: number;
+  totalRetailValue: number;
+  totalProducts: number;
+  lowStockCount: number;
+  outOfStockCount: number;
+  topSellers: { id: number; title: string; sold: number; revenue: number }[];
+  reorderList: {
+    id: number;
+    title: string;
+    sku: string | null;
+    stockCount: number;
+    reorderQuantity: number;
+  }[];
+};
+
+export async function getInventoryReport(): Promise<InventoryReport> {
+  try {
+    await getUser();
+
+    const [productRows, salesRows] = await Promise.all([
+      db
+        .select({
+          id: products.id,
+          title: products.title,
+          sku: products.sku,
+          stockCount: products.stockCount,
+          costInCents: products.costInCents,
+          priceInCents: products.priceInCents,
+          lowStockThreshold: products.lowStockThreshold,
+          reorderQuantity: products.reorderQuantity,
+          availability: products.availability,
+        })
+        .from(products)
+        .where(eq(products.isPublished, true)),
+      db
+        .select({
+          productId: orders.productId,
+          sold: sql<number>`count(*)`,
+          revenue: sql<number>`coalesce(sum(${orders.finalInCents}), 0)`,
+        })
+        .from(orders)
+        .where(eq(orders.status, "completed"))
+        .groupBy(orders.productId),
+    ]);
+
+    const salesMap = new Map(
+      salesRows
+        .filter((r) => r.productId)
+        .map((r) => [r.productId!, { sold: Number(r.sold), revenue: Number(r.revenue) }]),
+    );
+
+    const totalValue = productRows.reduce((sum, p) => sum + (p.costInCents ?? 0) * p.stockCount, 0);
+    const totalRetailValue = productRows.reduce(
+      (sum, p) => sum + (p.priceInCents ?? 0) * p.stockCount,
+      0,
+    );
+    const lowStockCount = productRows.filter(
+      (p) => p.stockCount > 0 && p.stockCount <= p.lowStockThreshold,
+    ).length;
+    const outOfStockCount = productRows.filter((p) => p.availability === "out_of_stock").length;
+
+    const topSellers = productRows
+      .map((p) => ({
+        id: p.id,
+        title: p.title,
+        sold: salesMap.get(p.id)?.sold ?? 0,
+        revenue: Math.round((salesMap.get(p.id)?.revenue ?? 0) / 100),
+      }))
+      .filter((p) => p.sold > 0)
+      .sort((a, b) => b.sold - a.sold)
+      .slice(0, 10);
+
+    const reorderList = productRows
+      .filter((p) => p.stockCount <= p.lowStockThreshold)
+      .map((p) => ({
+        id: p.id,
+        title: p.title,
+        sku: p.sku,
+        stockCount: p.stockCount,
+        reorderQuantity: p.reorderQuantity,
+      }))
+      .sort((a, b) => a.stockCount - b.stockCount);
+
+    return {
+      totalValue: Math.round(totalValue / 100),
+      totalRetailValue: Math.round(totalRetailValue / 100),
+      totalProducts: productRows.length,
+      lowStockCount,
+      outOfStockCount,
+      topSellers,
+      reorderList,
+    };
   } catch (err) {
     Sentry.captureException(err);
     throw err;

@@ -13,9 +13,11 @@ import {
   payments,
   bookings,
   orders,
+  products,
   profiles,
   syncLog,
   loyaltyTransactions,
+  inventoryAdjustments,
 } from "@/db/schema";
 import { LoyaltyPointsAwarded } from "@/emails/LoyaltyPointsAwarded";
 import { PaymentReceipt } from "@/emails/PaymentReceipt";
@@ -31,7 +33,9 @@ import { mapTenderType } from "./types";
 /*  payment.completed                                                  */
 /* ------------------------------------------------------------------ */
 
-export async function handlePaymentCompleted(data: PaymentCreatedEventData | undefined): Promise<string> {
+export async function handlePaymentCompleted(
+  data: PaymentCreatedEventData | undefined,
+): Promise<string> {
   const squarePayment = data?.object?.payment as SquareWebhookPayment | undefined;
   if (!squarePayment?.id) return "No payment ID in event";
 
@@ -260,6 +264,43 @@ export async function handlePaymentCompleted(data: PaymentCreatedEventData | und
       });
     }
 
+    // Decrement inventory for product sale (SELECT FOR UPDATE prevents overselling)
+    if (productOrder.productId) {
+      try {
+        const quantity = productOrder.quantity ?? 1;
+        await db.transaction(async (tx) => {
+          const [row] = await tx
+            .select({ stockCount: products.stockCount })
+            .from(products)
+            .where(eq(products.id, productOrder.productId!))
+            .for("update");
+
+          if (row) {
+            const newStock = Math.max(0, row.stockCount - quantity);
+            await tx
+              .update(products)
+              .set({
+                stockCount: newStock,
+                availability: newStock === 0 ? "out_of_stock" : "in_stock",
+              })
+              .where(eq(products.id, productOrder.productId!));
+
+            await tx.insert(inventoryAdjustments).values({
+              productId: productOrder.productId!,
+              quantityDelta: -quantity,
+              quantityAfter: newStock,
+              reason: "sale",
+              notes: `Square order ${squareOrderId}`,
+              actorId: null,
+            });
+          }
+        });
+      } catch (invErr) {
+        // Non-fatal — don't block payment processing
+        Sentry.captureException(invErr);
+      }
+    }
+
     await logAction({
       actorId: null,
       action: "create",
@@ -310,7 +351,13 @@ export async function handlePaymentCompleted(data: PaymentCreatedEventData | und
         entityType: "payment",
         entityId: squarePaymentId,
         description: `Payment matched to client via Square customer ID — needs booking link`,
-        metadata: { squarePaymentId, squareOrderId, squareCustomerId, clientId: clientProfile.id, amountCents },
+        metadata: {
+          squarePaymentId,
+          squareOrderId,
+          squareCustomerId,
+          clientId: clientProfile.id,
+          amountCents,
+        },
       });
 
       return `Matched payment to client ${clientProfile.id} via Square customer ID — needs booking link`;
@@ -324,8 +371,14 @@ export async function handlePaymentCompleted(data: PaymentCreatedEventData | und
     status: "skipped",
     entityType: "payment",
     remoteId: squarePaymentId,
-    message: "Payment received but no matching booking, order, or customer found — needs manual linking",
-    payload: { squarePaymentId, squareOrderId, squareCustomerId: squareCustomerId ?? null, amount: squarePayment.amountMoney },
+    message:
+      "Payment received but no matching booking, order, or customer found — needs manual linking",
+    payload: {
+      squarePaymentId,
+      squareOrderId,
+      squareCustomerId: squareCustomerId ?? null,
+      amount: squarePayment.amountMoney,
+    },
   });
 
   return "No matching booking, order, or customer — logged for manual linking";
@@ -335,7 +388,9 @@ export async function handlePaymentCompleted(data: PaymentCreatedEventData | und
 /*  payment.updated                                                    */
 /* ------------------------------------------------------------------ */
 
-export async function handlePaymentUpdated(data: PaymentUpdatedEventData | undefined): Promise<string> {
+export async function handlePaymentUpdated(
+  data: PaymentUpdatedEventData | undefined,
+): Promise<string> {
   const squarePayment = data?.object?.payment as SquareWebhookPayment | undefined;
   if (!squarePayment?.id) return "No payment ID in event";
 
@@ -415,9 +470,7 @@ async function fetchSquareOrderWithRetry(squareOrderId: string): Promise<{
   return { metadataMissing: true };
 }
 
-async function findBookingByOrder(
-  squareOrderId: string | null,
-): Promise<{
+async function findBookingByOrder(squareOrderId: string | null): Promise<{
   id: number;
   clientId: string;
   squareOrderType?: string;
@@ -468,6 +521,8 @@ async function findBookingByOrder(
 async function findProductOrderBySquareOrder(squareOrderId: string | null): Promise<{
   id: number;
   clientId: string;
+  productId: number | null;
+  quantity: number;
   fulfillmentMethod: string | null;
   easypostShipmentId: string | null;
 } | null> {
@@ -477,6 +532,8 @@ async function findProductOrderBySquareOrder(squareOrderId: string | null): Prom
     .select({
       id: orders.id,
       clientId: orders.clientId,
+      productId: orders.productId,
+      quantity: orders.quantity,
       fulfillmentMethod: orders.fulfillmentMethod,
       easypostShipmentId: orders.easypostShipmentId,
     })

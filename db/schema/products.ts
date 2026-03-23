@@ -12,9 +12,10 @@
  * Dashboard metrics (Total Products, Low Stock, Featured, Revenue,
  * Conversion Rate) are aggregated from this table + product_orders.
  */
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import {
   boolean,
+  check,
   index,
   integer,
   pgTable,
@@ -60,6 +61,8 @@ export const products = pgTable(
 
     title: varchar("title", { length: 300 }).notNull(),
     slug: varchar("slug", { length: 300 }).notNull().unique(),
+    /** Unique stock-keeping unit identifier (e.g. "CRCH-BLK-001"). */
+    sku: varchar("sku", { length: 100 }).unique(),
     description: text("description"),
 
     productType: productTypeEnum("product_type").notNull(),
@@ -75,6 +78,9 @@ export const products = pgTable(
 
     /** Fixed price in cents. Used when pricingType is "fixed_price". */
     priceInCents: integer("price_in_cents"),
+
+    /** Cost of goods in cents — used for margin calculations and inventory valuation. */
+    costInCents: integer("cost_in_cents"),
 
     /** Lower bound in cents. Used when pricingType is "price_range". */
     priceMinInCents: integer("price_min_in_cents"),
@@ -92,6 +98,9 @@ export const products = pgTable(
 
     /** Threshold below which this product appears in "Low Stock Items". */
     lowStockThreshold: integer("low_stock_threshold").notNull().default(3),
+
+    /** How many units to reorder when stock is low. */
+    reorderQuantity: integer("reorder_quantity").notNull().default(10),
 
     /** Comma-separated tags for search/filtering (e.g. "baby, blanket, custom"). */
     tags: text("tags"),
@@ -139,8 +148,60 @@ export const products = pgTable(
     index("products_published_idx").on(t.isPublished),
     index("products_published_sort_idx").on(t.isPublished, t.sortOrder),
     index("products_square_id_idx").on(t.squareCatalogId),
+    index("products_sku_idx").on(t.sku),
+    check("stock_count_nonneg", sql`stock_count >= 0`),
   ],
 );
+
+/* ------------------------------------------------------------------ */
+/*  Inventory Adjustments (audit log for stock changes)                */
+/* ------------------------------------------------------------------ */
+
+/** Reason for an inventory change — drives reporting and audit trail. */
+export const inventoryAdjustmentReasonEnum = pgEnum("inventory_adjustment_reason", [
+  "sale",
+  "restock",
+  "damage",
+  "correction",
+  "return",
+]);
+
+/**
+ * Every stock change is logged here so admins can trace what happened
+ * to inventory over time. The `quantityDelta` is signed: positive for
+ * restocks/returns, negative for sales/damage/corrections.
+ */
+export const inventoryAdjustments = pgTable(
+  "inventory_adjustments",
+  {
+    id: serial("id").primaryKey(),
+    productId: integer("product_id")
+      .notNull()
+      .references(() => products.id, { onDelete: "cascade" }),
+    /** Signed delta: +5 (restock), -1 (sale), -2 (damage). */
+    quantityDelta: integer("quantity_delta").notNull(),
+    /** Stock count after this adjustment was applied. */
+    quantityAfter: integer("quantity_after").notNull(),
+    reason: inventoryAdjustmentReasonEnum("reason").notNull(),
+    /** Free-text note (e.g. "Damaged in shipping", "Square order #ABC"). */
+    notes: text("notes"),
+    /** Who made the adjustment — null for system (webhook). */
+    actorId: varchar("actor_id", { length: 100 }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("inv_adj_product_idx").on(t.productId),
+    index("inv_adj_created_idx").on(t.createdAt),
+    index("inv_adj_reason_idx").on(t.reason),
+  ],
+);
+
+export const inventoryAdjustmentsRelations = relations(inventoryAdjustments, ({ one }) => ({
+  product: one(products, {
+    fields: [inventoryAdjustments.productId],
+    references: [products.id],
+  }),
+}));
 
 /* ------------------------------------------------------------------ */
 /*  Product Images (gallery)                                           */

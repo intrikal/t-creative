@@ -30,6 +30,7 @@ import {
 } from "@/db/schema";
 import { logAction } from "@/lib/audit";
 import { requireAdmin } from "@/lib/auth";
+import { trackEvent } from "@/lib/posthog";
 import {
   isSquareConfigured,
   createSquareSubscriptionPlan,
@@ -371,6 +372,12 @@ export async function createMembership(input: CreateMembershipInput): Promise<{ 
         // Non-fatal — membership works without Square auto-billing
       }
     }
+
+    trackEvent(input.clientId, "membership_enrolled", {
+      planId: input.planId,
+      planName: plan.name,
+      priceInCents: plan.priceInCents,
+    });
 
     revalidatePath("/dashboard/bookings");
     revalidatePath("/dashboard/memberships");

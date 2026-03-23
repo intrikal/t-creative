@@ -23,6 +23,7 @@ import { LoyaltyPointsAwarded } from "@/emails/LoyaltyPointsAwarded";
 import { PaymentReceipt } from "@/emails/PaymentReceipt";
 import { logAction } from "@/lib/audit";
 import { buyShippingLabel, isEasyPostConfigured } from "@/lib/easypost";
+import { trackEvent } from "@/lib/posthog";
 import { sendEmail } from "@/lib/resend";
 import { squareClient, isSquareConfigured } from "@/lib/square";
 import { recordZohoBooksPayment } from "@/lib/zoho-books";
@@ -163,6 +164,12 @@ export async function handlePaymentCompleted(
       entityId: String(booking.id),
       description: `Payment auto-linked to booking #${booking.id}${isDeposit ? " (deposit)" : ""} via Square webhook`,
       metadata: { squarePaymentId, squareOrderId, amountCents, method, bookingId: booking.id },
+    });
+
+    trackEvent(booking.clientId, "payment_completed", {
+      bookingId: booking.id,
+      amountInCents: amountCents,
+      method,
     });
 
     return `Auto-linked payment to booking #${booking.id}${isDeposit ? " (deposit)" : ""}`;

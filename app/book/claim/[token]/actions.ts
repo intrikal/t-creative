@@ -15,9 +15,9 @@
  */
 "use server";
 
-import { z } from "zod";
 import * as Sentry from "@sentry/nextjs";
 import { eq } from "drizzle-orm";
+import { z } from "zod";
 
 const claimTokenSchema = z.string().min(1).max(255);
 import { db } from "@/db";
@@ -61,6 +61,7 @@ export async function claimWaitlistSlot(token: string): Promise<ClaimResult> {
         claimTokenExpiresAt: waitlist.claimTokenExpiresAt,
         offeredSlotStartsAt: waitlist.offeredSlotStartsAt,
         offeredStaffId: waitlist.offeredStaffId,
+        createdAt: waitlist.createdAt,
       })
       .from(waitlist)
       .where(eq(waitlist.claimToken, token))
@@ -135,10 +136,13 @@ export async function claimWaitlistSlot(token: string): Promise<ClaimResult> {
       .where(eq(waitlist.id, entry.id));
 
     // 5. Audit + analytics
-    trackEvent(entry.clientId, "waitlist_slot_claimed", {
+    trackEvent(entry.clientId, "waitlist_converted", {
       waitlistId: entry.id,
       bookingId: newBooking.id,
       serviceId: entry.serviceId,
+      waitTime: entry.createdAt
+        ? Math.round((Date.now() - entry.createdAt.getTime()) / 86_400_000)
+        : null,
     });
 
     await logAction({

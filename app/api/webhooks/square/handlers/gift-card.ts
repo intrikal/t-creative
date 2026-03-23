@@ -10,6 +10,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { giftCards, giftCardTransactions } from "@/db/schema";
 import { logAction } from "@/lib/audit";
+import { trackEvent } from "@/lib/posthog";
 import { getSquareGiftCardBalance } from "@/lib/square";
 
 /**
@@ -86,6 +87,13 @@ export async function handleGiftCardActivity(
       balanceAfterInCents: newBalance,
       notes: `Synced from Square POS (${activityType ?? "unknown"})`,
     });
+
+    if (txType === "redemption") {
+      trackEvent(`gift_card:${localCard.id}`, "gift_card_redeemed", {
+        amountInCents: balanceDelta,
+        remainingBalance: newBalance,
+      });
+    }
   }
 
   await logAction({

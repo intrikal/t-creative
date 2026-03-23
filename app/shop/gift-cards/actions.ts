@@ -9,15 +9,19 @@
  */
 "use server";
 
-import { z } from "zod";
 import { desc, eq } from "drizzle-orm";
+import { z } from "zod";
+import {
+  getPublicBusinessProfile,
+  getPublicInventoryConfig,
+} from "@/app/dashboard/settings/settings-actions";
 import { db } from "@/db";
 import { giftCards, giftCardTransactions, profiles, syncLog } from "@/db/schema";
 import { GiftCardDelivery } from "@/emails/GiftCardDelivery";
 import { GiftCardPurchase } from "@/emails/GiftCardPurchase";
 import { getUser } from "@/lib/auth";
+import { trackEvent } from "@/lib/posthog";
 import { sendEmail } from "@/lib/resend";
-import { getPublicBusinessProfile, getPublicInventoryConfig } from "@/app/dashboard/settings/settings-actions";
 import {
   isSquareConfigured,
   squareClient,
@@ -77,8 +81,6 @@ export async function purchaseGiftCard(
   // Fallback: custom sequential code if Square is not configured.
   let code: string;
   let squareGiftCardId: string | null = null;
-  let newCard!: { id: number };
-
   if (isSquareConfigured()) {
     const squareCard = await createSquareGiftCard({
       amountInCents,
@@ -97,7 +99,9 @@ export async function purchaseGiftCard(
         .limit(1);
 
       if (clientProfile?.squareCustomerId) {
-        linkGiftCardToCustomer(squareCard.squareGiftCardId, clientProfile.squareCustomerId).catch(() => {});
+        linkGiftCardToCustomer(squareCard.squareGiftCardId, clientProfile.squareCustomerId).catch(
+          () => {},
+        );
       }
     } else {
       // Square failed — fall back to custom code
@@ -151,7 +155,7 @@ export async function purchaseGiftCard(
 
     return [card];
   });
-  newCard = inserted;
+  const newCard = inserted;
 
   // Create Square payment link (non-fatal if Square not configured)
   let paymentUrl: string | undefined;
@@ -252,6 +256,11 @@ export async function purchaseGiftCard(
   } catch {
     // Non-fatal
   }
+
+  trackEvent(user.id, "gift_card_purchased", {
+    amountInCents,
+    isGift: !!recipientName,
+  });
 
   return { success: true, giftCardCode: code, paymentUrl };
 }

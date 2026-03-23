@@ -584,7 +584,12 @@ export async function saveOnboardingData(
         .from(profiles)
         .where(eq(profiles.referralCode, codeToLookup.toUpperCase()))
         .limit(1);
-      if (referrer) referredBy = referrer.id;
+      if (referrer) {
+        referredBy = referrer.id;
+        trackEvent(user.id, "referral_code_used", {
+          referrerId: referrer.id,
+        });
+      }
     }
 
     // Run profile update + all loyalty point credits in one transaction so
@@ -766,12 +771,18 @@ export async function saveOnboardingData(
       }
     }
 
+    trackEvent(user.id, "client_signup_completed", {
+      source,
+      referralCode: referral.referrerCode?.trim() || null,
+    });
+
     trackEvent(user.id, "onboarding_completed", {
       role: "client",
       interests,
       source,
       hasReferral: !!referredBy,
       hasBirthday: !!birthday?.trim(),
+      referralCode,
     });
 
     // Zoho CRM: enrich contact with full onboarding data

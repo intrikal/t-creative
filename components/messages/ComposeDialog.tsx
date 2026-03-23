@@ -102,6 +102,7 @@ function ComposeForm({
                 {c.firstName} {c.lastName}
                 <button
                   onClick={() => removeContact(c.id)}
+                  aria-label={`Remove ${c.firstName} ${c.lastName}`}
                   className="hover:text-destructive transition-colors"
                 >
                   <X className="w-3 h-3" />

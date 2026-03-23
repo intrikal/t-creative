@@ -2,6 +2,7 @@
  * Contact — Server Component route wrapper with metadata.
  */
 import type { Metadata } from "next";
+import { SITE_URL } from "@/lib/site-config";
 import { getSiteData } from "@/lib/site-data";
 import { ContactPage } from "./ContactPage";
 
@@ -25,15 +26,52 @@ export const metadata: Metadata = {
   },
 };
 
+function buildContactJsonLd(business: {
+  businessName: string;
+  email: string;
+  phone: string;
+  location: string;
+}) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "ContactPage",
+    name: `Contact ${business.businessName}`,
+    url: `${SITE_URL}/contact`,
+    mainEntity: {
+      "@type": "LocalBusiness",
+      name: business.businessName,
+      url: SITE_URL,
+      ...(business.email && { email: business.email }),
+      ...(business.phone && { telephone: business.phone }),
+      ...(business.location && {
+        address: {
+          "@type": "PostalAddress",
+          addressLocality: business.location,
+          addressRegion: "CA",
+          addressCountry: "US",
+        },
+      }),
+    },
+  };
+}
+
 export default async function Page() {
   const { business, content } = await getSiteData();
   return (
-    <ContactPage
-      businessName={business.businessName}
-      location={business.location}
-      email={business.email}
-      footerTagline={content.footerTagline}
-      socialLinks={content.socialLinks}
-    />
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(buildContactJsonLd(business)),
+        }}
+      />
+      <ContactPage
+        businessName={business.businessName}
+        location={business.location}
+        email={business.email}
+        footerTagline={content.footerTagline}
+        socialLinks={content.socialLinks}
+      />
+    </>
   );
 }

@@ -8,7 +8,7 @@ export const metadata: Metadata = {
   title: "Client Reviews — T Creative Studio",
   description:
     "Read reviews from real clients about lash extensions, permanent jewelry, and more at T Creative Studio.",
-  alternates: { canonical: `${SITE_URL}/testimonials` },
+  alternates: { canonical: "/testimonials" },
   robots: { index: true, follow: true },
 };
 

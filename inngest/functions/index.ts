@@ -18,3 +18,4 @@ export { catalogSync } from "./catalog-sync";
 export { refreshViews } from "./refresh-views";
 export { squareWebhook } from "./square-webhook";
 export { emailQueueDrain } from "./email-queue-drain";
+export { lowStockAlert } from "./low-stock-alert";

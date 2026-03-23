@@ -101,10 +101,13 @@ export {
   productTypeEnum,
   pricingTypeEnum,
   productAvailabilityEnum,
+  inventoryAdjustmentReasonEnum,
   products,
   productImages,
+  inventoryAdjustments,
   productsRelations,
   productImagesRelations,
+  inventoryAdjustmentsRelations,
 } from "./products";
 
 /* Orders (marketplace + custom commissions) */

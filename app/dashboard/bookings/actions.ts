@@ -634,6 +634,33 @@ export async function updateBookingStatus(
       await trySendBookingStatusEmail(id, "completed");
       await generateNextRecurringBooking(id);
       await tryCreditReferrer(id);
+
+      // Auto-enroll in email sequences (non-fatal)
+      try {
+        const { autoEnrollClient } = await import("@/app/dashboard/sequences/actions");
+        const [completedBooking] = await db
+          .select({ clientId: bookings.clientId })
+          .from(bookings)
+          .where(eq(bookings.id, id))
+          .limit(1);
+        if (completedBooking) {
+          // Check if this is the client's first completed booking
+          const [{ count }] = await db
+            .select({ count: sql<number>`count(*)` })
+            .from(bookings)
+            .where(
+              and(
+                eq(bookings.clientId, completedBooking.clientId),
+                eq(bookings.status, "completed"),
+              ),
+            );
+          if (Number(count) === 1) {
+            await autoEnrollClient(completedBooking.clientId, "first_booking_completed");
+          }
+        }
+      } catch {
+        // Non-fatal
+      }
     }
 
     if (status === "no_show") {

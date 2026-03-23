@@ -1,0 +1,32 @@
+name: Backup Database
+
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Reason for triggering backup (e.g. pre-deploy, pre-migration)"
+        required: false
+        default: "Manual backup"
+
+jobs:
+  backup:
+    name: Backup Production Database
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pg_dump (postgresql-client)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends postgresql-client
+
+      - name: Run backup script
+        env:
+          DIRECT_URL: ${{ secrets.DIRECT_URL }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: bash scripts/backup-db.sh
+
+      - name: Log reason
+        run: echo "Backup triggered — reason: ${{ github.event.inputs.reason }}"

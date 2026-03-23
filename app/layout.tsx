@@ -112,6 +112,10 @@ export default async function RootLayout({
 
   return (
     <html lang="en" className={`${geistSans.variable} ${cormorant.variable}`}>
+      <head>
+        <link rel="preconnect" href="https://ftautvgyauxyzxxznife.supabase.co" />
+        <link rel="dns-prefetch" href="https://ftautvgyauxyzxxznife.supabase.co" />
+      </head>
       <body className="bg-background text-foreground font-sans antialiased">
         <script
           type="application/ld+json"

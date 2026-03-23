@@ -20,25 +20,46 @@
  * Server Component — all sections are client components imported here.
  */
 
+import dynamic from "next/dynamic";
 import { and, avg, count, countDistinct, desc, eq, gte, sql } from "drizzle-orm";
 import type { Metadata } from "next";
 import { ChatWidgetLoader } from "@/components/chat/ChatWidgetLoader";
 import { CallToAction } from "@/components/landing/CallToAction";
-import { EditorialPortfolio } from "@/components/landing/EditorialPortfolio";
 import { Events } from "@/components/landing/Events";
 import { FAQ } from "@/components/landing/FAQ";
-import { FeaturedProducts } from "@/components/landing/FeaturedProducts";
 import { Footer } from "@/components/landing/Footer";
 import { Hero } from "@/components/landing/Hero";
 import { HowItWorks } from "@/components/landing/HowItWorks";
-import { InstagramFeed } from "@/components/landing/InstagramFeed";
 import { Services } from "@/components/landing/Services";
 import { Stats } from "@/components/landing/Stats";
 import { StickyMobileCTA } from "@/components/landing/StickyMobileCTA";
 import { StudioDiorama } from "@/components/landing/StudioDiorama";
-import { Testimonials } from "@/components/landing/Testimonials";
-import { TrainingTeaser } from "@/components/landing/TrainingTeaser";
 import { TrustBar } from "@/components/landing/TrustBar";
+
+function SectionSkeleton() {
+  return <div className="w-full animate-pulse bg-warm-cream/40" style={{ minHeight: "20rem" }} />;
+}
+
+const EditorialPortfolio = dynamic(
+  () => import("@/components/landing/EditorialPortfolio").then((m) => m.EditorialPortfolio),
+  { loading: () => <SectionSkeleton />, ssr: false },
+);
+const InstagramFeed = dynamic(
+  () => import("@/components/landing/InstagramFeed").then((m) => m.InstagramFeed),
+  { loading: () => <SectionSkeleton />, ssr: false },
+);
+const Testimonials = dynamic(
+  () => import("@/components/landing/Testimonials").then((m) => m.Testimonials),
+  { loading: () => <SectionSkeleton />, ssr: false },
+);
+const TrainingTeaser = dynamic(
+  () => import("@/components/landing/TrainingTeaser").then((m) => m.TrainingTeaser),
+  { loading: () => <SectionSkeleton />, ssr: false },
+);
+const FeaturedProducts = dynamic(
+  () => import("@/components/landing/FeaturedProducts").then((m) => m.FeaturedProducts),
+  { loading: () => <SectionSkeleton />, ssr: false },
+);
 import { db } from "@/db";
 import { bookings, instagramPosts, profiles, reviews, services } from "@/db/schema";
 import { getFeaturedReviews } from "@/lib/public-reviews";

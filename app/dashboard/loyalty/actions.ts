@@ -30,6 +30,7 @@ import {
   loyaltyRedemptions,
 } from "@/db/schema";
 import { getUser } from "@/lib/auth";
+import { trackEvent } from "@/lib/posthog";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -134,9 +135,7 @@ export async function redeemPoints(input: { rewardId: number }): Promise<void> {
     // Advisory lock on the profile prevents two concurrent redemptions from
     // reading the same balance and both succeeding (double-spend).
     await db.transaction(async (tx) => {
-      await tx.execute(
-        sql`SELECT pg_advisory_xact_lock(hashtext(${user.id}))`,
-      );
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${user.id}))`);
 
       const [pointsRow] = await tx
         .select({ total: sum(loyaltyTransactions.points) })
@@ -167,6 +166,11 @@ export async function redeemPoints(input: { rewardId: number }): Promise<void> {
         transactionId: txRow.id,
         status: "pending",
       });
+    });
+
+    trackEvent(user.id, "loyalty_reward_redeemed", {
+      rewardId: input.rewardId,
+      pointsCost: reward.pointsCost,
     });
 
     revalidatePath("/dashboard/loyalty");
@@ -316,9 +320,9 @@ export async function getClientLoyaltyData(): Promise<LoyaltyPageData> {
       [memRow],
       rewardRows,
       pendingRows,
-    // Run all 7 independent queries in parallel via Promise.all to minimise
-    // total latency. Each query hits a different table/index so there is no
-    // contention. Sequential execution would be ~7x slower on a cold connection.
+      // Run all 7 independent queries in parallel via Promise.all to minimise
+      // total latency. Each query hits a different table/index so there is no
+      // contention. Sequential execution would be ~7x slower on a cold connection.
     ] = await Promise.all([
       // Profile
       db
@@ -345,10 +349,7 @@ export async function getClientLoyaltyData(): Promise<LoyaltyPageData> {
         .orderBy(desc(loyaltyTransactions.createdAt))
         .limit(20),
       // Referral count (always query — cheap COUNT)
-      db
-        .select({ n: count() })
-        .from(profiles)
-        .where(eq(profiles.referredBy, user.id)),
+      db.select({ n: count() }).from(profiles).where(eq(profiles.referredBy, user.id)),
       // Active membership
       db
         .select({

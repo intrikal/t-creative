@@ -598,7 +598,8 @@ export async function updateBookingStatus(
       // ─── Query: fetch booking details needed for Square order creation ───
       // SELECT: fetches squareOrderId (to check if an order already exists),
       //   serviceId (to look up the service name for the order line item),
-      //   and totalInCents (the charge amount) from the "bookings" table.
+      //   totalInCents (the charge amount), and createdAt (for minutesSinceRequest)
+      //   from the "bookings" table.
       // FROM: the "bookings" table.
       // WHERE:
       //   - id = the booking being confirmed — targets this exact booking.
@@ -608,6 +609,7 @@ export async function updateBookingStatus(
           squareOrderId: bookings.squareOrderId,
           serviceId: bookings.serviceId,
           totalInCents: bookings.totalInCents,
+          createdAt: bookings.createdAt,
         })
         .from(bookings)
         .where(and(eq(bookings.id, id), isNull(bookings.deletedAt)));
@@ -621,6 +623,13 @@ export async function updateBookingStatus(
 
       // Auto-send deposit payment link if the service requires one
       await tryAutoSendDepositLink(id);
+
+      trackEvent(id.toString(), "booking_confirmed", {
+        bookingId: id,
+        minutesSinceRequest: booking?.createdAt
+          ? Math.round((Date.now() - booking.createdAt.getTime()) / 60_000)
+          : null,
+      });
     }
 
     if (status === "cancelled") {
@@ -628,12 +637,42 @@ export async function updateBookingStatus(
       await tryEnforceLateCancelFee(id);
       await trySendBookingStatusEmail(id, "cancelled", cancellationReason, refundResult);
       await tryNotifyWaitlist(id);
+
+      trackEvent(id.toString(), "booking_cancelled", {
+        bookingId: id,
+        reason: cancellationReason ?? null,
+        hoursBeforeAppointment: refundResult
+          ? Math.round(refundResult.hoursUntilAppointment)
+          : null,
+        refundAmountInCents: refundResult?.refundAmountInCents ?? 0,
+      });
     }
 
     if (status === "completed") {
       await trySendBookingStatusEmail(id, "completed");
       await generateNextRecurringBooking(id);
       await tryCreditReferrer(id);
+
+      try {
+        const [completedRow] = await db
+          .select({
+            durationMinutes: bookings.durationMinutes,
+            totalInCents: bookings.totalInCents,
+            clientId: bookings.clientId,
+          })
+          .from(bookings)
+          .where(eq(bookings.id, id))
+          .limit(1);
+        if (completedRow) {
+          trackEvent(completedRow.clientId, "booking_completed", {
+            bookingId: id,
+            durationMinutes: completedRow.durationMinutes,
+            totalInCents: completedRow.totalInCents,
+          });
+        }
+      } catch {
+        // Non-fatal
+      }
 
       // Auto-enroll in email sequences (non-fatal)
       try {
@@ -666,6 +705,10 @@ export async function updateBookingStatus(
     if (status === "no_show") {
       await tryEnforceNoShowFee(id);
       await trySendBookingStatusEmail(id, "no_show");
+
+      trackEvent(id.toString(), "no_show_marked", {
+        bookingId: id,
+      });
     }
 
     trackEvent(id.toString(), "booking_status_changed", {
@@ -828,11 +871,12 @@ export async function createBooking(input: BookingInput): Promise<ActionResult<v
     // Auto-send deposit payment link if the service requires one
     await tryAutoSendDepositLink(newBooking.id);
 
-    trackEvent(input.clientId, "booking_created", {
+    trackEvent(input.clientId, "booking_requested", {
       bookingId: newBooking.id,
       serviceId: input.serviceId,
+      staffId: input.staffId ?? null,
       totalInCents: input.totalInCents,
-      location: input.location ?? null,
+      source: "dashboard",
     });
 
     await logAction({

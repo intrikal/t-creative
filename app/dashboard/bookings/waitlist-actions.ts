@@ -8,7 +8,7 @@
 
 import { revalidatePath } from "next/cache";
 import * as Sentry from "@sentry/nextjs";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, count } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { z } from "zod";
 import { getPublicBusinessProfile } from "@/app/dashboard/settings/settings-actions";
@@ -106,7 +106,7 @@ const waitlistInputSchema = z.object({
 export async function addToWaitlist(input: WaitlistInput): Promise<void> {
   try {
     waitlistInputSchema.parse(input);
-    const user = await getUser();
+    await getUser();
 
     await db.insert(waitlist).values({
       clientId: input.clientId,
@@ -117,9 +117,14 @@ export async function addToWaitlist(input: WaitlistInput): Promise<void> {
       notes: input.notes ?? null,
     });
 
-    trackEvent(user.id, "waitlist_added", {
-      clientId: input.clientId,
+    const [{ value: waitlistPosition }] = await db
+      .select({ value: count() })
+      .from(waitlist)
+      .where(eq(waitlist.serviceId, input.serviceId));
+
+    trackEvent(input.clientId, "waitlist_joined", {
       serviceId: input.serviceId,
+      position: Number(waitlistPosition),
     });
 
     revalidatePath("/dashboard/bookings");

@@ -2,6 +2,7 @@
 
 import { defaultCache } from "@serwist/next/worker";
 import type { PrecacheEntry, SerwistGlobalConfig } from "serwist";
+import { StaleWhileRevalidate, CacheFirst, ExpirationPlugin } from "serwist";
 import { Serwist } from "serwist";
 
 declare global {
@@ -18,12 +19,86 @@ interface SyncEvent extends ExtendableEvent {
   readonly lastChance: boolean;
 }
 
+/* ------------------------------------------------------------------ */
+/*  Runtime cache strategies                                           */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Public pages — stale-while-revalidate.
+ * Serves the cached page instantly, fetches fresh HTML in background.
+ * Excludes /dashboard and all /api routes (handled separately or not cached).
+ * Max age 24 hours so stale content doesn't linger too long.
+ */
+const publicPageCache = {
+  matcher: ({ request, url }: { request: Request; url: URL }) => {
+    if (request.mode !== "navigate") return false;
+    const p = url.pathname;
+    // Never cache dashboard or auth routes
+    if (p.startsWith("/dashboard") || p.startsWith("/auth") || p.startsWith("/login")) return false;
+    return true;
+  },
+  handler: new StaleWhileRevalidate({
+    cacheName: "tc-pages",
+    plugins: [
+      new ExpirationPlugin({
+        maxEntries: 32,
+        maxAgeSeconds: 60 * 60 * 24, // 24 hours
+      }),
+    ],
+  }),
+};
+
+/**
+ * /api/calendar/[profileId] — stale-while-revalidate.
+ * The iCal feed URL contains an HMAC token so it's safe to cache per-URL.
+ * Serves the cached .ics instantly, fetches fresh data in background.
+ * Max age 15 minutes — calendar data changes often enough to stay fresh.
+ */
+const calendarApiCache = {
+  matcher: ({ url }: { url: URL }) => url.pathname.startsWith("/api/calendar/"),
+  handler: new StaleWhileRevalidate({
+    cacheName: "tc-calendar-api",
+    plugins: [
+      new ExpirationPlugin({
+        maxEntries: 8,
+        maxAgeSeconds: 60 * 15, // 15 minutes
+      }),
+    ],
+  }),
+};
+
+/**
+ * Static assets (images, fonts, icons) — cache-first.
+ * These change only on deploy (content-hashed filenames) so aggressive
+ * caching is safe. Serwist's defaultCache already handles _next/static;
+ * this covers /icons/, /images/, and other public assets.
+ */
+const staticAssetCache = {
+  matcher: ({ url }: { url: URL }) =>
+    url.pathname.startsWith("/icons/") || url.pathname.startsWith("/images/"),
+  handler: new CacheFirst({
+    cacheName: "tc-static-assets",
+    plugins: [
+      new ExpirationPlugin({
+        maxEntries: 64,
+        maxAgeSeconds: 60 * 60 * 24 * 30, // 30 days
+      }),
+    ],
+  }),
+};
+
 const serwist = new Serwist({
   precacheEntries: self.__SW_MANIFEST,
   skipWaiting: true,
   clientsClaim: true,
   navigationPreload: true,
-  runtimeCaching: defaultCache,
+  runtimeCaching: [
+    // Order matters: more specific rules first, defaultCache last.
+    calendarApiCache,
+    staticAssetCache,
+    publicPageCache,
+    ...defaultCache,
+  ],
   fallbacks: {
     entries: [
       {

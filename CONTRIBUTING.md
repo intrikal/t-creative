@@ -78,6 +78,94 @@ Husky + lint-staged run automatically on commit:
 - Canvas loaded via `next/dynamic` with `ssr: false`
 - Support `prefers-reduced-motion` (snap instead of lerp)
 
+## Manual Workflows (GitHub Actions)
+
+Some workflows are `workflow_dispatch` only — they never run automatically and
+must be triggered manually before a deploy or migration.
+
+### Setup: authenticate the GitHub CLI
+
+```bash
+gh auth login
+# Choose: GitHub.com → HTTPS → Login with a web browser
+```
+
+Verify it worked:
+
+```bash
+gh auth status
+```
+
+### Trigger the database backup
+
+```bash
+gh workflow run backup-db.yml \
+  --repo <org>/<repo> \
+  --field reason="pre-deploy backup"
+```
+
+Check the run status:
+
+```bash
+gh run list --workflow=backup-db.yml --limit 5
+```
+
+Then confirm the backup file appears in the `db-backups` Supabase Storage bucket
+before proceeding with any migration or deploy.
+
+### Required repository secrets
+
+The backup workflow reads these from **Settings → Secrets and variables → Actions**:
+
+| Secret                      | Description                                   |
+| --------------------------- | --------------------------------------------- |
+| `DIRECT_URL`                | Direct Postgres connection string (port 5432) |
+| `NEXT_PUBLIC_SUPABASE_URL`  | Supabase project URL                          |
+| `SUPABASE_SERVICE_ROLE_KEY` | Service-role key (storage admin access)       |
+
+---
+
+## Database Migration Checklist
+
+Follow this sequence for every schema migration in production:
+
+1. **Run the backup script**
+
+   ```bash
+   DIRECT_URL=... NEXT_PUBLIC_SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... \
+     ./scripts/backup-db.sh
+   ```
+
+2. **Verify the backup exists** — confirm the new `backup-YYYY-MM-DD-HHmmss.sql.gz`
+   appears in the `db-backups` Supabase Storage bucket before proceeding.
+
+3. **Run the migration**
+
+   ```bash
+   npx drizzle-kit migrate
+   ```
+
+4. **Verify the health check passes**
+
+   ```bash
+   curl --fail https://<your-domain>/api/health
+   ```
+
+   The endpoint must return HTTP 200. Inspect logs if it does not.
+
+5. **If the health check fails — run the rollback script**
+   ```bash
+   DIRECT_URL=... SENTRY_DSN=... \
+     ./scripts/rollback-migration.sh <migration-name>
+   # Example:
+   DIRECT_URL=... SENTRY_DSN=... \
+     ./scripts/rollback-migration.sh 0051_polite_silver_surfer
+   ```
+   The script calls `drizzle-kit drop` and logs the event to Sentry automatically.
+
+> **Tip:** The backup step can also be triggered manually via GitHub Actions —
+> see the **Backup Database** workflow (`workflow_dispatch`) in the Actions tab.
+
 ## Testing
 
 Tests use Vitest + React Testing Library. Priority test targets:

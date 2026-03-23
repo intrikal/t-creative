@@ -20,10 +20,10 @@ import { useState, useCallback } from "react";
 import { Turnstile } from "@marsidev/react-turnstile";
 import { useForm } from "@tanstack/react-form";
 import { motion } from "framer-motion";
-import { z } from "zod";
-import { env } from "@/lib/env";
 import { FaInstagram, FaLinkedinIn } from "react-icons/fa";
+import { z } from "zod";
 import { Footer } from "@/components/landing/Footer";
+import { env } from "@/lib/env";
 import { socials as defaultSocials } from "@/lib/socials";
 import { submitContactForm } from "./actions";
 
@@ -116,7 +116,7 @@ export function ContactPage({
       const result = contactSchema.safeParse(value);
       if (!result.success) return;
 
-      await submitContactForm({ ...result.data, turnstileToken });
+      await submitContactForm({ ...result.data, recaptchaToken: turnstileToken });
       setSubmitted(true);
     },
   });

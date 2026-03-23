@@ -4,7 +4,7 @@
 "use client";
 
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import { Footer } from "@/components/landing/Footer";
 import type { PublicService } from "./actions";
 
@@ -302,23 +302,23 @@ export function ServicesPage({
         {/* Hero */}
         <section className="py-24 md:py-32 px-6">
           <div className="mx-auto max-w-5xl text-center">
-            <motion.span
+            <m.span
               className="text-xs tracking-widest uppercase text-muted mb-6 block"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6 }}
             >
               Our Services
-            </motion.span>
-            <motion.h1
+            </m.span>
+            <m.h1
               className="text-4xl md:text-6xl font-light tracking-tight text-foreground mb-6"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.1 }}
             >
               Handcrafted services in San Jose.
-            </motion.h1>
-            <motion.p
+            </m.h1>
+            <m.p
               className="text-base md:text-lg text-muted max-w-xl mx-auto"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -326,7 +326,7 @@ export function ServicesPage({
             >
               From lash extensions to permanent jewelry, handcrafted pieces, and business consulting
               — every service is crafted with intention and care.
-            </motion.p>
+            </m.p>
           </div>
         </section>
 
@@ -337,7 +337,7 @@ export function ServicesPage({
             className={`py-16 md:py-24 px-6 ${ci % 2 === 1 ? "bg-surface" : ""}`}
           >
             <div className="mx-auto max-w-5xl">
-              <motion.div
+              <m.div
                 className="flex items-start gap-4 mb-4"
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
@@ -359,13 +359,13 @@ export function ServicesPage({
                     <p className="text-xs text-muted mb-8 max-w-xl">{category.note}</p>
                   )}
                 </div>
-              </motion.div>
+              </m.div>
 
               {!category.note && <div className="mb-12" />}
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {category.services.map((service, i) => (
-                  <motion.div
+                  <m.div
                     key={service.name}
                     className="border border-foreground/8 p-6 flex flex-col gap-3 hover:border-foreground/20 transition-colors duration-200"
                     initial={{ opacity: 0, y: 20 }}
@@ -383,7 +383,7 @@ export function ServicesPage({
                         <span className="text-xs text-muted">{service.duration}</span>
                       )}
                     </div>
-                  </motion.div>
+                  </m.div>
                 ))}
               </div>
             </div>
@@ -392,7 +392,7 @@ export function ServicesPage({
 
         {/* CTA */}
         <section className="py-24 md:py-32 px-6 bg-foreground text-background text-center">
-          <motion.div
+          <m.div
             className="mx-auto max-w-xl"
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -418,7 +418,7 @@ export function ServicesPage({
                 New Client Inquiry
               </Link>
             </div>
-          </motion.div>
+          </m.div>
         </section>
       </main>
       <Footer

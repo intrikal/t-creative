@@ -31,7 +31,7 @@
  * - components/onboarding/OnboardingFlow.tsx       — renders this step with OAuth props
  */
 import { useEffect, useCallback, useRef } from "react";
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import { LuLock, LuMail } from "react-icons/lu";
 import type { OnboardingForm } from "../OnboardingFlow";
 
@@ -73,7 +73,7 @@ export function StepContact({ form, onNext, stepNum, avatarUrl, googleName }: St
   return (
     <div className="space-y-5">
       {/* Step header */}
-      <motion.div
+      <m.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
@@ -86,10 +86,10 @@ export function StepContact({ form, onNext, stepNum, avatarUrl, googleName }: St
           How can we reach you?
         </h1>
         <p className="text-muted text-sm mt-2">For booking confirmations and reminders.</p>
-      </motion.div>
+      </m.div>
 
       {/* Identity chip — avatar + locked email, same pattern as admin/assistant steps */}
-      <motion.div
+      <m.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.08, duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
@@ -120,7 +120,7 @@ export function StepContact({ form, onNext, stepNum, avatarUrl, googleName }: St
             <LuLock className="w-2.5 h-2.5 text-muted/25 shrink-0" />
           </div>
         )}
-      </motion.div>
+      </m.div>
 
       {/* Phone input with auto-formatting */}
       <form.Field name="phone">
@@ -129,7 +129,7 @@ export function StepContact({ form, onNext, stepNum, avatarUrl, googleName }: St
           const displayValue = rawDigits.length > 0 ? formatPhone(rawDigits) : "";
 
           return (
-            <motion.div
+            <m.div
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2, duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
@@ -163,13 +163,13 @@ export function StepContact({ form, onNext, stepNum, avatarUrl, googleName }: St
                   focus:outline-none focus:border-accent
                   transition-colors duration-200"
               />
-            </motion.div>
+            </m.div>
           );
         }}
       </form.Field>
 
       {/* OK — always enabled since email is pre-filled from OAuth */}
-      <motion.div
+      <m.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.35 }}
@@ -194,7 +194,7 @@ export function StepContact({ form, onNext, stepNum, avatarUrl, googleName }: St
         <span className="text-xs text-muted/50">
           press <strong className="text-muted/70">Enter &crarr;</strong>
         </span>
-      </motion.div>
+      </m.div>
     </div>
   );
 }

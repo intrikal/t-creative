@@ -36,7 +36,7 @@
  * - components/onboarding/OnboardingFlow.tsx — renders this as step 5
  */
 import { useEffect, useCallback, useRef } from "react";
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import type { AssistantOnboardingForm } from "../OnboardingFlow";
 
 interface StepProps {
@@ -69,7 +69,7 @@ export function StepAssistantPortfolio({ form, onNext, stepNum }: StepProps) {
   return (
     <div className="space-y-4">
       {/* Header */}
-      <motion.div
+      <m.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
@@ -84,12 +84,12 @@ export function StepAssistantPortfolio({ form, onNext, stepNum }: StepProps) {
         <p className="text-muted text-sm mt-1">
           Where can clients and students find your work? All fields are optional.
         </p>
-      </motion.div>
+      </m.div>
 
       {/* Portfolio Instagram */}
       <form.Field name="portfolioInstagram">
         {(field) => (
-          <motion.div
+          <m.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1, duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
@@ -117,14 +117,14 @@ export function StepAssistantPortfolio({ form, onNext, stepNum }: StepProps) {
                   placeholder:text-muted/30 text-foreground focus:outline-none focus:border-accent transition-colors duration-200"
               />
             </div>
-          </motion.div>
+          </m.div>
         )}
       </form.Field>
 
       {/* TikTok */}
       <form.Field name="tiktokHandle">
         {(field) => (
-          <motion.div
+          <m.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2, duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
@@ -150,14 +150,14 @@ export function StepAssistantPortfolio({ form, onNext, stepNum }: StepProps) {
                   placeholder:text-muted/30 text-foreground focus:outline-none focus:border-accent transition-colors duration-200"
               />
             </div>
-          </motion.div>
+          </m.div>
         )}
       </form.Field>
 
       {/* Website / portfolio link */}
       <form.Field name="portfolioWebsite">
         {(field) => (
-          <motion.div
+          <m.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3, duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
@@ -178,12 +178,12 @@ export function StepAssistantPortfolio({ form, onNext, stepNum }: StepProps) {
               className="w-full max-w-[360px] px-0 py-1.5 text-base bg-transparent border-b-2 border-foreground/15
                 placeholder:text-muted/30 text-foreground focus:outline-none focus:border-accent transition-colors duration-200"
             />
-          </motion.div>
+          </m.div>
         )}
       </form.Field>
 
       {/* OK — always enabled */}
-      <motion.div
+      <m.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.45 }}
@@ -209,7 +209,7 @@ export function StepAssistantPortfolio({ form, onNext, stepNum }: StepProps) {
         <span className="text-xs text-muted/50">
           press <strong className="text-muted/70">Enter &crarr;</strong>
         </span>
-      </motion.div>
+      </m.div>
     </div>
   );
 }

@@ -15,7 +15,7 @@
 "use client";
 
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import { Footer } from "@/components/landing/Footer";
 import type { PublicProgram } from "./actions";
 
@@ -220,23 +220,23 @@ export function TrainingPage({
         {/* Hero */}
         <section className="py-24 md:py-32 px-6">
           <div className="mx-auto max-w-5xl text-center">
-            <motion.span
+            <m.span
               className="text-xs tracking-widest uppercase text-muted mb-6 block"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6 }}
             >
               Training Programs
-            </motion.span>
-            <motion.h1
+            </m.span>
+            <m.h1
               className="text-4xl md:text-6xl font-light tracking-tight text-foreground mb-6"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.1 }}
             >
               Learn from an expert.
-            </motion.h1>
-            <motion.p
+            </m.h1>
+            <m.p
               className="text-base md:text-lg text-muted max-w-xl mx-auto"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -244,7 +244,7 @@ export function TrainingPage({
             >
               Certification-based programs designed to give you real technique, real confidence, and
               a foundation you can build a business on.
-            </motion.p>
+            </m.p>
           </div>
         </section>
 
@@ -254,7 +254,7 @@ export function TrainingPage({
             {/* Render one animated card per program. The index drives a staggered
                 delay so cards fade in sequentially as the user scrolls. */}
             {displayPrograms.map((program, i) => (
-              <motion.div
+              <m.div
                 key={program.title}
                 className="border border-foreground/10 overflow-hidden"
                 initial={{ opacity: 0, y: 30 }}
@@ -357,7 +357,7 @@ export function TrainingPage({
                     </Link>
                   </div>
                 </div>
-              </motion.div>
+              </m.div>
             ))}
           </div>
         </section>

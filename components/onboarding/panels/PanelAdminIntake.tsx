@@ -26,7 +26,7 @@
  * @prop intake - the full intake object from the form, containing prep text and
  *   boolean question flags for each service (lash, jewelry, crochet, consulting)
  */
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import { LuEye, LuGem, LuScissors, LuLightbulb, LuSend, LuClipboardList } from "react-icons/lu";
 import { fadeUp, stagger } from "./shared";
 
@@ -106,14 +106,14 @@ export function PanelAdminIntake({ services, intake }: Props) {
 
   return (
     <div className="flex flex-col justify-center h-full px-6 py-5">
-      <motion.div
+      <m.div
         variants={stagger}
         initial="hidden"
         animate="show"
         className="w-full max-w-[380px] space-y-2.5"
       >
         {/* Header */}
-        <motion.div variants={fadeUp}>
+        <m.div variants={fadeUp}>
           <p className="text-[11px] font-semibold text-accent uppercase tracking-[0.15em] mb-0.5">
             Client experience
           </p>
@@ -121,12 +121,12 @@ export function PanelAdminIntake({ services, intake }: Props) {
           <p className="text-xs text-muted/60 mt-0.5 leading-snug">
             Prep sends after booking. Questions fill out at checkout — all automatic.
           </p>
-        </motion.div>
+        </m.div>
 
         {enabledServices.length === 0 ? (
-          <motion.div variants={fadeUp}>
+          <m.div variants={fadeUp}>
             <p className="text-sm text-muted/40 italic">Enable services to preview intake.</p>
-          </motion.div>
+          </m.div>
         ) : (
           enabledServices.map(({ key, name, icon: Icon, color, bg, questionLabels }) => {
             const serviceIntake = intake[key];
@@ -136,7 +136,7 @@ export function PanelAdminIntake({ services, intake }: Props) {
             const hasPrep = !!serviceIntake.prep;
 
             return (
-              <motion.div key={key} variants={fadeUp} className="space-y-1">
+              <m.div key={key} variants={fadeUp} className="space-y-1">
                 {/* Service header */}
                 <div className="flex items-center gap-1.5">
                   <div
@@ -174,11 +174,11 @@ export function PanelAdminIntake({ services, intake }: Props) {
                     </div>
                   )}
                 </div>
-              </motion.div>
+              </m.div>
             );
           })
         )}
-      </motion.div>
+      </m.div>
     </div>
   );
 }

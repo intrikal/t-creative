@@ -32,7 +32,7 @@
  * @prop studioName - used in the browser bar of the preview card
  * @prop bookingNotice - minimum advance booking time in hours (as a string)
  */
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import {
   LuEye,
   LuGem,
@@ -94,14 +94,14 @@ export function PanelAdminServices({ services, studioName, bookingNotice }: Prop
 
   return (
     <div className="flex flex-col justify-center h-full px-6 py-5">
-      <motion.div
+      <m.div
         variants={stagger}
         initial="hidden"
         animate="show"
         className="w-full max-w-[380px] space-y-3"
       >
         {/* Header */}
-        <motion.div variants={fadeUp}>
+        <m.div variants={fadeUp}>
           <p className="text-[11px] font-semibold text-accent uppercase tracking-[0.15em] mb-0.5">
             Booking page · live preview
           </p>
@@ -111,10 +111,10 @@ export function PanelAdminServices({ services, studioName, bookingNotice }: Prop
           <p className="text-sm text-muted mt-1 leading-snug">
             Enable a category and it appears here instantly. Your full menu lives in the dashboard.
           </p>
-        </motion.div>
+        </m.div>
 
         {/* Live service card preview */}
-        <motion.div
+        <m.div
           variants={fadeUp}
           className="rounded-2xl bg-surface border border-foreground/8 overflow-hidden"
         >
@@ -161,11 +161,11 @@ export function PanelAdminServices({ services, studioName, bookingNotice }: Prop
               })}
             </div>
           )}
-        </motion.div>
+        </m.div>
 
         {/* Booking notice */}
         {bookingNotice && (
-          <motion.div variants={fadeUp}>
+          <m.div variants={fadeUp}>
             <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-surface border border-foreground/6">
               <div className="w-6 h-6 rounded-lg bg-accent/10 flex items-center justify-center shrink-0">
                 <LuClock className="text-accent" style={{ width: 12, height: 12 }} />
@@ -176,12 +176,12 @@ export function PanelAdminServices({ services, studioName, bookingNotice }: Prop
                 requests won&apos;t go through.
               </p>
             </div>
-          </motion.div>
+          </m.div>
         )}
 
         {/* Deposit insight */}
         {hasDeposit && (
-          <motion.div variants={fadeUp}>
+          <m.div variants={fadeUp}>
             <div className="flex items-start gap-2.5 px-3 py-2.5 rounded-xl bg-surface border border-foreground/6">
               <div className="w-6 h-6 rounded-lg bg-emerald-500/10 flex items-center justify-center shrink-0 mt-0.5">
                 <LuBanknote className="text-emerald-500" style={{ width: 12, height: 12 }} />
@@ -191,11 +191,11 @@ export function PanelAdminServices({ services, studioName, bookingNotice }: Prop
                 remaining balance day-of via Square.
               </p>
             </div>
-          </motion.div>
+          </m.div>
         )}
 
         {/* Policies preview — no-show + cancellation */}
-        <motion.div variants={fadeUp} className="space-y-1.5">
+        <m.div variants={fadeUp} className="space-y-1.5">
           <p className="text-[10px] font-semibold text-muted/40 uppercase tracking-wider">
             Coming up in step 6
           </p>
@@ -229,8 +229,8 @@ export function PanelAdminServices({ services, studioName, bookingNotice }: Prop
               </div>
             </div>
           </div>
-        </motion.div>
-      </motion.div>
+        </m.div>
+      </m.div>
     </div>
   );
 }

@@ -8,14 +8,14 @@
  */
 "use client";
 
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 
 // Four social-proof signals — ordered by geographic context → volume → quality → exclusivity.
 const proofPoints = ["San Jose & Bay Area", "500+ Clients", "5-Star Rated", "By Appointment Only"];
 
 export function TrustBar() {
   return (
-    <motion.div
+    <m.div
       className="py-6 px-6 bg-surface"
       initial={{ opacity: 0 }}
       whileInView={{ opacity: 1 }}
@@ -26,7 +26,7 @@ export function TrustBar() {
         {/* .map() renders each proof point with staggered fade-in (delay: 0.3 + i * 0.1).
             Array-driven to keep stagger timing uniform across all points. */}
         {proofPoints.map((point, i) => (
-          <motion.span
+          <m.span
             key={point}
             className="text-xs tracking-widest uppercase text-muted"
             initial={{ opacity: 0, y: 10 }}
@@ -42,9 +42,9 @@ export function TrustBar() {
               </span>
             )}
             {point}
-          </motion.span>
+          </m.span>
         ))}
       </div>
-    </motion.div>
+    </m.div>
   );
 }

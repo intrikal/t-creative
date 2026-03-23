@@ -13,20 +13,20 @@
  * Related files:
  * - components/onboarding/steps/StepFinalPrefs.tsx — the paired left-side form
  */
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import { LuCamera, LuImage, LuSparkles, LuUsers, LuGift } from "react-icons/lu";
 
 export function PanelPhotoConsent() {
   return (
     <div className="flex flex-col items-center justify-center h-full px-6">
-      <motion.div
+      <m.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
         className="w-full max-w-[320px] space-y-5"
       >
         {/* ── Referral reward card ── */}
-        <motion.div
+        <m.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1, duration: 0.4 }}
@@ -42,10 +42,10 @@ export function PanelPhotoConsent() {
               service
             </p>
           </div>
-        </motion.div>
+        </m.div>
 
         {/* ── Instagram portfolio mock ── */}
-        <motion.div
+        <m.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.25, duration: 0.4 }}
@@ -68,7 +68,7 @@ export function PanelPhotoConsent() {
             {/* Photo grid — compact 3x2 */}
             <div className="grid grid-cols-3 gap-[2px] p-[2px]">
               {Array.from({ length: 6 }).map((_, i) => (
-                <motion.div
+                <m.div
                   key={i}
                   initial={{ opacity: 0, scale: 0.9 }}
                   animate={{ opacity: 1, scale: 1 }}
@@ -78,17 +78,17 @@ export function PanelPhotoConsent() {
                   {i % 3 === 0 && <LuCamera className="w-3 h-3 text-accent/30" />}
                   {i % 3 === 1 && <LuImage className="w-3 h-3 text-accent/30" />}
                   {i % 3 === 2 && <LuSparkles className="w-3 h-3 text-accent/30" />}
-                </motion.div>
+                </m.div>
               ))}
             </div>
           </div>
           <p className="text-[10px] text-muted/50 mt-1.5 text-center">
             Your look could inspire someone else&apos;s next appointment
           </p>
-        </motion.div>
+        </m.div>
 
         {/* ── Birthday coupon ── */}
-        <motion.div
+        <m.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.5, duration: 0.4 }}
@@ -107,8 +107,8 @@ export function PanelPhotoConsent() {
               </p>
             </div>
           </div>
-        </motion.div>
-      </motion.div>
+        </m.div>
+      </m.div>
     </div>
   );
 }

@@ -35,7 +35,7 @@
  * @prop stepNum - displayed as the step badge number
  */
 import { useEffect, useCallback, useRef } from "react";
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import {
   FaInstagram,
   FaTiktok,
@@ -182,7 +182,7 @@ export function StepAdminSocials({ form, onNext, stepNum }: StepProps) {
   return (
     <div className="space-y-3">
       {/* Heading */}
-      <motion.div
+      <m.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
@@ -199,10 +199,10 @@ export function StepAdminSocials({ form, onNext, stepNum }: StepProps) {
         <p className="text-sm text-foreground/60 mt-0.5 leading-relaxed">
           One booking link in each bio — followers go straight to you, no DMs needed.
         </p>
-      </motion.div>
+      </m.div>
 
       {/* All platforms — one combined card */}
-      <motion.div
+      <m.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1, duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
@@ -242,10 +242,10 @@ export function StepAdminSocials({ form, onNext, stepNum }: StepProps) {
             </form.Field>
           ))}
         </div>
-      </motion.div>
+      </m.div>
 
       {/* Continue */}
-      <motion.div
+      <m.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.3 }}
@@ -270,7 +270,7 @@ export function StepAdminSocials({ form, onNext, stepNum }: StepProps) {
         <span className="text-xs text-muted/50">
           press <strong className="text-muted/70">Enter &crarr;</strong>
         </span>
-      </motion.div>
+      </m.div>
     </div>
   );
 }

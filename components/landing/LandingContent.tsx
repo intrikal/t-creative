@@ -10,7 +10,7 @@
  */
 "use client";
 
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import { useStudioStore } from "@/stores/useStudioStore";
 import { CallToAction } from "./CallToAction";
 import { FeaturedProducts } from "./FeaturedProducts";
@@ -31,7 +31,7 @@ export function LandingContent() {
   const isHidden = mode !== "landing";
 
   return (
-    <motion.div
+    <m.div
       animate={{
         opacity: isHidden ? 0 : 1,
         pointerEvents: isHidden ? "none" : "auto",
@@ -47,6 +47,6 @@ export function LandingContent() {
       <Training />
       <CallToAction />
       <Footer />
-    </motion.div>
+    </m.div>
   );
 }

@@ -34,7 +34,7 @@
  *   - Other fields are plain strings (times like "10:00", booleans, etc.)
  */
 import { useMemo } from "react";
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import { LuCalendar } from "react-icons/lu";
 import { fadeUp, stagger } from "./shared";
 
@@ -137,14 +137,14 @@ export function PanelAdminHours({ workingHours }: Props) {
 
   return (
     <div className="flex flex-col justify-center h-full px-6 py-5">
-      <motion.div
+      <m.div
         variants={stagger}
         initial="hidden"
         animate="show"
         className="w-full max-w-[380px] space-y-4"
       >
         {/* Header */}
-        <motion.div variants={fadeUp}>
+        <m.div variants={fadeUp}>
           <p className="text-[11px] font-semibold text-accent uppercase tracking-[0.15em] mb-0.5">
             Your availability
           </p>
@@ -152,10 +152,10 @@ export function PanelAdminHours({ workingHours }: Props) {
           <p className="text-sm text-muted/60 mt-0.5 leading-snug">
             Clients can only book the days you mark open — your schedule, your rules.
           </p>
-        </motion.div>
+        </m.div>
 
         {/* 2-month mini calendar heatmap */}
-        <motion.div variants={fadeUp} className="grid grid-cols-2 gap-3">
+        <m.div variants={fadeUp} className="grid grid-cols-2 gap-3">
           {months.map(({ year, month }) => {
             const firstDow = new Date(year, month - 1, 1).getDay();
             const daysInMonth = new Date(year, month, 0).getDate();
@@ -209,11 +209,11 @@ export function PanelAdminHours({ workingHours }: Props) {
               </div>
             );
           })}
-        </motion.div>
+        </m.div>
 
         {/* Timeline bar */}
         {totalMin > 0 && (
-          <motion.div variants={fadeUp} className="space-y-1.5">
+          <m.div variants={fadeUp} className="space-y-1.5">
             <div className="flex items-center justify-between text-xs text-muted/50 font-medium">
               <span>{formatTime(workingHours.defaultStartTime || "10:00")}</span>
               <span className="text-[10px] text-muted/35">{workHrs} / day</span>
@@ -234,11 +234,11 @@ export function PanelAdminHours({ workingHours }: Props) {
                 {workingHours.lunchDuration} min
               </p>
             )}
-          </motion.div>
+          </m.div>
         )}
 
         {/* Stat chips */}
-        <motion.div variants={fadeUp} className="grid grid-cols-3 gap-2">
+        <m.div variants={fadeUp} className="grid grid-cols-3 gap-2">
           <div className="px-2 py-2.5 rounded-xl bg-surface border border-foreground/8 text-center">
             <p className="text-xl font-bold text-foreground">{selectedCount}</p>
             <p className="text-[10px] text-muted/50 mt-0.5 leading-tight">days open</p>
@@ -251,18 +251,18 @@ export function PanelAdminHours({ workingHours }: Props) {
             <p className="text-xl font-bold text-foreground">{gapMin > 0 ? `${gapMin}m` : "—"}</p>
             <p className="text-[10px] text-muted/50 mt-0.5 leading-tight">buffer</p>
           </div>
-        </motion.div>
+        </m.div>
 
         {/* Footer */}
-        <motion.div variants={fadeUp} className="flex items-start gap-2 px-1">
+        <m.div variants={fadeUp} className="flex items-start gap-2 px-1">
           <LuCalendar className="w-3 h-3 text-muted/30 shrink-0 mt-0.5" />
           <p className="text-xs text-muted/40 leading-relaxed">
             {selectedCount > 0 && estClients > 0
               ? `Up to ${estClients} clients/day across ${selectedCount} open days${overrideCount > 0 ? ` — ${overrideCount} with custom hours` : ""}.`
               : "Select dates on the calendar to see your capacity."}
           </p>
-        </motion.div>
-      </motion.div>
+        </m.div>
+      </m.div>
     </div>
   );
 }

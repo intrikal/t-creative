@@ -38,7 +38,7 @@
  * @prop stepNum - displayed as the step badge number
  */
 import { useEffect, useCallback, useRef } from "react";
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import { LuEye, LuGem, LuScissors, LuLightbulb } from "react-icons/lu";
 import type { AdminOnboardingForm } from "../OnboardingFlow";
 
@@ -126,7 +126,7 @@ export function StepAdminServices({ form, onNext, stepNum }: StepProps) {
 
   return (
     <div className="space-y-2">
-      <motion.div
+      <m.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
@@ -144,9 +144,9 @@ export function StepAdminServices({ form, onNext, stepNum }: StepProps) {
           Enable what you offer and set a starting price — build out the full menu from the
           dashboard.
         </p>
-      </motion.div>
+      </m.div>
 
-      <motion.div
+      <m.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1, duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
@@ -323,10 +323,10 @@ export function StepAdminServices({ form, onNext, stepNum }: StepProps) {
             </form.Field>
           ),
         )}
-      </motion.div>
+      </m.div>
 
       {/* Booking notice */}
-      <motion.div
+      <m.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2, duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
@@ -361,10 +361,10 @@ export function StepAdminServices({ form, onNext, stepNum }: StepProps) {
             </div>
           )}
         </form.Field>
-      </motion.div>
+      </m.div>
 
       {/* Next */}
-      <motion.div
+      <m.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.4 }}
@@ -389,7 +389,7 @@ export function StepAdminServices({ form, onNext, stepNum }: StepProps) {
         <span className="text-xs text-muted/50">
           press <strong className="text-muted/70">Enter &crarr;</strong>
         </span>
-      </motion.div>
+      </m.div>
     </div>
   );
 }

@@ -31,7 +31,7 @@
  * @prop avatarUrl — Google profile photo URL (from OAuth metadata)
  */
 import { useEffect, useCallback, useRef } from "react";
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import { LuLock, LuMail } from "react-icons/lu";
 import type { AssistantOnboardingForm } from "../OnboardingFlow";
 
@@ -79,7 +79,7 @@ export function StepContactPrefs({ form, onNext, stepNum, avatarUrl }: StepProps
   return (
     <div className="space-y-5">
       {/* Header */}
-      <motion.div
+      <m.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
@@ -92,10 +92,10 @@ export function StepContactPrefs({ form, onNext, stepNum, avatarUrl }: StepProps
           Contact preferences
         </h1>
         <p className="text-muted text-sm mt-2">How should we reach you about shifts and updates?</p>
-      </motion.div>
+      </m.div>
 
       {/* Avatar + locked email */}
-      <motion.div
+      <m.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.08, duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
@@ -126,7 +126,7 @@ export function StepContactPrefs({ form, onNext, stepNum, avatarUrl }: StepProps
             <LuLock className="w-2.5 h-2.5 text-muted/25 shrink-0" />
           </div>
         )}
-      </motion.div>
+      </m.div>
 
       {/* Phone with auto-formatting */}
       <form.Field name="phone">
@@ -135,7 +135,7 @@ export function StepContactPrefs({ form, onNext, stepNum, avatarUrl }: StepProps
           const displayValue = rawDigits.length > 0 ? formatPhone(rawDigits) : "";
 
           return (
-            <motion.div
+            <m.div
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.15, duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
@@ -168,7 +168,7 @@ export function StepContactPrefs({ form, onNext, stepNum, avatarUrl }: StepProps
                   focus:outline-none focus:border-accent
                   transition-colors duration-200"
               />
-            </motion.div>
+            </m.div>
           );
         }}
       </form.Field>
@@ -176,7 +176,7 @@ export function StepContactPrefs({ form, onNext, stepNum, avatarUrl }: StepProps
       {/* Instagram handle */}
       <form.Field name="instagramHandle">
         {(field) => (
-          <motion.div
+          <m.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.25, duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
@@ -202,12 +202,12 @@ export function StepContactPrefs({ form, onNext, stepNum, avatarUrl }: StepProps
                   focus:outline-none"
               />
             </div>
-          </motion.div>
+          </m.div>
         )}
       </form.Field>
 
       {/* Notification preferences */}
-      <motion.div
+      <m.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.35, duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
@@ -219,7 +219,7 @@ export function StepContactPrefs({ form, onNext, stepNum, avatarUrl }: StepProps
           {NOTIFICATION_OPTIONS.map((option, i) => (
             <form.Field key={option.field} name={`notifications.${option.field}`}>
               {(field) => (
-                <motion.button
+                <m.button
                   type="button"
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -234,21 +234,21 @@ export function StepContactPrefs({ form, onNext, stepNum, avatarUrl }: StepProps
                       ${field.state.value ? "bg-accent" : "bg-foreground/15"}
                     `}
                   >
-                    <motion.div
+                    <m.div
                       className="absolute top-0.5 w-4 h-4 rounded-full bg-white shadow-sm"
                       animate={{ left: field.state.value ? 18 : 2 }}
                       transition={{ duration: 0.2, ease: "easeOut" }}
                     />
                   </div>
-                </motion.button>
+                </m.button>
               )}
             </form.Field>
           ))}
         </div>
-      </motion.div>
+      </m.div>
 
       {/* OK — always enabled since email is pre-filled */}
-      <motion.div
+      <m.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.6 }}
@@ -273,7 +273,7 @@ export function StepContactPrefs({ form, onNext, stepNum, avatarUrl }: StepProps
         <span className="text-xs text-muted/50">
           press <strong className="text-muted/70">Enter &crarr;</strong>
         </span>
-      </motion.div>
+      </m.div>
     </div>
   );
 }

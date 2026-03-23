@@ -12,7 +12,7 @@
 "use client";
 
 import { useRef } from "react";
-import { motion, useScroll, useTransform } from "framer-motion";
+import { m, useScroll, useTransform } from "framer-motion";
 
 // Grid path — structured, angular
 const GRID_PATH =
@@ -44,7 +44,7 @@ export function SectionDivider({ className = "", color = "currentColor" }: Secti
 
   return (
     <div ref={ref} className={`relative py-8 overflow-hidden ${className}`} aria-hidden>
-      <motion.svg
+      <m.svg
         className="w-full h-16 md:h-20"
         viewBox="0 0 100 60"
         preserveAspectRatio="none"
@@ -52,7 +52,7 @@ export function SectionDivider({ className = "", color = "currentColor" }: Secti
         style={{ opacity }}
       >
         {/* Grid path — fades out */}
-        <motion.path
+        <m.path
           d={GRID_PATH}
           stroke={color}
           strokeWidth="0.3"
@@ -65,7 +65,7 @@ export function SectionDivider({ className = "", color = "currentColor" }: Secti
         />
 
         {/* Organic path — fades in */}
-        <motion.path
+        <m.path
           d={ORGANIC_PATH}
           stroke={color}
           strokeWidth="0.3"
@@ -76,7 +76,7 @@ export function SectionDivider({ className = "", color = "currentColor" }: Secti
             opacity: useTransform(morphProgress, [0, 1], [0, 1]),
           }}
         />
-      </motion.svg>
+      </m.svg>
     </div>
   );
 }

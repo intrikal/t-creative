@@ -11,7 +11,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useSprings, animated, to as interpolate } from "@react-spring/web";
 import { useDrag } from "@use-gesture/react";
-import { motion, useScroll, useTransform } from "framer-motion";
+import { m, useScroll, useTransform } from "framer-motion";
 
 // Photo paths for the card stack — ordered bottom-to-top (last item renders on top).
 // Array structure enables useSprings to create one spring per card and bind to map indices.
@@ -109,7 +109,7 @@ function CardStack() {
   return (
     <div className="relative w-72 md:w-80 lg:w-96" style={{ aspectRatio: "3/4" }}>
       {/* Decorative offset border */}
-      <motion.div
+      <m.div
         className="absolute border border-foreground/25 rounded-sm pointer-events-none"
         style={{ inset: 0, translate: "14px 14px" }}
         initial={{ opacity: 0 }}
@@ -169,7 +169,7 @@ export function Founder() {
     <section ref={sectionRef} className="bg-background overflow-hidden" aria-label="Meet Trini">
       <div className="mx-auto max-w-7xl flex flex-col md:flex-row items-center py-16 md:py-24 px-6 md:px-12 gap-12 md:gap-16">
         {/* Card stack */}
-        <motion.div
+        <m.div
           className="w-full md:w-[45%] flex justify-center md:justify-end pb-8"
           initial={{ opacity: 0, x: -32 }}
           whileInView={{ opacity: 1, x: 0 }}
@@ -177,10 +177,10 @@ export function Founder() {
           transition={{ duration: 1.2, ease: [0.22, 1, 0.36, 1] }}
         >
           <CardStack />
-        </motion.div>
+        </m.div>
 
         {/* Identity copy */}
-        <motion.div
+        <m.div
           className="w-full md:w-[55%] flex flex-col justify-center py-8 md:py-0"
           initial={{ opacity: 0, x: 32 }}
           whileInView={{ opacity: 1, x: 0 }}
@@ -191,7 +191,7 @@ export function Founder() {
             The Architect
           </span>
 
-          <motion.h2
+          <m.h2
             className="font-display text-5xl md:text-6xl lg:text-7xl font-light tracking-tight text-foreground leading-[1.05] mb-2"
             initial={{ clipPath: "inset(0 100% 0 0)" }}
             whileInView={{ clipPath: "inset(0 0% 0 0)" }}
@@ -199,9 +199,9 @@ export function Founder() {
             transition={{ duration: 1, delay: 0.5, ease: [0.22, 1, 0.36, 1] }}
           >
             Trini Lam.
-          </motion.h2>
+          </m.h2>
 
-          <motion.div
+          <m.div
             className="w-px h-8 bg-foreground/15 ml-1 mb-4"
             initial={{ scaleY: 0 }}
             whileInView={{ scaleY: 1 }}
@@ -236,7 +236,7 @@ export function Founder() {
               About Trini
             </Link>
           </div>
-        </motion.div>
+        </m.div>
       </div>
     </section>
   );

@@ -14,6 +14,7 @@ import { Geist, Cormorant_Garamond } from "next/font/google";
 import type { Metadata, Viewport } from "next";
 import { ConditionalNavbar } from "@/components/ConditionalNavbar";
 import { NavbarWrapper } from "@/components/NavbarWrapper";
+import { FramerMotionProvider } from "@/components/providers/FramerMotionProvider";
 import { PostHogProvider } from "@/components/providers/PostHogProvider";
 import { ServiceWorkerRegistration } from "@/components/providers/ServiceWorkerRegistration";
 import { SmoothScroll } from "@/components/providers/SmoothScroll";
@@ -126,12 +127,14 @@ export default async function RootLayout({
         <ServiceWorkerRegistration />
         <WebVitals />
         <PostHogProvider>
-          <GrainOverlay />
-          <ScrollProgress />
-          <ConditionalNavbar>
-            <NavbarWrapper />
-          </ConditionalNavbar>
-          <SmoothScroll>{children}</SmoothScroll>
+          <FramerMotionProvider>
+            <GrainOverlay />
+            <ScrollProgress />
+            <ConditionalNavbar>
+              <NavbarWrapper />
+            </ConditionalNavbar>
+            <SmoothScroll>{children}</SmoothScroll>
+          </FramerMotionProvider>
         </PostHogProvider>
       </body>
     </html>

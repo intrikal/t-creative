@@ -8,7 +8,7 @@
  */
 "use client";
 
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import { SectionWrapper } from "@/components/ui/SectionWrapper";
 
 // Static feature definitions — each represents a core platform capability.
@@ -40,7 +40,7 @@ export function DigitalEcosystem() {
   return (
     <SectionWrapper id="ecosystem" className="py-32 md:py-48 px-6">
       <div className="mx-auto max-w-5xl">
-        <motion.div
+        <m.div
           className="mb-16 md:mb-20 text-center"
           initial={{ opacity: 0, y: 30 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -53,14 +53,14 @@ export function DigitalEcosystem() {
           <h2 className="text-3xl md:text-5xl font-light tracking-tight text-foreground leading-tight">
             Everything in one place.
           </h2>
-        </motion.div>
+        </m.div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-0 border border-foreground/10">
           {/* .map() over features to render 4 tiles with staggered animation (delay: i * 0.1).
               Array-driven rendering keeps the stagger delay calculation uniform and avoids
               duplicating the motion.div markup for each feature. */}
           {features.map((feature, i) => (
-            <motion.div
+            <m.div
               key={feature.title}
               className="p-8 md:p-10 text-center border-r border-b border-foreground/10 last:border-r-0 [&:nth-child(2)]:border-r-0 md:[&:nth-child(2)]:border-r [&:nth-child(3)]:border-b-0 [&:nth-child(4)]:border-b-0 md:[&:nth-child(1)]:border-b-0 md:[&:nth-child(2)]:border-b-0"
               initial={{ opacity: 0, y: 20 }}
@@ -73,7 +73,7 @@ export function DigitalEcosystem() {
                 {feature.title}
               </h3>
               <p className="text-xs leading-relaxed text-muted">{feature.description}</p>
-            </motion.div>
+            </m.div>
           ))}
         </div>
       </div>

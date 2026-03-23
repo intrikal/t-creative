@@ -9,7 +9,7 @@
 "use client";
 
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import { SectionWrapper } from "@/components/ui/SectionWrapper";
 import { ZONES, type ZoneId } from "@/lib/zones";
 
@@ -60,7 +60,7 @@ export function Services() {
   return (
     <SectionWrapper id="services" className="py-32 md:py-48 px-6">
       <div className="mx-auto max-w-5xl">
-        <motion.div
+        <m.div
           className="mb-16 md:mb-24 text-center"
           initial={{ opacity: 0, y: 30 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -74,7 +74,7 @@ export function Services() {
           <p className="mt-4 text-muted text-base max-w-lg mx-auto">
             Helping you feel confident, beautiful, and empowered.
           </p>
-        </motion.div>
+        </m.div>
 
         <div className="flex flex-col gap-0">
           {/* .map() over services to render each as a horizontal row with zone dot, text, and CTA.
@@ -84,7 +84,7 @@ export function Services() {
           {services.map((service, i) => {
             const zone = ZONES[service.zoneId];
             return (
-              <motion.div
+              <m.div
                 key={service.title}
                 className="group relative border-t border-foreground/10 py-10 md:py-14 flex flex-col md:flex-row md:items-start gap-4 md:gap-12"
                 initial={{ opacity: 0, y: 20 }}
@@ -115,13 +115,13 @@ export function Services() {
                 >
                   {service.cta}
                 </Link>
-              </motion.div>
+              </m.div>
             );
           })}
           <div className="border-t border-foreground/10" />
         </div>
 
-        <motion.div
+        <m.div
           className="mt-12 text-center"
           initial={{ opacity: 0 }}
           whileInView={{ opacity: 1 }}
@@ -134,7 +134,7 @@ export function Services() {
           >
             View All Services & Pricing
           </Link>
-        </motion.div>
+        </m.div>
       </div>
     </SectionWrapper>
   );

@@ -33,7 +33,7 @@
  * - components/onboarding/steps/StepRewards.tsx — the paired left-side form
  * - app/onboarding/actions.ts                   — awards the matching point values
  */
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import { LuStar, LuGift, LuUsers, LuCalendarDays, LuSparkles, LuTrendingUp } from "react-icons/lu";
 import { fadeUp, stagger } from "./shared";
 
@@ -80,7 +80,7 @@ export function PanelRewards({ birthday, referral }: Props) {
 
   return (
     <div className="flex flex-col items-center justify-center h-full px-6">
-      <motion.div
+      <m.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
@@ -118,7 +118,7 @@ export function PanelRewards({ birthday, referral }: Props) {
                     {item.label}
                   </span>
                 </div>
-                <motion.span
+                <m.span
                   key={`${item.label}-${item.filled}`}
                   initial={{ opacity: 0, y: -4 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -126,12 +126,12 @@ export function PanelRewards({ birthday, referral }: Props) {
                   className={`text-[11px] font-medium tabular-nums transition-colors duration-200 ${item.filled ? "text-accent" : "text-muted/25"}`}
                 >
                   +{item.pts} pts
-                </motion.span>
+                </m.span>
               </div>
             ))}
             <div className="pt-2.5 border-t border-foreground/5 flex items-center justify-between">
               <span className="text-xs font-medium text-foreground">Earned so far</span>
-              <motion.span
+              <m.span
                 key={totalPoints}
                 initial={{ opacity: 0, scale: 0.85 }}
                 animate={{ opacity: 1, scale: 1 }}
@@ -139,7 +139,7 @@ export function PanelRewards({ birthday, referral }: Props) {
                 className="text-sm font-semibold text-accent tabular-nums"
               >
                 {totalPoints} pts
-              </motion.span>
+              </m.span>
             </div>
           </div>
           <p className="text-[10px] text-muted/50 mt-1.5 ml-0.5">
@@ -154,7 +154,7 @@ export function PanelRewards({ birthday, referral }: Props) {
           </p>
           <div className="flex gap-1.5">
             {TIERS.map((tier, i) => (
-              <motion.div
+              <m.div
                 key={tier.name}
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -163,7 +163,7 @@ export function PanelRewards({ birthday, referral }: Props) {
               >
                 <p className={`text-[10px] font-medium ${tier.text}`}>{tier.name}</p>
                 <p className="text-[9px] text-muted/50 mt-0.5">{tier.threshold}</p>
-              </motion.div>
+              </m.div>
             ))}
           </div>
           <div className="flex items-center gap-1.5 mt-2">
@@ -179,13 +179,9 @@ export function PanelRewards({ birthday, referral }: Props) {
           <p className="text-[10px] font-medium text-muted uppercase tracking-widest mb-3">
             Ways to earn
           </p>
-          <motion.div variants={stagger} initial="hidden" animate="show" className="space-y-2.5">
+          <m.div variants={stagger} initial="hidden" animate="show" className="space-y-2.5">
             {EARN_EVENTS.map((ev) => (
-              <motion.div
-                key={ev.label}
-                variants={fadeUp}
-                className="flex items-center justify-between"
-              >
+              <m.div key={ev.label} variants={fadeUp} className="flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
                   <div className="w-7 h-7 rounded-full bg-accent/8 flex items-center justify-center shrink-0">
                     <ev.icon className="w-3.5 h-3.5 text-accent" />
@@ -193,20 +189,20 @@ export function PanelRewards({ birthday, referral }: Props) {
                   <span className="text-xs text-foreground">{ev.label}</span>
                 </div>
                 <span className="text-[11px] font-medium text-accent tabular-nums">{ev.pts}</span>
-              </motion.div>
+              </m.div>
             ))}
-          </motion.div>
+          </m.div>
         </div>
 
-        <motion.p
+        <m.p
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.8 }}
           className="text-[10px] text-muted/50 text-center"
         >
           10 pts earned per $1 spent &middot; 100 pts = $1 off your next service
-        </motion.p>
-      </motion.div>
+        </m.p>
+      </m.div>
     </div>
   );
 }

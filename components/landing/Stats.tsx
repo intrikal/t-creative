@@ -8,7 +8,7 @@
  */
 "use client";
 
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 
 interface StatsProps {
   clientsServed: string;
@@ -30,7 +30,7 @@ export function Stats({ clientsServed, averageRating, rebookingRate, servicesCou
       <div className="mx-auto max-w-5xl">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-8 md:gap-12">
           {stats.map((stat, i) => (
-            <motion.div
+            <m.div
               key={stat.label}
               className="text-center"
               initial={{ opacity: 0, y: 20 }}
@@ -42,7 +42,7 @@ export function Stats({ clientsServed, averageRating, rebookingRate, servicesCou
                 {stat.value}
               </p>
               <p className="text-xs tracking-widest uppercase text-muted">{stat.label}</p>
-            </motion.div>
+            </m.div>
           ))}
         </div>
       </div>

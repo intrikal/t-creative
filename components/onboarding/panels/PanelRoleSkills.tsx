@@ -31,7 +31,7 @@
  * @prop offersTraining   — from form field "offersTraining"
  * @prop trainingFormats  — from form field "trainingFormats"
  */
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import { LuUser, LuStar, LuGraduationCap } from "react-icons/lu";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -103,7 +103,7 @@ export function PanelRoleSkills({
 
   return (
     <div className="flex flex-col items-center justify-center h-full px-6">
-      <motion.div
+      <m.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
@@ -238,7 +238,7 @@ export function PanelRoleSkills({
         </Card>
 
         {/* How profile is used */}
-        <motion.div
+        <m.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3, duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
@@ -248,8 +248,8 @@ export function PanelRoleSkills({
           <p className="text-[11px] text-muted leading-relaxed">
             Your profile helps clients know what you specialize in and find the right fit.
           </p>
-        </motion.div>
-      </motion.div>
+        </m.div>
+      </m.div>
     </div>
   );
 }

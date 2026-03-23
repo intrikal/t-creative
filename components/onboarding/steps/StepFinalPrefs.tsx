@@ -10,7 +10,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 // AnimatePresence enables exit animations for components that are conditionally
 // rendered — without it, removed elements disappear instantly.
-import { motion, AnimatePresence } from "framer-motion";
+import { m, AnimatePresence } from "framer-motion";
 import type { OnboardingForm } from "../OnboardingFlow";
 
 // "as const" freezes each id to its exact literal string type (e.g. "instagram"),
@@ -219,7 +219,7 @@ export function StepFinalPrefs({ form, onNext, stepNum }: StepProps) {
     // Reduced from space-y-6 to space-y-4 for a more compact vertical layout.
     <div className="space-y-4">
       {/* Step number + arrow header */}
-      <motion.div
+      <m.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
@@ -232,7 +232,7 @@ export function StepFinalPrefs({ form, onNext, stepNum }: StepProps) {
           Almost done!
         </h1>
         <p className="text-muted text-sm mt-2">Just a few optional things.</p>
-      </motion.div>
+      </m.div>
 
       {/* Source options — compact pill/chip toggles in a flex-wrap row.
           Keyboard shortcuts A-E still work (no visible letter badges). */}
@@ -249,7 +249,7 @@ export function StepFinalPrefs({ form, onNext, stepNum }: StepProps) {
               {SOURCE_OPTIONS.map((option, i) => {
                 const isSelected = field.state.value === option.id;
                 return (
-                  <motion.button
+                  <m.button
                     key={option.id}
                     type="button"
                     initial={{ opacity: 0, y: 8 }}
@@ -267,7 +267,7 @@ export function StepFinalPrefs({ form, onNext, stepNum }: StepProps) {
                     `}
                   >
                     {option.label}
-                  </motion.button>
+                  </m.button>
                 );
               })}
             </div>
@@ -280,7 +280,7 @@ export function StepFinalPrefs({ form, onNext, stepNum }: StepProps) {
           The `key` on the inner motion.div lets Framer Motion track mount/unmount. */}
       <AnimatePresence>
         {isReferral && (
-          <motion.div
+          <m.div
             key="referral-fields"
             initial={{ opacity: 0, y: 12, height: 0 }}
             animate={{ opacity: 1, y: 0, height: "auto" }}
@@ -337,7 +337,7 @@ export function StepFinalPrefs({ form, onNext, stepNum }: StepProps) {
               />
               <p className="text-xs text-muted/50 mt-1.5">So we can send them their reward too</p>
             </div>
-          </motion.div>
+          </m.div>
         )}
       </AnimatePresence>
 
@@ -347,7 +347,7 @@ export function StepFinalPrefs({ form, onNext, stepNum }: StepProps) {
         <p className="text-xs font-medium text-muted mb-2">Can we feature your results?</p>
         {/* Side-by-side row: each button is flex-1 so they split evenly. */}
         <div className="flex gap-2">
-          <motion.button
+          <m.button
             type="button"
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
@@ -365,7 +365,7 @@ export function StepFinalPrefs({ form, onNext, stepNum }: StepProps) {
           >
             {/* Small checkmark shown when selected */}
             {choice === "yes" && (
-              <motion.svg
+              <m.svg
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
                 width="12"
@@ -381,12 +381,12 @@ export function StepFinalPrefs({ form, onNext, stepNum }: StepProps) {
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 />
-              </motion.svg>
+              </m.svg>
             )}
             Yes, feature me
-          </motion.button>
+          </m.button>
 
-          <motion.button
+          <m.button
             type="button"
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
@@ -403,7 +403,7 @@ export function StepFinalPrefs({ form, onNext, stepNum }: StepProps) {
             `}
           >
             {choice === "no" && (
-              <motion.svg
+              <m.svg
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
                 width="12"
@@ -419,10 +419,10 @@ export function StepFinalPrefs({ form, onNext, stepNum }: StepProps) {
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 />
-              </motion.svg>
+              </m.svg>
             )}
             No thanks
-          </motion.button>
+          </m.button>
         </div>
       </div>
 
@@ -437,7 +437,7 @@ export function StepFinalPrefs({ form, onNext, stepNum }: StepProps) {
           {/* (field) => ... is the render prop pattern: field.state.value holds the current
               value, and field.handleChange() updates it in the form. */}
           {(field) => (
-            <motion.div
+            <m.div
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.25, duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
@@ -472,13 +472,13 @@ export function StepFinalPrefs({ form, onNext, stepNum }: StepProps) {
                   focus:outline-none focus:border-accent
                   transition-colors duration-200"
               />
-            </motion.div>
+            </m.div>
           )}
         </form.Field>
       </div>
 
       {/* OK button — enabled when photo consent is chosen (and referral is valid if selected) */}
-      <motion.div
+      <m.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.35 }}
@@ -514,7 +514,7 @@ export function StepFinalPrefs({ form, onNext, stepNum }: StepProps) {
             press <strong className="text-muted/70">Enter &crarr;</strong>
           </span>
         )}
-      </motion.div>
+      </m.div>
     </div>
   );
 }

@@ -7,7 +7,7 @@
 "use client";
 
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import { Footer } from "@/components/landing/Footer";
 import type { LegalSection } from "@/db/schema";
 
@@ -24,7 +24,7 @@ interface TermsPageProps {
 
 function Section({ title, paragraphs }: LegalSection) {
   return (
-    <motion.section
+    <m.section
       className="mb-10"
       initial={{ opacity: 0, y: 20 }}
       whileInView={{ opacity: 1, y: 0 }}
@@ -48,7 +48,7 @@ function Section({ title, paragraphs }: LegalSection) {
           ),
         )}
       </div>
-    </motion.section>
+    </m.section>
   );
 }
 
@@ -76,31 +76,31 @@ export function TermsPage({
         {/* Header */}
         <section className="py-20 md:py-28 px-6">
           <div className="mx-auto max-w-3xl">
-            <motion.span
+            <m.span
               className="text-xs tracking-widest uppercase text-muted mb-6 block"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6 }}
             >
               Legal
-            </motion.span>
-            <motion.h1
+            </m.span>
+            <m.h1
               className="text-4xl md:text-5xl font-light tracking-tight text-foreground mb-4"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.1 }}
             >
               Terms of Service
-            </motion.h1>
+            </m.h1>
             {formattedDate && (
-              <motion.p
+              <m.p
                 className="text-sm text-muted"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.6, delay: 0.2 }}
               >
                 Effective date: {formattedDate}
-              </motion.p>
+              </m.p>
             )}
           </div>
         </section>
@@ -109,7 +109,7 @@ export function TermsPage({
         <section className="pb-32 px-6">
           <div className="mx-auto max-w-3xl">
             {sections.length === 0 ? (
-              <motion.p
+              <m.p
                 className="text-sm text-muted"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -123,23 +123,23 @@ export function TermsPage({
                   hello@tcreativestudio.com
                 </a>
                 .
-              </motion.p>
+              </m.p>
             ) : (
               <>
                 {intro && (
-                  <motion.p
+                  <m.p
                     className="text-sm text-muted leading-relaxed mb-10"
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={{ duration: 0.6, delay: 0.3 }}
                   >
                     {intro}
-                  </motion.p>
+                  </m.p>
                 )}
                 {sections.map((section, i) => (
                   <Section key={i} {...section} />
                 ))}
-                <motion.div
+                <m.div
                   className="pt-6 border-t border-surface"
                   initial={{ opacity: 0 }}
                   whileInView={{ opacity: 1 }}
@@ -156,7 +156,7 @@ export function TermsPage({
                     </Link>
                     .
                   </p>
-                </motion.div>
+                </m.div>
               </>
             )}
           </div>

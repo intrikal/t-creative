@@ -39,7 +39,7 @@
  * - components/onboarding/OnboardingFlow.tsx — renders this as step 7
  */
 import { useState, useEffect, useCallback } from "react";
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import type { AssistantOnboardingForm } from "../OnboardingFlow";
 
 interface StepProps {
@@ -123,7 +123,7 @@ export function StepAssistantPolicies({ form, onNext, stepNum }: StepProps) {
   return (
     <div className="space-y-3">
       {/* Header */}
-      <motion.div
+      <m.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
@@ -138,11 +138,11 @@ export function StepAssistantPolicies({ form, onNext, stepNum }: StepProps) {
         <p className="text-muted text-sm mt-1">
           These protect you, your clients, and T Creative. Review the details on the right.
         </p>
-      </motion.div>
+      </m.div>
 
       {/* Agreement toggles */}
       {POLICIES.map((policy, i) => (
-        <motion.button
+        <m.button
           key={policy.key}
           type="button"
           initial={{ opacity: 0, y: 14 }}
@@ -190,11 +190,11 @@ export function StepAssistantPolicies({ form, onNext, stepNum }: StepProps) {
             </p>
             <p className="text-sm text-foreground leading-snug">{policy.text}</p>
           </div>
-        </motion.button>
+        </m.button>
       ))}
 
       {/* OK */}
-      <motion.div
+      <m.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.6 }}
@@ -230,7 +230,7 @@ export function StepAssistantPolicies({ form, onNext, stepNum }: StepProps) {
             press <strong className="text-muted/70">Enter &crarr;</strong>
           </span>
         )}
-      </motion.div>
+      </m.div>
     </div>
   );
 }

@@ -35,7 +35,7 @@
 // useState: holds component-local state. useEffect: runs side effects (like event listeners).
 // useCallback: wraps a function so it's only recreated when its dependencies change.
 import { useState, useEffect, useCallback } from "react";
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import { ZONES, type ZoneId } from "@/lib/zones";
 import type { OnboardingForm } from "../OnboardingFlow";
 // ZoneId is a TypeScript type (e.g. "lash" | "jewelry" | "crochet" | "consulting").
@@ -110,7 +110,7 @@ export function StepInterests({ form, onNext, stepNum }: StepProps) {
   return (
     <div className="space-y-6">
       {/* Question header */}
-      <motion.div
+      <m.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
@@ -123,10 +123,10 @@ export function StepInterests({ form, onNext, stepNum }: StepProps) {
           What brings you to T Creative?
         </h1>
         <p className="text-muted text-sm mt-2">Pick everything that interests you.</p>
-      </motion.div>
+      </m.div>
 
       {/* Select all toggle */}
-      <motion.button
+      <m.button
         type="button"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -135,7 +135,7 @@ export function StepInterests({ form, onNext, stepNum }: StepProps) {
         className="text-xs text-accent hover:text-accent/80 transition-colors font-medium"
       >
         {allSelected ? "Deselect all" : "Select all"}
-      </motion.button>
+      </m.button>
 
       {/* Interest options with letter keys (A-D, multi-select) */}
       <div className="space-y-2.5">
@@ -144,7 +144,7 @@ export function StepInterests({ form, onNext, stepNum }: StepProps) {
           // .includes() checks whether the selected array contains this option's id.
           const isSelected = selected.includes(option.id);
           return (
-            <motion.button
+            <m.button
               key={option.id}
               type="button"
               initial={{ opacity: 0, y: 16 }}
@@ -186,7 +186,7 @@ export function StepInterests({ form, onNext, stepNum }: StepProps) {
 
               {/* Checkmark for selected */}
               {isSelected && (
-                <motion.svg
+                <m.svg
                   initial={{ scale: 0 }}
                   animate={{ scale: 1 }}
                   width="16"
@@ -202,15 +202,15 @@ export function StepInterests({ form, onNext, stepNum }: StepProps) {
                     strokeLinecap="round"
                     strokeLinejoin="round"
                   />
-                </motion.svg>
+                </m.svg>
               )}
-            </motion.button>
+            </m.button>
           );
         })}
       </div>
 
       {/* OK button */}
-      <motion.div
+      <m.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.6 }}
@@ -246,7 +246,7 @@ export function StepInterests({ form, onNext, stepNum }: StepProps) {
             press <strong className="text-muted/70">Enter &crarr;</strong>
           </span>
         )}
-      </motion.div>
+      </m.div>
     </div>
   );
 }

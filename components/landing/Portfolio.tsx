@@ -9,7 +9,7 @@
 "use client";
 
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import { SectionWrapper } from "@/components/ui/SectionWrapper";
 
 // Placeholder portfolio items — each has a caption and brand-palette color for the gradient.
@@ -27,7 +27,7 @@ export function Portfolio() {
   return (
     <section className="bg-foreground text-background py-32 md:py-48 px-6">
       <div className="mx-auto max-w-6xl">
-        <motion.div
+        <m.div
           className="mb-16 md:mb-24"
           initial={{ opacity: 0, y: 30 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -41,7 +41,7 @@ export function Portfolio() {
           <p className="mt-4 text-background/60 text-base max-w-lg">
             Intention, care, and transformation.
           </p>
-        </motion.div>
+        </m.div>
 
         <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
           {/* .map() over placeholders to render a 2x3 (mobile) / 3x2 (desktop) grid.
@@ -49,7 +49,7 @@ export function Portfolio() {
               stops — chosen over flat colors to add depth without requiring actual images.
               Stagger delay (i * 0.08) cascades the entrance animation. */}
           {placeholders.map((item, i) => (
-            <motion.div
+            <m.div
               key={item.caption}
               className="group relative overflow-hidden cursor-pointer"
               initial={{ opacity: 0, y: 30 }}
@@ -69,11 +69,11 @@ export function Portfolio() {
                   {item.caption}
                 </p>
               </div>
-            </motion.div>
+            </m.div>
           ))}
         </div>
 
-        <motion.div
+        <m.div
           className="mt-12 text-center"
           initial={{ opacity: 0 }}
           whileInView={{ opacity: 1 }}
@@ -86,7 +86,7 @@ export function Portfolio() {
           >
             View Full Portfolio
           </Link>
-        </motion.div>
+        </m.div>
       </div>
     </section>
   );

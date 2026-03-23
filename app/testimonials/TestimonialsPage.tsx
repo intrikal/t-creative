@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import { LuStar } from "react-icons/lu";
 import type { FeaturedReview } from "@/lib/public-reviews";
 
@@ -29,24 +29,24 @@ export function TestimonialsPage({
     <main className="min-h-screen bg-background">
       {/* Hero */}
       <section className="pt-32 pb-16 px-6 text-center">
-        <motion.span
+        <m.span
           className="text-[10px] tracking-[0.3em] uppercase text-muted block mb-6"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.6 }}
         >
           Testimonials
-        </motion.span>
-        <motion.h1
+        </m.span>
+        <m.h1
           className="font-display text-4xl md:text-5xl font-light text-foreground mb-4"
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.1 }}
         >
           What Our Clients Say
-        </motion.h1>
+        </m.h1>
         {stats.count > 0 && (
-          <motion.div
+          <m.div
             className="flex items-center justify-center gap-3 text-sm text-muted"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -56,7 +56,7 @@ export function TestimonialsPage({
             <span>
               {stats.avg.toFixed(1)} avg from {stats.count} review{stats.count !== 1 ? "s" : ""}
             </span>
-          </motion.div>
+          </m.div>
         )}
       </section>
 
@@ -67,7 +67,7 @@ export function TestimonialsPage({
         ) : (
           <div className="columns-1 sm:columns-2 lg:columns-3 gap-4">
             {reviews.map((review, i) => (
-              <motion.article
+              <m.article
                 key={review.id}
                 className="break-inside-avoid mb-4 rounded-2xl border border-stone-200 bg-white p-5 shadow-sm"
                 initial={{ opacity: 0, y: 16 }}
@@ -112,7 +112,7 @@ export function TestimonialsPage({
                     )}
                   </div>
                 </div>
-              </motion.article>
+              </m.article>
             ))}
           </div>
         )}

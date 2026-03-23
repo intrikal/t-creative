@@ -12,7 +12,7 @@
 "use client";
 
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import { FaInstagram, FaLinkedinIn } from "react-icons/fa";
 import { socials as defaultSocials } from "@/lib/socials";
 
@@ -74,7 +74,7 @@ export function Footer({
       }))
     : defaultSocials;
   return (
-    <motion.footer
+    <m.footer
       className="py-16 md:py-24 px-6 border-t border-foreground/5"
       initial={{ opacity: 0 }}
       whileInView={{ opacity: 1 }}
@@ -157,6 +157,6 @@ export function Footer({
           </div>
         </div>
       </div>
-    </motion.footer>
+    </m.footer>
   );
 }

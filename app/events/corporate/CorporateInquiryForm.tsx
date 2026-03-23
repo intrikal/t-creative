@@ -10,14 +10,14 @@ import { useState, useCallback } from "react";
 import { Turnstile } from "@marsidev/react-turnstile";
 import { useForm } from "@tanstack/react-form";
 import { format } from "date-fns";
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import { CalendarIcon } from "lucide-react";
 import { z } from "zod";
 import { Footer } from "@/components/landing/Footer";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { cn } from "@/lib/utils";
 import { env } from "@/lib/env";
+import { cn } from "@/lib/utils";
 import { corporateInquirySchema, submitCorporateInquiry } from "./actions";
 
 type FormData = Omit<z.infer<typeof corporateInquirySchema>, "turnstileToken">;
@@ -81,23 +81,23 @@ export function CorporateInquiryForm() {
         {/* Hero */}
         <section className="py-24 md:py-32 px-6">
           <div className="mx-auto max-w-5xl text-center">
-            <motion.span
+            <m.span
               className="text-xs tracking-widest uppercase text-muted mb-6 block"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6 }}
             >
               Corporate Events
-            </motion.span>
-            <motion.h1
+            </m.span>
+            <m.h1
               className="text-4xl md:text-6xl font-light tracking-tight text-foreground mb-6"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.1 }}
             >
               Bring the studio to your team.
-            </motion.h1>
-            <motion.p
+            </m.h1>
+            <m.p
               className="text-base md:text-lg text-muted max-w-xl mx-auto"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -105,7 +105,7 @@ export function CorporateInquiryForm() {
             >
               Permanent jewelry and lash services for team bonding events, offsites, and company
               celebrations. We come to you.
-            </motion.p>
+            </m.p>
           </div>
         </section>
 
@@ -113,7 +113,7 @@ export function CorporateInquiryForm() {
         <section className="pb-32 px-6">
           <div className="mx-auto max-w-4xl grid grid-cols-1 md:grid-cols-5 gap-12 md:gap-16">
             {/* Form */}
-            <motion.div
+            <m.div
               className="md:col-span-3"
               initial={{ opacity: 0, y: 30 }}
               whileInView={{ opacity: 1, y: 0 }}
@@ -499,10 +499,10 @@ export function CorporateInquiryForm() {
                   </form.Subscribe>
                 </form>
               )}
-            </motion.div>
+            </m.div>
 
             {/* Info sidebar */}
-            <motion.div
+            <m.div
               className="md:col-span-2 flex flex-col gap-8"
               initial={{ opacity: 0, y: 30 }}
               whileInView={{ opacity: 1, y: 0 }}
@@ -556,7 +556,7 @@ export function CorporateInquiryForm() {
                 <h3 className="text-xs tracking-widest uppercase text-foreground mb-3">Email</h3>
                 <p className="text-sm text-muted">hello@tcreativestudio.com</p>
               </div>
-            </motion.div>
+            </m.div>
           </div>
         </section>
       </main>

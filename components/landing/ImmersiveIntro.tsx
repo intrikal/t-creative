@@ -10,7 +10,7 @@
 "use client";
 
 import { useRef } from "react";
-import { motion, useScroll, useTransform } from "framer-motion";
+import { m, useScroll, useTransform } from "framer-motion";
 
 // Brand philosophy broken into sequential phrases — each reveals independently on scroll.
 // Array structure enables the .map() below to apply per-phrase stagger delays.
@@ -45,7 +45,7 @@ export function ImmersiveIntro() {
   return (
     <section ref={containerRef} className="relative py-32 md:py-48 px-6">
       {/* Background blend */}
-      <motion.div className="absolute inset-0 bg-accent-geo" style={{ opacity: bgOpacity }} />
+      <m.div className="absolute inset-0 bg-accent-geo" style={{ opacity: bgOpacity }} />
 
       <div className="relative mx-auto max-w-3xl">
         {/* .map() over phrases to render each as a scroll-triggered paragraph.
@@ -53,7 +53,7 @@ export function ImmersiveIntro() {
             Ternary on phrase content applies bold styling to key emphasis lines
             ("We refused." and "Not bolted together.") to create narrative punctuation. */}
         {phrases.map((phrase, i) => (
-          <motion.p
+          <m.p
             key={i}
             className={`text-xl md:text-2xl lg:text-3xl leading-relaxed mb-4 ${
               phrase === "We refused." || phrase === "Not bolted together. Designed together."
@@ -70,7 +70,7 @@ export function ImmersiveIntro() {
             }}
           >
             {phrase}
-          </motion.p>
+          </m.p>
         ))}
       </div>
     </section>

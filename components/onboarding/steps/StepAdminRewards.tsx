@@ -35,7 +35,7 @@
  * @prop stepNum - displayed as the step badge number
  */
 import { useEffect, useCallback, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { m, AnimatePresence } from "framer-motion";
 import {
   LuGift,
   LuCalendarCheck,
@@ -268,7 +268,7 @@ export function StepAdminRewards({ form, onNext, stepNum }: StepProps) {
   return (
     <div className="space-y-2.5">
       {/* Heading */}
-      <motion.div
+      <m.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
@@ -280,10 +280,10 @@ export function StepAdminRewards({ form, onNext, stepNum }: StepProps) {
         <h1 className="text-lg font-semibold text-foreground leading-snug">
           Build your loyalty program.
         </h1>
-      </motion.div>
+      </m.div>
 
       {/* Enable toggle */}
-      <motion.div
+      <m.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.08, duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
@@ -318,14 +318,14 @@ export function StepAdminRewards({ form, onNext, stepNum }: StepProps) {
             </button>
           )}
         </form.Field>
-      </motion.div>
+      </m.div>
 
       {/* Config — animated reveal */}
       <form.Subscribe selector={(s) => s.values.rewards.enabled}>
         {(enabled) => (
           <AnimatePresence>
             {enabled && (
-              <motion.div
+              <m.div
                 key="rewards-config"
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: "auto" }}
@@ -583,14 +583,14 @@ export function StepAdminRewards({ form, onNext, stepNum }: StepProps) {
                     }}
                   </form.Field>
                 </div>
-              </motion.div>
+              </m.div>
             )}
           </AnimatePresence>
         )}
       </form.Subscribe>
 
       {/* Continue */}
-      <motion.div
+      <m.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.25 }}
@@ -615,7 +615,7 @@ export function StepAdminRewards({ form, onNext, stepNum }: StepProps) {
         <span className="text-xs text-muted/50">
           press <strong className="text-muted/70">Enter ↵</strong>
         </span>
-      </motion.div>
+      </m.div>
     </div>
   );
 }

@@ -10,7 +10,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { m, AnimatePresence } from "framer-motion";
 
 export function LoadingScreen() {
   const [isLoading, setIsLoading] = useState(true);
@@ -27,13 +27,13 @@ export function LoadingScreen() {
   return (
     <AnimatePresence>
       {isLoading && (
-        <motion.div
+        <m.div
           className="fixed inset-0 z-[10001] bg-[#2c2420] flex flex-col items-center justify-center gap-8"
           exit={{ opacity: 0 }}
           transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
         >
           {/* Growing rule — signature brand motif */}
-          <motion.div
+          <m.div
             className="h-px bg-[#faf6f1]/30"
             initial={{ width: 0 }}
             animate={{ width: 120 }}
@@ -41,15 +41,15 @@ export function LoadingScreen() {
           />
 
           {/* Brand mark */}
-          <motion.p
+          <m.p
             className="font-display text-lg tracking-[0.15em] text-[#faf6f1]/60 font-light"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.8, delay: 0.6 }}
           >
             Studio.
-          </motion.p>
-        </motion.div>
+          </m.p>
+        </m.div>
       )}
     </AnimatePresence>
   );

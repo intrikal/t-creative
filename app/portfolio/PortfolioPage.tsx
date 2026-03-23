@@ -6,7 +6,7 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import { Footer } from "@/components/landing/Footer";
 import type { PublicMediaItem } from "./actions";
 import { BeforeAfterSlider } from "./BeforeAfterSlider";
@@ -135,30 +135,30 @@ export function PortfolioPage({
         {/* Hero */}
         <section className="py-24 md:py-32 px-6">
           <div className="mx-auto max-w-5xl text-center">
-            <motion.span
+            <m.span
               className="text-xs tracking-widest uppercase text-muted mb-6 block"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6 }}
             >
               Portfolio
-            </motion.span>
-            <motion.h1
+            </m.span>
+            <m.h1
               className="text-4xl md:text-6xl font-light tracking-tight text-foreground mb-6"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.1 }}
             >
               Explore the work.
-            </motion.h1>
-            <motion.p
+            </m.h1>
+            <m.p
               className="text-base md:text-lg text-muted max-w-xl mx-auto"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.2 }}
             >
               Each piece tells a story of intention, care, and transformation.
-            </motion.p>
+            </m.p>
           </div>
         </section>
 
@@ -193,7 +193,7 @@ export function PortfolioPage({
                 </p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
                   {filteredBeforeAfter.map((item, i) => (
-                    <motion.div
+                    <m.div
                       key={`ba-${item.caption}`}
                       className="rounded-lg overflow-hidden shadow-sm border border-foreground/5"
                       initial={{ opacity: 0, y: 20 }}
@@ -208,7 +208,7 @@ export function PortfolioPage({
                       {item.caption && (
                         <p className="text-sm text-muted px-4 py-3 text-center">{item.caption}</p>
                       )}
-                    </motion.div>
+                    </m.div>
                   ))}
                 </div>
               </div>
@@ -217,7 +217,7 @@ export function PortfolioPage({
             {/* Grid */}
             <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
               {filtered.map((item, i) => (
-                <motion.div
+                <m.div
                   key={item.caption}
                   className="group relative overflow-hidden cursor-pointer"
                   layout
@@ -248,7 +248,7 @@ export function PortfolioPage({
                       {item.caption}
                     </p>
                   </div>
-                </motion.div>
+                </m.div>
               ))}
             </div>
 

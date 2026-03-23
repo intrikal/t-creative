@@ -39,7 +39,7 @@
  * @prop stepNum - displayed as the step badge number
  */
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { m, AnimatePresence } from "framer-motion";
 import { LuClock, LuX, LuChevronLeft, LuChevronRight } from "react-icons/lu";
 import type { AdminOnboardingForm } from "../OnboardingFlow";
 
@@ -218,7 +218,7 @@ export function StepAdminHours({ form, onNext, stepNum }: StepProps) {
   return (
     <div className="space-y-3">
       {/* Heading */}
-      <motion.div
+      <m.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
@@ -235,10 +235,10 @@ export function StepAdminHours({ form, onNext, stepNum }: StepProps) {
         <p className="text-sm text-foreground/60 mt-0.5">
           Tap dates to mark them open. Navigate months to plan ahead.
         </p>
-      </motion.div>
+      </m.div>
 
       {/* Default hours */}
-      <motion.div
+      <m.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.07, duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
@@ -383,10 +383,10 @@ export function StepAdminHours({ form, onNext, stepNum }: StepProps) {
             </div>
           )}
         </form.Field>
-      </motion.div>
+      </m.div>
 
       {/* Calendar — single month with navigation */}
-      <motion.div
+      <m.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.14, duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
@@ -480,7 +480,7 @@ export function StepAdminHours({ form, onNext, stepNum }: StepProps) {
         {/* Per-day customization */}
         <AnimatePresence>
           {expandedDate && (
-            <motion.div
+            <m.div
               key={expandedDate}
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: "auto" }}
@@ -578,7 +578,7 @@ export function StepAdminHours({ form, onNext, stepNum }: StepProps) {
                   );
                 }}
               </form.Subscribe>
-            </motion.div>
+            </m.div>
           )}
         </AnimatePresence>
 
@@ -594,10 +594,10 @@ export function StepAdminHours({ form, onNext, stepNum }: StepProps) {
             "Tap any date to mark it open — tap again to remove"
           )}
         </p>
-      </motion.div>
+      </m.div>
 
       {/* Next */}
-      <motion.div
+      <m.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.3 }}
@@ -622,7 +622,7 @@ export function StepAdminHours({ form, onNext, stepNum }: StepProps) {
         <span className="text-xs text-muted/50">
           press <strong className="text-muted/70">Enter ↵</strong>
         </span>
-      </motion.div>
+      </m.div>
     </div>
   );
 }

@@ -7,7 +7,7 @@
 "use client";
 
 import { useRef } from "react";
-import { motion, useScroll, useTransform } from "framer-motion";
+import { m, useScroll, useTransform } from "framer-motion";
 
 export function HeroFallback() {
   const ref = useRef<HTMLDivElement>(null);
@@ -30,7 +30,7 @@ export function HeroFallback() {
       }}
     >
       {/* Floating geometric shapes — parallax layers */}
-      <motion.div
+      <m.div
         className="absolute top-[15%] left-[10%] w-48 h-48 rounded-full opacity-20"
         style={{
           y: y1,
@@ -39,7 +39,7 @@ export function HeroFallback() {
         }}
       />
 
-      <motion.div
+      <m.div
         className="absolute top-[25%] right-[15%] w-32 h-32 opacity-15"
         style={{
           y: y2,
@@ -47,7 +47,7 @@ export function HeroFallback() {
         }}
       />
 
-      <motion.div
+      <m.div
         className="absolute bottom-[20%] left-[30%] w-64 h-64 rounded-full opacity-10"
         style={{
           y: y3,
@@ -56,13 +56,13 @@ export function HeroFallback() {
       />
 
       {/* Subtle architectural line */}
-      <motion.div
+      <m.div
         className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-px h-[60%] bg-foreground/5"
         style={{ scaleY: scale }}
       />
 
       {/* Horizontal line */}
-      <motion.div
+      <m.div
         className="absolute top-[45%] left-1/2 -translate-x-1/2 h-px w-[40%] bg-foreground/5"
         style={{ y: y2 }}
       />

@@ -9,7 +9,7 @@
 "use client";
 
 import { useRef } from "react";
-import { motion, useScroll, useTransform } from "framer-motion";
+import { m, useScroll, useTransform } from "framer-motion";
 
 export function StudioExperience() {
   // useRef anchors this section for scroll measurement.
@@ -29,7 +29,7 @@ export function StudioExperience() {
   return (
     <section ref={ref} className="relative bg-surface py-32 md:py-48 px-6 overflow-hidden">
       <div className="mx-auto max-w-3xl text-center">
-        <motion.p
+        <m.p
           className="text-xs tracking-widest uppercase text-muted mb-12"
           initial={{ opacity: 0 }}
           whileInView={{ opacity: 1 }}
@@ -37,10 +37,10 @@ export function StudioExperience() {
           transition={{ duration: 0.6 }}
         >
           The Studio
-        </motion.p>
+        </m.p>
 
-        <motion.div style={{ y }}>
-          <motion.h2
+        <m.div style={{ y }}>
+          <m.h2
             className="text-3xl md:text-5xl font-light tracking-tight text-foreground leading-tight mb-10"
             initial={{ opacity: 0, y: 30 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -49,9 +49,9 @@ export function StudioExperience() {
           >
             Walk in and feel the difference between a space that was decorated and a space that was{" "}
             <em className="font-normal italic">designed</em>.
-          </motion.h2>
+          </m.h2>
 
-          <motion.div
+          <m.div
             className="space-y-4 text-lg text-muted leading-relaxed"
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -66,8 +66,8 @@ export function StudioExperience() {
             <p className="text-foreground font-medium mt-8">
               This is not hospitality. This is care, systematized.
             </p>
-          </motion.div>
-        </motion.div>
+          </m.div>
+        </m.div>
       </div>
     </section>
   );

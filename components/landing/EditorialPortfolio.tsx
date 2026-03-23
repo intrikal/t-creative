@@ -13,7 +13,7 @@
 
 import { useRef, useState, useCallback } from "react";
 import Link from "next/link";
-import { motion, useScroll, useTransform, AnimatePresence, LayoutGroup } from "framer-motion";
+import { m, useScroll, useTransform, AnimatePresence, LayoutGroup } from "framer-motion";
 
 type Category = "All" | "Lash" | "Skin" | "Jewelry" | "Craft";
 
@@ -73,7 +73,7 @@ function WorkCard({ item, delay = 0 }: { item: WorkItem; delay?: number }) {
   }, []);
 
   return (
-    <motion.div
+    <m.div
       ref={cardRef}
       layout
       className="group relative overflow-hidden cursor-crosshair"
@@ -127,7 +127,7 @@ function WorkCard({ item, delay = 0 }: { item: WorkItem; delay?: number }) {
         </span>
         <p className="text-sm font-light text-white leading-snug">{item.caption}</p>
       </div>
-    </motion.div>
+    </m.div>
   );
 }
 
@@ -168,7 +168,7 @@ export function EditorialPortfolio() {
     >
       <div className="mx-auto max-w-6xl">
         {/* Header */}
-        <motion.div
+        <m.div
           className="mb-12 md:mb-16"
           initial={{ opacity: 0, y: 24 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -181,10 +181,10 @@ export function EditorialPortfolio() {
           <h2 className="font-display text-4xl md:text-6xl font-light tracking-tight text-background leading-[1.1]">
             The work speaks first.
           </h2>
-        </motion.div>
+        </m.div>
 
         {/* Category filters with sliding underline */}
-        <motion.div
+        <m.div
           className="flex flex-wrap gap-2 mb-16 md:mb-24"
           initial={{ opacity: 0, y: 16 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -211,7 +211,7 @@ export function EditorialPortfolio() {
               {/* Conditional render: underline only renders under the active tab.
                   layoutId ensures Framer Motion animates it sliding between tabs. */}
               {activeCategory === cat && (
-                <motion.div
+                <m.div
                   layoutId="portfolio-filter-underline"
                   className="absolute bottom-0 left-0 right-0 h-px bg-accent"
                   transition={{ type: "spring", stiffness: 300, damping: 30 }}
@@ -219,7 +219,7 @@ export function EditorialPortfolio() {
               )}
             </button>
           ))}
-        </motion.div>
+        </m.div>
 
         {/* Asymmetric 3-column grid */}
         <LayoutGroup>
@@ -235,13 +235,13 @@ export function EditorialPortfolio() {
               </AnimatePresence>
             </div>
 
-            <motion.div style={{ y: centreY }} className="flex flex-col gap-3 md:gap-4 md:mt-16">
+            <m.div style={{ y: centreY }} className="flex flex-col gap-3 md:gap-4 md:mt-16">
               <AnimatePresence mode="popLayout">
                 {col2.map((item, i) => (
                   <WorkCard key={item.id} item={item} delay={0.08 + i * 0.06} />
                 ))}
               </AnimatePresence>
-            </motion.div>
+            </m.div>
 
             <div className="hidden md:flex flex-col gap-4 mt-8">
               <AnimatePresence mode="popLayout">
@@ -254,7 +254,7 @@ export function EditorialPortfolio() {
         </LayoutGroup>
 
         {/* CTA */}
-        <motion.div
+        <m.div
           className="mt-16 md:mt-20"
           initial={{ opacity: 0 }}
           whileInView={{ opacity: 1 }}
@@ -267,7 +267,7 @@ export function EditorialPortfolio() {
           >
             View Full Portfolio →
           </Link>
-        </motion.div>
+        </m.div>
       </div>
     </section>
   );

@@ -15,7 +15,7 @@
 
 import { useRef } from "react";
 import Link from "next/link";
-import { motion, useScroll, useTransform } from "framer-motion";
+import { m, useScroll, useTransform } from "framer-motion";
 import { ZONES, type ZoneId } from "@/lib/zones";
 
 interface TransformationArc {
@@ -152,16 +152,16 @@ function TransformationBand({ arc }: { arc: TransformationArc }) {
 
         {/* Transformation progress bar */}
         <div className="mx-8 md:mx-16 h-px bg-foreground/5 relative">
-          <motion.div
+          <m.div
             className="absolute inset-y-0 left-0 h-full"
             style={{ width: progressWidth, backgroundColor: zone.color, opacity: 0.4 }}
           />
         </div>
 
         {/* Sliding panels — three states side by side */}
-        <motion.div className="flex-1 flex min-w-0" style={{ x: slideX }}>
+        <m.div className="flex-1 flex min-w-0" style={{ x: slideX }}>
           {/* Raw */}
-          <motion.div
+          <m.div
             className="w-screen shrink-0 flex items-center justify-center px-8 md:px-16 lg:px-24"
             style={{ opacity: rawOpacity }}
           >
@@ -186,10 +186,10 @@ function TransformationBand({ arc }: { arc: TransformationArc }) {
                 </p>
               </div>
             </div>
-          </motion.div>
+          </m.div>
 
           {/* Process */}
-          <motion.div
+          <m.div
             className="w-screen shrink-0 flex items-center justify-center px-8 md:px-16 lg:px-24"
             style={{ opacity: processOpacity }}
           >
@@ -223,10 +223,10 @@ function TransformationBand({ arc }: { arc: TransformationArc }) {
                 </p>
               </div>
             </div>
-          </motion.div>
+          </m.div>
 
           {/* Result */}
-          <motion.div
+          <m.div
             className="w-screen shrink-0 flex items-center justify-center px-8 md:px-16 lg:px-24"
             style={{ opacity: resultOpacity }}
           >
@@ -257,8 +257,8 @@ function TransformationBand({ arc }: { arc: TransformationArc }) {
                 </Link>
               </div>
             </div>
-          </motion.div>
-        </motion.div>
+          </m.div>
+        </m.div>
       </div>
     </div>
   );

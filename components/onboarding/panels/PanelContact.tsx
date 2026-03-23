@@ -25,7 +25,7 @@
  * Related files:
  * - components/onboarding/steps/StepContact.tsx — the paired left-side form
  */
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import { LuCalendarDays, LuClock, LuShieldCheck, LuMessageSquare } from "react-icons/lu";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -46,7 +46,7 @@ export function PanelContact({ phone = "" }: Props) {
 
   return (
     <div className="flex flex-col items-center justify-center h-full px-6">
-      <motion.div
+      <m.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
@@ -91,7 +91,7 @@ export function PanelContact({ phone = "" }: Props) {
         </Card>
 
         {/* SMS reminder — phone number updates live */}
-        <motion.div
+        <m.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3, duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
@@ -104,7 +104,7 @@ export function PanelContact({ phone = "" }: Props) {
               {/* "To:" line updates as phone is typed */}
               <div className="flex items-center gap-1.5 mb-1">
                 <span className="text-[10px] text-muted/40">To:</span>
-                <motion.span
+                <m.span
                   key={displayPhone || "placeholder"}
                   initial={{ opacity: 0, y: -4 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -112,7 +112,7 @@ export function PanelContact({ phone = "" }: Props) {
                   className={`text-[10px] font-medium ${displayPhone ? "text-accent" : "text-muted/30"}`}
                 >
                   {displayPhone || "your phone number"}
-                </motion.span>
+                </m.span>
               </div>
               <div className="rounded-xl rounded-tl-sm bg-surface border border-foreground/5 px-3.5 py-2.5">
                 <p className="text-xs text-foreground leading-relaxed">
@@ -123,9 +123,9 @@ export function PanelContact({ phone = "" }: Props) {
               <p className="text-[10px] text-muted/50 mt-1 ml-1">SMS · sent on approval</p>
             </div>
           </div>
-        </motion.div>
+        </m.div>
 
-        <motion.p
+        <m.p
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.7 }}
@@ -133,8 +133,8 @@ export function PanelContact({ phone = "" }: Props) {
         >
           <LuShieldCheck className="w-3 h-3" />
           Your info is never shared with third parties
-        </motion.p>
-      </motion.div>
+        </m.p>
+      </m.div>
     </div>
   );
 }

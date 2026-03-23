@@ -9,7 +9,7 @@
 "use client";
 
 import { useRef } from "react";
-import { motion, useScroll, useTransform } from "framer-motion";
+import { m, useScroll, useTransform } from "framer-motion";
 
 // Three platform roles — each describes a perspective within the system.
 // Array structure enables .map() with index-based scroll stagger in RoleColumn.
@@ -48,7 +48,7 @@ export function RoleArchitecture() {
   return (
     <section ref={containerRef} className="bg-surface py-32 md:py-48 px-6">
       <div className="mx-auto max-w-6xl">
-        <motion.div
+        <m.div
           className="mb-16 md:mb-24"
           initial={{ opacity: 0, y: 30 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -61,7 +61,7 @@ export function RoleArchitecture() {
           <h2 className="text-3xl md:text-5xl font-light tracking-tight text-foreground">
             Three perspectives. One system.
           </h2>
-        </motion.div>
+        </m.div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-4">
           {/* .map() renders each role as a RoleColumn with its index for scroll stagger.
@@ -101,10 +101,10 @@ function RoleColumn({
   const y = useTransform(scrollProgress, [start, end], [20, 0]);
 
   return (
-    <motion.div className="bg-background p-8 md:p-10" style={{ opacity, y }}>
+    <m.div className="bg-background p-8 md:p-10" style={{ opacity, y }}>
       <h3 className="text-2xl font-light tracking-tight text-foreground mb-6">{role.name}</h3>
       <p className="text-sm leading-relaxed text-muted mb-4">{role.description}</p>
       <p className="text-sm font-medium text-foreground">{role.detail}</p>
-    </motion.div>
+    </m.div>
   );
 }

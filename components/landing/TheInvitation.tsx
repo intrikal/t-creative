@@ -11,7 +11,7 @@
 
 import { useRef } from "react";
 import Link from "next/link";
-import { motion, useMotionValue, useSpring } from "framer-motion";
+import { m, useMotionValue, useSpring } from "framer-motion";
 
 /**
  * MagneticButton — Link element that subtly follows the cursor within ±4px, creating a
@@ -59,7 +59,7 @@ function MagneticButton({
   }
 
   return (
-    <motion.a
+    <m.a
       ref={ref}
       href={href}
       style={{ x: springX, y: springY }}
@@ -68,7 +68,7 @@ function MagneticButton({
       className={className}
     >
       {children}
-    </motion.a>
+    </m.a>
   );
 }
 
@@ -92,7 +92,7 @@ export function TheInvitation() {
         T Creative
       </p>
 
-      <motion.div
+      <m.div
         className="relative z-10 mx-auto max-w-2xl text-center"
         initial={{ opacity: 0, y: 32 }}
         whileInView={{ opacity: 1, y: 0 }}
@@ -124,16 +124,16 @@ export function TheInvitation() {
             className="inline-flex items-center gap-2 justify-center px-8 py-4 text-xs tracking-[0.2em] uppercase text-foreground hover:text-accent transition-colors duration-300 group"
           >
             See What&apos;s Possible
-            <motion.span
+            <m.span
               className="inline-block"
               animate={{ x: [0, 4, 0] }}
               transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
             >
               →
-            </motion.span>
+            </m.span>
           </Link>
         </div>
-      </motion.div>
+      </m.div>
     </section>
   );
 }

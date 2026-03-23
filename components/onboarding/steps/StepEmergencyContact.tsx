@@ -39,7 +39,7 @@
  * - components/onboarding/OnboardingFlow.tsx — renders this as step 4
  */
 import { useEffect, useCallback, useRef } from "react";
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import type { AssistantOnboardingForm } from "../OnboardingFlow";
 
 function formatPhone(digits: string): string {
@@ -81,7 +81,7 @@ export function StepEmergencyContact({ form, onNext, stepNum }: StepProps) {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <motion.div
+      <m.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
@@ -94,12 +94,12 @@ export function StepEmergencyContact({ form, onNext, stepNum }: StepProps) {
           Emergency contact
         </h1>
         <p className="text-muted text-sm mt-2">Someone we can reach in case of an emergency.</p>
-      </motion.div>
+      </m.div>
 
       {/* Name */}
       <form.Field name="emergencyContactName">
         {(field) => (
-          <motion.div
+          <m.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1, duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
@@ -123,7 +123,7 @@ export function StepEmergencyContact({ form, onNext, stepNum }: StepProps) {
                 focus:outline-none focus:border-accent
                 transition-colors duration-200"
             />
-          </motion.div>
+          </m.div>
         )}
       </form.Field>
 
@@ -134,7 +134,7 @@ export function StepEmergencyContact({ form, onNext, stepNum }: StepProps) {
           const displayValue = rawDigits.length > 0 ? formatPhone(rawDigits) : "";
 
           return (
-            <motion.div
+            <m.div
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2, duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
@@ -160,7 +160,7 @@ export function StepEmergencyContact({ form, onNext, stepNum }: StepProps) {
                   focus:outline-none focus:border-accent
                   transition-colors duration-200"
               />
-            </motion.div>
+            </m.div>
           );
         }}
       </form.Field>
@@ -168,7 +168,7 @@ export function StepEmergencyContact({ form, onNext, stepNum }: StepProps) {
       {/* Relationship */}
       <form.Field name="emergencyContactRelation">
         {(field) => (
-          <motion.div
+          <m.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3, duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
@@ -191,7 +191,7 @@ export function StepEmergencyContact({ form, onNext, stepNum }: StepProps) {
                 focus:outline-none focus:border-accent
                 transition-colors duration-200"
             />
-          </motion.div>
+          </m.div>
         )}
       </form.Field>
 
@@ -203,7 +203,7 @@ export function StepEmergencyContact({ form, onNext, stepNum }: StepProps) {
               const canContinue =
                 nameField.state.value.trim().length > 0 && phoneField.state.value.trim().length > 0;
               return (
-                <motion.div
+                <m.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ delay: 0.5 }}
@@ -239,7 +239,7 @@ export function StepEmergencyContact({ form, onNext, stepNum }: StepProps) {
                       press <strong className="text-muted/70">Enter &crarr;</strong>
                     </span>
                   )}
-                </motion.div>
+                </m.div>
               );
             }}
           </form.Field>

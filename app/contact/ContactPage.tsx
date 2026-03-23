@@ -19,7 +19,7 @@
 import { useState, useCallback } from "react";
 import { Turnstile } from "@marsidev/react-turnstile";
 import { useForm } from "@tanstack/react-form";
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import { FaInstagram, FaLinkedinIn } from "react-icons/fa";
 import { z } from "zod";
 import { Footer } from "@/components/landing/Footer";
@@ -129,23 +129,23 @@ export function ContactPage({
         {/* Hero */}
         <section className="py-24 md:py-32 px-6">
           <div className="mx-auto max-w-5xl text-center">
-            <motion.span
+            <m.span
               className="text-xs tracking-widest uppercase text-muted mb-6 block"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6 }}
             >
               Contact
-            </motion.span>
-            <motion.h1
+            </m.span>
+            <m.h1
               className="text-4xl md:text-6xl font-light tracking-tight text-foreground mb-6"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.1 }}
             >
               Let&apos;s create something beautiful.
-            </motion.h1>
-            <motion.p
+            </m.h1>
+            <m.p
               className="text-base md:text-lg text-muted max-w-xl mx-auto"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -153,7 +153,7 @@ export function ContactPage({
             >
               Whether you&apos;re booking an appointment, requesting a consultation, or just have a
               question — I&apos;d love to hear from you.
-            </motion.p>
+            </m.p>
           </div>
         </section>
 
@@ -161,7 +161,7 @@ export function ContactPage({
         <section className="pb-32 px-6">
           <div className="mx-auto max-w-4xl grid grid-cols-1 md:grid-cols-5 gap-12 md:gap-16">
             {/* Form */}
-            <motion.div
+            <m.div
               className="md:col-span-3"
               initial={{ opacity: 0, y: 30 }}
               whileInView={{ opacity: 1, y: 0 }}
@@ -374,10 +374,10 @@ export function ContactPage({
                   </form.Subscribe>
                 </form>
               )}
-            </motion.div>
+            </m.div>
 
             {/* Info sidebar */}
-            <motion.div
+            <m.div
               className="md:col-span-2 flex flex-col gap-8"
               initial={{ opacity: 0, y: 30 }}
               whileInView={{ opacity: 1, y: 0 }}
@@ -426,7 +426,7 @@ export function ContactPage({
                   })}
                 </div>
               </div>
-            </motion.div>
+            </m.div>
           </div>
         </section>
       </main>

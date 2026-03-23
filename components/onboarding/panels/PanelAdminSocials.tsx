@@ -26,7 +26,7 @@
  *   (instagram, instagram2, instagram3, instagram4, tiktok, youtube, pinterest,
  *   facebook, linkedin, google, website). A non-empty string = connected.
  */
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import {
   FaInstagram,
   FaTiktok,
@@ -129,14 +129,14 @@ export function PanelAdminSocials({ socials }: Props) {
 
   return (
     <div className="flex flex-col justify-center h-full px-6 py-5">
-      <motion.div
+      <m.div
         variants={stagger}
         initial="hidden"
         animate="show"
         className="w-full max-w-[380px] space-y-3"
       >
         {/* Header */}
-        <motion.div variants={fadeUp}>
+        <m.div variants={fadeUp}>
           <p className="text-[11px] font-semibold text-accent uppercase tracking-[0.15em] mb-0.5">
             Your funnel
           </p>
@@ -146,10 +146,10 @@ export function PanelAdminSocials({ socials }: Props) {
           <p className="text-sm text-muted mt-1 leading-snug">
             Every account you add is another door. They all lead to the same place.
           </p>
-        </motion.div>
+        </m.div>
 
         {/* Live platform icons — compact pill grid */}
-        <motion.div
+        <m.div
           variants={fadeUp}
           className="rounded-2xl bg-surface border border-foreground/8 overflow-hidden"
         >
@@ -189,10 +189,10 @@ export function PanelAdminSocials({ socials }: Props) {
               );
             })}
           </div>
-        </motion.div>
+        </m.div>
 
         {/* Funnel steps — single compact card, 3 rows */}
-        <motion.div
+        <m.div
           variants={fadeUp}
           className="rounded-2xl bg-surface border border-foreground/8 overflow-hidden divide-y divide-foreground/6"
         >
@@ -248,8 +248,8 @@ export function PanelAdminSocials({ socials }: Props) {
               </p>
             </div>
           </div>
-        </motion.div>
-      </motion.div>
+        </m.div>
+      </m.div>
     </div>
   );
 }

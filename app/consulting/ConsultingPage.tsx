@@ -5,7 +5,7 @@
 "use client";
 
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import { Footer } from "@/components/landing/Footer";
 
 const defaultServices = [
@@ -82,23 +82,23 @@ export function ConsultingPage({
         {/* Hero */}
         <section className="py-24 md:py-32 px-6 bg-foreground text-background">
           <div className="mx-auto max-w-5xl text-center">
-            <motion.span
+            <m.span
               className="text-xs tracking-widest uppercase text-accent mb-6 block"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6 }}
             >
               Remote Consulting Available
-            </motion.span>
-            <motion.h1
+            </m.span>
+            <m.h1
               className="text-4xl md:text-6xl font-light tracking-tight mb-6"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.1 }}
             >
               HR & Business Consulting
-            </motion.h1>
-            <motion.p
+            </m.h1>
+            <m.p
               className="text-base md:text-lg text-background/60 max-w-2xl mx-auto"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -107,7 +107,7 @@ export function ConsultingPage({
               Two practices, one philosophy: build things that actually work. Whether you need HR
               infrastructure for a growing team or a business strategy for your beauty studio — this
               is operational expertise from someone who lives it.
-            </motion.p>
+            </m.p>
           </div>
         </section>
 
@@ -115,7 +115,7 @@ export function ConsultingPage({
         <section className="py-24 md:py-32 px-6">
           <div className="mx-auto max-w-4xl flex flex-col gap-8">
             {services.map((service, i) => (
-              <motion.div
+              <m.div
                 key={service.title}
                 className="border border-foreground/10 p-8 md:p-12"
                 initial={{ opacity: 0, y: 30 }}
@@ -164,7 +164,7 @@ export function ConsultingPage({
                     Request Consultation
                   </Link>
                 </div>
-              </motion.div>
+              </m.div>
             ))}
           </div>
         </section>
@@ -172,7 +172,7 @@ export function ConsultingPage({
         {/* Why Remote */}
         <section className="py-24 md:py-32 px-6 bg-surface">
           <div className="mx-auto max-w-3xl text-center">
-            <motion.div
+            <m.div
               initial={{ opacity: 0, y: 30 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
@@ -183,7 +183,7 @@ export function ConsultingPage({
               </h2>
               <ul className="space-y-4 text-left max-w-md mx-auto">
                 {benefits.map((benefit, i) => (
-                  <motion.li
+                  <m.li
                     key={benefit}
                     className="flex items-start gap-3 text-sm text-muted"
                     initial={{ opacity: 0, x: -10 }}
@@ -193,10 +193,10 @@ export function ConsultingPage({
                   >
                     <span className="text-accent mt-0.5">+</span>
                     {benefit}
-                  </motion.li>
+                  </m.li>
                 ))}
               </ul>
-            </motion.div>
+            </m.div>
           </div>
         </section>
       </main>

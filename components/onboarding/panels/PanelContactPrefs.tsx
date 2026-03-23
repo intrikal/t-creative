@@ -28,7 +28,7 @@
  * @prop instagramHandle  — personal Instagram handle, without the "@"
  * @prop notifications    — object with sms / email / marketing booleans
  */
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import { LuMail, LuPhone, LuInstagram, LuBell, LuShieldCheck } from "react-icons/lu";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -57,14 +57,14 @@ export function PanelContactPrefs({
 
   return (
     <div className="flex flex-col justify-center h-full px-6">
-      <motion.div
+      <m.div
         variants={stagger}
         initial="hidden"
         animate="show"
         className="w-full max-w-[340px] space-y-4"
       >
         {/* Header */}
-        <motion.div variants={fadeUp}>
+        <m.div variants={fadeUp}>
           <p className="text-[11px] font-semibold text-accent uppercase tracking-[0.15em] mb-0.5">
             Contact & notifications
           </p>
@@ -72,10 +72,10 @@ export function PanelContactPrefs({
           <p className="text-sm text-muted/60 mt-0.5 leading-snug">
             For shift updates, scheduling, and studio news.
           </p>
-        </motion.div>
+        </m.div>
 
         {/* Live contact card */}
-        <motion.div variants={fadeUp}>
+        <m.div variants={fadeUp}>
           <Card className="border-foreground/8 overflow-hidden">
             <CardContent className="p-0">
               {hasContact ? (
@@ -126,17 +126,17 @@ export function PanelContactPrefs({
               )}
             </CardContent>
           </Card>
-        </motion.div>
+        </m.div>
 
         {/* Privacy note */}
-        <motion.p
+        <m.p
           variants={fadeUp}
           className="flex items-center gap-1.5 text-[11px] text-muted/60 justify-center"
         >
           <LuShieldCheck className="w-3 h-3" />
           Your info is never shared with third parties
-        </motion.p>
-      </motion.div>
+        </m.p>
+      </m.div>
     </div>
   );
 }

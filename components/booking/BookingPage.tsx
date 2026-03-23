@@ -72,7 +72,7 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import {
   LuInstagram,
   LuMapPin,
@@ -636,7 +636,7 @@ export function BookingPage({
             <SectionHeading eyebrow="Process" title="How it works" />
             <div className="flex flex-col gap-3">
               {HOW_IT_WORKS.map((item, i) => (
-                <motion.div
+                <m.div
                   key={item.step}
                   initial={{ opacity: 0, x: -12 }}
                   whileInView={{ opacity: 1, x: 0 }}
@@ -651,7 +651,7 @@ export function BookingPage({
                     <p className="font-medium text-stone-900">{item.title}</p>
                     <p className="mt-0.5 text-sm text-stone-500">{item.description}</p>
                   </div>
-                </motion.div>
+                </m.div>
               ))}
             </div>
           </section>

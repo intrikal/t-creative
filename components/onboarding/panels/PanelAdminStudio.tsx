@@ -31,7 +31,7 @@
  * @prop studio.locationType - "home_studio" | "salon_suite" | "mobile"
  * @prop studio.locationArea - freeform area text (neighborhood, city, etc.)
  */
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import {
   LuSparkles,
   LuGem,
@@ -100,14 +100,14 @@ export function PanelAdminStudio({ studio }: Props) {
 
   return (
     <div className="flex flex-col justify-center h-full px-6 py-5">
-      <motion.div
+      <m.div
         variants={stagger}
         initial="hidden"
         animate="show"
         className="w-full max-w-[380px] space-y-3"
       >
         {/* Header */}
-        <motion.div variants={fadeUp}>
+        <m.div variants={fadeUp}>
           <p className="text-[11px] font-semibold text-accent uppercase tracking-[0.15em] mb-0.5">
             Your booking page
           </p>
@@ -118,10 +118,10 @@ export function PanelAdminStudio({ studio }: Props) {
             Your name, bio, and location appear on your booking page, every confirmation email, and
             every Square receipt.
           </p>
-        </motion.div>
+        </m.div>
 
         {/* Live booking page preview */}
-        <motion.div
+        <m.div
           variants={fadeUp}
           className="rounded-2xl bg-surface border border-foreground/8 overflow-hidden"
         >
@@ -179,20 +179,20 @@ export function PanelAdminStudio({ studio }: Props) {
               <span className="text-[11px] text-accent font-semibold">Book a session</span>
             </div>
           </div>
-        </motion.div>
+        </m.div>
 
         {/* Location insight — changes live */}
-        <motion.div variants={fadeUp}>
+        <m.div variants={fadeUp}>
           <div className="flex items-start gap-2.5 px-3 py-2.5 rounded-xl bg-surface border border-foreground/6">
             <div className="w-6 h-6 rounded-lg bg-accent/10 flex items-center justify-center shrink-0 mt-0.5">
               <LocationIcon className="text-accent" style={{ width: 12, height: 12 }} />
             </div>
             <p className="text-xs text-muted/70 leading-relaxed">{locMeta.tip}</p>
           </div>
-        </motion.div>
+        </m.div>
 
         {/* What clients experience */}
-        <motion.div variants={fadeUp} className="space-y-1.5">
+        <m.div variants={fadeUp} className="space-y-1.5">
           <p className="text-[10px] font-semibold text-muted/40 uppercase tracking-wider">
             What clients experience
           </p>
@@ -236,10 +236,10 @@ export function PanelAdminStudio({ studio }: Props) {
               </p>
             </div>
           </div>
-        </motion.div>
+        </m.div>
 
         {/* Your name on receipts */}
-        <motion.div variants={fadeUp}>
+        <m.div variants={fadeUp}>
           <div className="flex items-start gap-2.5 px-3 py-2 rounded-xl bg-surface border border-foreground/6">
             <div className="w-6 h-6 rounded-lg bg-emerald-500/10 flex items-center justify-center shrink-0 mt-0.5">
               <LuCreditCard className="text-emerald-500" style={{ width: 12, height: 12 }} />
@@ -255,8 +255,8 @@ export function PanelAdminStudio({ studio }: Props) {
               </p>
             </div>
           </div>
-        </motion.div>
-      </motion.div>
+        </m.div>
+      </m.div>
     </div>
   );
 }

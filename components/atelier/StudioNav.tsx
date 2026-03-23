@@ -8,7 +8,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { m, AnimatePresence } from "framer-motion";
 import { ZONES, ZONE_ORDER } from "@/lib/zones";
 import { useStudioStore } from "@/stores/useStudioStore";
 
@@ -58,7 +58,7 @@ export function StudioNav() {
   return (
     <AnimatePresence>
       {isVisible && (
-        <motion.div
+        <m.div
           className="fixed inset-0 z-[60] pointer-events-none"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -68,7 +68,7 @@ export function StudioNav() {
           {/* Zone label — top left */}
           <AnimatePresence mode="wait">
             {activeZone && (
-              <motion.div
+              <m.div
                 key={activeZone}
                 className="absolute top-8 left-8 pointer-events-auto"
                 initial={{ opacity: 0, x: -10 }}
@@ -80,12 +80,12 @@ export function StudioNav() {
                   {ZONES[activeZone].label}
                 </p>
                 <p className="text-sm text-muted max-w-xs">{ZONES[activeZone].subtitle}</p>
-              </motion.div>
+              </m.div>
             )}
           </AnimatePresence>
 
           {/* Exit / Back button — top right */}
-          <motion.div
+          <m.div
             className="absolute top-8 right-8 pointer-events-auto flex gap-3"
             initial={{ opacity: 0, x: 10 }}
             animate={{ opacity: 1, x: 0 }}
@@ -107,7 +107,7 @@ export function StudioNav() {
             >
               Exit
             </button>
-          </motion.div>
+          </m.div>
 
           {/* Zone navigation dots — bottom center */}
           <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-5 pointer-events-auto">
@@ -141,7 +141,7 @@ export function StudioNav() {
           <div aria-live="polite" className="sr-only">
             {activeZone ? `Now viewing: ${ZONES[activeZone].label}` : "Studio overview"}
           </div>
-        </motion.div>
+        </m.div>
       )}
     </AnimatePresence>
   );

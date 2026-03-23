@@ -9,7 +9,7 @@
 "use client";
 
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 
 // Training program summaries — lighter version than the full Training component.
 // Each has title, duration, price, and zone color for the dot indicator.
@@ -45,7 +45,7 @@ export function TrainingTeaser() {
     <section className="bg-surface py-28 md:py-40 px-6" aria-label="Training programs">
       <div className="mx-auto max-w-5xl">
         {/* Header */}
-        <motion.div
+        <m.div
           className="mb-16 md:mb-20"
           initial={{ opacity: 0, y: 24 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -63,14 +63,14 @@ export function TrainingTeaser() {
             Hands-on training with the same techniques and standards behind every T Creative
             service.
           </p>
-        </motion.div>
+        </m.div>
 
         {/* Program cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-12">
           {/* .map() over PROGRAMS to render cards in a 1x4 (mobile) or 2x2 (desktop) grid.
               Stagger delay (i * 0.1) cascades entrance animation. */}
           {PROGRAMS.map((program, i) => (
-            <motion.div
+            <m.div
               key={program.title}
               className="border border-foreground/8 p-6 md:p-8 hover:border-foreground/20 transition-all duration-300 group"
               initial={{ opacity: 0, y: 20 }}
@@ -88,12 +88,12 @@ export function TrainingTeaser() {
                 {program.title}
               </h3>
               <p className="text-sm text-accent font-medium">{program.price}</p>
-            </motion.div>
+            </m.div>
           ))}
         </div>
 
         {/* CTA */}
-        <motion.div
+        <m.div
           initial={{ opacity: 0 }}
           whileInView={{ opacity: 1 }}
           viewport={{ once: true }}
@@ -106,7 +106,7 @@ export function TrainingTeaser() {
             <span className="nav-link-reveal pb-px">View All Programs</span>
             <span className="transition-transform duration-200 group-hover:translate-x-1">→</span>
           </Link>
-        </motion.div>
+        </m.div>
       </div>
     </section>
   );

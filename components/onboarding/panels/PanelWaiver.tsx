@@ -12,7 +12,7 @@
  * Related files:
  * - components/onboarding/steps/StepPolicies.tsx — the paired left-side form
  */
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import { LuClipboardCheck } from "react-icons/lu";
 
 const WAIVER_SECTIONS = [
@@ -37,7 +37,7 @@ const WAIVER_SECTIONS = [
 export function PanelWaiver() {
   return (
     <div className="flex flex-col items-center justify-center h-full px-6">
-      <motion.div
+      <m.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
@@ -57,7 +57,7 @@ export function PanelWaiver() {
         {/* Waiver sections */}
         <div className="space-y-4">
           {WAIVER_SECTIONS.map((section, i) => (
-            <motion.div
+            <m.div
               key={section.title}
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
@@ -67,19 +67,19 @@ export function PanelWaiver() {
                 {section.title}
               </p>
               <p className="text-xs text-muted leading-relaxed">{section.text}</p>
-            </motion.div>
+            </m.div>
           ))}
         </div>
 
-        <motion.p
+        <m.p
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.7 }}
           className="text-[11px] text-muted/50 mt-5 text-center"
         >
           Standard for all professional beauty services
-        </motion.p>
-      </motion.div>
+        </m.p>
+      </m.div>
     </div>
   );
 }

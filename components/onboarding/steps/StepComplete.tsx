@@ -49,7 +49,7 @@
  */
 import { useState } from "react";
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import { LuCopy, LuCheck } from "react-icons/lu";
 import { Button } from "@/components/ui/Button";
 import type { OnboardingForm } from "../OnboardingFlow";
@@ -94,13 +94,13 @@ export function StepComplete({
   return (
     <div className="text-center space-y-4">
       {/* Animated checkmark */}
-      <motion.div
+      <m.div
         initial={{ scale: 0, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         transition={{ duration: 0.5, ease: "easeOut" }}
         className="mx-auto w-12 h-12 rounded-full bg-accent/10 flex items-center justify-center"
       >
-        <motion.svg
+        <m.svg
           width="24"
           height="24"
           viewBox="0 0 32 32"
@@ -109,7 +109,7 @@ export function StepComplete({
           animate={{ pathLength: 1 }}
           transition={{ delay: 0.3, duration: 0.5 }}
         >
-          <motion.path
+          <m.path
             d="M8 16.5L13.5 22L24 11"
             stroke="currentColor"
             strokeWidth="2.5"
@@ -120,10 +120,10 @@ export function StepComplete({
             animate={{ pathLength: 1 }}
             transition={{ delay: 0.3, duration: 0.5 }}
           />
-        </motion.svg>
-      </motion.div>
+        </m.svg>
+      </m.div>
 
-      <motion.div
+      <m.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.4, duration: 0.4 }}
@@ -268,10 +268,10 @@ export function StepComplete({
             </ul>
           </div>
         )}
-      </motion.div>
+      </m.div>
 
       {saveError && (
-        <motion.div
+        <m.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           className="flex items-center gap-3 px-4 py-3 rounded-xl bg-red-500/8 border border-red-500/20 max-w-sm mx-auto text-left"
@@ -291,10 +291,10 @@ export function StepComplete({
               Retry
             </button>
           )}
-        </motion.div>
+        </m.div>
       )}
 
-      <motion.div
+      <m.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.6, duration: 0.4 }}
@@ -400,7 +400,7 @@ export function StepComplete({
             </Button>
           </>
         )}
-      </motion.div>
+      </m.div>
     </div>
   );
 }

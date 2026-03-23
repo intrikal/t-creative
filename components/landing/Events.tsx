@@ -11,7 +11,7 @@
 "use client";
 
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 
 // Default event descriptions used when no admin-configured events are provided.
 // Array of {title, description} objects — same shape as the optional prop.
@@ -60,7 +60,7 @@ export function Events({
   return (
     <section className="py-28 md:py-40 px-6 bg-surface" aria-label="Events">
       <div className="mx-auto max-w-5xl">
-        <motion.div
+        <m.div
           className="mb-16 md:mb-20"
           initial={{ opacity: 0, y: 24 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -77,7 +77,7 @@ export function Events({
             Private parties, pop-ups, bridal services, and corporate events. The full T Creative
             experience — wherever you need it.
           </p>
-        </motion.div>
+        </m.div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-12">
           {/* .map() renders event cards with stagger delay (i * 0.1).
@@ -86,30 +86,30 @@ export function Events({
           {events.map((event, i) => {
             const meta = EVENT_DETAILS[event.title] ?? DEFAULT_DETAIL;
             return (
-            <motion.div
-              key={event.title}
-              className="border border-foreground/8 p-6 md:p-8 hover:border-foreground/20 transition-all duration-300 group"
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.5, delay: i * 0.1 }}
-            >
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: meta.color }} />
-                <span className="text-[10px] tracking-[0.2em] uppercase text-muted">
-                  {meta.detail}
-                </span>
-              </div>
-              <h3 className="text-base font-medium text-foreground mb-2 group-hover:text-accent transition-colors duration-200">
-                {event.title}
-              </h3>
-              <p className="text-sm text-muted leading-relaxed">{event.description}</p>
-            </motion.div>
+              <m.div
+                key={event.title}
+                className="border border-foreground/8 p-6 md:p-8 hover:border-foreground/20 transition-all duration-300 group"
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5, delay: i * 0.1 }}
+              >
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: meta.color }} />
+                  <span className="text-[10px] tracking-[0.2em] uppercase text-muted">
+                    {meta.detail}
+                  </span>
+                </div>
+                <h3 className="text-base font-medium text-foreground mb-2 group-hover:text-accent transition-colors duration-200">
+                  {event.title}
+                </h3>
+                <p className="text-sm text-muted leading-relaxed">{event.description}</p>
+              </m.div>
             );
           })}
         </div>
 
-        <motion.div
+        <m.div
           initial={{ opacity: 0 }}
           whileInView={{ opacity: 1 }}
           viewport={{ once: true }}
@@ -122,7 +122,7 @@ export function Events({
             <span className="nav-link-reveal pb-px">Inquire About an Event</span>
             <span className="transition-transform duration-200 group-hover:translate-x-1">→</span>
           </Link>
-        </motion.div>
+        </m.div>
       </div>
     </section>
   );

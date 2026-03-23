@@ -30,7 +30,7 @@
  * @prop cancellationWindow - hours within which the fee applies (e.g. "24")
  * @prop noShowFee - fee amount as a string (e.g. "50"), empty if not set
  */
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import {
   LuEye,
   LuGem,
@@ -117,14 +117,14 @@ export function PanelAdminPolicies({
 
   return (
     <div className="flex flex-col justify-center h-full px-6 py-5">
-      <motion.div
+      <m.div
         variants={stagger}
         initial="hidden"
         animate="show"
         className="w-full max-w-[380px] space-y-2"
       >
         {/* Header */}
-        <motion.div variants={fadeUp}>
+        <m.div variants={fadeUp}>
           <p className="text-[11px] font-semibold text-accent uppercase tracking-[0.15em] mb-0.5">
             How this protects you
           </p>
@@ -134,10 +134,10 @@ export function PanelAdminPolicies({
           <p className="text-xs text-muted/60 mt-0.5 leading-snug">
             No chasing, no awkward texts, no lost income from last-minute cancels.
           </p>
-        </motion.div>
+        </m.div>
 
         {/* Booking confirmation */}
-        <motion.div variants={fadeUp}>
+        <m.div variants={fadeUp}>
           <p className="text-[10px] font-semibold text-muted/50 uppercase tracking-wider mb-1">
             Booking confirmation
           </p>
@@ -156,10 +156,10 @@ export function PanelAdminPolicies({
                 : "— you approve each request"}
             </p>
           </div>
-        </motion.div>
+        </m.div>
 
         {/* Waitlist — compact rows */}
-        <motion.div variants={fadeUp} className="space-y-1">
+        <m.div variants={fadeUp} className="space-y-1">
           <p className="text-[10px] font-semibold text-muted/50 uppercase tracking-wider">
             Waitlist
           </p>
@@ -211,10 +211,10 @@ export function PanelAdminPolicies({
               {consultingCopy.short}
             </span>
           </div>
-        </motion.div>
+        </m.div>
 
         {/* Fee rows — compact */}
-        <motion.div variants={fadeUp} className="space-y-1">
+        <m.div variants={fadeUp} className="space-y-1">
           <p className="text-[10px] font-semibold text-muted/50 uppercase tracking-wider">
             Protection fees
           </p>
@@ -254,16 +254,16 @@ export function PanelAdminPolicies({
               {hasNoShowFee ? `$${noShowFee} charged via Square` : "No fee"}
             </p>
           </div>
-        </motion.div>
+        </m.div>
 
         {/* Footer note */}
-        <motion.div variants={fadeUp} className="flex items-center gap-1.5 px-1">
+        <m.div variants={fadeUp} className="flex items-center gap-1.5 px-1">
           <LuBanknote className="w-3 h-3 text-muted/30 shrink-0" />
           <p className="text-[11px] text-muted/40">
             All fees collected by Square, transferred to your account.
           </p>
-        </motion.div>
-      </motion.div>
+        </m.div>
+      </m.div>
     </div>
   );
 }

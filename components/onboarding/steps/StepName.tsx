@@ -37,7 +37,7 @@
  * - components/onboarding/panels/PanelName  — paired right-side panel (via barrel)
  */
 import { useEffect, useCallback, useRef } from "react";
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import { LuLock, LuMail } from "react-icons/lu";
 import type { OnboardingForm } from "../OnboardingFlow";
 
@@ -94,7 +94,7 @@ export function StepName({ form, onNext, stepNum, avatarUrl, googleName, email }
   return (
     <div className="space-y-6">
       {/* Question header */}
-      <motion.div
+      <m.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
@@ -109,11 +109,11 @@ export function StepName({ form, onNext, stepNum, avatarUrl, googleName, email }
         <p className="text-muted text-sm mt-2">
           Feel free to use a nickname — this is how we&apos;ll greet you.
         </p>
-      </motion.div>
+      </m.div>
 
       {/* Identity chip — avatar + locked email, same pattern as admin/assistant */}
       {email && (
-        <motion.div
+        <m.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.08, duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
@@ -139,14 +139,14 @@ export function StepName({ form, onNext, stepNum, avatarUrl, googleName, email }
             <span className="text-xs text-muted/60 truncate max-w-[220px]">{email}</span>
             <LuLock className="w-2.5 h-2.5 text-muted/25 shrink-0" />
           </div>
-        </motion.div>
+        </m.div>
       )}
 
       {/* Name inputs — stacked on mobile, side by side on sm+ */}
       <div className="flex flex-col sm:flex-row gap-4">
         <form.Field name="firstName">
           {(field) => (
-            <motion.div
+            <m.div
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.15, duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
@@ -169,13 +169,13 @@ export function StepName({ form, onNext, stepNum, avatarUrl, googleName, email }
                   focus:outline-none focus:border-accent
                   transition-colors duration-200"
               />
-            </motion.div>
+            </m.div>
           )}
         </form.Field>
 
         <form.Field name="lastName">
           {(field) => (
-            <motion.div
+            <m.div
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.22, duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
@@ -192,7 +192,7 @@ export function StepName({ form, onNext, stepNum, avatarUrl, googleName, email }
                   focus:outline-none focus:border-accent
                   transition-colors duration-200"
               />
-            </motion.div>
+            </m.div>
           )}
         </form.Field>
       </div>
@@ -202,7 +202,7 @@ export function StepName({ form, onNext, stepNum, avatarUrl, googleName, email }
         {(field) => {
           const canContinue = field.state.value.trim().length > 0;
           return (
-            <motion.div
+            <m.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.4 }}
@@ -241,7 +241,7 @@ export function StepName({ form, onNext, stepNum, avatarUrl, googleName, email }
                   press <strong className="text-muted/70">Enter &crarr;</strong>
                 </span>
               )}
-            </motion.div>
+            </m.div>
           );
         }}
       </form.Field>

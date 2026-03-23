@@ -31,7 +31,7 @@
  * @prop hasPolicies - true if at least one cancellation or no-show fee is set
  * @prop hasDeposits - true if at least one service has a deposit amount
  */
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import {
   LuCalendarCheck,
   LuLink,
@@ -150,14 +150,14 @@ export function AdminDashboard({
 
   return (
     <main className="min-h-screen bg-background px-4 py-10 sm:px-8">
-      <motion.div
+      <m.div
         variants={stagger}
         initial="hidden"
         animate="show"
         className="max-w-2xl mx-auto space-y-8"
       >
         {/* Header */}
-        <motion.div variants={fadeUp} className="flex items-start justify-between gap-4">
+        <m.div variants={fadeUp} className="flex items-start justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 mb-1">
               <TCLogo size={18} className="text-accent" />
@@ -183,10 +183,10 @@ export function AdminDashboard({
               Live
             </span>
           </div>
-        </motion.div>
+        </m.div>
 
         {/* Booking link card */}
-        <motion.div
+        <m.div
           variants={fadeUp}
           id="booking-link"
           className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-surface border border-foreground/8"
@@ -210,16 +210,16 @@ export function AdminDashboard({
             <LuCopy style={{ width: 11, height: 11 }} />
             Copy
           </button>
-        </motion.div>
+        </m.div>
 
         {/* Setup checklist */}
-        <motion.div variants={fadeUp}>
+        <m.div variants={fadeUp}>
           <div className="flex items-center justify-between mb-3">
             <p className="text-[10px] font-semibold text-muted/50 uppercase tracking-wider">
               Setup — {completedCount}/{setupItems.length}
             </p>
             <div className="flex-1 mx-4 h-1 rounded-full bg-foreground/6 overflow-hidden">
-              <motion.div
+              <m.div
                 className="h-full bg-accent rounded-full"
                 initial={{ width: 0 }}
                 animate={{ width: `${(completedCount / setupItems.length) * 100}%` }}
@@ -254,10 +254,10 @@ export function AdminDashboard({
               </div>
             ))}
           </div>
-        </motion.div>
+        </m.div>
 
         {/* Next steps */}
-        <motion.div variants={fadeUp}>
+        <m.div variants={fadeUp}>
           <p className="text-[10px] font-semibold text-muted/50 uppercase tracking-wider mb-3">
             Do these next
           </p>
@@ -284,10 +284,10 @@ export function AdminDashboard({
               </a>
             ))}
           </div>
-        </motion.div>
+        </m.div>
 
         {/* Settings shortcut */}
-        <motion.div variants={fadeUp} className="flex items-center gap-2 px-1">
+        <m.div variants={fadeUp} className="flex items-center gap-2 px-1">
           <LuSettings className="w-3.5 h-3.5 text-muted/30 shrink-0" />
           <p className="text-xs text-muted/40">
             Square and Zoho connect from{" "}
@@ -296,8 +296,8 @@ export function AdminDashboard({
             </a>
             . You can also manage team members and adjust policies there.
           </p>
-        </motion.div>
-      </motion.div>
+        </m.div>
+      </m.div>
     </main>
   );
 }

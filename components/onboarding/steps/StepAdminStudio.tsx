@@ -33,7 +33,7 @@
  * @prop stepNum - displayed as the step badge number
  */
 import { useEffect, useCallback, useRef } from "react";
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import { LuHouse, LuBuilding, LuMapPin } from "react-icons/lu";
 import type { AdminOnboardingForm } from "../OnboardingFlow";
 
@@ -87,7 +87,7 @@ export function StepAdminStudio({ form, onNext, stepNum }: StepProps) {
   return (
     <div className="space-y-3">
       {/* Heading — live studio name */}
-      <motion.div
+      <m.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
@@ -110,10 +110,10 @@ export function StepAdminStudio({ form, onNext, stepNum }: StepProps) {
         <p className="text-sm text-foreground/60 mt-0.5 leading-relaxed">
           Your name, story, and location — first thing clients see when they click your link.
         </p>
-      </motion.div>
+      </m.div>
 
       {/* Studio name + Bio — side by side feel, stacked tight */}
-      <motion.div
+      <m.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1, duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
@@ -179,10 +179,10 @@ export function StepAdminStudio({ form, onNext, stepNum }: StepProps) {
             </div>
           )}
         </form.Field>
-      </motion.div>
+      </m.div>
 
       {/* Location — compact inline row pills */}
-      <motion.div
+      <m.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2, duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
@@ -254,14 +254,14 @@ export function StepAdminStudio({ form, onNext, stepNum }: StepProps) {
             );
           }}
         </form.Subscribe>
-      </motion.div>
+      </m.div>
 
       {/* Continue */}
       <form.Field name="studioName">
         {(field) => {
           const canContinue = field.state.value.trim().length > 0;
           return (
-            <motion.div
+            <m.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.35 }}
@@ -294,7 +294,7 @@ export function StepAdminStudio({ form, onNext, stepNum }: StepProps) {
                   press <strong className="text-muted/70">Enter &crarr;</strong>
                 </span>
               )}
-            </motion.div>
+            </m.div>
           );
         }}
       </form.Field>

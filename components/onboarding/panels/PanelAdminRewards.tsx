@@ -34,7 +34,7 @@
  *   rewards field hasn't initialized yet (panel returns null in that case)
  */
 import { useState } from "react";
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import {
   LuGift,
   LuStar,
@@ -299,25 +299,25 @@ export function PanelAdminRewards({ rewards }: Props) {
 
   return (
     <div className="flex flex-col justify-center h-full px-6 py-5">
-      <motion.div
+      <m.div
         variants={stagger}
         initial="hidden"
         animate="show"
         className="w-full max-w-[380px] space-y-2.5"
       >
         {/* Header */}
-        <motion.div variants={fadeUp}>
+        <m.div variants={fadeUp}>
           <p className="text-xs font-semibold text-accent uppercase tracking-[0.15em] mb-0.5">
             {enabled ? "Your program" : "Preview"}
           </p>
           <h2 className="text-lg font-semibold text-foreground leading-tight">
             {enabled ? "Here's what clients experience." : "Here's what you'd activate."}
           </h2>
-        </motion.div>
+        </m.div>
 
         {/* Preview wrapper */}
-        <motion.div variants={fadeUp} className="relative">
-          <motion.div
+        <m.div variants={fadeUp} className="relative">
+          <m.div
             animate={{ opacity: enabled ? 1 : 0.35 }}
             transition={{ duration: 0.3 }}
             className="space-y-2"
@@ -352,7 +352,7 @@ export function PanelAdminRewards({ rewards }: Props) {
             </div>
 
             {/* Mock loyalty card */}
-            <motion.div
+            <m.div
               key={activeTierIdx}
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
@@ -391,7 +391,7 @@ export function PanelAdminRewards({ rewards }: Props) {
                   )}
                 </div>
               </div>
-            </motion.div>
+            </m.div>
 
             {/* Earn example */}
             <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-surface border border-foreground/8">
@@ -447,11 +447,11 @@ export function PanelAdminRewards({ rewards }: Props) {
                   : "Points never expire by default"}
               </p>
             </div>
-          </motion.div>
+          </m.div>
 
           {/* Disabled overlay */}
           {!enabled && (
-            <motion.div
+            <m.div
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.2 }}
@@ -463,20 +463,20 @@ export function PanelAdminRewards({ rewards }: Props) {
                   Enable above to activate
                 </span>
               </div>
-            </motion.div>
+            </m.div>
           )}
-        </motion.div>
+        </m.div>
 
         {/* Footer */}
-        <motion.div variants={fadeUp} className="flex items-start gap-2 px-1">
+        <m.div variants={fadeUp} className="flex items-start gap-2 px-1">
           <LuGift className="w-3 h-3 text-muted/30 shrink-0 mt-0.5" />
           <p className="text-xs text-muted/40 leading-relaxed">
             {enabled
               ? "Points are tracked automatically. Clients see their balance after every booking."
               : "You can enable or adjust this any time from your dashboard."}
           </p>
-        </motion.div>
-      </motion.div>
+        </m.div>
+      </m.div>
     </div>
   );
 }

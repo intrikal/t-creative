@@ -9,7 +9,7 @@
 "use client";
 
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import { SectionWrapper } from "@/components/ui/SectionWrapper";
 
 // Training program definitions — each includes title, zone color for the dot indicator,
@@ -58,7 +58,7 @@ export function Training() {
   return (
     <SectionWrapper id="training" className="py-32 md:py-48 px-6 bg-surface">
       <div className="mx-auto max-w-5xl">
-        <motion.div
+        <m.div
           className="mb-16 md:mb-20 text-center"
           initial={{ opacity: 0, y: 30 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -75,13 +75,13 @@ export function Training() {
             Certification-based programs taught with the same rigor they&apos;re practiced.
             Studio-standard. Not a course — a professional formation.
           </p>
-        </motion.div>
+        </m.div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* .map() over programs to render cards in a 1x4 (mobile) or 2x2 (desktop) grid.
               Stagger delay (i * 0.08) cascades the entrance animation top-left to bottom-right. */}
           {programs.map((program, i) => (
-            <motion.div
+            <m.div
               key={program.title}
               className="border border-foreground/8 p-6 flex flex-col gap-3 hover:border-foreground/20 transition-colors duration-200"
               initial={{ opacity: 0, y: 20 }}
@@ -105,11 +105,11 @@ export function Training() {
                 </div>
                 <span className="text-xs font-medium text-accent">{program.price}</span>
               </div>
-            </motion.div>
+            </m.div>
           ))}
         </div>
 
-        <motion.div
+        <m.div
           className="mt-10 text-center"
           initial={{ opacity: 0 }}
           whileInView={{ opacity: 1 }}
@@ -122,7 +122,7 @@ export function Training() {
           >
             View All Programs & Enroll
           </Link>
-        </motion.div>
+        </m.div>
       </div>
     </SectionWrapper>
   );

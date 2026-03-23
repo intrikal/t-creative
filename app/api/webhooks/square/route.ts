@@ -1,12 +1,12 @@
 /**
  * Square webhook route — signature verification, event storage, enqueue to Inngest.
  *
- * Runs on Vercel Edge Runtime for independent concurrency scaling from the
- * main app's serverless functions. Heavy processing is delegated to Inngest.
+ * Runs as a Node.js serverless function. Heavy processing is delegated to
+ * Inngest so this route returns 200 to Square in < 1s regardless of load.
  *
  * Flow:
- * 1. Verify the webhook signature (Web Crypto HMAC-SHA256)
- * 2. Idempotency check via `webhook_events` table (Supabase PostgREST)
+ * 1. Verify the webhook signature (HMAC-SHA256)
+ * 2. Idempotency check via `webhook_events` table
  * 3. Store the raw event in `webhook_events`
  * 4. Enqueue `square/webhook.received` to Inngest for async processing
  * 5. Return 200 immediately — Inngest runs handlers, marks processed, writes sync_log
@@ -15,29 +15,25 @@
  *
  * @module api/webhooks/square
  */
-export const runtime = "edge";
+export const maxDuration = 10;
 
+import { createHmac } from "crypto";
+import { eq, and } from "drizzle-orm";
+import { db } from "@/db";
+import { webhookEvents } from "@/db/schema";
+import { SQUARE_WEBHOOK_SIGNATURE_KEY } from "@/lib/square";
 import { inngest } from "@/inngest/client";
-import { supabase } from "./edge-db";
 
 /* ------------------------------------------------------------------ */
-/*  Signature verification (Web Crypto — no Node.js crypto needed)    */
+/*  Signature verification                                             */
 /* ------------------------------------------------------------------ */
 
-async function verifySignature(body: string, signature: string, url: string): Promise<boolean> {
-  const key = process.env.SQUARE_WEBHOOK_SIGNATURE_KEY;
-  if (!key) return false;
+function verifySignature(body: string, signature: string, url: string): boolean {
+  if (!SQUARE_WEBHOOK_SIGNATURE_KEY) return false;
 
-  const enc = new TextEncoder();
-  const cryptoKey = await crypto.subtle.importKey(
-    "raw",
-    enc.encode(key),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"],
-  );
-  const mac = await crypto.subtle.sign("HMAC", cryptoKey, enc.encode(url + body));
-  const expected = btoa(String.fromCharCode(...new Uint8Array(mac)));
+  const hmac = createHmac("sha256", SQUARE_WEBHOOK_SIGNATURE_KEY);
+  hmac.update(url + body);
+  const expected = hmac.digest("base64");
 
   return expected === signature;
 }
@@ -52,7 +48,7 @@ export async function POST(request: Request): Promise<Response> {
   const url = request.url;
 
   // Verify signature
-  if (process.env.SQUARE_WEBHOOK_SIGNATURE_KEY && !(await verifySignature(body, signature, url))) {
+  if (SQUARE_WEBHOOK_SIGNATURE_KEY && !verifySignature(body, signature, url)) {
     return new Response("Invalid signature", { status: 403 });
   }
 
@@ -68,35 +64,30 @@ export async function POST(request: Request): Promise<Response> {
 
   // Idempotency check
   if (eventId) {
-    const { data: existing } = await supabase
-      .from("webhook_events")
-      .select("id, is_processed")
-      .eq("provider", "square")
-      .eq("external_event_id", eventId)
-      .maybeSingle();
+    const [existing] = await db
+      .select({ id: webhookEvents.id, isProcessed: webhookEvents.isProcessed })
+      .from(webhookEvents)
+      .where(and(eq(webhookEvents.provider, "square"), eq(webhookEvents.externalEventId, eventId)));
 
-    if (existing?.is_processed) {
+    if (existing?.isProcessed) {
       return new Response("Already processed", { status: 200 });
     }
   }
 
   // Store raw event
-  const { data: webhookRow, error } = await supabase
-    .from("webhook_events")
-    .insert({
+  const [webhookRow] = await db
+    .insert(webhookEvents)
+    .values({
       provider: "square",
-      external_event_id: eventId,
-      event_type: eventType,
-      payload: event,
-      is_processed: false,
+      externalEventId: eventId,
+      eventType,
+      payload: event as Record<string, unknown>,
+      isProcessed: false,
       attempts: 1,
     })
-    .select("id")
-    .single();
+    .returning({ id: webhookEvents.id });
 
-  if (error || !webhookRow) {
-    // Don't lose the event — still enqueue if insert failed due to race (duplicate key)
-    // but return 500 on hard failures so Square retries
+  if (!webhookRow) {
     return new Response("DB error", { status: 500 });
   }
 
@@ -104,7 +95,7 @@ export async function POST(request: Request): Promise<Response> {
   await inngest.send({
     name: "square/webhook.received",
     data: {
-      webhookRowId: webhookRow.id as number,
+      webhookRowId: webhookRow.id,
       eventType,
       eventId,
       payload: event,

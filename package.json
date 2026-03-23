@@ -17,7 +17,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "health-check": "node -e \"const url=(process.env.NEXT_PUBLIC_SITE_URL||'https://tcreativestudio.com')+'/api/health'; fetch(url,{signal:AbortSignal.timeout(10000)}).then(r=>r.json()).then(d=>{console.log('Health:',d.status);console.log(JSON.stringify(d.checks,null,2));if(d.status==='failing')process.exit(1);}).catch(e=>{console.error('Health check failed:',e.message);process.exit(1);})\""
   },
   "lint-staged": {
     "*.{ts,tsx}": [

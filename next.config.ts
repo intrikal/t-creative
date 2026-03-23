@@ -98,7 +98,7 @@ export default withSentryConfig(withSerwistConfig(nextConfig), {
   authToken: process.env.SENTRY_AUTH_TOKEN,
   silent: !process.env.CI,
   widenClientFileUpload: true,
-  sourcemaps: { disable: true },
+  sourcemaps: { deleteSourcemapsAfterUpload: true },
   disableLogger: true,
   autoInstrumentServerFunctions: false,
   autoInstrumentMiddleware: false,

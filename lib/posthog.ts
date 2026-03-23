@@ -59,7 +59,8 @@ export function trackEvent(
 }
 
 /**
- * Identify a user with person properties in PostHog.
+ * Identify a user with person properties in PostHog, and associate them
+ * with the studio group so all events are grouped by studio.
  *
  * Call after authentication to merge the anonymous session with the
  * real user profile. Properties typically include email, role, and
@@ -72,8 +73,19 @@ export function identifyUser(distinctId: string, properties: Record<string, unkn
   if (!isPostHogConfigured()) return;
 
   try {
-    getPostHogServer().identify({ distinctId, properties });
+    const ph = getPostHogServer();
+    ph.identify({ distinctId, properties });
+    ph.groupIdentify({
+      groupType: "studio",
+      groupKey: STUDIO_ID,
+      properties: { name: STUDIO_NAME, plan: "pro" },
+    });
   } catch (err) {
     Sentry.captureException(err);
   }
 }
+
+// Single-tenant constants — one studio for now; swap for dynamic values when
+// T Creative becomes multi-tenant SaaS.
+const STUDIO_ID = "t-creative";
+const STUDIO_NAME = "T Creative";

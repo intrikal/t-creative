@@ -4,6 +4,7 @@
  */
 import { NextResponse } from "next/server";
 import { inngest } from "@/inngest/client";
+import { withCronMonitoring } from "@/lib/cron-monitor";
 
 export async function POST(request: Request) {
   const secret = request.headers.get("x-cron-secret");
@@ -11,6 +12,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const ids = await inngest.send({ name: "cron/backup", data: {} });
-  return NextResponse.json({ triggered: true, ids });
+  return withCronMonitoring("backup", async () => {
+    const ids = await inngest.send({ name: "cron/backup", data: {} });
+    return { recordsProcessed: ids.ids.length };
+  });
 }

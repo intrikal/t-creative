@@ -62,7 +62,7 @@ function daysFromNow(days: number): Date {
 }
 
 /** Picks a random element from an array. */
-function pick<T>(arr: T[]): T {
+function pick<T>(arr: readonly T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 

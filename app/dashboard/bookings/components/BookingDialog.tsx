@@ -41,6 +41,8 @@ import type { Booking, BookingStatus } from "./helpers";
 export type BookingFormState = {
   clientId: string;
   serviceId: number | "";
+  /** All selected services (ordered). First entry = primary service. */
+  serviceIds: number[];
   staffId: string;
   date: string; // YYYY-MM-DD
   time: string; // HH:MM
@@ -68,6 +70,7 @@ const INTERVAL_DAYS_TO_RRULE: Record<number, string> = {
 const EMPTY_FORM: BookingFormState = {
   clientId: "",
   serviceId: "",
+  serviceIds: [],
   staffId: "",
   date: "",
   time: "",
@@ -111,6 +114,7 @@ function bookingToForm(b: Booking): BookingFormState {
   return {
     clientId: b.clientId,
     serviceId: b.serviceId,
+    serviceIds: b.serviceIds ?? [b.serviceId],
     staffId: b.staffId ?? "",
     date: d.toLocaleDateString("en-CA"), // YYYY-MM-DD
     time: d.toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", minute: "2-digit" }),
@@ -135,6 +139,7 @@ export function BookingDialog({
   staffOptions,
   activeSubscriptions = [],
   initialClientName,
+  maxServices,
 }: {
   open: boolean;
   onClose: () => void;
@@ -151,6 +156,8 @@ export function BookingDialog({
   }[];
   staffOptions: { id: string; name: string }[];
   activeSubscriptions?: { id: number; clientId: string; name: string; sessionsRemaining: number }[];
+  /** Maximum services per booking (from booking rules). */
+  maxServices?: number;
 }) {
   const [form, setForm] = useState<BookingFormState>(initial ? bookingToForm(initial) : EMPTY_FORM);
 
@@ -160,13 +167,58 @@ export function BookingDialog({
 
   function onServiceChange(serviceId: number | "") {
     setForm((prev) => {
-      if (!serviceId) return { ...prev, serviceId: "" };
+      if (!serviceId) return { ...prev, serviceId: "", serviceIds: [] };
       const svc = serviceOptions.find((s) => s.id === serviceId);
       return {
         ...prev,
         serviceId,
+        serviceIds: [serviceId as number],
         durationMin: svc?.durationMinutes ?? prev.durationMin,
         price: svc ? svc.priceInCents / 100 : prev.price,
+      };
+    });
+  }
+
+  function addService(serviceId: number) {
+    setForm((prev) => {
+      if (prev.serviceIds.includes(serviceId)) return prev;
+      if (prev.serviceIds.length >= (maxServices ?? 4)) return prev;
+      const newIds = [...prev.serviceIds, serviceId];
+      const totalDuration = newIds.reduce((sum, id) => {
+        const svc = serviceOptions.find((s) => s.id === id);
+        return sum + (svc?.durationMinutes ?? 0);
+      }, 0);
+      const totalPrice = newIds.reduce((sum, id) => {
+        const svc = serviceOptions.find((s) => s.id === id);
+        return sum + (svc?.priceInCents ?? 0);
+      }, 0);
+      return {
+        ...prev,
+        serviceIds: newIds,
+        serviceId: newIds[0],
+        durationMin: totalDuration,
+        price: totalPrice / 100,
+      };
+    });
+  }
+
+  function removeService(serviceId: number) {
+    setForm((prev) => {
+      const newIds = prev.serviceIds.filter((id) => id !== serviceId);
+      const totalDuration = newIds.reduce((sum, id) => {
+        const svc = serviceOptions.find((s) => s.id === id);
+        return sum + (svc?.durationMinutes ?? 0);
+      }, 0);
+      const totalPrice = newIds.reduce((sum, id) => {
+        const svc = serviceOptions.find((s) => s.id === id);
+        return sum + (svc?.priceInCents ?? 0);
+      }, 0);
+      return {
+        ...prev,
+        serviceIds: newIds,
+        serviceId: newIds[0] ?? "",
+        durationMin: totalDuration || 60,
+        price: totalPrice / 100,
       };
     });
   }
@@ -226,19 +278,67 @@ export function BookingDialog({
               selectedName={initialClientName}
             />
           </Field>
-          <Field label="Service" required>
-            <Select
-              aria-required="true"
-              value={form.serviceId}
-              onChange={(e) => onServiceChange(e.target.value === "" ? "" : Number(e.target.value))}
-            >
-              <option value="">Select service…</option>
-              {serviceOptions.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </Select>
+          <Field label={`Service${form.serviceIds.length > 1 ? "s" : ""}`} required>
+            {form.serviceIds.length === 0 ? (
+              <Select
+                aria-required="true"
+                value=""
+                onChange={(e) =>
+                  onServiceChange(e.target.value === "" ? "" : Number(e.target.value))
+                }
+              >
+                <option value="">Select service…</option>
+                {serviceOptions.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </Select>
+            ) : (
+              <div className="space-y-1.5">
+                {form.serviceIds.map((sid, i) => {
+                  const svc = serviceOptions.find((s) => s.id === sid);
+                  return (
+                    <div
+                      key={sid}
+                      className="flex items-center justify-between gap-2 px-3 py-1.5 bg-surface border border-border rounded-lg text-sm"
+                    >
+                      <span className="truncate">
+                        {i + 1}. {svc?.name ?? "Unknown"}{" "}
+                        <span className="text-muted text-xs">
+                          ({svc?.durationMinutes ?? 0}min · $
+                          {((svc?.priceInCents ?? 0) / 100).toFixed(0)})
+                        </span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => removeService(sid)}
+                        className="text-muted hover:text-destructive text-xs shrink-0"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  );
+                })}
+                {form.serviceIds.length < (maxServices ?? 4) && (
+                  <Select
+                    value=""
+                    onChange={(e) => {
+                      if (e.target.value) addService(Number(e.target.value));
+                    }}
+                  >
+                    <option value="">+ Add another service…</option>
+                    {serviceOptions
+                      .filter((s) => !form.serviceIds.includes(s.id))
+                      .map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name}
+                        </option>
+                      ))}
+                  </Select>
+                )}
+              </div>
+            )}
           </Field>
         </div>
         <div className="grid grid-cols-2 gap-3">

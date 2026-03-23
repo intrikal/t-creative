@@ -40,6 +40,8 @@ export type ReceiptData = {
 
   /** Line items (all in cents) */
   serviceAmountInCents: number;
+  /** Itemized services for multi-service bookings. */
+  services?: { serviceName: string; priceInCents: number; durationMinutes: number }[];
   addOns: { name: string; priceInCents: number }[];
   discountInCents: number;
   depositPaidInCents: number | null;
@@ -189,10 +191,7 @@ function ReceiptDocument({ data }: { data: ReceiptData }) {
   const subtotal = data.serviceAmountInCents + addOnTotal - data.discountInCents;
   const totalTax = data.payments.reduce((sum, p) => sum + p.taxAmountInCents, 0);
   const totalTip = data.payments.reduce((sum, p) => sum + p.tipInCents, 0);
-  const totalPaid = data.payments.reduce(
-    (sum, p) => sum + p.amountInCents + p.tipInCents,
-    0,
-  );
+  const totalPaid = data.payments.reduce((sum, p) => sum + p.amountInCents + p.tipInCents, 0);
 
   return React.createElement(
     Document,
@@ -264,21 +263,13 @@ function ReceiptDocument({ data }: { data: ReceiptData }) {
           View,
           { style: s.row },
           React.createElement(Text, { style: s.label }, "Date & Time"),
-          React.createElement(
-            Text,
-            { style: s.value },
-            `${data.date} at ${data.time}`,
-          ),
+          React.createElement(Text, { style: s.value }, `${data.date} at ${data.time}`),
         ),
         React.createElement(
           View,
           { style: s.row },
           React.createElement(Text, { style: s.label }, "Duration"),
-          React.createElement(
-            Text,
-            { style: s.value },
-            `${data.durationMinutes} minutes`,
-          ),
+          React.createElement(Text, { style: s.value }, `${data.durationMinutes} minutes`),
         ),
         data.location &&
           React.createElement(
@@ -296,16 +287,28 @@ function ReceiptDocument({ data }: { data: ReceiptData }) {
         View,
         { style: s.section },
         React.createElement(Text, { style: s.sectionTitle }, "Charges"),
-        React.createElement(
-          View,
-          { style: s.row },
-          React.createElement(Text, { style: s.label }, data.serviceName),
-          React.createElement(
-            Text,
-            { style: s.value },
-            fmt(data.serviceAmountInCents),
-          ),
-        ),
+        // Multi-service: itemize each service separately
+        ...(data.services && data.services.length > 1
+          ? data.services.map((svc, i) =>
+              React.createElement(
+                View,
+                { key: `svc-${i}`, style: s.row },
+                React.createElement(
+                  Text,
+                  { style: s.label },
+                  `${svc.serviceName} (${svc.durationMinutes}min)`,
+                ),
+                React.createElement(Text, { style: s.value }, fmt(svc.priceInCents)),
+              ),
+            )
+          : [
+              React.createElement(
+                View,
+                { style: s.row },
+                React.createElement(Text, { style: s.label }, data.serviceName),
+                React.createElement(Text, { style: s.value }, fmt(data.serviceAmountInCents)),
+              ),
+            ]),
         ...data.addOns.map((a, i) =>
           React.createElement(
             View,
@@ -351,11 +354,7 @@ function ReceiptDocument({ data }: { data: ReceiptData }) {
             View,
             { style: s.row },
             React.createElement(Text, { style: s.label }, "Deposit paid"),
-            React.createElement(
-              Text,
-              { style: s.value },
-              fmt(data.depositPaidInCents),
-            ),
+            React.createElement(Text, { style: s.value }, fmt(data.depositPaidInCents)),
           ),
 
         /* Total */
@@ -382,21 +381,13 @@ function ReceiptDocument({ data }: { data: ReceiptData }) {
               View,
               { style: s.row },
               React.createElement(Text, { style: s.label }, "Method"),
-              React.createElement(
-                Text,
-                { style: s.value },
-                methodLabel(p.method),
-              ),
+              React.createElement(Text, { style: s.value }, methodLabel(p.method)),
             ),
             React.createElement(
               View,
               { style: s.row },
               React.createElement(Text, { style: s.label }, "Amount"),
-              React.createElement(
-                Text,
-                { style: s.value },
-                fmt(p.amountInCents + p.tipInCents),
-              ),
+              React.createElement(Text, { style: s.value }, fmt(p.amountInCents + p.tipInCents)),
             ),
             p.paidAt &&
               React.createElement(

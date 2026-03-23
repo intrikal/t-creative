@@ -160,6 +160,9 @@ const DEFAULT_BOOKING_RULES: BookingRulesConfig = {
   allowOnlineBooking: true,
   waitlistClaimWindowHours: 24,
   waiverTokenExpiryDays: 7,
+  comboDepositType: "highest",
+  fixedComboDepositInCents: 5000,
+  maxServicesPerBooking: 4,
 };
 
 const DEFAULT_REMINDERS: RemindersConfig = {
@@ -506,6 +509,9 @@ const bookingRulesSchema = z.object({
   allowOnlineBooking: z.boolean(),
   waitlistClaimWindowHours: z.number().int().min(1).max(168),
   waiverTokenExpiryDays: z.number().int().min(1).max(30),
+  comboDepositType: z.enum(["sum", "fixed", "highest"]).default("highest"),
+  fixedComboDepositInCents: z.number().int().nonnegative().default(5000),
+  maxServicesPerBooking: z.number().int().min(1).max(10).default(4),
 });
 
 export async function saveBookingRules(data: BookingRulesConfig): Promise<ActionResult<void>> {

@@ -18,7 +18,7 @@ import {
   timestamp,
   varchar,
 } from "drizzle-orm/pg-core";
-import { bookings } from "./bookings";
+import { bookings, bookingServices } from "./bookings";
 import { formTypeEnum, serviceCategoryEnum } from "./enums";
 
 /* ------------------------------------------------------------------ */
@@ -109,6 +109,8 @@ export const servicesRelations = relations(services, ({ many }) => ({
   addOns: many(serviceAddOns),
   /** One-to-many: services.id → bookings.service_id (appointments booked for this service). */
   bookings: many(bookings),
+  /** One-to-many: services.id → booking_services.service_id (multi-service booking entries). */
+  bookingServiceEntries: many(bookingServices),
 }));
 
 export const serviceAddOnsRelations = relations(serviceAddOns, ({ one }) => ({

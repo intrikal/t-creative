@@ -58,6 +58,7 @@ const confirmedBooking: ClientBookingRow = {
   notes: null,
   location: null,
   addOns: [],
+  services: [],
   reviewLeft: false,
   depositPaid: false,
 };
@@ -78,6 +79,7 @@ const completedBooking: ClientBookingRow = {
   notes: null,
   location: null,
   addOns: [],
+  services: [],
   reviewLeft: false,
   depositPaid: false,
 };
@@ -98,6 +100,7 @@ const cancelledBooking: ClientBookingRow = {
   notes: null,
   location: null,
   addOns: [],
+  services: [],
   reviewLeft: false,
   depositPaid: false,
 };

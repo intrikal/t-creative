@@ -19,8 +19,10 @@ import {
   integer,
   pgTable,
   serial,
+  smallint,
   text,
   timestamp,
+  unique,
   uuid,
   varchar,
 } from "drizzle-orm/pg-core";
@@ -215,6 +217,48 @@ export const bookingAddOns = pgTable(
 );
 
 /* ------------------------------------------------------------------ */
+/*  Booking Services (junction table for multi-service bookings)       */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Records which services are included in a booking, with snapshotted
+ * pricing and duration for historical accuracy. For single-service
+ * bookings there is exactly one row; multi-service bookings have 2–4
+ * rows ordered by `orderIndex`.
+ *
+ * The row with `orderIndex = 0` is the primary service and its
+ * `serviceId` must match `bookings.serviceId` (backward compat).
+ *
+ * `booking.totalInCents = SUM(booking_services.price_in_cents)`
+ * `booking.durationMinutes = SUM(booking_services.duration_minutes)`
+ */
+export const bookingServices = pgTable(
+  "booking_services",
+  {
+    id: serial("id").primaryKey(),
+    bookingId: integer("booking_id")
+      .notNull()
+      .references(() => bookings.id, { onDelete: "cascade" }),
+    serviceId: integer("service_id")
+      .notNull()
+      .references(() => services.id, { onDelete: "restrict" }),
+    /** Display/execution order. 0 = primary service (matches bookings.serviceId). */
+    orderIndex: smallint("order_index").notNull().default(0),
+    /** Snapshotted price for this service at booking time. */
+    priceInCents: integer("price_in_cents").notNull(),
+    /** Snapshotted duration for this service at booking time. */
+    durationMinutes: integer("duration_minutes").notNull(),
+    /** Snapshotted deposit for this service at booking time. */
+    depositInCents: integer("deposit_in_cents").notNull().default(0),
+  },
+  (t) => [
+    index("booking_services_booking_idx").on(t.bookingId),
+    index("booking_services_service_idx").on(t.serviceId),
+    unique("booking_services_booking_service_unq").on(t.bookingId, t.serviceId),
+  ],
+);
+
+/* ------------------------------------------------------------------ */
 /*  Relations                                                          */
 /* ------------------------------------------------------------------ */
 
@@ -237,6 +281,8 @@ export const bookingsRelations = relations(bookings, ({ one, many }) => ({
   }),
   /** One-to-many: bookings.id → booking_add_ons.booking_id (selected extras with snapshotted prices). */
   addOns: many(bookingAddOns),
+  /** One-to-many: bookings.id → booking_services.booking_id (services included in this appointment). */
+  bookingServices: many(bookingServices),
   /** One-to-many: bookings.id → payments.booking_id (payment records for this appointment). */
   payments: many(payments),
   /** One-to-many: bookings.id → reviews.booking_id (client reviews for this appointment). */
@@ -270,5 +316,18 @@ export const bookingAddOnsRelations = relations(bookingAddOns, ({ one }) => ({
   booking: one(bookings, {
     fields: [bookingAddOns.bookingId],
     references: [bookings.id],
+  }),
+}));
+
+export const bookingServicesRelations = relations(bookingServices, ({ one }) => ({
+  /** Many-to-one: booking_services.booking_id → bookings.id (parent booking). */
+  booking: one(bookings, {
+    fields: [bookingServices.bookingId],
+    references: [bookings.id],
+  }),
+  /** Many-to-one: booking_services.service_id → services.id (the service). */
+  service: one(services, {
+    fields: [bookingServices.serviceId],
+    references: [services.id],
   }),
 }));

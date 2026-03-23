@@ -10,6 +10,33 @@
 /*  Booking lifecycle                                                  */
 /* ------------------------------------------------------------------ */
 
+/* ------------------------------------------------------------------ */
+/*  Multi-service bookings                                             */
+/* ------------------------------------------------------------------ */
+
+/** One service entry within a multi-service booking. */
+export type BookingServiceItem = {
+  serviceId: number;
+  serviceName: string;
+  serviceCategory: string;
+  priceInCents: number;
+  durationMinutes: number;
+  depositInCents: number;
+  orderIndex: number;
+};
+
+/** Input shape for a single service when creating/updating a multi-service booking. */
+export type BookingServiceInput = {
+  serviceId: number;
+  priceInCents: number;
+  durationMinutes: number;
+  depositInCents: number;
+};
+
+/* ------------------------------------------------------------------ */
+/*  Booking lifecycle                                                  */
+/* ------------------------------------------------------------------ */
+
 /** Union of valid booking lifecycle states. Mirrors bookingStatusEnum in db/schema/enums. */
 export type BookingStatus =
   | "completed"
@@ -51,21 +78,28 @@ export type BookingRow = {
   tosAcceptedAt: Date | null;
   tosVersion: string | null;
   locationId: number | null;
+  /** Itemized services for multi-service bookings. Empty array for legacy single-service. */
+  services: BookingServiceItem[];
 };
 
 /** Input shape for `createBooking` / `updateBooking`. */
 export type BookingInput = {
   clientId: string;
+  /** Primary service (backward compat). Must equal services[0].serviceId when services is provided. */
   serviceId: number;
   staffId: string | null;
   startsAt: Date;
+  /** Total combined duration across all services. */
   durationMinutes: number;
+  /** Total combined price across all services. */
   totalInCents: number;
   location?: string;
   locationId?: number;
   clientNotes?: string;
   recurrenceRule?: string;
   subscriptionId?: number;
+  /** Multi-service items. When omitted, a single-service booking is assumed. */
+  services?: BookingServiceInput[];
 };
 
 export type PaginatedBookings = {
@@ -163,6 +197,8 @@ export type ClientBookingRow = {
   notes: string | null;
   location: string | null;
   addOns: { name: string; priceInCents: number }[];
+  /** Itemized services for multi-service bookings. */
+  services: BookingServiceItem[];
   reviewLeft: boolean;
   depositPaid: boolean;
 };

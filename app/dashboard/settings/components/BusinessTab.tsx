@@ -1,26 +1,13 @@
-/**
- * Studio Profile tab — edit business name, bio, location, contact, and preferences.
- *
- * Controlled form backed by `useState(initial)`. On save, calls
- * `saveBusinessProfile()` which upserts the `business_profile` key in the
- * `settings` table. The server component re-fetches on next navigation.
- *
- * Fields: studioName, ownerName, bio, address, email, phone, timezone,
- * currency, bookingLink.
- *
- * @module settings/components/BusinessTab
- * @see {@link ../settings-actions.ts} — `BusinessProfile` type + save action
- */
 "use client";
 
 import { useState } from "react";
 import { Trash2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import { useTimeoutFlag } from "@/lib/hooks/use-timeout-flag";
-import { cn } from "@/lib/utils";
+import { useAutoSave } from "@/lib/hooks/use-auto-save";
 import type { BusinessProfile, FinancialConfig, RevenueGoal } from "@/lib/types/settings.types";
+import { cn } from "@/lib/utils";
 import { saveBusinessProfile, saveFinancialConfig, saveRevenueGoals } from "../settings-actions";
-import { FieldRow, StatefulSaveButton, INPUT_CLASS } from "./shared";
+import { FieldRow, AutoSaveStatus, INPUT_CLASS } from "./shared";
 
 function formatMonth(ym: string) {
   const [year, month] = ym.split("-");
@@ -62,63 +49,22 @@ export function BusinessTab({
   initialFinancial: FinancialConfig;
   initialRevenueGoals: RevenueGoal[];
 }) {
-  /** Business profile fields (name, email, phone, etc.). */
   const [data, setData] = useState(initial);
-  /** Whether the profile save is in flight. */
-  const [saving, setSaving] = useState(false);
-  /** Briefly true after profile save succeeds. */
-  const [saved, triggerSaved] = useTimeoutFlag(2000);
-  /** Error message from profile save, if any. */
-  const [saveError, setSaveError] = useState<string | null>(null);
-  /** Financial config (estimated tax rate). */
   const [financial, setFinancial] = useState(initialFinancial);
-  /** Whether the financial config save is in flight. */
-  const [savingFinancial, setSavingFinancial] = useState(false);
-  /** Briefly true after financial save succeeds. */
-  const [savedFinancial, triggerSavedFinancial] = useTimeoutFlag(2000);
-  /**
-   * Revenue goals sorted chronologically by month string (YYYY-MM).
-   * Spread + sort on init so the display order is always ascending.
-   */
   const [goals, setGoals] = useState<RevenueGoal[]>(
     [...initialRevenueGoals].sort((a, b) => a.month.localeCompare(b.month)),
   );
-  /** Whether the revenue goals save is in flight. */
-  const [savingGoals, setSavingGoals] = useState(false);
-  /** Briefly true after goals save succeeds. */
-  const [savedGoals, triggerSavedGoals] = useTimeoutFlag(2000);
-  /** Month input for the "add goal" row (YYYY-MM format). */
   const [newMonth, setNewMonth] = useState("");
-  /** Dollar amount input for the "add goal" row. */
   const [newAmount, setNewAmount] = useState("");
+
+  const profileAuto = useAutoSave({ data, onSave: saveBusinessProfile });
+  const financialAuto = useAutoSave({ data: financial, onSave: saveFinancialConfig });
+  const goalsAuto = useAutoSave({ data: goals, onSave: saveRevenueGoals });
 
   function update<K extends keyof BusinessProfile>(key: K, value: BusinessProfile[K]) {
     setData((prev) => ({ ...prev, [key]: value }));
   }
 
-  async function handleSave() {
-    setSaving(true);
-    setSaveError(null);
-    const result = await saveBusinessProfile(data);
-    setSaving(false);
-    if (result.success) triggerSaved();
-    else setSaveError(result.error);
-  }
-
-  async function handleSaveFinancial() {
-    setSavingFinancial(true);
-    const result = await saveFinancialConfig(financial);
-    setSavingFinancial(false);
-    if (result.success) triggerSavedFinancial();
-    else setSaveError(result.error);
-  }
-
-  /**
-   * addGoal — adds or replaces a revenue goal for the selected month.
-   * Filters out any existing goal for the same month (upsert semantics),
-   * appends the new goal, then re-sorts by month string. Uses
-   * crypto.randomUUID() for a temporary client-side ID until server save.
-   */
   function addGoal() {
     if (!newMonth || !newAmount) return;
     const amount = Number(newAmount);
@@ -133,17 +79,8 @@ export function BusinessTab({
     setNewAmount("");
   }
 
-  /** removeGoal — filters out a goal by ID from the local state array. */
   function removeGoal(id: string) {
     setGoals((prev) => prev.filter((g) => g.id !== id));
-  }
-
-  async function handleSaveGoals() {
-    setSavingGoals(true);
-    const result = await saveRevenueGoals(goals);
-    setSavingGoals(false);
-    if (result.success) triggerSavedGoals();
-    else setSaveError(result.error);
   }
 
   const fields: { label: string; key: keyof BusinessProfile }[] = [
@@ -160,23 +97,6 @@ export function BusinessTab({
 
   return (
     <div className="space-y-5">
-      {saveError && (
-        <div className="p-3 bg-red-50 border border-red-200 text-xs text-red-700 flex items-center justify-between">
-          <span>{saveError}</span>
-          <button
-            onClick={() => setSaveError(null)}
-            className="ml-4 text-red-500 hover:text-red-700"
-          >
-            ✕
-          </button>
-        </div>
-      )}
-      <div>
-        <h2 className="text-base font-semibold text-foreground">Business Information</h2>
-        <p className="text-xs text-muted mt-0.5">
-          Your studio&apos;s public profile and contact details
-        </p>
-      </div>
       <Card className="gap-0">
         <CardContent className="px-5 pb-5 pt-5 space-y-4">
           {fields.map(({ label, key }) => (
@@ -211,7 +131,11 @@ export function BusinessTab({
             />
           </FieldRow>
           <div className="flex justify-end pt-2 border-t border-border/50">
-            <StatefulSaveButton saving={saving} saved={saved} onSave={handleSave} />
+            <AutoSaveStatus
+              status={profileAuto.status}
+              error={profileAuto.error}
+              onDismissError={profileAuto.dismissError}
+            />
           </div>
         </CardContent>
       </Card>
@@ -249,12 +173,12 @@ export function BusinessTab({
           )}
 
           {/* Add row */}
-          <div className="flex items-center gap-2 pt-1">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-1">
             <input
               type="month"
               value={newMonth}
               onChange={(e) => setNewMonth(e.target.value)}
-              className={cn(INPUT_CLASS, "w-auto")}
+              className={cn(INPUT_CLASS, "w-full sm:w-auto")}
             />
             <input
               type="number"
@@ -264,20 +188,24 @@ export function BusinessTab({
               value={newAmount}
               onChange={(e) => setNewAmount(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && addGoal()}
-              className={cn(INPUT_CLASS, "w-32")}
+              className={cn(INPUT_CLASS, "w-full sm:w-32")}
             />
             <button
               type="button"
               onClick={addGoal}
               disabled={!newMonth || !newAmount}
-              className="px-3 py-1.5 text-sm font-medium rounded-lg bg-foreground/8 hover:bg-foreground/12 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              className="px-3 py-2 sm:py-1.5 text-sm font-medium rounded-lg bg-foreground/8 hover:bg-foreground/12 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
               Add
             </button>
           </div>
 
           <div className="flex justify-end pt-2 border-t border-border/50">
-            <StatefulSaveButton saving={savingGoals} saved={savedGoals} onSave={handleSaveGoals} />
+            <AutoSaveStatus
+              status={goalsAuto.status}
+              error={goalsAuto.error}
+              onDismissError={goalsAuto.dismissError}
+            />
           </div>
         </CardContent>
       </Card>
@@ -305,10 +233,10 @@ export function BusinessTab({
             />
           </FieldRow>
           <div className="flex justify-end pt-2 border-t border-border/50">
-            <StatefulSaveButton
-              saving={savingFinancial}
-              saved={savedFinancial}
-              onSave={handleSaveFinancial}
+            <AutoSaveStatus
+              status={financialAuto.status}
+              error={financialAuto.error}
+              onDismissError={financialAuto.dismissError}
             />
           </div>
         </CardContent>

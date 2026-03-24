@@ -12,7 +12,7 @@
  */
 "use client";
 
-import { Check } from "lucide-react";
+import { Check, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function Toggle({
@@ -96,6 +96,49 @@ export function StatefulSaveButton({
       <Check className="w-3.5 h-3.5" />
       {saved ? "Saved!" : saving ? "Saving…" : label}
     </button>
+  );
+}
+
+export function AutoSaveStatus({
+  status,
+  error,
+  onDismissError,
+}: {
+  status: "idle" | "unsaved" | "saving" | "saved" | "error";
+  error: string | null;
+  onDismissError: () => void;
+}) {
+  if (status === "idle") return null;
+
+  return (
+    <div className="flex items-center gap-2 text-xs min-h-[28px]">
+      {status === "unsaved" && (
+        <span className="text-muted/60 flex items-center gap-1.5">
+          <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+          Unsaved changes
+        </span>
+      )}
+      {status === "saving" && (
+        <span className="text-muted flex items-center gap-1.5">
+          <Loader2 className="w-3 h-3 animate-spin" />
+          Saving…
+        </span>
+      )}
+      {status === "saved" && (
+        <span className="text-[#4e6b51] flex items-center gap-1.5">
+          <Check className="w-3 h-3" />
+          Saved
+        </span>
+      )}
+      {status === "error" && (
+        <span className="text-destructive flex items-center gap-1.5">
+          Save failed{error ? `: ${error}` : ""}
+          <button onClick={onDismissError} className="ml-1 underline hover:no-underline">
+            Dismiss
+          </button>
+        </span>
+      )}
+    </div>
   );
 }
 

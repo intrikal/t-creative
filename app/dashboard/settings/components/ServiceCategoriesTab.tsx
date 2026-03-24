@@ -11,8 +11,8 @@
 import { useState } from "react";
 import { GripVertical, Pencil, Plus, Trash2, X } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
 import type { ServiceCategoryRow } from "@/lib/types/settings.types";
+import { cn } from "@/lib/utils";
 import { deleteServiceCategory, saveServiceCategory } from "../service-categories-actions";
 import { INPUT_CLASS, StatefulSaveButton, Toggle } from "./shared";
 
@@ -88,13 +88,7 @@ export function ServiceCategoriesTab({ initial }: { initial: ServiceCategoryRow[
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-base font-semibold text-foreground">Service Categories</h2>
-          <p className="text-xs text-muted mt-0.5">
-            Manage the categories used to organize services across your site
-          </p>
-        </div>
+      <div className="flex items-center justify-end">
         <button
           onClick={startAdd}
           disabled={!!editing}
@@ -200,14 +194,18 @@ export function ServiceCategoriesTab({ initial }: { initial: ServiceCategoryRow[
               {sorted.map((cat) => (
                 <li
                   key={cat.id}
-                  className="flex items-center gap-3 px-5 py-3 group hover:bg-foreground/[0.02] transition-colors"
+                  className="flex items-center gap-2 sm:gap-3 px-3 sm:px-5 py-3 group hover:bg-foreground/[0.02] transition-colors"
                 >
-                  <GripVertical className="w-4 h-4 text-muted/40 shrink-0" />
+                  <GripVertical className="w-4 h-4 text-muted/40 shrink-0 hidden sm:block" />
                   <div className="flex-1 min-w-0">
                     <span className="text-sm font-medium text-foreground">{cat.name}</span>
-                    <span className="ml-2 text-xs text-muted font-mono">{cat.slug}</span>
+                    <span className="ml-2 text-xs text-muted font-mono hidden sm:inline">
+                      {cat.slug}
+                    </span>
                   </div>
-                  <span className="text-xs text-muted tabular-nums">#{cat.displayOrder}</span>
+                  <span className="text-xs text-muted tabular-nums hidden sm:inline">
+                    #{cat.displayOrder}
+                  </span>
                   <span
                     className={cn(
                       "text-[10px] font-medium px-1.5 py-0.5 rounded-full",
@@ -218,7 +216,7 @@ export function ServiceCategoriesTab({ initial }: { initial: ServiceCategoryRow[
                   >
                     {cat.isActive ? "Active" : "Inactive"}
                   </span>
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="flex items-center gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                     <button
                       onClick={() => startEdit(cat)}
                       disabled={!!editing}

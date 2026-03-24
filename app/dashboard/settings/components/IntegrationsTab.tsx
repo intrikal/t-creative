@@ -188,13 +188,6 @@ export function IntegrationsTab({
 
   return (
     <div className="space-y-5">
-      <div>
-        <h2 className="text-base font-semibold text-foreground">Integrations</h2>
-        <p className="text-xs text-muted mt-0.5">
-          Connect your studio to the tools you already use
-        </p>
-      </div>
-
       {calendarUrl && (
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-wide text-muted mb-2">
@@ -269,11 +262,11 @@ export function IntegrationsTab({
               .filter((i) => i.category === cat)
               .map((integration) => (
                 <Card key={integration.name} className="gap-0">
-                  <CardContent className="px-5 py-4">
-                    <div className="flex items-center gap-4">
+                  <CardContent className="px-4 sm:px-5 py-4">
+                    <div className="flex items-start gap-3 sm:gap-4">
                       <span className="text-2xl shrink-0">{integration.icon}</span>
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <p className="text-sm font-semibold text-foreground">
                             {integration.name}
                           </p>
@@ -307,10 +300,20 @@ export function IntegrationsTab({
                             )}
                           </p>
                         )}
+                        <button
+                          className={cn(
+                            "mt-2.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors sm:hidden",
+                            integration.connected
+                              ? "bg-surface border border-border text-muted hover:text-destructive hover:border-destructive/30"
+                              : "bg-accent text-white hover:bg-accent/90",
+                          )}
+                        >
+                          {integration.connected ? "Disconnect" : "Connect"}
+                        </button>
                       </div>
                       <button
                         className={cn(
-                          "px-3 py-1.5 rounded-lg text-xs font-medium transition-colors shrink-0",
+                          "hidden sm:block px-3 py-1.5 rounded-lg text-xs font-medium transition-colors shrink-0",
                           integration.connected
                             ? "bg-surface border border-border text-muted hover:text-destructive hover:border-destructive/30"
                             : "bg-accent text-white hover:bg-accent/90",

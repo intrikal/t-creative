@@ -12,22 +12,53 @@
 import { useState } from "react";
 import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+import { useAutoSave } from "@/lib/hooks/use-auto-save";
 import type { SiteContent } from "@/lib/types/settings.types";
 import { cn } from "@/lib/utils";
 import { saveSiteContent } from "../settings-actions";
-import { FieldRow, StatefulSaveButton, Toggle, INPUT_CLASS } from "./shared";
+import { FieldRow, AutoSaveStatus, Toggle, INPUT_CLASS } from "./shared";
 
 const TEXTAREA_CLASS = cn(INPUT_CLASS, "resize-none");
+
+const SOCIAL_PLATFORMS: { label: string; urlPrefix: string | null }[] = [
+  { label: "Instagram", urlPrefix: "https://www.instagram.com/" },
+  { label: "TikTok", urlPrefix: "https://www.tiktok.com/@" },
+  { label: "LinkedIn", urlPrefix: "https://www.linkedin.com/in/" },
+  { label: "Facebook", urlPrefix: "https://www.facebook.com/" },
+  { label: "YouTube", urlPrefix: "https://www.youtube.com/@" },
+  { label: "X (Twitter)", urlPrefix: "https://x.com/" },
+  { label: "Pinterest", urlPrefix: "https://www.pinterest.com/" },
+  { label: "Yelp", urlPrefix: "https://www.yelp.com/biz/" },
+  { label: "Google Business", urlPrefix: null },
+  { label: "Other", urlPrefix: null },
+];
+
+function buildSocialUrl(platform: string, handle: string): string {
+  const p = SOCIAL_PLATFORMS.find((sp) => sp.label === platform);
+  if (!p?.urlPrefix || !handle) return "";
+  const clean = handle.replace(/^@/, "");
+  return `${p.urlPrefix}${clean}`;
+}
 
 export function WebsiteContentTab({ initial }: { initial: SiteContent }) {
   /** Full site content object — all sections edited in one state blob. */
   const [data, setData] = useState(initial);
-  /** Whether the global save is in flight. */
-  const [saving, setSaving] = useState(false);
-  /** Briefly true after save succeeds to show "Saved!" feedback. */
-  const [saved, setSaved] = useState(false);
-  /** Error message from save, if any. */
-  const [saveError, setSaveError] = useState<string | null>(null);
+
+  const { status, error, dismissError } = useAutoSave({
+    data,
+    onSave: async (d) => {
+      // Filter out incomplete entries that would fail server validation
+      const cleaned: SiteContent = {
+        ...d,
+        faqEntries: d.faqEntries.filter((e) => e.question.trim() && e.answer.trim()),
+        socialLinks: d.socialLinks.filter((l) => l.platform && (l.url || l.handle)),
+        eventDescriptions: d.eventDescriptions.filter((e) => e.title.trim()),
+        consultingServices: d.consultingServices.filter((s) => s.title.trim()),
+        consultingBenefits: d.consultingBenefits.filter((b) => b.trim()),
+      };
+      return saveSiteContent(cleaned);
+    },
+  });
 
   /**
    * update — type-safe setter for any SiteContent field.
@@ -38,39 +69,8 @@ export function WebsiteContentTab({ initial }: { initial: SiteContent }) {
     setData((prev) => ({ ...prev, [key]: value }));
   }
 
-  async function handleSave() {
-    setSaving(true);
-    setSaveError(null);
-    const result = await saveSiteContent(data);
-    setSaving(false);
-    if (result.success) {
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
-    } else {
-      setSaveError(result.error);
-    }
-  }
-
   return (
     <div className="space-y-5">
-      {saveError && (
-        <div className="p-3 bg-red-50 border border-red-200 text-xs text-red-700 flex items-center justify-between">
-          <span>{saveError}</span>
-          <button
-            onClick={() => setSaveError(null)}
-            className="ml-4 text-red-500 hover:text-red-700"
-          >
-            ✕
-          </button>
-        </div>
-      )}
-      <div>
-        <h2 className="text-base font-semibold text-foreground">Website Content</h2>
-        <p className="text-xs text-muted mt-0.5">
-          Edit the public-facing text on your website. Changes apply after saving.
-        </p>
-      </div>
-
       {/* Hero */}
       <SectionHeader title="Hero" description="Landing page headline and call-to-action" />
       <Card className="gap-0">
@@ -159,56 +159,96 @@ export function WebsiteContentTab({ initial }: { initial: SiteContent }) {
       <SectionHeader title="Social Links" description="Social media links shown on public pages" />
       <Card className="gap-0">
         <CardContent className="px-5 pb-5 pt-5 space-y-3">
-          {data.socialLinks.map((link, i) => (
-            <div key={i} className="flex items-start gap-2">
-              <input
-                type="text"
-                placeholder="Platform"
-                value={link.platform}
-                onChange={(e) => {
-                  const updated = [...data.socialLinks];
-                  updated[i] = { ...updated[i], platform: e.target.value };
-                  update("socialLinks", updated);
-                }}
-                className={cn(INPUT_CLASS, "w-28")}
-              />
-              <input
-                type="text"
-                placeholder="Handle"
-                value={link.handle}
-                onChange={(e) => {
-                  const updated = [...data.socialLinks];
-                  updated[i] = { ...updated[i], handle: e.target.value };
-                  update("socialLinks", updated);
-                }}
-                className={cn(INPUT_CLASS, "w-36")}
-              />
-              <input
-                type="text"
-                placeholder="URL"
-                value={link.url}
-                onChange={(e) => {
-                  const updated = [...data.socialLinks];
-                  updated[i] = { ...updated[i], url: e.target.value };
-                  update("socialLinks", updated);
-                }}
-                className={cn(INPUT_CLASS, "flex-1")}
-              />
-              <button
-                type="button"
-                onClick={() =>
-                  update(
-                    "socialLinks",
-                    data.socialLinks.filter((_, j) => j !== i),
-                  )
-                }
-                className="text-muted hover:text-destructive transition-colors p-2"
-                aria-label="Remove social link"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
-            </div>
-          ))}
+          {data.socialLinks.map((link, i) => {
+            const platformInfo = SOCIAL_PLATFORMS.find((p) => p.label === link.platform);
+            const urlPrefix = platformInfo?.urlPrefix;
+
+            return (
+              <div key={i} className="border border-border/50 rounded-lg p-4 space-y-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 grid grid-cols-1 sm:grid-cols-[160px_1fr] gap-3">
+                    <div>
+                      <label className="block text-[10px] font-medium text-muted uppercase tracking-wide mb-1">
+                        Platform
+                      </label>
+                      <select
+                        value={link.platform}
+                        onChange={(e) => {
+                          const updated = [...data.socialLinks];
+                          const newPlatform = e.target.value;
+                          const newUrl = buildSocialUrl(newPlatform, updated[i].handle);
+                          updated[i] = {
+                            ...updated[i],
+                            platform: newPlatform,
+                            url: newUrl || updated[i].url,
+                          };
+                          update("socialLinks", updated);
+                        }}
+                        className={INPUT_CLASS}
+                      >
+                        <option value="" disabled>
+                          Select…
+                        </option>
+                        {SOCIAL_PLATFORMS.map((p) => (
+                          <option key={p.label} value={p.label}>
+                            {p.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-medium text-muted uppercase tracking-wide mb-1">
+                        {urlPrefix ? "Handle" : "URL"}
+                      </label>
+                      {urlPrefix ? (
+                        <div className={cn(INPUT_CLASS, "flex items-center gap-0 !px-0")}>
+                          <span className="text-xs text-muted/50 pl-3 shrink-0">{urlPrefix}</span>
+                          <input
+                            type="text"
+                            placeholder="your-handle"
+                            value={link.handle}
+                            onChange={(e) => {
+                              const updated = [...data.socialLinks];
+                              const handle = e.target.value.replace(/^@/, "");
+                              const newUrl = buildSocialUrl(link.platform, handle);
+                              updated[i] = { ...updated[i], handle, url: newUrl };
+                              update("socialLinks", updated);
+                            }}
+                            className="bg-transparent text-sm text-foreground flex-1 min-w-0 py-2 pr-3 focus:outline-none"
+                          />
+                        </div>
+                      ) : (
+                        <input
+                          type="text"
+                          placeholder="https://..."
+                          value={link.url}
+                          onChange={(e) => {
+                            const updated = [...data.socialLinks];
+                            updated[i] = { ...updated[i], url: e.target.value };
+                            update("socialLinks", updated);
+                          }}
+                          className={INPUT_CLASS}
+                        />
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      update(
+                        "socialLinks",
+                        data.socialLinks.filter((_, j) => j !== i),
+                      )
+                    }
+                    className="text-muted hover:text-destructive transition-colors p-2 shrink-0 mt-5"
+                    aria-label="Remove social link"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
           <button
             type="button"
             onClick={() =>
@@ -222,26 +262,47 @@ export function WebsiteContentTab({ initial }: { initial: SiteContent }) {
       </Card>
 
       {/* FAQ */}
-      <SectionHeader
-        title="FAQ"
-        description="Frequently asked questions on the landing page. Use {depositPercent}, {cancelWindowHours}, {lateCancelFeePercent}, {noShowFeePercent} to auto-fill policy values."
-      />
+      <SectionHeader title="FAQ" description="Frequently asked questions on the landing page" />
       <Card className="gap-0">
         <CardContent className="px-5 pb-5 pt-5 space-y-4">
+          <p className="text-[11px] text-muted/70 bg-surface/60 rounded-md px-3 py-2">
+            <span className="font-medium text-muted">Tip:</span> Use{" "}
+            <code className="text-[10px] bg-foreground/5 px-1 py-0.5 rounded">
+              {"{depositPercent}"}
+            </code>
+            ,{" "}
+            <code className="text-[10px] bg-foreground/5 px-1 py-0.5 rounded">
+              {"{cancelWindowHours}"}
+            </code>
+            ,{" "}
+            <code className="text-[10px] bg-foreground/5 px-1 py-0.5 rounded">
+              {"{lateCancelFeePercent}"}
+            </code>
+            ,{" "}
+            <code className="text-[10px] bg-foreground/5 px-1 py-0.5 rounded">
+              {"{noShowFeePercent}"}
+            </code>{" "}
+            in answers to auto-fill policy values.
+          </p>
           {data.faqEntries.map((entry, i) => (
             <div key={i} className="border border-border/50 rounded-lg p-4 space-y-3">
               <div className="flex items-center justify-between gap-2">
-                <input
-                  type="text"
-                  placeholder="Question"
-                  value={entry.question}
-                  onChange={(e) => {
-                    const updated = [...data.faqEntries];
-                    updated[i] = { ...updated[i], question: e.target.value };
-                    update("faqEntries", updated);
-                  }}
-                  className={cn(INPUT_CLASS, "font-medium")}
-                />
+                <div className="flex-1">
+                  <label className="block text-[10px] font-medium text-muted uppercase tracking-wide mb-1">
+                    Question
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. What is your cancellation policy?"
+                    value={entry.question}
+                    onChange={(e) => {
+                      const updated = [...data.faqEntries];
+                      updated[i] = { ...updated[i], question: e.target.value };
+                      update("faqEntries", updated);
+                    }}
+                    className={cn(INPUT_CLASS, "font-medium")}
+                  />
+                </div>
                 <div className="flex items-center gap-1 shrink-0">
                   <button
                     type="button"
@@ -284,17 +345,22 @@ export function WebsiteContentTab({ initial }: { initial: SiteContent }) {
                   </button>
                 </div>
               </div>
-              <textarea
-                rows={3}
-                placeholder="Answer"
-                value={entry.answer}
-                onChange={(e) => {
-                  const updated = [...data.faqEntries];
-                  updated[i] = { ...updated[i], answer: e.target.value };
-                  update("faqEntries", updated);
-                }}
-                className={TEXTAREA_CLASS}
-              />
+              <div>
+                <label className="block text-[10px] font-medium text-muted uppercase tracking-wide mb-1">
+                  Answer
+                </label>
+                <textarea
+                  rows={3}
+                  placeholder="Answer text (supports template variables)"
+                  value={entry.answer}
+                  onChange={(e) => {
+                    const updated = [...data.faqEntries];
+                    updated[i] = { ...updated[i], answer: e.target.value };
+                    update("faqEntries", updated);
+                  }}
+                  className={TEXTAREA_CLASS}
+                />
+              </div>
             </div>
           ))}
           <button
@@ -328,29 +394,41 @@ export function WebsiteContentTab({ initial }: { initial: SiteContent }) {
             <p className="text-xs font-medium text-muted mb-3">Services</p>
             {data.consultingServices.map((svc, i) => (
               <div key={i} className="border border-border/50 rounded-lg p-4 space-y-3 mb-3">
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    placeholder="Title"
-                    value={svc.title}
-                    onChange={(e) => {
-                      const updated = [...data.consultingServices];
-                      updated[i] = { ...updated[i], title: e.target.value };
-                      update("consultingServices", updated);
-                    }}
-                    className={cn(INPUT_CLASS, "flex-1")}
-                  />
-                  <input
-                    type="text"
-                    placeholder="Tag (e.g. Remote · All Industries)"
-                    value={svc.tag}
-                    onChange={(e) => {
-                      const updated = [...data.consultingServices];
-                      updated[i] = { ...updated[i], tag: e.target.value };
-                      update("consultingServices", updated);
-                    }}
-                    className={cn(INPUT_CLASS, "w-48")}
-                  />
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3">
+                    <div>
+                      <label className="block text-[10px] font-medium text-muted uppercase tracking-wide mb-1">
+                        Title
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Brand Launch Strategy"
+                        value={svc.title}
+                        onChange={(e) => {
+                          const updated = [...data.consultingServices];
+                          updated[i] = { ...updated[i], title: e.target.value };
+                          update("consultingServices", updated);
+                        }}
+                        className={INPUT_CLASS}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-medium text-muted uppercase tracking-wide mb-1">
+                        Tag
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Remote · All Industries"
+                        value={svc.tag}
+                        onChange={(e) => {
+                          const updated = [...data.consultingServices];
+                          updated[i] = { ...updated[i], tag: e.target.value };
+                          update("consultingServices", updated);
+                        }}
+                        className={cn(INPUT_CLASS, "sm:w-48")}
+                      />
+                    </div>
+                  </div>
                   <button
                     type="button"
                     onClick={() =>
@@ -359,23 +437,28 @@ export function WebsiteContentTab({ initial }: { initial: SiteContent }) {
                         data.consultingServices.filter((_, j) => j !== i),
                       )
                     }
-                    className="p-1 text-muted hover:text-destructive transition-colors"
+                    className="p-1 text-muted hover:text-destructive transition-colors shrink-0 mt-5"
                     aria-label="Remove service"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
-                <textarea
-                  rows={3}
-                  placeholder="Description"
-                  value={svc.description}
-                  onChange={(e) => {
-                    const updated = [...data.consultingServices];
-                    updated[i] = { ...updated[i], description: e.target.value };
-                    update("consultingServices", updated);
-                  }}
-                  className={TEXTAREA_CLASS}
-                />
+                <div>
+                  <label className="block text-[10px] font-medium text-muted uppercase tracking-wide mb-1">
+                    Description
+                  </label>
+                  <textarea
+                    rows={3}
+                    placeholder="What this service includes"
+                    value={svc.description}
+                    onChange={(e) => {
+                      const updated = [...data.consultingServices];
+                      updated[i] = { ...updated[i], description: e.target.value };
+                      update("consultingServices", updated);
+                    }}
+                    className={TEXTAREA_CLASS}
+                  />
+                </div>
                 <div>
                   <p className="text-xs text-muted mb-2">Outcomes</p>
                   {svc.outcomes.map((outcome, oi) => (
@@ -497,42 +580,54 @@ export function WebsiteContentTab({ initial }: { initial: SiteContent }) {
       <Card className="gap-0">
         <CardContent className="px-5 pb-5 pt-5 space-y-3">
           {data.eventDescriptions.map((event, i) => (
-            <div key={i} className="flex items-start gap-2">
-              <input
-                type="text"
-                placeholder="Title"
-                value={event.title}
-                onChange={(e) => {
-                  const updated = [...data.eventDescriptions];
-                  updated[i] = { ...updated[i], title: e.target.value };
-                  update("eventDescriptions", updated);
-                }}
-                className={cn(INPUT_CLASS, "w-44")}
-              />
-              <textarea
-                rows={2}
-                placeholder="Description"
-                value={event.description}
-                onChange={(e) => {
-                  const updated = [...data.eventDescriptions];
-                  updated[i] = { ...updated[i], description: e.target.value };
-                  update("eventDescriptions", updated);
-                }}
-                className={cn(TEXTAREA_CLASS, "flex-1")}
-              />
-              <button
-                type="button"
-                onClick={() =>
-                  update(
-                    "eventDescriptions",
-                    data.eventDescriptions.filter((_, j) => j !== i),
-                  )
-                }
-                className="p-2 text-muted hover:text-destructive transition-colors"
-                aria-label="Remove event"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
+            <div key={i} className="border border-border/50 rounded-lg p-4 space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex-1">
+                  <label className="block text-[10px] font-medium text-muted uppercase tracking-wide mb-1">
+                    Title
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Private Lash Parties"
+                    value={event.title}
+                    onChange={(e) => {
+                      const updated = [...data.eventDescriptions];
+                      updated[i] = { ...updated[i], title: e.target.value };
+                      update("eventDescriptions", updated);
+                    }}
+                    className={INPUT_CLASS}
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() =>
+                    update(
+                      "eventDescriptions",
+                      data.eventDescriptions.filter((_, j) => j !== i),
+                    )
+                  }
+                  className="p-2 text-muted hover:text-destructive transition-colors shrink-0 self-end"
+                  aria-label="Remove event"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+              <div>
+                <label className="block text-[10px] font-medium text-muted uppercase tracking-wide mb-1">
+                  Description
+                </label>
+                <textarea
+                  rows={2}
+                  placeholder="What this event type includes"
+                  value={event.description}
+                  onChange={(e) => {
+                    const updated = [...data.eventDescriptions];
+                    updated[i] = { ...updated[i], description: e.target.value };
+                    update("eventDescriptions", updated);
+                  }}
+                  className={TEXTAREA_CLASS}
+                />
+              </div>
             </div>
           ))}
           <button
@@ -616,9 +711,9 @@ export function WebsiteContentTab({ initial }: { initial: SiteContent }) {
         </CardContent>
       </Card>
 
-      {/* Global Save */}
+      {/* Auto-save status */}
       <div className="flex justify-end pt-2">
-        <StatefulSaveButton saving={saving} saved={saved} onSave={handleSave} />
+        <AutoSaveStatus status={status} error={error} onDismissError={dismissError} />
       </div>
     </div>
   );

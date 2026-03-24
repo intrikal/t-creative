@@ -17,20 +17,17 @@
 
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useAutoSave } from "@/lib/hooks/use-auto-save";
 import type { LoyaltyConfig } from "@/lib/types/settings.types";
 import { cn } from "@/lib/utils";
 import { saveLoyaltyConfig } from "../settings-actions";
-import { FieldRow, StatefulSaveButton, NUM_INPUT_CLASS } from "./shared";
+import { FieldRow, AutoSaveStatus, NUM_INPUT_CLASS } from "./shared";
 
 export function LoyaltyTab({ initial }: { initial: LoyaltyConfig }) {
   /** Full loyalty config (point values, tier thresholds, birthday perk). */
   const [data, setData] = useState(initial);
-  /** Whether the save action is in flight. */
-  const [saving, setSaving] = useState(false);
-  /** Briefly true after a successful save to show "Saved!" feedback. */
-  const [saved, setSaved] = useState(false);
-  /** Error message from save, if any. */
-  const [saveError, setSaveError] = useState<string | null>(null);
+
+  const { status, error, dismissError } = useAutoSave({ data, onSave: saveLoyaltyConfig });
 
   /**
    * updateNum — parses a numeric input and updates one loyalty config field.
@@ -39,19 +36,6 @@ export function LoyaltyTab({ initial }: { initial: LoyaltyConfig }) {
   function updateNum(key: keyof LoyaltyConfig, raw: string) {
     const n = parseInt(raw, 10);
     if (!isNaN(n)) setData((prev) => ({ ...prev, [key]: n }));
-  }
-
-  async function handleSave() {
-    setSaving(true);
-    setSaveError(null);
-    const result = await saveLoyaltyConfig(data);
-    setSaving(false);
-    if (result.success) {
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
-    } else {
-      setSaveError(result.error);
-    }
   }
 
   const pointFields: { label: string; key: keyof LoyaltyConfig }[] = [
@@ -71,24 +55,6 @@ export function LoyaltyTab({ initial }: { initial: LoyaltyConfig }) {
 
   return (
     <div className="space-y-5">
-      {saveError && (
-        <div className="p-3 bg-red-50 border border-red-200 text-xs text-red-700 flex items-center justify-between">
-          <span>{saveError}</span>
-          <button
-            onClick={() => setSaveError(null)}
-            className="ml-4 text-red-500 hover:text-red-700"
-          >
-            ✕
-          </button>
-        </div>
-      )}
-      <div>
-        <h2 className="text-base font-semibold text-foreground">Loyalty Program</h2>
-        <p className="text-xs text-muted mt-0.5">
-          Configure point values for actions and tier thresholds
-        </p>
-      </div>
-
       <Card className="gap-0">
         <CardHeader className="pb-0 pt-5 px-5">
           <CardTitle className="text-[10px] font-semibold uppercase tracking-wide text-muted">
@@ -205,12 +171,7 @@ export function LoyaltyTab({ initial }: { initial: LoyaltyConfig }) {
       </Card>
 
       <div className="flex justify-end">
-        <StatefulSaveButton
-          label="Save Loyalty Config"
-          saving={saving}
-          saved={saved}
-          onSave={handleSave}
-        />
+        <AutoSaveStatus status={status} error={error} onDismissError={dismissError} />
       </div>
     </div>
   );

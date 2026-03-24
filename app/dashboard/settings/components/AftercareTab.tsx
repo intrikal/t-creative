@@ -67,12 +67,6 @@ const AFTERCARE_SECTIONS = [
 export function AftercareTab() {
   return (
     <div className="space-y-5">
-      <div>
-        <h2 className="text-base font-semibold text-foreground">Aftercare Instructions</h2>
-        <p className="text-xs text-muted mt-0.5">
-          Shown to clients after their appointment and on your booking page
-        </p>
-      </div>
       <div className="space-y-4">
         {AFTERCARE_SECTIONS.map((section) => (
           <Card key={section.id} className="gap-0">

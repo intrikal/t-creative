@@ -1,68 +1,23 @@
-/**
- * Booking Rules tab — scheduling constraints, cancellation, and deposit settings.
- *
- * DB-wired via the `booking_rules` key in the `settings` table.
- *
- * @module settings/components/BookingTab
- */
 "use client";
 
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useAutoSave } from "@/lib/hooks/use-auto-save";
 import type { BookingRulesConfig } from "@/lib/types/settings.types";
 import { saveBookingRules } from "../settings-actions";
-import { FieldRow, ToggleRow, StatefulSaveButton, NUM_INPUT_CLASS } from "./shared";
+import { FieldRow, ToggleRow, AutoSaveStatus, NUM_INPUT_CLASS } from "./shared";
 
 export function BookingTab({ initial }: { initial: BookingRulesConfig }) {
-  /** Full booking rules config object — spread-updated on each field change. */
   const [rules, setRules] = useState(initial);
-  /** Whether the save action is in flight. */
-  const [saving, setSaving] = useState(false);
-  /** Briefly true after a successful save to show "Saved!" feedback. */
-  const [saved, setSaved] = useState(false);
-  /** Error message from save, if any. */
-  const [saveError, setSaveError] = useState<string | null>(null);
+  const { status, error, dismissError } = useAutoSave({ data: rules, onSave: saveBookingRules });
 
-  /**
-   * updateNum — parses a numeric input and updates one booking rule field.
-   * NaN values are silently ignored to prevent invalid state from reaching the DB.
-   */
   function updateNum(key: keyof BookingRulesConfig, raw: string) {
     const n = parseInt(raw, 10);
     if (!isNaN(n)) setRules((prev) => ({ ...prev, [key]: n }));
   }
 
-  async function handleSave() {
-    setSaving(true);
-    setSaveError(null);
-    const result = await saveBookingRules(rules);
-    setSaving(false);
-    if (result.success) {
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
-    } else {
-      setSaveError(result.error);
-    }
-  }
-
   return (
     <div className="space-y-5">
-      {saveError && (
-        <div className="p-3 bg-red-50 border border-red-200 text-xs text-red-700 flex items-center justify-between">
-          <span>{saveError}</span>
-          <button
-            onClick={() => setSaveError(null)}
-            className="ml-4 text-red-500 hover:text-red-700"
-          >
-            ✕
-          </button>
-        </div>
-      )}
-      <div>
-        <h2 className="text-base font-semibold text-foreground">Booking Rules</h2>
-        <p className="text-xs text-muted mt-0.5">Control how and when clients can book with you</p>
-      </div>
-
       <Card className="gap-0">
         <CardHeader className="pb-0 pt-5 px-5">
           <CardTitle className="text-sm font-semibold text-muted uppercase tracking-wide text-[10px]">
@@ -172,12 +127,7 @@ export function BookingTab({ initial }: { initial: BookingRulesConfig }) {
       </Card>
 
       <div className="flex justify-end">
-        <StatefulSaveButton
-          label="Save Booking Rules"
-          saving={saving}
-          saved={saved}
-          onSave={handleSave}
-        />
+        <AutoSaveStatus status={status} error={error} onDismissError={dismissError} />
       </div>
     </div>
   );

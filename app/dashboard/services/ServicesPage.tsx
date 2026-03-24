@@ -32,10 +32,21 @@
 
 import { type ReactNode, useState, useOptimistic, useTransition } from "react";
 import dynamic from "next/dynamic";
-import { Search, Plus, Tag, Package, FileText, HeartHandshake, Images, ToggleLeft, Sparkles, ClipboardList } from "lucide-react";
+import {
+  Search,
+  Plus,
+  Tag,
+  ToggleLeft,
+  Sparkles,
+  DollarSign,
+  ToggleRight,
+  Layers,
+} from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
 import type { ServiceRow } from "@/lib/types/services.types";
+import type { BundleRow } from "@/lib/types/services.types";
+import type { FormRow } from "@/lib/types/services.types";
+import { cn } from "@/lib/utils";
 import {
   createService,
   updateService,
@@ -43,7 +54,6 @@ import {
   toggleServiceActive,
   seedServiceCatalog,
 } from "./actions";
-import type { BundleRow } from "@/lib/types/services.types";
 import { BundlesTab } from "./components/BundlesTab";
 import { FormsTab } from "./components/FormsTab";
 import { IntakeFormsTab } from "./components/IntakeFormsTab";
@@ -57,7 +67,6 @@ const ServiceFormDialog = dynamic(
   () => import("./components/ServiceFormDialog").then((m) => m.ServiceFormDialog),
   { ssr: false },
 );
-import type { FormRow } from "@/lib/types/services.types";
 import type { IntakeFormDefinitionRow } from "./intake-form-actions";
 import { CAT_CONFIG, dbToService, serviceToInput, serviceToFormData } from "./types";
 import type { Category, Service, ServiceFormData } from "./types";
@@ -67,16 +76,25 @@ import type { Category, Service, ServiceFormData } from "./types";
 /* ------------------------------------------------------------------ */
 
 const SERVICES_TABS = [
-  { id: "menu", label: "Menu", icon: Tag },
-  { id: "bundles", label: "Bundles", icon: Package },
-  { id: "forms", label: "Forms & Waivers", icon: FileText },
-  { id: "intake", label: "Intake Forms", icon: ClipboardList },
-  { id: "aftercare", label: "Aftercare", icon: HeartHandshake },
-  { id: "portfolio", label: "Portfolio", icon: Images },
+  { id: "menu", label: "Menu" },
+  { id: "bundles", label: "Bundles" },
+  { id: "forms", label: "Forms & Waivers" },
+  { id: "intake", label: "Intake Forms" },
+  { id: "aftercare", label: "Aftercare" },
+  { id: "portfolio", label: "Portfolio" },
 ] as const;
 type ServicesTab = (typeof SERVICES_TABS)[number]["id"];
 
-const CATEGORY_FILTERS = ["All", "Lash", "Jewelry", "Crochet", "Consulting", "Training"] as const;
+const CATEGORY_FILTERS = [
+  "All",
+  "Lash",
+  "Jewelry",
+  "Crochet",
+  "Consulting",
+  "Training",
+  "3D Printing",
+  "Aesthetics",
+] as const;
 
 /* ------------------------------------------------------------------ */
 /*  ServicesPage                                                       */
@@ -208,15 +226,16 @@ export function ServicesPage({
     paidServices.length > 0
       ? Math.round(paidServices.reduce((a, b) => a + b.price, 0) / paidServices.length)
       : 0;
-  const topService =
-    services.length > 0 ? [...services].sort((a, b) => b.bookings - a.bookings)[0] : null;
+  const categoryCount = new Set(services.map((s) => s.category)).size;
 
   return (
-    <div className="p-4 md:p-6 lg:p-8 space-y-6">
+    <div className="p-4 md:p-6 lg:p-8 space-y-4">
       {/* Page header */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-xl font-semibold text-foreground tracking-tight">Services</h1>
+          <h1 className="text-2xl sm:text-3xl font-semibold text-foreground tracking-tight">
+            Services
+          </h1>
           <p className="text-sm text-muted mt-0.5">
             Your full service menu — pricing, duration, and staff assignments
           </p>
@@ -227,7 +246,7 @@ export function ServicesPage({
               setEditTarget(null);
               setFormOpen(true);
             }}
-            className="flex items-center gap-2 px-4 py-2 bg-accent text-white text-sm font-medium rounded-xl hover:bg-accent/90 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent/90 transition-colors shrink-0"
           >
             <Plus className="w-4 h-4" />
             Add Service
@@ -236,19 +255,18 @@ export function ServicesPage({
       </div>
 
       {/* Tab bar */}
-      <div className="flex gap-1 border-b border-border -mt-2">
-        {SERVICES_TABS.map(({ id, label, icon: Icon }) => (
+      <div className="flex gap-1 border-b border-border">
+        {SERVICES_TABS.map(({ id, label }) => (
           <button
             key={id}
             onClick={() => setActiveTab(id)}
             className={cn(
-              "flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors",
+              "px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors",
               activeTab === id
                 ? "border-accent text-accent"
                 : "border-transparent text-muted hover:text-foreground hover:border-border",
             )}
           >
-            <Icon className="w-3.5 h-3.5" />
             {label}
           </button>
         ))}
@@ -279,51 +297,60 @@ export function ServicesPage({
       {activeTab === "menu" && (
         <>
           {/* Stat cards */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <Card className="gap-0 py-4">
-              <CardContent className="px-4">
-                <p className="text-[10px] font-medium text-muted uppercase tracking-wide">
-                  Total Services
-                </p>
-                <p className="text-2xl font-semibold text-foreground mt-1">{services.length}</p>
-                <p className="text-xs text-muted mt-1">across 5 categories</p>
-              </CardContent>
-            </Card>
-            <Card className="gap-0 py-4">
-              <CardContent className="px-4">
-                <p className="text-[10px] font-medium text-muted uppercase tracking-wide">Active</p>
-                <p className="text-2xl font-semibold text-foreground mt-1">{activeCount}</p>
-                <p className="text-xs text-muted mt-1">{services.length - activeCount} inactive</p>
-              </CardContent>
-            </Card>
-            <Card className="gap-0 py-4">
-              <CardContent className="px-4">
-                <p className="text-[10px] font-medium text-muted uppercase tracking-wide">
-                  Avg Price
-                </p>
-                <p className="text-2xl font-semibold text-foreground mt-1">${avgPrice}</p>
-                <p className="text-xs text-muted mt-1">fixed-price services</p>
-              </CardContent>
-            </Card>
-            <Card className="gap-0 py-4">
-              <CardContent className="px-4">
-                <p className="text-[10px] font-medium text-muted uppercase tracking-wide">
-                  Most Booked
-                </p>
-                {topService ? (
-                  <>
-                    <p className="text-base font-semibold text-foreground mt-1 truncate">
-                      {topService.name}
-                    </p>
-                    {topService.bookings > 0 && (
-                      <p className="text-xs text-[#4e6b51] mt-1">{topService.bookings} bookings</p>
-                    )}
-                  </>
-                ) : (
-                  <p className="text-sm text-muted mt-1">No services yet</p>
-                )}
-              </CardContent>
-            </Card>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {[
+              {
+                label: "Total Services",
+                value: String(services.length),
+                sub: `across ${categoryCount} categor${categoryCount !== 1 ? "ies" : "y"}`,
+                icon: Tag,
+                iconColor: "text-accent",
+                iconBg: "bg-accent/10",
+              },
+              {
+                label: "Active",
+                value: String(activeCount),
+                sub: `${services.length - activeCount} inactive`,
+                icon: ToggleRight,
+                iconColor: "text-[#4e6b51]",
+                iconBg: "bg-[#4e6b51]/10",
+              },
+              {
+                label: "Avg Price",
+                value: `$${avgPrice}`,
+                sub: "fixed-price services",
+                icon: DollarSign,
+                iconColor: "text-[#d4a574]",
+                iconBg: "bg-[#d4a574]/10",
+              },
+              {
+                label: "Bundles",
+                value: String(initialBundles.length),
+                sub: `${initialBundles.filter((b) => b.isActive).length} active`,
+                icon: Layers,
+                iconColor: "text-[#5b8a8a]",
+                iconBg: "bg-[#5b8a8a]/10",
+              },
+            ].map((s) => (
+              <Card key={s.label} className="gap-0 py-0">
+                <CardContent className="px-4 py-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="space-y-0.5 min-w-0">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-muted truncate">
+                        {s.label}
+                      </p>
+                      <p className="text-lg font-semibold text-foreground tracking-tight">
+                        {s.value}
+                      </p>
+                      <p className="text-xs text-muted truncate">{s.sub}</p>
+                    </div>
+                    <div className={cn("rounded-xl p-2 shrink-0", s.iconBg)}>
+                      <s.icon className={cn("w-4 h-4", s.iconColor)} />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
           </div>
 
           {/* Seed catalog banner — only shown when no services exist yet */}
@@ -438,7 +465,15 @@ export function ServicesPage({
               })}
             </div>
           ) : filtered.length === 0 ? (
-            <div className="text-center py-16 text-muted text-sm">No services found.</div>
+            <div className="py-12 text-center">
+              <Tag className="w-7 h-7 text-foreground/15 mx-auto mb-2" />
+              <p className="text-sm text-muted/60 font-medium">No services found</p>
+              <p className="text-xs text-muted/40 mt-0.5">
+                {search || categoryFilter !== "All" || statusFilter !== "all"
+                  ? "Try adjusting your search or filters"
+                  : "Add a service to get started"}
+              </p>
+            </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
               {filtered.map((s) => (

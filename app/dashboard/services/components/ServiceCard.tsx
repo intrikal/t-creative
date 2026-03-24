@@ -58,7 +58,7 @@ export function ServiceCard({
   return (
     <div
       className={cn(
-        "group relative bg-background border rounded-2xl flex flex-col transition-all shadow-sm hover:shadow-md overflow-hidden",
+        "group relative bg-background border rounded-xl flex flex-col transition-all shadow-sm hover:shadow-md overflow-hidden",
         service.active ? "border-border" : "border-border/50 opacity-60",
       )}
     >
@@ -151,7 +151,7 @@ export function ServiceCard({
 
       {/* Delete confirmation overlay — floats above card content */}
       {confirmDelete && (
-        <div className="absolute inset-0 bg-background/97 backdrop-blur-[2px] rounded-2xl flex flex-col items-center justify-center gap-3 p-5 z-10">
+        <div className="absolute inset-0 bg-background/97 backdrop-blur-[2px] rounded-xl flex flex-col items-center justify-center gap-3 p-5 z-10">
           <div className="w-9 h-9 rounded-full bg-destructive/10 flex items-center justify-center">
             <Trash2 className="w-4 h-4 text-destructive" />
           </div>

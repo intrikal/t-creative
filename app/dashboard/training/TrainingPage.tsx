@@ -1,8 +1,7 @@
 "use client";
 
 import { useState, useTransition, useCallback } from "react";
-import { Plus, Lock } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
+import { Plus, Lock, Users, Clock, GraduationCap, DollarSign } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type {
   ProgramRow,
@@ -118,7 +117,7 @@ export function TrainingPage({
   }
 
   return (
-    <div className={cn("max-w-7xl mx-auto w-full space-y-6", embedded ? "" : "p-4 md:p-6 lg:p-8")}>
+    <div className={cn("max-w-7xl mx-auto w-full space-y-4", embedded ? "" : "p-4 md:p-6 lg:p-8")}>
       {/* Header */}
       {!embedded && (
         <div className="flex items-start justify-between gap-4">
@@ -156,39 +155,61 @@ export function TrainingPage({
       )}
 
       {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <Card className="gap-0 py-4">
-          <CardContent className="px-4">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">Active</p>
-            <p className="text-2xl font-semibold text-foreground mt-1">{stats.activeStudents}</p>
-            <p className="text-xs text-muted mt-0.5">students enrolled</p>
-          </CardContent>
-        </Card>
-        <Card className="gap-0 py-4">
-          <CardContent className="px-4">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">Waitlist</p>
-            <p className="text-2xl font-semibold text-foreground mt-1">{stats.waitlistStudents}</p>
-            <p className="text-xs text-muted mt-0.5">waiting for a spot</p>
-          </CardContent>
-        </Card>
-        <Card className="gap-0 py-4">
-          <CardContent className="px-4">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
-              Certified
-            </p>
-            <p className="text-2xl font-semibold text-foreground mt-1">{stats.certified}</p>
-            <p className="text-xs text-muted mt-0.5">graduates</p>
-          </CardContent>
-        </Card>
-        <Card className="gap-0 py-4">
-          <CardContent className="px-4">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">Revenue</p>
-            <p className="text-2xl font-semibold text-foreground mt-1">
-              ${stats.revenue.toLocaleString()}
-            </p>
-            <p className="text-xs text-muted mt-0.5">collected</p>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        {[
+          {
+            label: "Active",
+            value: String(stats.activeStudents),
+            sub: "students enrolled",
+            icon: Users,
+            color: "text-accent",
+            bg: "bg-accent/10",
+          },
+          {
+            label: "Waitlist",
+            value: String(stats.waitlistStudents),
+            sub: "waiting for a spot",
+            icon: Clock,
+            color: "text-[#a07040]",
+            bg: "bg-[#a07040]/10",
+          },
+          {
+            label: "Certified",
+            value: String(stats.certified),
+            sub: "graduates",
+            icon: GraduationCap,
+            color: "text-[#4e6b51]",
+            bg: "bg-[#4e6b51]/10",
+          },
+          {
+            label: "Revenue",
+            value: `$${stats.revenue.toLocaleString()}`,
+            sub: "collected",
+            icon: DollarSign,
+            color: "text-blush",
+            bg: "bg-blush/10",
+          },
+        ].map((stat) => (
+          <div key={stat.label} className="bg-card border border-border rounded-xl px-4 py-3">
+            <div className="flex items-start justify-between gap-2">
+              <div className="space-y-1 flex-1 min-w-0">
+                <p className="text-[10px] font-semibold text-muted uppercase tracking-wide leading-none">
+                  {stat.label}
+                </p>
+                <p className="text-lg font-semibold text-foreground leading-tight">{stat.value}</p>
+                <p className="text-xs text-muted">{stat.sub}</p>
+              </div>
+              <div
+                className={cn(
+                  "w-8 h-8 rounded-xl flex items-center justify-center shrink-0",
+                  stat.bg,
+                )}
+              >
+                <stat.icon className={cn("w-4 h-4", stat.color)} />
+              </div>
+            </div>
+          </div>
+        ))}
       </div>
 
       {/* Tabs */}

@@ -12,7 +12,7 @@
  *
  * @see {@link inngest/functions/email-sequences.ts} — cron processor
  */
-import { relations, sql } from "drizzle-orm";
+import { relations } from "drizzle-orm";
 import {
   boolean,
   index,
@@ -42,7 +42,7 @@ export const sequenceTriggerEnum = pgEnum("sequence_trigger", [
 ]);
 
 /** Enrollment lifecycle status. */
-export const seqEnrollmentStatusEnum = pgEnum("enrollment_status", [
+export const seqEnrollmentStatusEnum = pgEnum("seq_enrollment_status", [
   "active",
   "completed",
   "cancelled",

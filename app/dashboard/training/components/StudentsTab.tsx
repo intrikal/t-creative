@@ -11,8 +11,8 @@
 "use client";
 
 import { UserPlus } from "lucide-react";
-import { cn } from "@/lib/utils";
 import type { StudentRow, StudentStatus } from "@/lib/types/training.types";
+import { cn } from "@/lib/utils";
 import { StudentCard } from "./StudentCard";
 
 export function StudentsTab({
@@ -42,8 +42,10 @@ export function StudentsTab({
             key={f}
             onClick={() => onFilterChange(f)}
             className={cn(
-              "px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors",
-              filter === f ? "bg-foreground/8 text-foreground" : "text-muted hover:text-foreground",
+              "px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors border",
+              filter === f
+                ? "bg-foreground/8 text-foreground border-foreground/10"
+                : "text-muted border-transparent hover:text-foreground",
             )}
           >
             {f}
@@ -64,9 +66,14 @@ export function StudentsTab({
           />
         ))}
         {filtered.length === 0 && (
-          <div className="col-span-full text-center py-12 border border-dashed border-border rounded-xl">
-            <UserPlus className="w-8 h-8 text-muted/40 mx-auto mb-2" />
-            <p className="text-sm text-muted">No students with this status.</p>
+          <div className="col-span-full flex flex-col items-center justify-center py-16 text-center">
+            <div className="w-12 h-12 rounded-2xl bg-surface flex items-center justify-center mb-4">
+              <UserPlus className="w-5 h-5 text-muted" />
+            </div>
+            <p className="text-sm font-semibold text-foreground">No students with this status.</p>
+            <p className="text-xs text-muted mt-1">
+              Students will appear here once enrolled in a program.
+            </p>
           </div>
         )}
       </div>

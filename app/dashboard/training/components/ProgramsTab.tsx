@@ -52,9 +52,14 @@ export function ProgramsTab({
         />
       ))}
       {programs.length === 0 && (
-        <div className="text-center py-12 border border-dashed border-border rounded-xl">
-          <GraduationCap className="w-8 h-8 text-muted/40 mx-auto mb-2" />
-          <p className="text-sm text-muted">No programs yet.</p>
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <div className="w-12 h-12 rounded-2xl bg-surface flex items-center justify-center mb-4">
+            <GraduationCap className="w-5 h-5 text-muted" />
+          </div>
+          <p className="text-sm font-semibold text-foreground">No programs yet</p>
+          <p className="text-xs text-muted mt-1">
+            Create your first training program to start enrolling students.
+          </p>
         </div>
       )}
     </div>

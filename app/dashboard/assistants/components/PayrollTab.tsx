@@ -10,7 +10,7 @@
 "use client";
 
 import { useState } from "react";
-import { DollarSign, Download, CheckSquare, FileText } from "lucide-react";
+import { DollarSign, Download, CheckSquare, FileText, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { PayrollRow, PayrollSummary } from "../actions";
 import { PayStubModal } from "./PayStubModal";
@@ -77,6 +77,20 @@ export function PayrollTab({ rows, summary }: { rows: PayrollRow[]; summary: Pay
 
   /** payStubFor: when set, opens the PayStubModal for this assistant */
   const [payStubFor, setPayStubFor] = useState<{ id: string; name: string } | null>(null);
+  /** paidIds: set of assistant IDs marked paid in this session (optimistic) */
+  const [paidIds, setPaidIds] = useState<Set<string>>(new Set());
+  /** confirmRunPayroll: shows the run payroll confirmation banner */
+  const [confirmRunPayroll, setConfirmRunPayroll] = useState(false);
+  /** payrollRan: true after confirming run payroll, shows success state */
+  const [payrollRan, setPayrollRan] = useState(false);
+
+  function handleRunPayroll() {
+    // Mark all rows with owed > 0 as paid optimistically
+    const pendingIds = new Set(rows.filter((r) => r.owedInCents > 0).map((r) => r.id));
+    setPaidIds(pendingIds);
+    setConfirmRunPayroll(false);
+    setPayrollRan(true);
+  }
 
   return (
     <div className="space-y-5">
@@ -95,15 +109,53 @@ export function PayrollTab({ rows, summary }: { rows: PayrollRow[]; summary: Pay
             <Download className="w-3.5 h-3.5" />
             Export CSV
           </button>
-          <button className="flex items-center gap-2 px-3 py-1.5 bg-accent text-white text-xs font-medium rounded-lg hover:bg-accent/90 transition-colors">
-            <DollarSign className="w-3.5 h-3.5" />
-            Run Payroll
-          </button>
+          {payrollRan ? (
+            <span className="flex items-center gap-1.5 px-3 py-1.5 bg-[#4e6b51]/10 text-[#4e6b51] text-xs font-medium rounded-lg border border-[#4e6b51]/20">
+              <Check className="w-3.5 h-3.5" /> Payroll Complete
+            </span>
+          ) : (
+            <button
+              onClick={() => setConfirmRunPayroll(true)}
+              disabled={totalOwed === 0}
+              className="flex items-center gap-2 px-3 py-1.5 bg-accent text-white text-xs font-medium rounded-lg hover:bg-accent/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <DollarSign className="w-3.5 h-3.5" />
+              Run Payroll
+            </button>
+          )}
         </div>
       </div>
 
+      {/* Run Payroll confirmation banner */}
+      {confirmRunPayroll && (
+        <div className="flex items-center justify-between gap-4 bg-accent/8 border border-accent/20 rounded-xl px-4 py-3">
+          <div>
+            <p className="text-sm font-semibold text-foreground">Mark all as paid?</p>
+            <p className="text-xs text-muted mt-0.5">
+              This will mark {rows.filter((r) => r.owedInCents > 0).length} team member
+              {rows.filter((r) => r.owedInCents > 0).length !== 1 ? "s" : ""} as paid for{" "}
+              {summary.periodLabel}.
+            </p>
+          </div>
+          <div className="flex gap-2 shrink-0">
+            <button
+              onClick={() => setConfirmRunPayroll(false)}
+              className="px-3 py-1.5 bg-surface border border-border text-xs font-medium rounded-lg hover:bg-foreground/5 transition-colors text-foreground"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleRunPayroll}
+              className="px-3 py-1.5 bg-accent text-white text-xs font-medium rounded-lg hover:bg-accent/90 transition-colors"
+            >
+              Confirm
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Pay period summary */}
-      <div className="bg-background border border-border rounded-xl p-4 flex items-center justify-between gap-4 flex-wrap">
+      <div className="bg-card border border-border rounded-xl p-4 flex items-center justify-between gap-4 flex-wrap">
         <div>
           <p className="text-xs text-muted">Current Pay Period</p>
           <p className="text-sm font-semibold text-foreground mt-0.5">{summary.periodLabel}</p>
@@ -124,7 +176,7 @@ export function PayrollTab({ rows, summary }: { rows: PayrollRow[]; summary: Pay
       </div>
 
       {/* Payroll table */}
-      <div className="rounded-xl border border-border overflow-hidden">
+      <div className="rounded-xl border border-border overflow-hidden bg-card">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border/60 bg-surface/40">
@@ -203,14 +255,17 @@ export function PayrollTab({ rows, summary }: { rows: PayrollRow[]; summary: Pay
                   </div>
                 </td>
                 <td className="px-3 py-3 text-center align-middle">
-                  {r.owedInCents === 0 ? (
+                  {r.owedInCents === 0 || paidIds.has(r.id) ? (
                     <span className="flex items-center justify-center gap-1 text-[10px] text-[#4e6b51]">
                       <CheckSquare className="w-3 h-3" /> Paid
                     </span>
                   ) : (
-                    <span className="text-[10px] text-[#a07040] bg-[#a07040]/10 px-1.5 py-0.5 rounded-full">
+                    <button
+                      onClick={() => setPaidIds((s) => new Set(s).add(r.id))}
+                      className="text-[10px] text-[#a07040] bg-[#a07040]/10 px-1.5 py-0.5 rounded-full hover:bg-[#a07040]/20 transition-colors border border-[#a07040]/20"
+                    >
                       Pending
-                    </span>
+                    </button>
                   )}
                 </td>
                 <td className="px-4 py-3 text-center align-middle">
@@ -230,7 +285,7 @@ export function PayrollTab({ rows, summary }: { rows: PayrollRow[]; summary: Pay
 
       {/* 1099 section */}
       {ytdRows.length > 0 && (
-        <div className="bg-background border border-border rounded-xl p-4">
+        <div className="bg-card border border-border rounded-xl p-4">
           <div className="flex items-center justify-between mb-3">
             <p className="text-sm font-semibold text-foreground">
               1099 Summary — Tax Year {new Date().getFullYear()}

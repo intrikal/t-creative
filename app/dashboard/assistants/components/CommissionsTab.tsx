@@ -10,6 +10,7 @@
  */
 "use client";
 
+import { DollarSign } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -27,6 +28,22 @@ function commissionLabel(row: CommissionRow): string {
 }
 
 export function CommissionsTab({ data }: { data: CommissionRow[] }) {
+  if (data.length === 0) {
+    return (
+      <Card className="gap-0">
+        <CardContent className="flex flex-col items-center justify-center py-20 text-center px-4">
+          <div className="w-12 h-12 rounded-2xl bg-surface flex items-center justify-center mb-4">
+            <DollarSign className="w-5 h-5 text-muted" />
+          </div>
+          <p className="text-sm font-semibold text-foreground">No commission data yet</p>
+          <p className="text-xs text-muted mt-1 max-w-xs">
+            Commission earnings will appear here once your team completes their first bookings.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
   // reduce: aggregate across all assistants to produce footer totals.
   // Each metric sums the corresponding cents field for the whole team.
   const totalRevenue = data.reduce((s, r) => s + r.revenueInCents, 0);

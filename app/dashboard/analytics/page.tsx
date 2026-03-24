@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { getCurrentUser } from "@/lib/auth";
 import type { Range } from "@/lib/types/analytics.types";
-import { AnalyticsShell } from "./AnalyticsShell";
+import { AnalyticsShell, INSIGHTS_TABS, type InsightsTab } from "./AnalyticsShell";
 import { AppointmentGapSectionWrapper } from "./sections/AppointmentGapSectionWrapper";
 import { BookingsSectionWrapper } from "./sections/BookingsSectionWrapper";
 import { CheckoutRebookSectionWrapper } from "./sections/CheckoutRebookSectionWrapper";
@@ -31,37 +31,27 @@ export const metadata: Metadata = {
 
 const VALID_RANGES: Range[] = ["7d", "30d", "90d", "12m"];
 
-export default async function Page({
-  searchParams,
-}: {
-  searchParams: Promise<{ range?: string }>;
-}) {
-  const user = await getCurrentUser();
-  if (!user) redirect("/login");
-  if (user.profile?.role !== "admin") redirect("/dashboard");
-
-  const { range: rawRange } = await searchParams;
-  const range: Range = VALID_RANGES.includes(rawRange as Range) ? (rawRange as Range) : "30d";
-
-  return (
-    <AnalyticsShell
-      kpis={<KpiSection range={range} />}
-      overview={
+function TabContent({ tab, range }: { tab: InsightsTab; range: Range }) {
+  switch (tab) {
+    case "Overview":
+      return (
         <div className="space-y-4">
           <RevenueSectionWrapper range={range} />
           <BookingsSectionWrapper range={range} />
           <ClientsSection range={range} />
         </div>
-      }
-      revenue={
+      );
+    case "Revenue":
+      return (
         <div className="space-y-4">
           <RevenueSectionWrapper range={range} />
           <RevenueByServiceSectionWrapper range={range} />
           <RevenuePerHourSectionWrapper range={range} />
           <RevenueForecastSectionWrapper />
         </div>
-      }
-      bookings={
+      );
+    case "Bookings":
+      return (
         <div className="space-y-4">
           <BookingsSectionWrapper range={range} />
           <PeakTimesSectionWrapper range={range} />
@@ -69,28 +59,54 @@ export default async function Page({
           <CheckoutRebookSectionWrapper range={range} />
           <WaitlistConversionSectionWrapper range={range} />
         </div>
-      }
-      clients={
+      );
+    case "Clients":
+      return (
         <div className="space-y-4">
           <ClientsSection range={range} />
           <RetentionSectionWrapper range={range} />
           <VisitFrequencySectionWrapper range={range} />
           <ReferralStatsSectionWrapper />
         </div>
-      }
-      team={
+      );
+    case "Team":
+      return (
         <div className="space-y-4">
           <StaffSection range={range} />
           <OperationalSection range={range} />
         </div>
-      }
-      marketing={
+      );
+    case "Marketing":
+      return (
         <div className="space-y-4">
           <PromotionRoiSectionWrapper range={range} />
           <MembershipValueSectionWrapper range={range} />
           <GiftCardBreakageSectionWrapper range={range} />
         </div>
-      }
+      );
+  }
+}
+
+export default async function Page({
+  searchParams,
+}: {
+  searchParams: Promise<{ range?: string; tab?: string }>;
+}) {
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+  if (user.profile?.role !== "admin") redirect("/dashboard");
+
+  const { range: rawRange, tab: rawTab } = await searchParams;
+  const range: Range = VALID_RANGES.includes(rawRange as Range) ? (rawRange as Range) : "30d";
+  const tab: InsightsTab = (INSIGHTS_TABS as readonly string[]).includes(rawTab ?? "")
+    ? (rawTab as InsightsTab)
+    : "Overview";
+
+  return (
+    <AnalyticsShell
+      kpis={<KpiSection range={range} />}
+      tabContent={<TabContent tab={tab} range={range} />}
+      activeTab={tab}
     />
   );
 }

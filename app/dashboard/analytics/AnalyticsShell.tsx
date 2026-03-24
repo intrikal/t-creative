@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useState, useTransition } from "react";
+import { type ReactNode, useTransition } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { Download } from "lucide-react";
 import type { BookingExportRow, Range } from "@/lib/types/analytics.types";
@@ -9,37 +9,45 @@ import { exportBookingsCsv } from "./actions";
 
 const RANGES = ["7d", "30d", "90d", "12m"] as const;
 
-const INSIGHTS_TABS = ["Overview", "Revenue", "Bookings", "Clients", "Team", "Marketing"] as const;
-type InsightsTab = (typeof INSIGHTS_TABS)[number];
+export const INSIGHTS_TABS = [
+  "Overview",
+  "Revenue",
+  "Bookings",
+  "Clients",
+  "Team",
+  "Marketing",
+] as const;
+export type InsightsTab = (typeof INSIGHTS_TABS)[number];
 
 export function AnalyticsShell({
   kpis,
-  overview,
-  revenue,
-  bookings,
-  clients,
-  team,
-  marketing,
+  tabContent,
+  activeTab,
 }: {
   kpis: ReactNode;
-  overview: ReactNode;
-  revenue: ReactNode;
-  bookings: ReactNode;
-  clients: ReactNode;
-  team: ReactNode;
-  marketing: ReactNode;
+  tabContent: ReactNode;
+  activeTab: InsightsTab;
 }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const range = (searchParams.get("range") as Range) ?? "30d";
-  const [tab, setTab] = useState<InsightsTab>("Overview");
   const [isExporting, startExport] = useTransition();
 
   function setRange(r: Range) {
     const params = new URLSearchParams(searchParams.toString());
     params.set("range", r);
-    router.push(`${pathname}?${params.toString()}`);
+    router.push(`${pathname}?${params.toString()}`, { scroll: false });
+  }
+
+  function setTab(t: InsightsTab) {
+    const params = new URLSearchParams(searchParams.toString());
+    if (t === "Overview") {
+      params.delete("tab");
+    } else {
+      params.set("tab", t);
+    }
+    router.push(`${pathname}?${params.toString()}`, { scroll: false });
   }
 
   function downloadCsv(rows: BookingExportRow[]) {
@@ -124,7 +132,7 @@ export function AnalyticsShell({
             onClick={() => setTab(t)}
             className={cn(
               "px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px",
-              tab === t
+              activeTab === t
                 ? "border-accent text-accent"
                 : "border-transparent text-muted hover:text-foreground hover:border-border",
             )}
@@ -134,14 +142,8 @@ export function AnalyticsShell({
         ))}
       </div>
 
-      {/* Tab content — display:none keeps Suspense boundaries streaming
-          independently without re-mounting when switching tabs */}
-      <div style={{ display: tab === "Overview" ? "block" : "none" }}>{overview}</div>
-      <div style={{ display: tab === "Revenue" ? "block" : "none" }}>{revenue}</div>
-      <div style={{ display: tab === "Bookings" ? "block" : "none" }}>{bookings}</div>
-      <div style={{ display: tab === "Clients" ? "block" : "none" }}>{clients}</div>
-      <div style={{ display: tab === "Team" ? "block" : "none" }}>{team}</div>
-      <div style={{ display: tab === "Marketing" ? "block" : "none" }}>{marketing}</div>
+      {/* Tab content — only the active tab's sections are server-rendered */}
+      {tabContent}
     </div>
   );
 }

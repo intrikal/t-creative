@@ -78,14 +78,18 @@ const CACHE_TTL_SECONDS = 300;
  * Checks Redis first; on miss reads from Postgres and backfills the cache.
  */
 async function getPublicSetting<T>(key: string, fallback: T): Promise<T> {
-  const cached = await redis.get<T>(cacheKey(key));
-  if (cached !== null) return cached;
+  try {
+    const cached = await redis.get<T>(cacheKey(key));
+    if (cached !== null) return cached;
 
-  const [row] = await db.select().from(settings).where(eq(settings.key, key));
-  const value = row ? (row.value as T) : fallback;
+    const [row] = await db.select().from(settings).where(eq(settings.key, key));
+    const value = row ? (row.value as T) : fallback;
 
-  await redis.set(cacheKey(key), value, { ex: CACHE_TTL_SECONDS });
-  return value;
+    await redis.set(cacheKey(key), value, { ex: CACHE_TTL_SECONDS });
+    return value;
+  } catch {
+    return fallback;
+  }
 }
 
 /* ------------------------------------------------------------------ */

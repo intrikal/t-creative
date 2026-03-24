@@ -13,7 +13,6 @@ import { db } from "@/db";
 import { inquiries } from "@/db/schema";
 import { InquiryReply } from "@/emails/InquiryReply";
 import { trackEvent } from "@/lib/posthog";
-import { verifyRecaptchaToken } from "@/lib/recaptcha";
 import { redis } from "@/lib/redis";
 import { sendEmail } from "@/lib/resend";
 
@@ -22,7 +21,6 @@ const contactFormSchema = z.object({
   email: z.string().email().max(320),
   interest: z.string().min(1),
   message: z.string().min(1).max(5000),
-  recaptchaToken: z.string().min(1),
 });
 
 type ServiceCategory = "lash" | "jewelry" | "crochet" | "consulting" | null;
@@ -67,16 +65,12 @@ export async function submitContactForm(data: {
   email: string;
   interest: string;
   message: string;
-  recaptchaToken: string;
 }) {
   const parsed = contactFormSchema.safeParse(data);
   if (!parsed.success) throw new Error("Invalid form data. Please check your inputs.");
 
   const { success: allowed } = await contactRateLimit.limit(data.email);
   if (!allowed) throw new Error("Too many submissions. Please wait a moment and try again.");
-
-  const valid = await verifyRecaptchaToken(data.recaptchaToken);
-  if (!valid) throw new Error("Bot check failed. Please try again.");
 
   const category = interestMap[data.interest] ?? null;
 

@@ -13,14 +13,20 @@
  */
 "use client";
 
-import { useState, useOptimistic, useTransition } from "react";
+import { useState, useOptimistic, useTransition, useCallback } from "react";
 import dynamic from "next/dynamic";
-import { Search, Star, Plus, Users, TrendingUp, DollarSign } from "lucide-react";
+import { Search, Star, Plus, Users, TrendingUp, DollarSign, ArrowUpDown } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
 import type { ClientRow, LoyaltyRow, LifecycleStage } from "@/lib/types/client.types";
+import { cn } from "@/lib/utils";
 export type { LifecycleStage };
-import { createClient, updateClient, deleteClient, getClients as fetchClients } from "./actions";
+import {
+  createClient,
+  updateClient,
+  deleteClient,
+  getClients as fetchClients,
+  getClientLoyalty,
+} from "./actions";
 import { ClientCard } from "./components/ClientCard";
 import { BLANK_FORM, type ClientFormState } from "./components/ClientFormDialog";
 
@@ -106,9 +112,14 @@ export function ClientsPage({
   // Build Map<clientId, totalSpent> for O(1) lookups when computing loyalty
   // tier thresholds — avoids scanning the client array per loyalty row.
   const totalSpentMap = new Map(mappedClients.map((c) => [c.id, c.totalSpent]));
+  // Loyalty data is loaded lazily when the Loyalty tab is first opened to
+  // avoid a slow aggregation query blocking the initial page render.
+  const [loyaltyRows, setLoyaltyRows] = useState(initialLoyalty);
+  const [loyaltyLoading, setLoyaltyLoading] = useState(false);
+  const [loyaltyLoaded, setLoyaltyLoaded] = useState(initialLoyalty.length > 0);
   // Transform each loyalty DB row into a display-friendly LoyaltyEntry, using
   // totalSpentMap to inject the client's total spend for tier calculation.
-  const mappedLoyalty = initialLoyalty.map((r) => mapLoyaltyRow(r, totalSpentMap));
+  const mappedLoyalty = loyaltyRows.map((r) => mapLoyaltyRow(r, totalSpentMap));
 
   // useTransition wraps server-action calls so the UI stays responsive and
   // isPending can drive disabled states on buttons while mutations settle.
@@ -139,7 +150,26 @@ export function ClientsPage({
   const [sourceFilter, setSourceFilter] = useState("All"); // Acquisition channel pill
   const [stageFilter, setStageFilter] = useState<LifecycleStage | "all">("all"); // Lifecycle stage pill
   const [vipOnly, setVipOnly] = useState(false); // VIP-only toggle
+  const [sortBy, setSortBy] = useState<"recent" | "visits" | "spend" | "name">("recent"); // Sort order
   const [activeTab, setActiveTab] = useState<ClientsTab>("clients"); // Top-level tab: "clients" | "loyalty"
+
+  // Lazy-load loyalty data the first time the Loyalty tab is opened.
+  const handleTabChange = useCallback(
+    async (tab: ClientsTab) => {
+      setActiveTab(tab);
+      if (tab === "loyalty" && !loyaltyLoaded) {
+        setLoyaltyLoading(true);
+        try {
+          const rows = await getClientLoyalty();
+          setLoyaltyRows(rows);
+          setLoyaltyLoaded(true);
+        } finally {
+          setLoyaltyLoading(false);
+        }
+      }
+    },
+    [loyaltyLoaded],
+  );
 
   // --- Dialog state ---
   // Each dialog is controlled by a separate piece of state because they are
@@ -156,23 +186,41 @@ export function ClientsPage({
   // every active filter to appear. This runs on every render but the client
   // list is small enough (< 1000) that memoization would add complexity
   // without meaningful performance gain.
-  const filtered = clients.filter((c) => {
-    const matchSearch =
-      !search ||
-      c.name.toLowerCase().includes(search.toLowerCase()) ||
-      c.email.toLowerCase().includes(search.toLowerCase());
-    const matchSource = sourceFilter === "All" || sourceBadge(c.source)?.label === sourceFilter;
-    const matchVip = !vipOnly || c.vip;
-    const matchStage = stageFilter === "all" || c.lifecycleStage === stageFilter;
-    return matchSearch && matchSource && matchVip && matchStage;
-  });
+  const filtered = clients
+    .filter((c) => {
+      const matchSearch =
+        !search ||
+        c.name.toLowerCase().includes(search.toLowerCase()) ||
+        c.email.toLowerCase().includes(search.toLowerCase());
+      const matchSource = sourceFilter === "All" || sourceBadge(c.source)?.label === sourceFilter;
+      const matchVip = !vipOnly || c.vip;
+      const matchStage = stageFilter === "all" || c.lifecycleStage === stageFilter;
+      return matchSearch && matchSource && matchVip && matchStage;
+    })
+    .sort((a, b) => {
+      switch (sortBy) {
+        case "visits":
+          return b.totalBookings - a.totalBookings;
+        case "spend":
+          return b.totalSpent - a.totalSpent;
+        case "name":
+          return a.name.localeCompare(b.name);
+        case "recent":
+        default:
+          // "—" sorts last; otherwise compare as dates descending
+          if (a.lastVisit === "—" && b.lastVisit === "—") return 0;
+          if (a.lastVisit === "—") return 1;
+          if (b.lastVisit === "—") return -1;
+          return new Date(b.lastVisit).getTime() - new Date(a.lastVisit).getTime();
+      }
+    });
 
-  // .filter() counts VIP clients for the stat card.
-  const vipCount = clients.filter((c) => c.vip).length;
-  // .reduce() sums totalSpent across all clients for the revenue stat card.
-  // Using reduce instead of a for-loop for conciseness — array is small.
-  const totalRevenue = clients.reduce((s, c) => s + c.totalSpent, 0);
-  const avgSpend = clients.length ? Math.round(totalRevenue / clients.length) : 0;
+  // Stats reflect the current filtered view so Trini can see segment totals.
+  const isFiltered = search !== "" || sourceFilter !== "All" || stageFilter !== "all" || vipOnly;
+  const statSource = isFiltered ? filtered : clients;
+  const vipCount = statSource.filter((c) => c.vip).length;
+  const totalRevenue = statSource.reduce((s, c) => s + c.totalSpent, 0);
+  const avgSpend = statSource.length ? Math.round(totalRevenue / statSource.length) : 0;
 
   // Reset form to blank and open the dialog in "add" mode.
   const openAdd = () => {
@@ -286,17 +334,19 @@ export function ClientsPage({
   }
 
   return (
-    <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto w-full space-y-5">
+    <div className="p-4 md:p-6 lg:p-8 space-y-6">
       {/* Header */}
-      <div className="flex items-start justify-between gap-4 flex-wrap">
+      <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-xl font-semibold text-foreground tracking-tight">Clients</h1>
+          <h1 className="text-2xl sm:text-3xl font-semibold text-foreground tracking-tight">
+            Clients
+          </h1>
           <p className="text-sm text-muted mt-0.5">{clients.length} total clients</p>
         </div>
         {activeTab === "clients" && (
           <button
             onClick={openAdd}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-accent text-white text-sm font-medium hover:bg-accent/90 transition-colors shrink-0"
+            className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-accent text-white text-sm font-medium hover:bg-accent/90 transition-colors shrink-0"
           >
             <Plus className="w-4 h-4" /> Add Client
           </button>
@@ -305,11 +355,10 @@ export function ClientsPage({
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-border -mt-2">
-        {/* Destructuring { id, label } from each tab config object for cleaner JSX */}
         {CLIENTS_TABS.map(({ id, label }) => (
           <button
             key={id}
-            onClick={() => setActiveTab(id)}
+            onClick={() => handleTabChange(id)}
             className={cn(
               "px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors",
               activeTab === id
@@ -322,29 +371,43 @@ export function ClientsPage({
         ))}
       </div>
 
-      {activeTab === "loyalty" && (
-        <LoyaltyTab initialLoyalty={mappedLoyalty} initialRewards={initialRewards} />
-      )}
+      {activeTab === "loyalty" &&
+        (loyaltyLoading ? (
+          <div className="flex items-center justify-center py-20 text-sm text-muted">
+            Loading loyalty data…
+          </div>
+        ) : (
+          <LoyaltyTab initialLoyalty={mappedLoyalty} initialRewards={initialRewards} />
+        ))}
 
       {activeTab === "clients" && (
         <>
-          {/* Stat cards */}
+          {/* Stat cards — update with active filter context */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <Card className="py-4 gap-0">
               <CardContent className="px-4">
-                <div className="flex items-center gap-2 mb-1.5">
-                  <Users className="w-3.5 h-3.5 text-muted" />
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-6 h-6 rounded-md bg-foreground/6 flex items-center justify-center">
+                    <Users className="w-3.5 h-3.5 text-muted" />
+                  </div>
                   <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
-                    Total
+                    {isFiltered ? "Filtered" : "Total"}
                   </p>
                 </div>
-                <p className="text-2xl font-semibold text-foreground">{clients.length}</p>
+                <p className="text-2xl font-semibold text-foreground">
+                  {isFiltered ? filtered.length : clients.length}
+                </p>
+                <p className="text-xs text-muted mt-0.5">
+                  {isFiltered ? `of ${clients.length} clients` : "clients"}
+                </p>
               </CardContent>
             </Card>
             <Card className="py-4 gap-0">
               <CardContent className="px-4">
-                <div className="flex items-center gap-2 mb-1.5">
-                  <Star className="w-3.5 h-3.5 text-[#d4a574]" />
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-6 h-6 rounded-md bg-[#d4a574]/10 flex items-center justify-center">
+                    <Star className="w-3.5 h-3.5 text-[#d4a574]" />
+                  </div>
                   <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
                     VIP
                   </p>
@@ -355,8 +418,10 @@ export function ClientsPage({
             </Card>
             <Card className="py-4 gap-0">
               <CardContent className="px-4">
-                <div className="flex items-center gap-2 mb-1.5">
-                  <DollarSign className="w-3.5 h-3.5 text-muted" />
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-6 h-6 rounded-md bg-foreground/6 flex items-center justify-center">
+                    <DollarSign className="w-3.5 h-3.5 text-muted" />
+                  </div>
                   <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
                     Revenue
                   </p>
@@ -369,8 +434,10 @@ export function ClientsPage({
             </Card>
             <Card className="py-4 gap-0">
               <CardContent className="px-4">
-                <div className="flex items-center gap-2 mb-1.5">
-                  <TrendingUp className="w-3.5 h-3.5 text-muted" />
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-6 h-6 rounded-md bg-foreground/6 flex items-center justify-center">
+                    <TrendingUp className="w-3.5 h-3.5 text-muted" />
+                  </div>
                   <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
                     Avg Spend
                   </p>
@@ -382,17 +449,37 @@ export function ClientsPage({
           </div>
 
           {/* Filter bar */}
-          <div className="flex flex-col sm:flex-row gap-3">
-            <div className="relative flex-1 max-w-sm">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted" />
-              <input
-                type="text"
-                placeholder="Search name or email…"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-8 pr-3 py-2 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-accent/30 text-foreground placeholder:text-muted"
-              />
+          <div className="space-y-2.5">
+            {/* Search + sort row */}
+            <div className="flex items-center gap-3">
+              <div className="relative flex-1 max-w-md">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
+                <input
+                  type="text"
+                  placeholder="Search by name or email…"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 text-sm bg-white border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-accent/30 text-foreground placeholder:text-muted"
+                />
+              </div>
+              <div className="relative shrink-0">
+                <ArrowUpDown className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted pointer-events-none" />
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+                  className="pl-8 pr-7 py-2 text-sm bg-white border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-accent/30 text-foreground appearance-none cursor-pointer"
+                >
+                  <option value="recent">Most recent</option>
+                  <option value="spend">Highest spend</option>
+                  <option value="visits">Most visits</option>
+                  <option value="name">Name A–Z</option>
+                </select>
+              </div>
+              <span className="text-xs text-muted shrink-0">
+                {filtered.length} of {clients.length}
+              </span>
             </div>
+            {/* Filter pills row */}
             <div className="flex gap-1 flex-wrap items-center">
               {SOURCE_FILTERS.map((s) => (
                 <button
@@ -402,13 +489,13 @@ export function ClientsPage({
                     "px-3 py-1.5 rounded-lg text-xs font-medium transition-colors",
                     sourceFilter === s
                       ? "bg-foreground text-background"
-                      : "text-muted hover:text-foreground",
+                      : "text-muted hover:text-foreground hover:bg-foreground/5",
                   )}
                 >
                   {s}
                 </button>
               ))}
-              <div className="w-px h-4 bg-border mx-1" />
+              <div className="w-px h-4 bg-border mx-1 shrink-0" />
               {(["all", "prospect", "active", "at_risk", "lapsed", "churned"] as const).map((s) => (
                 <button
                   key={s}
@@ -417,7 +504,7 @@ export function ClientsPage({
                     "px-3 py-1.5 rounded-lg text-xs font-medium transition-colors",
                     stageFilter === s
                       ? "bg-foreground text-background"
-                      : "text-muted hover:text-foreground",
+                      : "text-muted hover:text-foreground hover:bg-foreground/5",
                   )}
                 >
                   {s === "all"
@@ -427,33 +514,41 @@ export function ClientsPage({
                       : s.charAt(0).toUpperCase() + s.slice(1)}
                 </button>
               ))}
-              <div className="w-px h-4 bg-border mx-1" />
+              <div className="w-px h-4 bg-border mx-1 shrink-0" />
               <button
                 onClick={() => setVipOnly(!vipOnly)}
                 className={cn(
                   "flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border",
                   vipOnly
                     ? "bg-[#d4a574]/12 text-[#a07040] border-[#d4a574]/25"
-                    : "text-muted border-transparent hover:text-foreground",
+                    : "text-muted border-transparent hover:text-foreground hover:bg-foreground/5",
                 )}
               >
                 <Star className={cn("w-3 h-3", vipOnly && "fill-[#d4a574] text-[#d4a574]")} />
                 VIP only
               </button>
-              <span className="text-xs text-muted ml-auto sm:ml-2">
-                {filtered.length} of {clients.length}
-              </span>
             </div>
           </div>
 
           {/* Client grid */}
           {filtered.length === 0 ? (
-            <div className="text-center py-16">
-              <p className="text-sm text-muted">No clients match your filters.</p>
+            <div className="flex flex-col items-center justify-center py-20 text-center">
+              <div className="w-12 h-12 rounded-full bg-surface flex items-center justify-center mb-3">
+                <Users className="w-5 h-5 text-muted" />
+              </div>
+              <p className="text-sm font-medium text-foreground mb-1">
+                {search || sourceFilter !== "All" || stageFilter !== "all" || vipOnly
+                  ? "No clients match your filters"
+                  : "No clients yet"}
+              </p>
+              <p className="text-xs text-muted">
+                {search || sourceFilter !== "All" || stageFilter !== "all" || vipOnly
+                  ? "Try adjusting your search or filters"
+                  : "Add your first client to get started"}
+              </p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-              {/* .map() renders a ClientCard for each filtered client */}
               {filtered.map((client) => (
                 <ClientCard
                   key={client.id}

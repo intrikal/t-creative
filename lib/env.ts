@@ -35,6 +35,9 @@ const schema = z.object({
   // ── Upstash Redis (rate limiting) ─────────────────────────────────────────
   UPSTASH_REDIS_REST_URL: z.string().url().optional(),
   UPSTASH_REDIS_REST_TOKEN: z.string().min(1).optional(),
+
+  // ── Cloudflare Turnstile (bot protection) ─────────────────────────────────
+  NEXT_PUBLIC_TURNSTILE_SITE_KEY: z.string().min(1).optional(),
 });
 
 // Validation runs at server startup and during `next dev`, but is skipped
@@ -42,7 +45,11 @@ const schema = z.object({
 // only injected by Vercel at request time, not during the static build phase,
 // so validating them at build would always fail in CI. The server process will
 // still throw immediately on first request if a required var is absent.
-if (typeof window === "undefined" && process.env.NEXT_PHASE !== "phase-production-build") {
+if (
+  typeof window === "undefined" &&
+  process.env.NEXT_PHASE !== "phase-production-build" &&
+  process.env.NEXT_RUNTIME !== "edge"
+) {
   const result = schema.safeParse({
     DATABASE_POOLER_URL: process.env.DATABASE_POOLER_URL,
     DIRECT_URL: process.env.DIRECT_URL,
@@ -54,6 +61,7 @@ if (typeof window === "undefined" && process.env.NEXT_PHASE !== "phase-productio
     RESEND_DAILY_LIMIT: process.env.RESEND_DAILY_LIMIT,
     UPSTASH_REDIS_REST_URL: process.env.UPSTASH_REDIS_REST_URL,
     UPSTASH_REDIS_REST_TOKEN: process.env.UPSTASH_REDIS_REST_TOKEN,
+    NEXT_PUBLIC_TURNSTILE_SITE_KEY: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY,
   });
 
   if (!result.success) {
@@ -78,4 +86,5 @@ export const env = {
     : undefined,
   UPSTASH_REDIS_REST_URL: process.env.UPSTASH_REDIS_REST_URL,
   UPSTASH_REDIS_REST_TOKEN: process.env.UPSTASH_REDIS_REST_TOKEN,
+  NEXT_PUBLIC_TURNSTILE_SITE_KEY: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY,
 };

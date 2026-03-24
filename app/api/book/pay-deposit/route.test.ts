@@ -4,7 +4,7 @@
  * Covers:
  *  - Input validation: invalid JSON (400), missing required fields (400),
  *    invalid guest email (400)
- *  - Turnstile bot-check failure for guests (403)
+ *  - reCAPTCHA bot-check failure for guests (403)
  *  - Square not configured → 503
  *  - Service not found → 404
  *  - Service has no deposit (depositInCents=0) → 400
@@ -13,7 +13,7 @@
  *    PostHog analytics event, returns { success: true, bookingId }
  *
  * Mocks: db (select/insert/update chains), Square (isSquareConfigured,
- * createSquarePayment), Turnstile verifier, Supabase auth (getUser),
+ * createSquarePayment), reCAPTCHA verifier, Supabase auth (getUser),
  * logAction, trackEvent, Resend, Sentry, cadence label helper.
  */
 // describe: groups related tests into a labeled block (like a folder for tests)
@@ -35,7 +35,7 @@ const mockUpdateSet = vi.fn();
 
 const mockIsSquareConfigured = vi.fn();
 const mockCreateSquarePayment = vi.fn();
-const mockVerifyTurnstileToken = vi.fn();
+const mockVerifyRecaptchaToken = vi.fn();
 const mockLogAction = vi.fn();
 const mockTrackEvent = vi.fn();
 const mockIsResendConfigured = vi.fn();
@@ -114,7 +114,7 @@ const validGuestPayload = {
   ...validPayload,
   name: "Alice Guest",
   email: "alice@example.com",
-  turnstileToken: "valid-turnstile-token",
+  recaptchaToken: "valid-recaptcha-token",
 };
 
 /* ------------------------------------------------------------------ */
@@ -190,8 +190,8 @@ function doMockAll() {
     createSquarePayment: mockCreateSquarePayment,
   }));
 
-  vi.doMock("@/lib/turnstile", () => ({
-    verifyTurnstileToken: mockVerifyTurnstileToken,
+  vi.doMock("@/lib/recaptcha", () => ({
+    verifyRecaptchaToken: mockVerifyRecaptchaToken,
   }));
 
   vi.doMock("@/lib/audit", () => ({
@@ -247,7 +247,7 @@ describe("POST /api/book/pay-deposit", () => {
       orderId: "sq_ord_1",
       receiptUrl: "https://receipt",
     });
-    mockVerifyTurnstileToken.mockResolvedValue(true);
+    mockVerifyRecaptchaToken.mockResolvedValue(true);
     mockLogAction.mockResolvedValue(undefined);
     mockTrackEvent.mockReturnValue(undefined);
     mockIsResendConfigured.mockReturnValue(false);
@@ -303,10 +303,10 @@ describe("POST /api/book/pay-deposit", () => {
     expect(json).toMatchObject({ error: "Invalid email" });
   });
 
-  /* ---------- Turnstile failure ---------- */
+  /* ---------- reCAPTCHA failure ---------- */
 
-  it("returns 403 when Turnstile verification fails", async () => {
-    mockVerifyTurnstileToken.mockResolvedValue(false);
+  it("returns 403 when reCAPTCHA verification fails", async () => {
+    mockVerifyRecaptchaToken.mockResolvedValue(false);
 
     const req = makeRequest(JSON.stringify(validGuestPayload));
 

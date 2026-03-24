@@ -38,7 +38,7 @@ const envSchema = z.object({
   RESEND_API_KEY: z.string().min(1),
   RESEND_DAILY_LIMIT: z.coerce.number().int().positive().optional(),
 
-  NEXT_PUBLIC_TURNSTILE_SITE_KEY: z.string().min(1),
+  NEXT_PUBLIC_RECAPTCHA_SITE_KEY: z.string().min(1),
 
   UPSTASH_REDIS_REST_URL: z.string().url(),
   UPSTASH_REDIS_REST_TOKEN: z.string().min(1),
@@ -54,7 +54,7 @@ const validEnv = {
   NEXT_PUBLIC_SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.anon",
   SUPABASE_SERVICE_ROLE_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.service",
   RESEND_API_KEY: "re_abc123",
-  NEXT_PUBLIC_TURNSTILE_SITE_KEY: "0x4AAAAAAAA_placeholder",
+  NEXT_PUBLIC_RECAPTCHA_SITE_KEY: "0x4AAAAAAAA_placeholder",
   UPSTASH_REDIS_REST_URL: "https://usw1-gentle-doe-12345.upstash.io",
   UPSTASH_REDIS_REST_TOKEN: "AXxxASQgODQ0MGM5",
 };
@@ -95,8 +95,8 @@ describe("all required vars present", () => {
     expect(result.data.NEXT_PUBLIC_SUPABASE_ANON_KEY).toBe(validEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY);
     expect(result.data.SUPABASE_SERVICE_ROLE_KEY).toBe(validEnv.SUPABASE_SERVICE_ROLE_KEY);
     expect(result.data.RESEND_API_KEY).toBe(validEnv.RESEND_API_KEY);
-    expect(result.data.NEXT_PUBLIC_TURNSTILE_SITE_KEY).toBe(
-      validEnv.NEXT_PUBLIC_TURNSTILE_SITE_KEY,
+    expect(result.data.NEXT_PUBLIC_RECAPTCHA_SITE_KEY).toBe(
+      validEnv.NEXT_PUBLIC_RECAPTCHA_SITE_KEY,
     );
     expect(result.data.UPSTASH_REDIS_REST_URL).toBe(validEnv.UPSTASH_REDIS_REST_URL);
     expect(result.data.UPSTASH_REDIS_REST_TOKEN).toBe(validEnv.UPSTASH_REDIS_REST_TOKEN);
@@ -115,7 +115,7 @@ describe("missing required vars", () => {
     "NEXT_PUBLIC_SUPABASE_ANON_KEY",
     "SUPABASE_SERVICE_ROLE_KEY",
     "RESEND_API_KEY",
-    "NEXT_PUBLIC_TURNSTILE_SITE_KEY",
+    "NEXT_PUBLIC_RECAPTCHA_SITE_KEY",
     "UPSTASH_REDIS_REST_URL",
     "UPSTASH_REDIS_REST_TOKEN",
   ] as const;
@@ -198,7 +198,7 @@ describe("empty string on required vars", () => {
     "NEXT_PUBLIC_SUPABASE_ANON_KEY",
     "SUPABASE_SERVICE_ROLE_KEY",
     "RESEND_API_KEY",
-    "NEXT_PUBLIC_TURNSTILE_SITE_KEY",
+    "NEXT_PUBLIC_RECAPTCHA_SITE_KEY",
     "UPSTASH_REDIS_REST_TOKEN",
   ] as const;
 

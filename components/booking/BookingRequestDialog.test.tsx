@@ -3,7 +3,7 @@
  *
  * Tests the step-by-step flow: loading availability → pick date → pick time
  * → confirm request. Uses a mocked Calendar component for deterministic
- * date selection and a mocked Turnstile captcha for verification bypass.
+ * date selection.
  *
  * Related files:
  *   - components/booking/BookingRequestDialog.tsx — the component under test
@@ -53,14 +53,6 @@ vi.mock("@/app/dashboard/book/actions", () => ({
 // creation so no real messages are sent — returns a fake booking ID
 vi.mock("@/app/dashboard/messages/actions", () => ({
   createBookingRequest: vi.fn().mockResolvedValue({ id: 1 }),
-}));
-
-// vi.mock("@marsidev/react-turnstile"): replaces the Cloudflare Turnstile
-// captcha widget with a simple button that immediately succeeds on click
-vi.mock("@marsidev/react-turnstile", () => ({
-  Turnstile: ({ onSuccess }: { onSuccess: (token: string) => void; [k: string]: unknown }) => (
-    <button onClick={() => onSuccess("test-token")}>Verify captcha</button>
-  ),
 }));
 
 // vi.mock("@/components/ui/calendar"): replaces the real calendar with a

@@ -9,14 +9,14 @@ import { z } from "zod";
 import { db } from "@/db";
 import { profiles } from "@/db/schema";
 import { withRequestLogger } from "@/lib/middleware/request-logger";
+import { verifyRecaptchaToken } from "@/lib/recaptcha";
 import { isResendConfigured, sendEmailHtml } from "@/lib/resend";
-import { verifyTurnstileToken } from "@/lib/turnstile";
 
 const schema = z.object({
   name: z.string().min(1),
   email: z.string().email(),
   question: z.string().min(1),
-  turnstileToken: z.string().optional(),
+  recaptchaToken: z.string().optional(),
 });
 
 export const POST = withRequestLogger(async function POST(request: Request) {
@@ -35,9 +35,9 @@ export const POST = withRequestLogger(async function POST(request: Request) {
     );
   }
 
-  const { name, email, question, turnstileToken } = parsed.data;
+  const { name, email, question, recaptchaToken } = parsed.data;
 
-  const validToken = await verifyTurnstileToken(turnstileToken ?? "");
+  const validToken = await verifyRecaptchaToken(recaptchaToken ?? "");
   if (!validToken) {
     return NextResponse.json({ error: "Bot check failed. Please try again." }, { status: 403 });
   }

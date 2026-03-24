@@ -2,16 +2,16 @@
  * ContactPage — Client Component rendering the public /contact page.
  *
  * Displays a hero section, a validated contact form (name, email, interest
- * dropdown, message), a Cloudflare Turnstile captcha, and an info sidebar
+ * dropdown, message), a Google reCAPTCHA v3 captcha, and an info sidebar
  * with email/location/social links. On successful submission, the form is
  * replaced with a confirmation message.
  *
  * Uses @tanstack/react-form for field-level state and Zod for per-field
  * validation triggered onBlur. The server action `submitContactForm` is
- * called only after full Zod validation + a valid Turnstile token.
+ * called only after full Zod validation + a valid reCAPTCHA token.
  *
  * This is a Client Component ("use client") because it manages form input
- * state, runs client-side Zod validation, and integrates the Turnstile
+ * state, runs client-side Zod validation, and integrates the reCAPTCHA
  * captcha widget which requires browser APIs.
  */
 "use client";
@@ -94,7 +94,7 @@ export function ContactPage({
   // check, giving instant feedback without a full-form submit.
   //
   // onSubmit performs a final full-schema safeParse, then calls the
-  // `submitContactForm` server action with the validated data + Turnstile
+  // `submitContactForm` server action with the validated data + reCAPTCHA
   // token for bot verification.
   const form = useForm({
     defaultValues: {

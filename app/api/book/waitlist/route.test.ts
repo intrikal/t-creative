@@ -5,11 +5,11 @@
  *  - Input validation: invalid JSON, missing/non-numeric serviceId,
  *    nonexistent service
  *  - Guest flow: missing name/email (400), invalid email (400),
- *    Turnstile failure (403), admin notification email sent on success
+ *    reCAPTCHA failure (403), admin notification email sent on success
  *  - Authenticated flow: inserts a waitlist DB row with the user's ID,
  *    does NOT send an email (admin email is only for guests)
  *
- * Mocks: db (select/insert chains), Resend email sender, Turnstile
+ * Mocks: db (select/insert chains), Resend email sender, reCAPTCHA
  * verifier, Supabase auth (getUser toggles guest vs authenticated).
  */
 // describe: groups related tests into a labeled block (like a folder for tests)
@@ -29,7 +29,7 @@ let selectData: unknown[][] = [];
 const mockInsert = vi.fn();
 const mockInsertValues = vi.fn();
 const mockResendSend = vi.fn();
-const mockVerifyTurnstile = vi.fn();
+const mockVerifyRecaptcha = vi.fn();
 const mockGetUser = vi.fn();
 
 function buildDb() {
@@ -69,7 +69,7 @@ describe("POST /api/book/waitlist", () => {
     vi.clearAllMocks();
     selectIdx = 0;
     selectData = [];
-    mockVerifyTurnstile.mockResolvedValue(true);
+    mockVerifyRecaptcha.mockResolvedValue(true);
     mockResendSend.mockResolvedValue({ id: "email-id" });
     mockGetUser.mockResolvedValue({ data: { user: null } }); // guest by default
 
@@ -85,7 +85,7 @@ describe("POST /api/book/waitlist", () => {
       RESEND_FROM: "noreply@test.com",
       isResendConfigured: vi.fn().mockReturnValue(true),
     }));
-    vi.doMock("@/lib/turnstile", () => ({ verifyTurnstileToken: mockVerifyTurnstile }));
+    vi.doMock("@/lib/recaptcha", () => ({ verifyRecaptchaToken: mockVerifyRecaptcha }));
     vi.doMock("resend", () => ({
       Resend: function MockResend() {
         return { emails: { send: mockResendSend } };
@@ -150,9 +150,9 @@ describe("POST /api/book/waitlist", () => {
     expect(res.status).toBe(400);
   });
 
-  it("returns 403 for guest when turnstile fails", async () => {
+  it("returns 403 for guest when reCAPTCHA fails", async () => {
     selectData[0] = [{ id: 1, name: "Haircut" }];
-    mockVerifyTurnstile.mockResolvedValueOnce(false);
+    mockVerifyRecaptcha.mockResolvedValueOnce(false);
     const res = await POST(makePost({ serviceId: "1", name: "Alice", email: "alice@example.com" }));
     expect(res.status).toBe(403);
   });

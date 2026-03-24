@@ -143,7 +143,7 @@ vi.mock("@/lib/env", () => ({
     UPSTASH_REDIS_REST_URL: "https://placeholder.upstash.io",
     UPSTASH_REDIS_REST_TOKEN: "placeholder-token",
     RESEND_API_KEY: "re_placeholder",
-    NEXT_PUBLIC_TURNSTILE_SITE_KEY: "0x_placeholder",
+    NEXT_PUBLIC_RECAPTCHA_SITE_KEY: "0x_placeholder",
   },
 }));
 
@@ -276,8 +276,8 @@ vi.mock("@/emails/RefundNotification", () => ({ RefundNotification: nullComponen
 vi.mock("@/emails/RecurringBookingConfirmation", () => ({
   RecurringBookingConfirmation: nullComponent,
 }));
-vi.mock("@/lib/turnstile", () => ({
-  verifyTurnstileToken: vi.fn().mockResolvedValue(true),
+vi.mock("@/lib/recaptcha", () => ({
+  verifyRecaptchaToken: vi.fn().mockResolvedValue(true),
 }));
 vi.mock("@/app/dashboard/settings/settings-actions", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/app/dashboard/settings/settings-actions")>();

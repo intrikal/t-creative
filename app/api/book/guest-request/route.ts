@@ -10,8 +10,8 @@ import { z } from "zod";
 import { db } from "@/db";
 import { profiles, services } from "@/db/schema";
 import { withRequestLogger } from "@/lib/middleware/request-logger";
+import { verifyRecaptchaToken } from "@/lib/recaptcha";
 import { isResendConfigured, sendEmailHtml } from "@/lib/resend";
-import { verifyTurnstileToken } from "@/lib/turnstile";
 
 const schema = z.object({
   name: z.string().min(1),
@@ -22,7 +22,7 @@ const schema = z.object({
   notes: z.string().optional(),
   referencePhotoUrls: z.array(z.string().url()).optional(),
   preferredCadence: z.string().optional(),
-  turnstileToken: z.string().optional(),
+  recaptchaToken: z.string().optional(),
   selectedAddOns: z.array(z.object({ name: z.string(), priceInCents: z.number() })).optional(),
 });
 
@@ -51,11 +51,11 @@ export const POST = withRequestLogger(async function POST(request: Request) {
     notes,
     referencePhotoUrls,
     preferredCadence,
-    turnstileToken,
+    recaptchaToken,
     selectedAddOns,
   } = parsed.data;
 
-  const validToken = await verifyTurnstileToken(turnstileToken ?? "");
+  const validToken = await verifyRecaptchaToken(recaptchaToken ?? "");
   if (!validToken) {
     return NextResponse.json({ error: "Bot check failed. Please try again." }, { status: 403 });
   }

@@ -36,8 +36,8 @@ const schema = z.object({
   UPSTASH_REDIS_REST_URL: z.string().url().optional(),
   UPSTASH_REDIS_REST_TOKEN: z.string().min(1).optional(),
 
-  // ── Cloudflare Turnstile (bot protection) ─────────────────────────────────
-  NEXT_PUBLIC_TURNSTILE_SITE_KEY: z.string().min(1).optional(),
+  // ── Google reCAPTCHA v3 (bot protection) ──────────────────────────────────
+  NEXT_PUBLIC_RECAPTCHA_SITE_KEY: z.string().min(1).optional(),
 });
 
 // Validation runs at server startup and during `next dev`, but is skipped
@@ -61,7 +61,7 @@ if (
     RESEND_DAILY_LIMIT: process.env.RESEND_DAILY_LIMIT,
     UPSTASH_REDIS_REST_URL: process.env.UPSTASH_REDIS_REST_URL,
     UPSTASH_REDIS_REST_TOKEN: process.env.UPSTASH_REDIS_REST_TOKEN,
-    NEXT_PUBLIC_TURNSTILE_SITE_KEY: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY,
+    NEXT_PUBLIC_RECAPTCHA_SITE_KEY: process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY,
   });
 
   if (!result.success) {
@@ -86,5 +86,5 @@ export const env = {
     : undefined,
   UPSTASH_REDIS_REST_URL: process.env.UPSTASH_REDIS_REST_URL,
   UPSTASH_REDIS_REST_TOKEN: process.env.UPSTASH_REDIS_REST_TOKEN,
-  NEXT_PUBLIC_TURNSTILE_SITE_KEY: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY,
+  NEXT_PUBLIC_RECAPTCHA_SITE_KEY: process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY,
 };

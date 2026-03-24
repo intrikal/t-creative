@@ -11,8 +11,8 @@ import { z } from "zod";
 import { db } from "@/db";
 import { profiles, services, waitlist } from "@/db/schema";
 import { withRequestLogger } from "@/lib/middleware/request-logger";
+import { verifyRecaptchaToken } from "@/lib/recaptcha";
 import { isResendConfigured, sendEmailHtml } from "@/lib/resend";
-import { verifyTurnstileToken } from "@/lib/turnstile";
 import { createClient } from "@/utils/supabase/server";
 
 const schema = z.object({
@@ -21,7 +21,7 @@ const schema = z.object({
   email: z.string().email().optional(),
   datePreference: z.string().optional(),
   notes: z.string().optional(),
-  turnstileToken: z.string().optional(),
+  recaptchaToken: z.string().optional(),
 });
 
 export const POST = withRequestLogger(async function POST(request: Request) {
@@ -40,7 +40,7 @@ export const POST = withRequestLogger(async function POST(request: Request) {
     );
   }
 
-  const { name, email, serviceId, datePreference, notes, turnstileToken } = parsed.data;
+  const { name, email, serviceId, datePreference, notes, recaptchaToken } = parsed.data;
 
   const [service] = await db
     .select({ id: services.id, name: services.name })
@@ -71,7 +71,7 @@ export const POST = withRequestLogger(async function POST(request: Request) {
       return NextResponse.json({ error: "Name and email are required" }, { status: 400 });
     }
 
-    const validToken = await verifyTurnstileToken(turnstileToken ?? "");
+    const validToken = await verifyRecaptchaToken(recaptchaToken ?? "");
     if (!validToken) {
       return NextResponse.json({ error: "Bot check failed. Please try again." }, { status: 403 });
     }

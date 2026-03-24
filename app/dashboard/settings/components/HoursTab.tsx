@@ -1,29 +1,13 @@
-/**
- * Hours & Availability tab — weekly schedule, lunch break, and blocked dates.
- *
- * Three sections:
- * 1. **Weekly Hours** — 7 day rows (Mon–Sun) with open/close time inputs and
- *    an active toggle. Saves via `saveBusinessHours()` to `business_hours` table.
- * 2. **Lunch Break** — global toggle + time range. Saves via `saveLunchBreak()`
- *    to the `settings` table under the `lunch_break` key.
- * 3. **Blocked Dates** — add/remove date ranges stored in the `time_off` table.
- *    Uses `addTimeOff()` / `deleteTimeOff()` server actions.
- *
- * All three sections are independently saveable. Data is DB-wired via
- * `hours-actions.ts`.
- *
- * @module settings/components/HoursTab
- * @see {@link ../hours-actions.ts} — server actions for schedule data
- */
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Check, Plus, Trash2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
+import { useAutoSave } from "@/lib/hooks/use-auto-save";
 import type { BusinessHourRow, LunchBreak, TimeOffRow } from "@/lib/types/settings.types";
+import { cn } from "@/lib/utils";
 import { addTimeOff, deleteTimeOff, saveLunchBreak, saveBusinessHours } from "../hours-actions";
-import { StatefulSaveButton, ToggleRow, Toggle } from "./shared";
+import { AutoSaveStatus, ToggleRow, Toggle } from "./shared";
 
 const DAY_NAMES = [
   "",
@@ -54,11 +38,6 @@ export function HoursTab({
   initialTimeOff: TimeOffRow[];
   initialLunchBreak: LunchBreak | null;
 }) {
-  /**
-   * Weekly schedule rows (7 entries, Mon-Sun). Initialized from DB rows via
-   * .map() to normalize null times to defaults ("09:00"/"18:00") so the
-   * time inputs always have a value.
-   */
   const [days, setDays] = useState(() =>
     initialHours.map((h) => ({
       id: h.id,
@@ -68,68 +47,40 @@ export function HoursTab({
       closesAt: h.closesAt ?? "18:00",
     })),
   );
-  /** Whether the hours save action is in flight. */
-  const [hoursSaving, setHoursSaving] = useState(false);
-  /** Briefly true after hours save succeeds. */
-  const [hoursSaved, setHoursSaved] = useState(false);
 
-  /** Lunch break config (enabled toggle + start/end times). */
   const [lunch, setLunch] = useState<LunchBreak>(
     initialLunchBreak ?? { enabled: false, start: "12:00", end: "13:00" },
   );
-  /** Whether the lunch save action is in flight. */
-  const [lunchSaving, setLunchSaving] = useState(false);
-  /** Briefly true after lunch save succeeds. */
-  const [lunchSaved, setLunchSaved] = useState(false);
 
-  /** Blocked date entries (day off / vacation ranges). */
   const [blocked, setBlocked] = useState(initialTimeOff);
-  /** Whether the "add blocked date" form is visible. */
   const [showAddForm, setShowAddForm] = useState(false);
-  /** Type of the new blocked date being added. */
   const [addType, setAddType] = useState<"day_off" | "vacation">("day_off");
-  /** Start date for the new blocked entry (YYYY-MM-DD). */
   const [addStart, setAddStart] = useState("");
-  /** End date for vacation ranges (YYYY-MM-DD). */
   const [addEnd, setAddEnd] = useState("");
-  /** Optional human-readable label for the blocked date (e.g. "Hawaii trip"). */
   const [addLabel, setAddLabel] = useState("");
-  /** Whether the add-blocked-date action is in flight. */
   const [adding, setAdding] = useState(false);
 
-  /**
-   * handleSaveHours — persists the weekly schedule to the server.
-   * Maps local state to HourInput[], nulling out times for closed days
-   * so the DB doesn't store stale time values for days marked as closed.
-   */
-  async function handleSaveHours() {
-    setHoursSaving(true);
-    try {
-      await saveBusinessHours(
-        days.map((d) => ({
-          dayOfWeek: d.dayOfWeek,
-          isOpen: d.isOpen,
-          opensAt: d.isOpen ? d.opensAt : null,
-          closesAt: d.isOpen ? d.closesAt : null,
-        })),
-      );
-      setHoursSaved(true);
-      setTimeout(() => setHoursSaved(false), 2000);
-    } finally {
-      setHoursSaving(false);
-    }
-  }
+  // Auto-save for hours: transform local state to HourInput[] format
+  const hoursPayload = useMemo(
+    () =>
+      days.map((d) => ({
+        dayOfWeek: d.dayOfWeek,
+        isOpen: d.isOpen,
+        opensAt: d.isOpen ? d.opensAt : null,
+        closesAt: d.isOpen ? d.closesAt : null,
+      })),
+    [days],
+  );
 
-  async function handleSaveLunch() {
-    setLunchSaving(true);
-    try {
-      await saveLunchBreak(lunch);
-      setLunchSaved(true);
-      setTimeout(() => setLunchSaved(false), 2000);
-    } finally {
-      setLunchSaving(false);
-    }
-  }
+  const hoursAuto = useAutoSave({
+    data: hoursPayload,
+    onSave: saveBusinessHours,
+  });
+
+  const lunchAuto = useAutoSave({
+    data: lunch,
+    onSave: saveLunchBreak,
+  });
 
   async function handleAddBlocked() {
     if (!addStart) return;
@@ -151,7 +102,6 @@ export function HoursTab({
     }
   }
 
-  /** handleDeleteBlocked — deletes a time-off entry and removes it from local state. */
   async function handleDeleteBlocked(id: number) {
     await deleteTimeOff(id);
     setBlocked((prev) => prev.filter((b) => b.id !== id));
@@ -162,13 +112,6 @@ export function HoursTab({
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-base font-semibold text-foreground">Working Hours</h2>
-        <p className="text-xs text-muted mt-0.5">
-          Manage your weekly schedule, lunch break, and blocked dates
-        </p>
-      </div>
-
       {/* Weekly Schedule */}
       <Card className="gap-0">
         <CardHeader className="pb-0 pt-5 px-5">
@@ -180,17 +123,17 @@ export function HoursTab({
           {days.map((row, idx) => (
             <div
               key={row.dayOfWeek}
-              className="flex items-center gap-4 py-3 rounded-xl px-3 hover:bg-surface/60 transition-colors"
+              className="flex flex-wrap items-center gap-2 sm:gap-4 py-3 rounded-xl px-3 hover:bg-surface/60 transition-colors"
             >
               <span
                 className={cn(
-                  "text-sm w-28 shrink-0 font-medium",
+                  "text-sm w-20 sm:w-28 shrink-0 font-medium",
                   row.isOpen ? "text-foreground" : "text-muted/60",
                 )}
               >
                 {DAY_NAMES[row.dayOfWeek]}
               </span>
-              <div className="flex-1 flex items-center gap-2">
+              <div className="flex-1 flex items-center gap-2 min-w-0">
                 {row.isOpen ? (
                   <>
                     <input
@@ -201,7 +144,7 @@ export function HoursTab({
                           prev.map((d, i) => (i === idx ? { ...d, opensAt: e.target.value } : d)),
                         )
                       }
-                      className={cn(timeInputClass, "w-28")}
+                      className={cn(timeInputClass, "w-[7.5rem] sm:w-36")}
                     />
                     <span className="text-muted text-xs shrink-0">to</span>
                     <input
@@ -212,7 +155,7 @@ export function HoursTab({
                           prev.map((d, i) => (i === idx ? { ...d, closesAt: e.target.value } : d)),
                         )
                       }
-                      className={cn(timeInputClass, "w-28")}
+                      className={cn(timeInputClass, "w-[7.5rem] sm:w-36")}
                     />
                   </>
                 ) : (
@@ -230,11 +173,10 @@ export function HoursTab({
             </div>
           ))}
           <div className="flex justify-end pt-3 border-t border-border/50 mt-2">
-            <StatefulSaveButton
-              label="Save Hours"
-              saving={hoursSaving}
-              saved={hoursSaved}
-              onSave={handleSaveHours}
+            <AutoSaveStatus
+              status={hoursAuto.status}
+              error={hoursAuto.error}
+              onDismissError={hoursAuto.dismissError}
             />
           </div>
         </CardContent>
@@ -260,29 +202,28 @@ export function HoursTab({
                 type="time"
                 value={lunch.start}
                 onChange={(e) => setLunch((prev) => ({ ...prev, start: e.target.value }))}
-                className={cn(timeInputClass, "w-28")}
+                className={cn(timeInputClass, "w-[7.5rem] sm:w-36")}
               />
               <span className="text-muted text-xs shrink-0">to</span>
               <input
                 type="time"
                 value={lunch.end}
                 onChange={(e) => setLunch((prev) => ({ ...prev, end: e.target.value }))}
-                className={cn(timeInputClass, "w-28")}
+                className={cn(timeInputClass, "w-[7.5rem] sm:w-36")}
               />
             </div>
           )}
           <div className="flex justify-end pt-2 border-t border-border/50">
-            <StatefulSaveButton
-              label="Save Lunch Break"
-              saving={lunchSaving}
-              saved={lunchSaved}
-              onSave={handleSaveLunch}
+            <AutoSaveStatus
+              status={lunchAuto.status}
+              error={lunchAuto.error}
+              onDismissError={lunchAuto.dismissError}
             />
           </div>
         </CardContent>
       </Card>
 
-      {/* Blocked Dates */}
+      {/* Blocked Dates — stays manual (discrete CRUD) */}
       <Card className="gap-0">
         <CardHeader className="pb-0 pt-5 px-5">
           <div className="flex items-center justify-between">

@@ -8,13 +8,13 @@
  */
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useTimeoutFlag } from "@/lib/hooks/use-timeout-flag";
-import { cn } from "@/lib/utils";
+import { useAutoSave } from "@/lib/hooks/use-auto-save";
 import type { RemindersConfig } from "@/lib/types/settings.types";
+import { cn } from "@/lib/utils";
 import { saveReminders } from "../settings-actions";
-import { Toggle, FieldRow, StatefulSaveButton, NUM_INPUT_CLASS } from "./shared";
+import { Toggle, FieldRow, AutoSaveStatus, NUM_INPUT_CLASS } from "./shared";
 
 export function RemindersTab({ initial }: { initial: RemindersConfig }) {
   /** Reminder step configurations (label, timing, email/sms/active toggles). */
@@ -29,12 +29,25 @@ export function RemindersTab({ initial }: { initial: RemindersConfig }) {
   const [bookingReminderHours, setBookingReminderHours] = useState(
     initial.bookingReminderHours.join(", "),
   );
-  /** Whether the save action is in flight. */
-  const [saving, setSaving] = useState(false);
-  /** Briefly true after a successful save; auto-resets via useTimeoutFlag. */
-  const [saved, triggerSaved] = useTimeoutFlag(2000);
-  /** Error message from save, if any. */
-  const [saveError, setSaveError] = useState<string | null>(null);
+
+  /** Derived object combining all state for auto-save with parsed hours. */
+  const autoSaveData = useMemo(() => {
+    const parsedHours = bookingReminderHours
+      .split(",")
+      .map((s) => parseInt(s.trim(), 10))
+      .filter((n) => !isNaN(n) && n > 0);
+    return {
+      items: reminders,
+      fillReminderDays,
+      reviewRequestDelayHours,
+      bookingReminderHours: parsedHours.length > 0 ? parsedHours : [24, 48],
+    };
+  }, [reminders, fillReminderDays, reviewRequestDelayHours, bookingReminderHours]);
+
+  const { status, error, dismissError } = useAutoSave({
+    data: autoSaveData,
+    onSave: saveReminders,
+  });
 
   /**
    * toggleField — flips a single boolean (email, sms, or active) on a reminder step.
@@ -45,45 +58,8 @@ export function RemindersTab({ initial }: { initial: RemindersConfig }) {
     setReminders((prev) => prev.map((r) => (r.id === id ? { ...r, [field]: !r[field] } : r)));
   }
 
-  async function handleSave() {
-    setSaving(true);
-    setSaveError(null);
-    // Parse the comma-separated hours string into an array of positive integers.
-    // Invalid entries (NaN, <= 0) are filtered out; falls back to [24, 48] if empty.
-    const parsedHours = bookingReminderHours
-      .split(",")
-      .map((s) => parseInt(s.trim(), 10))
-      .filter((n) => !isNaN(n) && n > 0);
-    const result = await saveReminders({
-      items: reminders,
-      fillReminderDays,
-      reviewRequestDelayHours,
-      bookingReminderHours: parsedHours.length > 0 ? parsedHours : [24, 48],
-    });
-    setSaving(false);
-    if (result.success) triggerSaved();
-    else setSaveError(result.error);
-  }
-
   return (
     <div className="space-y-5">
-      {saveError && (
-        <div className="p-3 bg-red-50 border border-red-200 text-xs text-red-700 flex items-center justify-between">
-          <span>{saveError}</span>
-          <button
-            onClick={() => setSaveError(null)}
-            className="ml-4 text-red-500 hover:text-red-700"
-          >
-            ✕
-          </button>
-        </div>
-      )}
-      <div>
-        <h2 className="text-base font-semibold text-foreground">Automated Reminders</h2>
-        <p className="text-xs text-muted mt-0.5">
-          Configure your client communication sequence. SMS is powered by Square.
-        </p>
-      </div>
       <Card className="gap-0">
         <CardHeader className="pb-0 pt-5 px-5">
           <CardTitle className="text-[10px] font-semibold uppercase tracking-wide text-muted">
@@ -121,7 +97,7 @@ export function RemindersTab({ initial }: { initial: RemindersConfig }) {
 
       <Card className="gap-0">
         <CardContent className="px-5 pb-5 pt-5">
-          <div className="grid grid-cols-[1fr_60px_60px_56px] gap-x-4 mb-3 pb-2 border-b border-border/60 items-center">
+          <div className="grid grid-cols-[1fr_44px_44px_44px] sm:grid-cols-[1fr_60px_60px_56px] gap-x-2 sm:gap-x-4 mb-3 pb-2 border-b border-border/60 items-center">
             <span className="text-[10px] font-semibold uppercase tracking-wide text-muted">
               Step
             </span>
@@ -140,7 +116,7 @@ export function RemindersTab({ initial }: { initial: RemindersConfig }) {
               <div
                 key={r.id}
                 className={cn(
-                  "grid grid-cols-[1fr_60px_60px_56px] gap-x-4 items-center py-3 px-2 rounded-xl transition-colors",
+                  "grid grid-cols-[1fr_44px_44px_44px] sm:grid-cols-[1fr_60px_60px_56px] gap-x-2 sm:gap-x-4 items-center py-3 px-2 rounded-xl transition-colors",
                   r.active ? "hover:bg-surface/60" : "opacity-50",
                 )}
               >
@@ -164,12 +140,7 @@ export function RemindersTab({ initial }: { initial: RemindersConfig }) {
       </Card>
 
       <div className="flex justify-end">
-        <StatefulSaveButton
-          label="Save Reminders"
-          saving={saving}
-          saved={saved}
-          onSave={handleSave}
-        />
+        <AutoSaveStatus status={status} error={error} onDismissError={dismissError} />
       </div>
     </div>
   );

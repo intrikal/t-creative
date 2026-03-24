@@ -17,13 +17,6 @@ import type { CcpaDeletionEntry } from "@/lib/types/settings.types";
 export function DataDeletionLogTab({ entries }: { entries: CcpaDeletionEntry[] }) {
   return (
     <div className="space-y-5">
-      <div>
-        <h2 className="text-base font-semibold text-foreground">Data Deletion Requests</h2>
-        <p className="text-xs text-muted mt-0.5">
-          CCPA &quot;Right to Delete&quot; — log of processed client data deletion requests
-        </p>
-      </div>
-
       <Card className="gap-0">
         <CardContent className="px-0 pb-0 pt-0">
           {entries.length === 0 ? (
@@ -39,19 +32,19 @@ export function DataDeletionLogTab({ entries }: { entries: CcpaDeletionEntry[] }
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border text-left">
-                    <th className="px-5 py-3 text-xs font-medium text-muted uppercase tracking-wider">
+                    <th className="px-3 sm:px-5 py-3 text-xs font-medium text-muted uppercase tracking-wider whitespace-nowrap">
                       Date
                     </th>
-                    <th className="px-5 py-3 text-xs font-medium text-muted uppercase tracking-wider">
+                    <th className="px-3 sm:px-5 py-3 text-xs font-medium text-muted uppercase tracking-wider whitespace-nowrap">
                       Original Email
                     </th>
-                    <th className="px-5 py-3 text-xs font-medium text-muted uppercase tracking-wider">
+                    <th className="px-3 sm:px-5 py-3 text-xs font-medium text-muted uppercase tracking-wider whitespace-nowrap">
                       User ID
                     </th>
-                    <th className="px-5 py-3 text-xs font-medium text-muted uppercase tracking-wider">
+                    <th className="px-3 sm:px-5 py-3 text-xs font-medium text-muted uppercase tracking-wider whitespace-nowrap">
                       Media Deleted
                     </th>
-                    <th className="px-5 py-3 text-xs font-medium text-muted uppercase tracking-wider">
+                    <th className="px-3 sm:px-5 py-3 text-xs font-medium text-muted uppercase tracking-wider whitespace-nowrap">
                       IP Address
                     </th>
                   </tr>
@@ -59,7 +52,7 @@ export function DataDeletionLogTab({ entries }: { entries: CcpaDeletionEntry[] }
                 <tbody className="divide-y divide-border/60">
                   {entries.map((entry) => (
                     <tr key={entry.id} className="hover:bg-foreground/[0.02] transition-colors">
-                      <td className="px-5 py-3 text-foreground whitespace-nowrap">
+                      <td className="px-3 sm:px-5 py-3 text-foreground whitespace-nowrap">
                         {new Date(entry.createdAt).toLocaleDateString("en-US", {
                           year: "numeric",
                           month: "short",
@@ -68,16 +61,16 @@ export function DataDeletionLogTab({ entries }: { entries: CcpaDeletionEntry[] }
                           minute: "2-digit",
                         })}
                       </td>
-                      <td className="px-5 py-3 text-foreground font-mono text-xs">
+                      <td className="px-3 sm:px-5 py-3 text-foreground font-mono text-xs">
                         {entry.email}
                       </td>
-                      <td className="px-5 py-3 text-muted font-mono text-xs">
+                      <td className="px-3 sm:px-5 py-3 text-muted font-mono text-xs">
                         {entry.actorId ? `${entry.actorId.slice(0, 8)}...` : "—"}
                       </td>
-                      <td className="px-5 py-3 text-muted">
+                      <td className="px-3 sm:px-5 py-3 text-muted">
                         {entry.mediaItemsDeleted > 0 ? entry.mediaItemsDeleted : "—"}
                       </td>
-                      <td className="px-5 py-3 text-muted font-mono text-xs">
+                      <td className="px-3 sm:px-5 py-3 text-muted font-mono text-xs">
                         {entry.ipAddress ?? "—"}
                       </td>
                     </tr>

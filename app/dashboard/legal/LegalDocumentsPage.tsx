@@ -19,7 +19,11 @@ interface LegalDocumentsPageProps {
   embedded?: boolean;
 }
 
-export function LegalDocumentsPage({ initialPrivacy, initialTerms, embedded }: LegalDocumentsPageProps) {
+export function LegalDocumentsPage({
+  initialPrivacy,
+  initialTerms,
+  embedded,
+}: LegalDocumentsPageProps) {
   const [activeTab, setActiveTab] = useState<TabType>("privacy_policy");
   const [, startTransition] = useTransition();
 
@@ -58,21 +62,21 @@ export function LegalDocumentsPage({ initialPrivacy, initialTerms, embedded }: L
   const activeDoc = activeTab === "privacy_policy" ? privacyDoc : termsDoc;
 
   return (
-    <div className={embedded ? "max-w-4xl" : "p-6 md:p-8 max-w-4xl mx-auto"}>
+    <div className={embedded ? "" : "p-6 md:p-8 max-w-4xl mx-auto"}>
       {/* Page header */}
       {!embedded && (
-      <div className="flex items-center gap-3 mb-8">
-        <div className="p-2 bg-surface rounded-xl border border-border">
-          <Scale className="w-5 h-5 text-muted" />
+        <div className="flex items-center gap-3 mb-8">
+          <div className="p-2 bg-surface rounded-xl border border-border">
+            <Scale className="w-5 h-5 text-muted" />
+          </div>
+          <div>
+            <h1 className="text-lg font-semibold text-foreground">Legal Documents</h1>
+            <p className="text-sm text-muted">
+              Edit your Privacy Policy and Terms of Service. Changes publish instantly to the live
+              site.
+            </p>
+          </div>
         </div>
-        <div>
-          <h1 className="text-lg font-semibold text-foreground">Legal Documents</h1>
-          <p className="text-sm text-muted">
-            Edit your Privacy Policy and Terms of Service. Changes publish instantly to the live
-            site.
-          </p>
-        </div>
-      </div>
       )}
 
       {/* Tabs */}

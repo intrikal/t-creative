@@ -16,19 +16,19 @@
 
 import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
+import { useAutoSave } from "@/lib/hooks/use-auto-save";
 import type { NotificationPrefs } from "@/lib/types/settings.types";
 import { saveNotificationPrefs } from "../settings-actions";
-import { Toggle, StatefulSaveButton } from "./shared";
+import { Toggle, AutoSaveStatus } from "./shared";
 
 export function NotificationsTab({ initial }: { initial: NotificationPrefs }) {
   /** Local copy of notification preference items for optimistic editing. */
   const [prefs, setPrefs] = useState(initial.items);
-  /** Whether the save action is in flight. */
-  const [saving, setSaving] = useState(false);
-  /** Briefly true after a successful save to show "Saved!" feedback. */
-  const [saved, setSaved] = useState(false);
-  /** Error message from save, if any. */
-  const [saveError, setSaveError] = useState<string | null>(null);
+
+  const { status, error, dismissError } = useAutoSave({
+    data: prefs,
+    onSave: async (items) => saveNotificationPrefs({ items }),
+  });
 
   /**
    * toggle — flips a single email/sms boolean for a preference row.
@@ -39,40 +39,11 @@ export function NotificationsTab({ initial }: { initial: NotificationPrefs }) {
     setPrefs((prev) => prev.map((p, i) => (i === idx ? { ...p, [channel]: !p[channel] } : p)));
   }
 
-  async function handleSave() {
-    setSaving(true);
-    setSaveError(null);
-    const result = await saveNotificationPrefs({ items: prefs });
-    setSaving(false);
-    if (result.success) {
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
-    } else {
-      setSaveError(result.error);
-    }
-  }
-
   return (
     <div className="space-y-5">
-      {saveError && (
-        <div className="p-3 bg-red-50 border border-red-200 text-xs text-red-700 flex items-center justify-between">
-          <span>{saveError}</span>
-          <button
-            onClick={() => setSaveError(null)}
-            className="ml-4 text-red-500 hover:text-red-700"
-          >
-            ✕
-          </button>
-        </div>
-      )}
-      <div>
-        <h2 className="text-base font-semibold text-foreground">Notification Preferences</h2>
-        <p className="text-xs text-muted mt-0.5">Choose how and when you get notified</p>
-      </div>
-
       <Card className="gap-0">
         <CardContent className="px-5 pb-5 pt-5">
-          <div className="grid grid-cols-[1fr_80px_80px] gap-x-4 mb-3 pb-2 border-b border-border/60">
+          <div className="grid grid-cols-[1fr_60px_60px] sm:grid-cols-[1fr_80px_80px] gap-x-2 sm:gap-x-4 mb-3 pb-2 border-b border-border/60">
             <span />
             <span className="text-[10px] font-semibold uppercase tracking-wide text-muted text-center">
               Email
@@ -85,7 +56,7 @@ export function NotificationsTab({ initial }: { initial: NotificationPrefs }) {
             {prefs.map((pref, idx) => (
               <div
                 key={pref.label}
-                className="grid grid-cols-[1fr_80px_80px] gap-x-4 items-center py-2.5 px-2 rounded-xl hover:bg-surface/60 transition-colors"
+                className="grid grid-cols-[1fr_60px_60px] sm:grid-cols-[1fr_80px_80px] gap-x-2 sm:gap-x-4 items-center py-2.5 px-2 rounded-xl hover:bg-surface/60 transition-colors"
               >
                 <span className="text-sm text-foreground">{pref.label}</span>
                 <div className="flex justify-center">
@@ -98,12 +69,7 @@ export function NotificationsTab({ initial }: { initial: NotificationPrefs }) {
             ))}
           </div>
           <div className="flex justify-end pt-4 border-t border-border/50 mt-2">
-            <StatefulSaveButton
-              label="Save Preferences"
-              saving={saving}
-              saved={saved}
-              onSave={handleSave}
-            />
+            <AutoSaveStatus status={status} error={error} onDismissError={dismissError} />
           </div>
         </CardContent>
       </Card>

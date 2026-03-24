@@ -29,23 +29,22 @@ function OverviewSkeleton() {
 }
 
 async function OverviewData() {
-  const [
-    stats,
-    categoryRevenue,
-    weeklyRevenue,
-    profitLoss,
-    taxEstimate,
-    productSales,
-    depositStats,
-    tipTrends,
-    expenseCategories,
-  ] = await Promise.all([
+  // Batch queries in groups of 3 to avoid exhausting the connection pool.
+  // Each function calls requireAdmin() internally, but cache() deduplicates
+  // the auth check — only the data queries compete for connections.
+  const [stats, categoryRevenue, weeklyRevenue] = await Promise.all([
     getRevenueStats(),
     getCategoryRevenue(),
     getWeeklyRevenue(),
+  ]);
+
+  const [profitLoss, taxEstimate, productSales] = await Promise.all([
     getProfitLoss(),
     getTaxEstimate(),
     getProductSales(),
+  ]);
+
+  const [depositStats, tipTrends, expenseCategories] = await Promise.all([
     getDepositStats(),
     getTipTrends(),
     getExpenseCategoryBreakdown(),

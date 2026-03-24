@@ -16,14 +16,12 @@
  */
 "use client";
 
-import { useState, useCallback } from "react";
-import { Turnstile } from "@marsidev/react-turnstile";
+import { useState } from "react";
 import { useForm } from "@tanstack/react-form";
 import { m } from "framer-motion";
 import { FaInstagram, FaLinkedinIn } from "react-icons/fa";
 import { z } from "zod";
 import { Footer } from "@/components/landing/Footer";
-import { env } from "@/lib/env";
 import { socials as defaultSocials } from "@/lib/socials";
 import { submitContactForm } from "./actions";
 
@@ -90,15 +88,6 @@ export function ContactPage({
   // Tracks whether the form was successfully submitted so we can swap the
   // form for a "message sent" confirmation view.
   const [submitted, setSubmitted] = useState(false);
-  // Cloudflare Turnstile captcha token. Empty string means unverified —
-  // the submit button is disabled until a valid token arrives.
-  const [turnstileToken, setTurnstileToken] = useState("");
-  // Memoised callback for the Turnstile widget so it doesn't re-mount on
-  // every render (the widget treats a new callback ref as a reset signal).
-  const handleTurnstileSuccess = useCallback((token: string) => {
-    setTurnstileToken(token);
-  }, []);
-
   // @tanstack/react-form instance — manages per-field values, touched/dirty
   // state, and submission. Individual fields register onBlur validators
   // (see the <form.Field> blocks below) that run the matching Zod shape
@@ -118,7 +107,7 @@ export function ContactPage({
       const result = contactSchema.safeParse(value);
       if (!result.success) return;
 
-      await submitContactForm({ ...result.data, recaptchaToken: turnstileToken });
+      await submitContactForm(result.data);
       setSubmitted(true);
     },
   });
@@ -354,18 +343,11 @@ export function ContactPage({
                     )}
                   </form.Field>
 
-                  <Turnstile
-                    siteKey={env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
-                    onSuccess={handleTurnstileSuccess}
-                    onExpire={() => setTurnstileToken("")}
-                    options={{ theme: "light" }}
-                  />
-
                   <form.Subscribe selector={(state) => state.isSubmitting}>
                     {(isSubmitting) => (
                       <button
                         type="submit"
-                        disabled={isSubmitting || !turnstileToken}
+                        disabled={isSubmitting}
                         className="self-start px-8 py-3.5 text-xs tracking-wide uppercase bg-foreground text-background hover:bg-muted transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {isSubmitting ? "Sending..." : "Send Message"}

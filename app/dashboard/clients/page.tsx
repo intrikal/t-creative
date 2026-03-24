@@ -22,24 +22,19 @@ export default async function Page() {
     return <AssistantClientsPage initialClients={clients} stats={stats} />;
   }
 
-  const [{ getClients, getClientLoyalty }, { getLoyaltyRewards }, { ClientsPage }] =
-    await Promise.all([
-      import("./actions"),
-      import("./loyalty-rewards-actions"),
-      import("./ClientsPage"),
-    ]);
-
-  const [clientsResult, initialLoyalty, initialRewards] = await Promise.all([
-    getClients(),
-    getClientLoyalty(),
-    getLoyaltyRewards(),
+  const [{ getClients }, { getLoyaltyRewards }, { ClientsPage }] = await Promise.all([
+    import("./actions"),
+    import("./loyalty-rewards-actions"),
+    import("./ClientsPage"),
   ]);
+
+  const [clientsResult, initialRewards] = await Promise.all([getClients(), getLoyaltyRewards()]);
 
   return (
     <ClientsPage
       initialClients={clientsResult.rows}
       initialHasMore={clientsResult.hasMore}
-      initialLoyalty={initialLoyalty}
+      initialLoyalty={[]}
       initialRewards={initialRewards}
     />
   );

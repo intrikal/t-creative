@@ -82,7 +82,7 @@ export function ExportButton() {
     <>
       <button
         onClick={() => setOpen(true)}
-        className="px-3 py-1.5 rounded-lg text-xs font-medium bg-surface text-foreground border border-border hover:bg-foreground/5 transition-colors flex items-center gap-1.5"
+        className="px-3 py-1.5 rounded-lg text-xs font-medium bg-white text-foreground border border-border hover:bg-foreground/8 hover:border-foreground/20 transition-colors flex items-center gap-1.5"
       >
         <Download className="w-3.5 h-3.5" />
         Export CSV

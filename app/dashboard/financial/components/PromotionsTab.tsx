@@ -8,7 +8,7 @@
  */
 "use client";
 
-import { Tag, X } from "lucide-react";
+import { Tag, X, Percent, BarChart3, Hash } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { PromotionRow } from "../actions";
 
@@ -48,15 +48,48 @@ export function PromotionsTab({
         </button>
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-3 gap-2">
         {[
-          { label: "Active Promos", value: String(activePromos) },
-          { label: "Total Redemptions", value: String(totalRedemptions) },
-          { label: "Total Promos", value: String(promotions.length) },
+          {
+            label: "Active Promos",
+            value: String(activePromos),
+            sub: "currently running",
+            icon: Percent,
+            color: "text-[#4e6b51]",
+            bg: "bg-[#4e6b51]/10",
+          },
+          {
+            label: "Total Redemptions",
+            value: String(totalRedemptions),
+            sub: "all time",
+            icon: BarChart3,
+            color: "text-[#d4a574]",
+            bg: "bg-[#d4a574]/10",
+          },
+          {
+            label: "Total Promos",
+            value: String(promotions.length),
+            sub: "created",
+            icon: Hash,
+            color: "text-accent",
+            bg: "bg-accent/10",
+          },
         ].map((s) => (
-          <div key={s.label} className="bg-background border border-border rounded-xl p-3">
-            <p className="text-[10px] text-muted uppercase tracking-wide font-medium">{s.label}</p>
-            <p className="text-2xl font-semibold text-foreground mt-1">{s.value}</p>
+          <div key={s.label} className="bg-card border border-border rounded-xl px-4 py-3">
+            <div className="flex items-start justify-between gap-2">
+              <div className="space-y-1 flex-1 min-w-0">
+                <p className="text-[10px] font-semibold text-muted uppercase tracking-wide leading-none">
+                  {s.label}
+                </p>
+                <p className="text-lg font-semibold text-foreground leading-tight">{s.value}</p>
+                <p className="text-xs text-muted">{s.sub}</p>
+              </div>
+              <div
+                className={cn("w-8 h-8 rounded-xl flex items-center justify-center shrink-0", s.bg)}
+              >
+                <s.icon className={cn("w-4 h-4", s.color)} />
+              </div>
+            </div>
           </div>
         ))}
       </div>
@@ -85,7 +118,10 @@ export function PromotionsTab({
                   </div>
                   <p className="text-xs text-muted mt-0.5">{p.description ?? "No description"}</p>
                 </div>
-                <button aria-label="Remove promotion" className="p-1.5 text-muted hover:text-destructive hover:bg-destructive/8 rounded-lg transition-colors">
+                <button
+                  aria-label="Remove promotion"
+                  className="p-1.5 text-muted hover:text-destructive hover:bg-destructive/8 rounded-lg transition-colors"
+                >
                   <X className="w-3.5 h-3.5" />
                 </button>
               </div>

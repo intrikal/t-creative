@@ -40,6 +40,9 @@ import {
   Users,
   Star,
   Building2,
+  ArrowUpDown,
+  Inbox,
+  Package,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -61,6 +64,9 @@ type InquiryStatus = "new" | "read" | "replied" | "archived";
 type ProductInquiryStatus = "new" | "contacted" | "quote_sent" | "in_progress" | "completed";
 type ServiceCategory = "lash" | "jewelry" | "crochet" | "consulting" | "3d_printing" | "aesthetics";
 type InquirySource = "instagram" | "google" | "referral" | "website" | "word_of_mouth" | "tiktok";
+
+type GeneralSort = "recent" | "name" | "status";
+type ProductSort = "recent" | "name" | "status" | "quote";
 
 export interface GeneralInquiry {
   id: number;
@@ -260,6 +266,8 @@ export function InquiriesPage({
   const [tab, setTab] = useState<"general" | "products">("general");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
+  const [generalSort, setGeneralSort] = useState<GeneralSort>("recent");
+  const [productSort, setProductSort] = useState<ProductSort>("recent");
   const [selectedGeneral, setSelectedGeneral] = useState<GeneralInquiry | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<ProductInquiry | null>(null);
 
@@ -277,24 +285,65 @@ export function InquiriesPage({
   ).length;
   const completedCount = productList.filter((i) => i.status === "completed").length;
 
-  const filteredGeneral = generalList.filter((i) => {
-    const matchSearch =
-      !search ||
-      i.name.toLowerCase().includes(search.toLowerCase()) ||
-      i.message.toLowerCase().includes(search.toLowerCase());
-    const matchStatus = statusFilter === "All" || statusBadge(i.status).label === statusFilter;
-    return matchSearch && matchStatus;
-  });
+  const STATUS_ORDER: Record<string, number> = {
+    new: 0,
+    read: 1,
+    replied: 2,
+    archived: 3,
+    contacted: 1,
+    quote_sent: 2,
+    in_progress: 3,
+    completed: 4,
+  };
 
-  const filteredProducts = productList.filter((i) => {
-    const matchSearch =
-      !search ||
-      i.name.toLowerCase().includes(search.toLowerCase()) ||
-      i.product.toLowerCase().includes(search.toLowerCase());
-    const matchStatus =
-      statusFilter === "All" || productStatusBadge(i.status).label === statusFilter;
-    return matchSearch && matchStatus;
-  });
+  const filteredGeneral = generalList
+    .filter((i) => {
+      const matchSearch =
+        !search ||
+        i.name.toLowerCase().includes(search.toLowerCase()) ||
+        i.message.toLowerCase().includes(search.toLowerCase());
+      const matchStatus = statusFilter === "All" || statusBadge(i.status).label === statusFilter;
+      return matchSearch && matchStatus;
+    })
+    .sort((a, b) => {
+      switch (generalSort) {
+        case "name":
+          return a.name.localeCompare(b.name);
+        case "status":
+          return (STATUS_ORDER[a.status] ?? 0) - (STATUS_ORDER[b.status] ?? 0);
+        case "recent":
+        default:
+          return 0; // already sorted newest-first from server
+      }
+    });
+
+  const filteredProducts = productList
+    .filter((i) => {
+      const matchSearch =
+        !search ||
+        i.name.toLowerCase().includes(search.toLowerCase()) ||
+        i.product.toLowerCase().includes(search.toLowerCase());
+      const matchStatus =
+        statusFilter === "All" || productStatusBadge(i.status).label === statusFilter;
+      return matchSearch && matchStatus;
+    })
+    .sort((a, b) => {
+      switch (productSort) {
+        case "name":
+          return a.name.localeCompare(b.name);
+        case "status":
+          return (STATUS_ORDER[a.status] ?? 0) - (STATUS_ORDER[b.status] ?? 0);
+        case "quote":
+          return (b.quotedInCents ?? 0) - (a.quotedInCents ?? 0);
+        case "recent":
+        default:
+          return 0;
+      }
+    });
+
+  const isFiltering = search !== "" || statusFilter !== "All";
+  const currentTotal = tab === "general" ? generalList.length : productList.length;
+  const currentFiltered = tab === "general" ? filteredGeneral.length : filteredProducts.length;
 
   function handleMarkRead(id: number) {
     startTransition(async () => {
@@ -323,57 +372,73 @@ export function InquiriesPage({
   }
 
   return (
-    <div className="p-4 md:p-6 lg:p-8 space-y-6">
+    <div className="p-4 md:p-6 lg:p-8 space-y-4">
       {/* Header */}
       <div>
-        <h1 className="text-xl font-semibold text-foreground tracking-tight">Inquiries</h1>
+        <h1 className="text-2xl sm:text-3xl font-semibold text-foreground tracking-tight">
+          Inquiries
+        </h1>
         <p className="text-sm text-muted mt-0.5">
           {newCount} new contact · {pendingProductCount} pending product requests
         </p>
       </div>
 
       {/* Stat cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <Card className="gap-0 py-4">
-          <div className="px-4">
-            <p className="text-[10px] font-medium text-muted uppercase tracking-wide">
-              New Inquiries
-            </p>
-            <p className="text-2xl font-semibold text-foreground mt-1 tabular-nums">{newCount}</p>
-            <p className="text-xs text-[#c4907a] mt-1">Needs response</p>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        {[
+          {
+            label: "New Inquiries",
+            value: String(newCount),
+            sub: "Needs response",
+            icon: MessageSquare,
+            color: "text-[#c4907a]",
+            bg: "bg-[#c4907a]/10",
+          },
+          {
+            label: "Awaiting Reply",
+            value: String(awaitingReply),
+            sub: "New + read",
+            icon: Clock,
+            color: "text-[#d4a574]",
+            bg: "bg-[#d4a574]/10",
+          },
+          {
+            label: "Product Pending",
+            value: String(pendingProductCount),
+            sub: "Need quoting",
+            icon: ShoppingBag,
+            color: "text-[#7a5c10]",
+            bg: "bg-[#7a5c10]/10",
+          },
+          {
+            label: "Completed",
+            value: String(completedCount),
+            sub: "Orders fulfilled",
+            icon: CheckCheck,
+            color: "text-[#4e6b51]",
+            bg: "bg-[#4e6b51]/10",
+          },
+        ].map((stat) => (
+          <div key={stat.label} className="bg-card border border-border rounded-xl px-4 py-3">
+            <div className="flex items-start justify-between gap-2">
+              <div className="space-y-1 flex-1 min-w-0">
+                <p className="text-[10px] font-semibold text-muted uppercase tracking-wide leading-none">
+                  {stat.label}
+                </p>
+                <p className="text-lg font-semibold text-foreground leading-tight">{stat.value}</p>
+                <p className="text-xs text-muted">{stat.sub}</p>
+              </div>
+              <div
+                className={cn(
+                  "w-8 h-8 rounded-xl flex items-center justify-center shrink-0",
+                  stat.bg,
+                )}
+              >
+                <stat.icon className={cn("w-4 h-4", stat.color)} />
+              </div>
+            </div>
           </div>
-        </Card>
-        <Card className="gap-0 py-4">
-          <div className="px-4">
-            <p className="text-[10px] font-medium text-muted uppercase tracking-wide">
-              Awaiting Reply
-            </p>
-            <p className="text-2xl font-semibold text-foreground mt-1 tabular-nums">
-              {awaitingReply}
-            </p>
-            <p className="text-xs text-[#d4a574] mt-1">New + read</p>
-          </div>
-        </Card>
-        <Card className="gap-0 py-4">
-          <div className="px-4">
-            <p className="text-[10px] font-medium text-muted uppercase tracking-wide">
-              Product Pending
-            </p>
-            <p className="text-2xl font-semibold text-foreground mt-1 tabular-nums">
-              {pendingProductCount}
-            </p>
-            <p className="text-xs text-[#7a5c10] mt-1">Need quoting</p>
-          </div>
-        </Card>
-        <Card className="gap-0 py-4">
-          <div className="px-4">
-            <p className="text-[10px] font-medium text-muted uppercase tracking-wide">Completed</p>
-            <p className="text-2xl font-semibold text-foreground mt-1 tabular-nums">
-              {completedCount}
-            </p>
-            <p className="text-xs text-[#4e6b51] mt-1">Orders fulfilled</p>
-          </div>
-        </Card>
+        ))}
       </div>
 
       {/* Tabs */}
@@ -387,8 +452,8 @@ export function InquiriesPage({
           className={cn(
             "flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors",
             tab === "general"
-              ? "border-foreground text-foreground"
-              : "border-transparent text-muted hover:text-foreground",
+              ? "border-accent text-accent"
+              : "border-transparent text-muted hover:text-foreground hover:border-border",
           )}
         >
           <MessageSquare className="w-3.5 h-3.5" />
@@ -408,8 +473,8 @@ export function InquiriesPage({
           className={cn(
             "flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors",
             tab === "products"
-              ? "border-foreground text-foreground"
-              : "border-transparent text-muted hover:text-foreground",
+              ? "border-accent text-accent"
+              : "border-transparent text-muted hover:text-foreground hover:border-border",
           )}
         >
           <ShoppingBag className="w-3.5 h-3.5" />
@@ -423,16 +488,53 @@ export function InquiriesPage({
       </div>
 
       {/* Filter bar */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted" />
-          <input
-            type="text"
-            placeholder={tab === "general" ? "Search name or message…" : "Search name or product…"}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-8 pr-3 py-2 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-accent/30 text-foreground placeholder:text-muted"
-          />
+      <div className="space-y-2.5">
+        <div className="flex items-center gap-3">
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
+            <input
+              type="text"
+              placeholder={
+                tab === "general" ? "Search name or message…" : "Search name or product…"
+              }
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-9 pr-3 py-2 text-sm bg-white border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-accent/30 text-foreground placeholder:text-muted"
+            />
+          </div>
+          {tab === "general" ? (
+            <div className="relative shrink-0">
+              <ArrowUpDown className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted pointer-events-none" />
+              <select
+                value={generalSort}
+                onChange={(e) => setGeneralSort(e.target.value as GeneralSort)}
+                className="pl-8 pr-7 py-2 text-sm bg-white border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-accent/30 text-foreground appearance-none cursor-pointer"
+              >
+                <option value="recent">Most recent</option>
+                <option value="name">Name A–Z</option>
+                <option value="status">By status</option>
+              </select>
+            </div>
+          ) : (
+            <div className="relative shrink-0">
+              <ArrowUpDown className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted pointer-events-none" />
+              <select
+                value={productSort}
+                onChange={(e) => setProductSort(e.target.value as ProductSort)}
+                className="pl-8 pr-7 py-2 text-sm bg-white border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-accent/30 text-foreground appearance-none cursor-pointer"
+              >
+                <option value="recent">Most recent</option>
+                <option value="name">Name A–Z</option>
+                <option value="status">By status</option>
+                <option value="quote">Highest quote</option>
+              </select>
+            </div>
+          )}
+          {isFiltering && (
+            <span className="text-xs text-muted shrink-0">
+              {currentFiltered} of {currentTotal}
+            </span>
+          )}
         </div>
         <div className="flex gap-1 flex-wrap">
           {activeFilters.map((f) => (
@@ -443,7 +545,7 @@ export function InquiriesPage({
                 "px-3 py-1.5 rounded-lg text-xs font-medium transition-colors",
                 statusFilter === f
                   ? "bg-foreground text-background"
-                  : "bg-surface border border-border text-muted hover:text-foreground hover:bg-foreground/5",
+                  : "text-muted hover:text-foreground hover:bg-foreground/5",
               )}
             >
               {f}
@@ -455,7 +557,19 @@ export function InquiriesPage({
       {/* List */}
       {tab === "general" ? (
         filteredGeneral.length === 0 ? (
-          <div className="text-center py-16 text-muted text-sm">No inquiries found.</div>
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <div className="w-12 h-12 rounded-2xl bg-surface flex items-center justify-center mb-4">
+              <Inbox className="w-5 h-5 text-muted" />
+            </div>
+            <p className="text-sm font-semibold text-foreground">
+              {isFiltering ? "No inquiries match your filters" : "No inquiries yet"}
+            </p>
+            <p className="text-xs text-muted mt-1 max-w-xs">
+              {isFiltering
+                ? "Try adjusting your search or status filter"
+                : "New inquiries from your contact form and social links will appear here."}
+            </p>
+          </div>
         ) : (
           <div className="space-y-2">
             {filteredGeneral.map((inquiry) => {
@@ -594,7 +708,19 @@ export function InquiriesPage({
           </div>
         )
       ) : filteredProducts.length === 0 ? (
-        <div className="text-center py-16 text-muted text-sm">No product inquiries found.</div>
+        <div className="flex flex-col items-center justify-center py-20 text-center">
+          <div className="w-12 h-12 rounded-2xl bg-surface flex items-center justify-center mb-4">
+            <Package className="w-5 h-5 text-muted" />
+          </div>
+          <p className="text-sm font-semibold text-foreground">
+            {isFiltering ? "No product requests match your filters" : "No product requests yet"}
+          </p>
+          <p className="text-xs text-muted mt-1 max-w-xs">
+            {isFiltering
+              ? "Try adjusting your search or status filter"
+              : "Product inquiries from your marketplace will appear here."}
+          </p>
+        </div>
       ) : (
         <div className="space-y-2">
           {filteredProducts.map((inquiry) => {
@@ -659,7 +785,14 @@ export function InquiriesPage({
                     )}
                   </div>
 
-                  <p className="text-xs font-medium text-foreground/80 mt-0.5">{inquiry.product}</p>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <p className="text-xs font-medium text-foreground/80">{inquiry.product}</p>
+                    {inquiry.quantity > 1 && (
+                      <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-foreground/8 text-muted border border-foreground/10">
+                        ×{inquiry.quantity}
+                      </span>
+                    )}
+                  </div>
 
                   <div className="flex items-center gap-3 mt-0.5">
                     <span className="text-[11px] text-muted">{inquiry.email}</span>

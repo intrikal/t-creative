@@ -215,8 +215,8 @@ export async function getRevenueStats(): Promise<RevenueStats> {
     await getUser();
 
     const now = new Date();
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    const priorMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+    const priorMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString();
 
     // Single query with conditional aggregation instead of 4 parallel queries
     const [row] = await db
@@ -224,9 +224,9 @@ export async function getRevenueStats(): Promise<RevenueStats> {
         totalRevenue: sql<number>`coalesce(sum(${payments.amountInCents}), 0)`,
         totalTips: sql<number>`coalesce(sum(${payments.tipInCents}), 0)`,
         count: sql<number>`count(*)`,
-        currentMonthRevenue: sql<number>`coalesce(sum(case when ${payments.paidAt} >= ${monthStart} then ${payments.amountInCents} else 0 end), 0)`,
-        priorMonthRevenue: sql<number>`coalesce(sum(case when ${payments.paidAt} >= ${priorMonthStart} and ${payments.paidAt} < ${monthStart} then ${payments.amountInCents} else 0 end), 0)`,
-        currentMonthTax: sql<number>`coalesce(sum(case when ${payments.paidAt} >= ${monthStart} then ${payments.taxAmountInCents} else 0 end), 0)`,
+        currentMonthRevenue: sql<number>`coalesce(sum(case when ${payments.paidAt} >= ${monthStart}::timestamptz then ${payments.amountInCents} else 0 end), 0)`,
+        priorMonthRevenue: sql<number>`coalesce(sum(case when ${payments.paidAt} >= ${priorMonthStart}::timestamptz and ${payments.paidAt} < ${monthStart}::timestamptz then ${payments.amountInCents} else 0 end), 0)`,
+        currentMonthTax: sql<number>`coalesce(sum(case when ${payments.paidAt} >= ${monthStart}::timestamptz then ${payments.taxAmountInCents} else 0 end), 0)`,
       })
       .from(payments)
       .where(eq(payments.status, "paid"));
@@ -259,21 +259,26 @@ export async function getCategoryRevenue(): Promise<CategoryRevenue[]> {
   try {
     await getUser();
 
-    // Reads from revenue_by_service_daily materialized view (refreshed every 4h)
-    // instead of joining payments → bookings → services on the full table scan.
-    const rows = await db.execute<{ service_category: string; total: string }>(sql`
-      SELECT service_category, sum(revenue_cents) AS total
-      FROM revenue_by_service_daily
-      GROUP BY service_category
-      ORDER BY sum(revenue_cents) DESC
-    `);
+    // Fallback to direct payments join when materialized view is empty or
+    // db.execute fails through PgBouncer. Uses the same aggregation logic.
+    const rows = await db
+      .select({
+        category: services.category,
+        total: sql<number>`coalesce(sum(${payments.amountInCents}), 0)`,
+      })
+      .from(payments)
+      .innerJoin(bookings, eq(bookings.id, payments.bookingId))
+      .innerJoin(services, eq(services.id, bookings.serviceId))
+      .where(eq(payments.status, "paid"))
+      .groupBy(services.category)
+      .orderBy(sql`sum(${payments.amountInCents}) desc`);
 
     const grandTotal = rows.reduce((s, r) => s + Number(r.total), 0);
 
     return rows
-      .filter((r) => r.service_category)
+      .filter((r) => r.category)
       .map((r) => ({
-        category: CATEGORY_LABELS[r.service_category] ?? r.service_category,
+        category: CATEGORY_LABELS[r.category ?? ""] ?? r.category ?? "Other",
         amount: Math.round(Number(r.total) / 100),
         pct: grandTotal > 0 ? Math.round((Number(r.total) / grandTotal) * 100) : 0,
       }));
@@ -289,13 +294,16 @@ export async function getWeeklyRevenue(): Promise<DailyRevenue[]> {
 
     const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-    // dow 0=Sun … 6=Sat, sourced from revenue_by_service_daily (refreshed every 4h).
-    const rows = await db.execute<{ dow: string; total: string }>(sql`
-      SELECT extract(dow from day)::int AS dow, sum(revenue_cents) AS total
-      FROM revenue_by_service_daily
-      GROUP BY extract(dow from day)
-      ORDER BY extract(dow from day)
-    `);
+    // dow 0=Sun … 6=Sat, aggregated from payments directly.
+    const rows = await db
+      .select({
+        dow: sql<number>`extract(dow from ${payments.paidAt})::int`,
+        total: sql<number>`coalesce(sum(${payments.amountInCents}), 0)`,
+      })
+      .from(payments)
+      .where(eq(payments.status, "paid"))
+      .groupBy(sql`extract(dow from ${payments.paidAt})`)
+      .orderBy(sql`extract(dow from ${payments.paidAt})`);
 
     const byDow = new Map(rows.map((r) => [Number(r.dow), Math.round(Number(r.total) / 100)]));
     return DAY_NAMES.map((day, i) => ({

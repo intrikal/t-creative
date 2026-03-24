@@ -45,12 +45,11 @@ const client =
   globalForDb.__pgClient ??
   postgres(connectionString, {
     prepare: false,
-    // In dev: use 1 connection. Supabase free tier has a 25-connection pooler
-    // limit. Hot reloads and repeated restarts can leave stale connections open
-    // until idle_timeout expires — keeping max=1 means even 10 stale clients
-    // only hold 10 connections total. In production a larger pool is fine since
-    // there's only ever one client instance per serverless invocation.
-    max: process.env.NODE_ENV === "production" ? 10 : 5,
+    // Financial page renders 7 Suspense boundaries in parallel, each with
+    // 1-3 DB queries. Peak concurrent is ~15. Supabase free tier allows 25
+    // pooler connections — globalThis caching ensures only one pool exists
+    // in dev despite hot reloads.
+    max: 20,
     // Release idle connections after 10s (down from 20s) so restarts don't
     // leave Supabase holding connections for long.
     idle_timeout: process.env.NODE_ENV === "production" ? 20 : 10,

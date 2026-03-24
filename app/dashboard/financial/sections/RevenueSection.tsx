@@ -1,11 +1,6 @@
 import { Suspense } from "react";
-import {
-  getPayments,
-  getRevenueStats,
-  getCategoryRevenue,
-  getWeeklyRevenue,
-} from "../actions";
 import { RevenuePage } from "../../revenue/RevenuePage";
+import { getPayments, getRevenueStats, getCategoryRevenue, getWeeklyRevenue } from "../actions";
 
 function RevenueSkeleton() {
   return (
@@ -21,9 +16,11 @@ function RevenueSkeleton() {
 }
 
 async function RevenueData() {
-  const [payments, stats, categoryRevenue, weeklyRevenue] = await Promise.all([
-    getPayments(),
-    getRevenueStats(),
+  // Sequential pairs to avoid overloading the connection pool.
+  // getRevenueStats/getCategoryRevenue/getWeeklyRevenue results may already
+  // be cached from the Overview section's render in the same request.
+  const [payments, stats] = await Promise.all([getPayments(), getRevenueStats()]);
+  const [categoryRevenue, weeklyRevenue] = await Promise.all([
     getCategoryRevenue(),
     getWeeklyRevenue(),
   ]);

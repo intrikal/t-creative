@@ -64,91 +64,72 @@ export function OverviewContent({
   return (
     <>
       {/* Stat cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-        <Card className="py-4 gap-0">
-          <CardContent className="px-4">
-            <div className="flex items-center gap-2 mb-2">
-              <DollarSign className="w-3.5 h-3.5 text-muted" />
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
-                Total Revenue
-              </p>
-            </div>
-            <p className="text-2xl font-semibold text-foreground">
-              ${stats.totalRevenue.toLocaleString()}
-            </p>
-            {stats.revenueVsPriorPeriodPct !== null ? (
-              <p
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-2">
+        {[
+          {
+            label: "Total Revenue",
+            value: `$${stats.totalRevenue.toLocaleString()}`,
+            sub:
+              stats.revenueVsPriorPeriodPct !== null
+                ? `${stats.revenueVsPriorPeriodPct >= 0 ? "+" : ""}${stats.revenueVsPriorPeriodPct}% vs prior month`
+                : "No prior data",
+            icon: DollarSign,
+            color: "text-[#4e6b51]",
+            bg: "bg-[#4e6b51]/10",
+          },
+          {
+            label: "This Week",
+            value: `$${totalWeek.toLocaleString()}`,
+            sub: "7-day rolling",
+            icon: TrendingUp,
+            color: "text-accent",
+            bg: "bg-accent/10",
+          },
+          {
+            label: "Tips",
+            value: `$${stats.totalTips.toLocaleString()}`,
+            sub: "gratuity collected",
+            icon: TrendingDown,
+            color: "text-[#d4a574]",
+            bg: "bg-[#d4a574]/10",
+          },
+          {
+            label: "Avg Ticket",
+            value: `$${stats.avgTicket.toLocaleString()}`,
+            sub: "per transaction",
+            icon: CreditCard,
+            color: "text-[#c4907a]",
+            bg: "bg-[#c4907a]/10",
+          },
+          {
+            label: `Est. Tax (${taxEstimate.quarterLabel})`,
+            value: `$${taxEstimate.estimatedTax.toLocaleString()}`,
+            sub: `${taxEstimate.taxRate}% of $${taxEstimate.netIncome.toLocaleString()} net`,
+            icon: DollarSign,
+            color: "text-[#7a5c10]",
+            bg: "bg-[#7a5c10]/10",
+          },
+        ].map((stat) => (
+          <div key={stat.label} className="bg-card border border-border rounded-xl px-4 py-3">
+            <div className="flex items-start justify-between gap-2">
+              <div className="space-y-1 flex-1 min-w-0">
+                <p className="text-[10px] font-semibold text-muted uppercase tracking-wide leading-none">
+                  {stat.label}
+                </p>
+                <p className="text-lg font-semibold text-foreground leading-tight">{stat.value}</p>
+                <p className="text-xs text-muted">{stat.sub}</p>
+              </div>
+              <div
                 className={cn(
-                  "text-xs mt-1 flex items-center gap-0.5",
-                  stats.revenueVsPriorPeriodPct >= 0 ? "text-[#4e6b51]" : "text-destructive",
+                  "w-8 h-8 rounded-xl flex items-center justify-center shrink-0",
+                  stat.bg,
                 )}
               >
-                {stats.revenueVsPriorPeriodPct >= 0 ? (
-                  <TrendingUp className="w-3 h-3" />
-                ) : (
-                  <TrendingDown className="w-3 h-3" />
-                )}
-                {Math.abs(stats.revenueVsPriorPeriodPct)}% vs prior month
-              </p>
-            ) : (
-              <p className="text-xs text-muted mt-1">No prior data</p>
-            )}
-          </CardContent>
-        </Card>
-        <Card className="py-4 gap-0">
-          <CardContent className="px-4">
-            <div className="flex items-center gap-2 mb-2">
-              <TrendingUp className="w-3.5 h-3.5 text-muted" />
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
-                This Week
-              </p>
+                <stat.icon className={cn("w-4 h-4", stat.color)} />
+              </div>
             </div>
-            <p className="text-2xl font-semibold text-foreground">${totalWeek.toLocaleString()}</p>
-            <p className="text-xs text-muted mt-1">7-day rolling</p>
-          </CardContent>
-        </Card>
-        <Card className="py-4 gap-0">
-          <CardContent className="px-4">
-            <div className="flex items-center gap-2 mb-2">
-              <TrendingDown className="w-3.5 h-3.5 text-muted" />
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">Tips</p>
-            </div>
-            <p className="text-2xl font-semibold text-foreground">
-              ${stats.totalTips.toLocaleString()}
-            </p>
-            <p className="text-xs text-muted mt-1">gratuity collected</p>
-          </CardContent>
-        </Card>
-        <Card className="py-4 gap-0">
-          <CardContent className="px-4">
-            <div className="flex items-center gap-2 mb-2">
-              <CreditCard className="w-3.5 h-3.5 text-muted" />
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
-                Avg Ticket
-              </p>
-            </div>
-            <p className="text-2xl font-semibold text-foreground">
-              ${stats.avgTicket.toLocaleString()}
-            </p>
-            <p className="text-xs text-muted mt-1">per transaction</p>
-          </CardContent>
-        </Card>
-        <Card className="py-4 gap-0">
-          <CardContent className="px-4">
-            <div className="flex items-center gap-2 mb-2">
-              <DollarSign className="w-3.5 h-3.5 text-muted" />
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
-                Est. Tax ({taxEstimate.quarterLabel})
-              </p>
-            </div>
-            <p className="text-2xl font-semibold text-foreground">
-              ${taxEstimate.estimatedTax.toLocaleString()}
-            </p>
-            <p className="text-xs text-muted mt-1">
-              {taxEstimate.taxRate}% of ${taxEstimate.netIncome.toLocaleString()} net
-            </p>
-          </CardContent>
-        </Card>
+          </div>
+        ))}
       </div>
 
       {/* Sales tax collected — not revenue, collected on behalf of the state */}
@@ -177,16 +158,28 @@ export function OverviewContent({
           <CardContent className="px-5 pb-5 pt-4">
             <ResponsiveContainer width="100%" height={200}>
               <BarChart data={weeklyRevenue} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-tertiary)" opacity={0.3} />
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  stroke="var(--color-border-tertiary)"
+                  opacity={0.3}
+                />
                 <XAxis
                   dataKey="day"
-                  tick={{ fontSize: 11, fontFamily: "inherit", fill: "var(--color-text-secondary)" }}
+                  tick={{
+                    fontSize: 11,
+                    fontFamily: "inherit",
+                    fill: "var(--color-text-secondary)",
+                  }}
                   axisLine={false}
                   tickLine={false}
                 />
                 <YAxis
                   tickFormatter={(v) => `$${(v / 1000).toFixed(1)}k`}
-                  tick={{ fontSize: 11, fontFamily: "inherit", fill: "var(--color-text-secondary)" }}
+                  tick={{
+                    fontSize: 11,
+                    fontFamily: "inherit",
+                    fill: "var(--color-text-secondary)",
+                  }}
                   axisLine={false}
                   tickLine={false}
                   width={44}
@@ -197,12 +190,19 @@ export function OverviewContent({
                     return (
                       <div className="bg-background border rounded-lg shadow-md px-3 py-2 text-xs">
                         <p className="font-semibold mb-1">{label}</p>
-                        <p className="text-muted">${(payload[0].value as number).toLocaleString()}</p>
+                        <p className="text-muted">
+                          ${(payload[0].value as number).toLocaleString()}
+                        </p>
                       </div>
                     );
                   }}
                 />
-                <Bar dataKey="amount" fill="#c4907a" radius={[4, 4, 0, 0]} isAnimationActive={false} />
+                <Bar
+                  dataKey="amount"
+                  fill="#c4907a"
+                  radius={[4, 4, 0, 0]}
+                  isAnimationActive={false}
+                />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
@@ -263,17 +263,29 @@ export function OverviewContent({
           <CardContent className="px-5 pb-5 pt-4">
             <ResponsiveContainer width="100%" height={220}>
               <ComposedChart data={profitLoss} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-tertiary)" opacity={0.3} />
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  stroke="var(--color-border-tertiary)"
+                  opacity={0.3}
+                />
                 <XAxis
                   dataKey="month"
                   tickFormatter={(v: string) => v.slice(0, 3)}
-                  tick={{ fontSize: 11, fontFamily: "inherit", fill: "var(--color-text-secondary)" }}
+                  tick={{
+                    fontSize: 11,
+                    fontFamily: "inherit",
+                    fill: "var(--color-text-secondary)",
+                  }}
                   axisLine={false}
                   tickLine={false}
                 />
                 <YAxis
                   tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`}
-                  tick={{ fontSize: 11, fontFamily: "inherit", fill: "var(--color-text-secondary)" }}
+                  tick={{
+                    fontSize: 11,
+                    fontFamily: "inherit",
+                    fill: "var(--color-text-secondary)",
+                  }}
                   axisLine={false}
                   tickLine={false}
                   width={44}
@@ -304,9 +316,29 @@ export function OverviewContent({
                     );
                   }}
                 />
-                <Bar dataKey="revenue" fill="#4e6b51" fillOpacity={0.7} name="Revenue" isAnimationActive={false} />
-                <Bar dataKey="expenses" fill="#c4907a" fillOpacity={0.7} name="Expenses" isAnimationActive={false} />
-                <Line type="monotone" dataKey="net" stroke="#2d2d2d" strokeWidth={2} dot={false} name="Net income" isAnimationActive={false} />
+                <Bar
+                  dataKey="revenue"
+                  fill="#4e6b51"
+                  fillOpacity={0.7}
+                  name="Revenue"
+                  isAnimationActive={false}
+                />
+                <Bar
+                  dataKey="expenses"
+                  fill="#c4907a"
+                  fillOpacity={0.7}
+                  name="Expenses"
+                  isAnimationActive={false}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="net"
+                  stroke="#2d2d2d"
+                  strokeWidth={2}
+                  dot={false}
+                  name="Net income"
+                  isAnimationActive={false}
+                />
               </ComposedChart>
             </ResponsiveContainer>
           </CardContent>

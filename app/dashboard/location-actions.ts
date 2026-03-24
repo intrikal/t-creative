@@ -6,7 +6,7 @@
  */
 "use server";
 
-import { revalidatePath, revalidateTag, unstable_cache } from "next/cache";
+import { revalidatePath, updateTag, unstable_cache } from "next/cache";
 import * as Sentry from "@sentry/nextjs";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
@@ -85,7 +85,7 @@ export async function createLocation(
         squareLocationId: input.squareLocationId ?? null,
       })
       .returning();
-    revalidateTag("active-locations");
+    updateTag("active-locations");
     revalidatePath("/dashboard");
     return row;
   } catch (err) {
@@ -101,7 +101,7 @@ export async function updateLocation(
   try {
     await requireAdmin();
     const [row] = await db.update(locations).set(input).where(eq(locations.id, id)).returning();
-    revalidateTag("active-locations");
+    updateTag("active-locations");
     revalidatePath("/dashboard");
     return row;
   } catch (err) {

@@ -35,11 +35,13 @@ export function FinancialShell({
   const [tab, setTab] = useState<FinancialTab>("Revenue");
 
   return (
-    <div className="p-4 md:p-6 lg:p-8 space-y-6">
+    <div className="p-4 md:p-6 lg:p-8 space-y-4">
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-xl font-semibold text-foreground tracking-tight">Financial</h1>
+          <h1 className="text-2xl sm:text-3xl font-semibold text-foreground tracking-tight">
+            Financial
+          </h1>
           <p className="text-sm text-muted mt-0.5">Payments, transactions, and earnings</p>
         </div>
         <div className="flex items-center gap-2">
@@ -75,8 +77,8 @@ export function FinancialShell({
             className={cn(
               "px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px",
               tab === t
-                ? "border-accent text-foreground"
-                : "border-transparent text-muted hover:text-foreground",
+                ? "border-accent text-accent"
+                : "border-transparent text-muted hover:text-foreground hover:border-border",
             )}
           >
             {t}

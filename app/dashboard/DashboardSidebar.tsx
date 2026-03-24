@@ -4,7 +4,6 @@ import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Activity,
   LayoutDashboard,
   Mails,
   Users,
@@ -64,9 +63,7 @@ const ADMIN_NAV_GROUPS: NavGroup[] = [
       { href: "/dashboard/get-started", label: "Get Started", icon: Rocket },
       { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
       { href: "/dashboard/calendar", label: "Calendar", icon: CalendarRange },
-      { href: "/dashboard/bookings", label: "Bookings", icon: CalendarCheck },
       { href: "/dashboard/messages", label: "Messages", icon: MessageSquare },
-      { href: "/dashboard/notifications", label: "Notifications", icon: Bell },
     ],
   },
   {
@@ -81,9 +78,7 @@ const ADMIN_NAV_GROUPS: NavGroup[] = [
     label: "Business",
     items: [
       { href: "/dashboard/financial", label: "Financial", icon: DollarSign },
-      { href: "/dashboard/commissions", label: "Commissions", icon: Receipt },
-      { href: "/dashboard/analytics", label: "Analytics", icon: BarChart2 },
-      { href: "/dashboard/staff-performance", label: "Staff Performance", icon: Activity },
+      { href: "/dashboard/analytics", label: "Insights", icon: BarChart2 },
       { href: "/dashboard/reviews", label: "Reviews", icon: Star },
       { href: "/dashboard/sequences", label: "Sequences", icon: Mails },
     ],
@@ -91,8 +86,7 @@ const ADMIN_NAV_GROUPS: NavGroup[] = [
   {
     label: "Studio",
     items: [
-      { href: "/dashboard/services", label: "Services", icon: Scissors },
-      { href: "/dashboard/marketplace", label: "Marketplace", icon: ShoppingBag },
+      { href: "/dashboard/catalog", label: "Catalog", icon: ShoppingBag },
       { href: "/dashboard/settings", label: "Settings", icon: Settings },
     ],
   },

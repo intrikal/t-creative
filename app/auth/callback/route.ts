@@ -200,7 +200,7 @@ export async function GET(request: Request) {
     if (!isOnboardingComplete(profile ?? null)) {
       return NextResponse.redirect(`${origin}/onboarding?role=admin`);
     }
-    return NextResponse.redirect(`${origin}/admin`);
+    return NextResponse.redirect(`${origin}/dashboard`);
   }
 
   /**

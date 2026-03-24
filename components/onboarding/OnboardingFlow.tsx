@@ -746,7 +746,43 @@ function AssistantOnboardingFlow({
       setIsSaving(true);
       const values = form.state.values;
       saveOnboardingData(values, "assistant")
-        .then(() => setIsSaving(false))
+        .then((res) => {
+          if (res?.validationErrors) {
+            savedRef.current = false;
+            setIsSaving(false);
+            // Navigate back to the step that has the invalid field
+            const stepForField: Record<string, number> = {
+              firstName: 0,
+              preferredTitle: 1,
+              skills: 1,
+              experienceLevel: 1,
+              bio: 1,
+              availableDefaultStart: 2,
+              availableDefaultEnd: 2,
+              availableDates: 2,
+              emergencyContactName: 3,
+              emergencyContactPhone: 3,
+              emergencyContactRelation: 3,
+              portfolioInstagram: 4,
+              tiktokHandle: 4,
+              portfolioWebsite: 4,
+              email: 5,
+              phone: 5,
+              instagramHandle: 5,
+              notifications: 5,
+            };
+            const firstErrorField = Object.keys(res.validationErrors)[0];
+            const targetStep = firstErrorField ? stepForField[firstErrorField] : undefined;
+            if (targetStep !== undefined) {
+              setDirection(-1);
+              setStep(targetStep);
+            } else {
+              setSaveError(true);
+            }
+            return;
+          }
+          setIsSaving(false);
+        })
         .catch(() => {
           savedRef.current = false;
           setIsSaving(false);
@@ -765,7 +801,42 @@ function AssistantOnboardingFlow({
     savedRef.current = true;
     setIsSaving(true);
     saveOnboardingData(form.state.values, "assistant")
-      .then(() => setIsSaving(false))
+      .then((res) => {
+        if (res?.validationErrors) {
+          savedRef.current = false;
+          setIsSaving(false);
+          const stepForField: Record<string, number> = {
+            firstName: 0,
+            preferredTitle: 1,
+            skills: 1,
+            experienceLevel: 1,
+            bio: 1,
+            availableDefaultStart: 2,
+            availableDefaultEnd: 2,
+            availableDates: 2,
+            emergencyContactName: 3,
+            emergencyContactPhone: 3,
+            emergencyContactRelation: 3,
+            portfolioInstagram: 4,
+            tiktokHandle: 4,
+            portfolioWebsite: 4,
+            email: 5,
+            phone: 5,
+            instagramHandle: 5,
+            notifications: 5,
+          };
+          const firstErrorField = Object.keys(res.validationErrors)[0];
+          const targetStep = firstErrorField ? stepForField[firstErrorField] : undefined;
+          if (targetStep !== undefined) {
+            setDirection(-1);
+            setStep(targetStep);
+          } else {
+            setSaveError(true);
+          }
+          return;
+        }
+        setIsSaving(false);
+      })
       .catch(() => {
         savedRef.current = false;
         setIsSaving(false);

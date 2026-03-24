@@ -352,10 +352,21 @@ export async function saveOnboardingData(
   if (role === "assistant") {
     /**
      * Run the assistant-specific Zod schema against the raw form data.
-     * `.parse()` will throw a ZodError if any field is invalid, which
-     * bubbles up as an error to the calling component.
+     * `.safeParse()` returns `{ success, data, error }` instead of throwing,
+     * so we can return a structured validation error to the client with the
+     * list of invalid fields. The client uses this to navigate the user back
+     * to the relevant step rather than showing a generic "save failed" toast.
      */
-    const data = assistantOnboardingSchema.parse(raw);
+    const result = assistantOnboardingSchema.safeParse(raw);
+    if (!result.success) {
+      const fieldErrors = result.error.flatten().fieldErrors;
+      return {
+        validationErrors: Object.fromEntries(
+          Object.entries(fieldErrors).map(([k, v]) => [k, v?.[0] ?? "Invalid"]),
+        ),
+      };
+    }
+    const data = result.data;
 
     const {
       firstName,

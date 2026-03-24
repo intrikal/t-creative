@@ -247,7 +247,7 @@ export function PanelAssistantSummary({ form }: Props) {
                     Contact
                   </p>
                 </div>
-                <p className="text-xs text-foreground/80 truncate">{email}</p>
+                <p className="text-xs text-foreground/80 break-all">{email}</p>
                 {phone && <p className="text-xs text-foreground/80 mt-1">{phone}</p>}
                 {instagramHandle && (
                   <div className="flex items-center gap-1.5 mt-1">

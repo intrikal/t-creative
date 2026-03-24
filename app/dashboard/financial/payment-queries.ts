@@ -215,8 +215,8 @@ export async function getRevenueStats(): Promise<RevenueStats> {
     await getUser();
 
     const now = new Date();
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    const priorMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+    const priorMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString();
 
     // Single query with conditional aggregation instead of 4 parallel queries
     const [row] = await db
@@ -224,9 +224,9 @@ export async function getRevenueStats(): Promise<RevenueStats> {
         totalRevenue: sql<number>`coalesce(sum(${payments.amountInCents}), 0)`,
         totalTips: sql<number>`coalesce(sum(${payments.tipInCents}), 0)`,
         count: sql<number>`count(*)`,
-        currentMonthRevenue: sql<number>`coalesce(sum(case when ${payments.paidAt} >= ${monthStart} then ${payments.amountInCents} else 0 end), 0)`,
-        priorMonthRevenue: sql<number>`coalesce(sum(case when ${payments.paidAt} >= ${priorMonthStart} and ${payments.paidAt} < ${monthStart} then ${payments.amountInCents} else 0 end), 0)`,
-        currentMonthTax: sql<number>`coalesce(sum(case when ${payments.paidAt} >= ${monthStart} then ${payments.taxAmountInCents} else 0 end), 0)`,
+        currentMonthRevenue: sql<number>`coalesce(sum(case when ${payments.paidAt} >= ${monthStart}::timestamptz then ${payments.amountInCents} else 0 end), 0)`,
+        priorMonthRevenue: sql<number>`coalesce(sum(case when ${payments.paidAt} >= ${priorMonthStart}::timestamptz and ${payments.paidAt} < ${monthStart}::timestamptz then ${payments.amountInCents} else 0 end), 0)`,
+        currentMonthTax: sql<number>`coalesce(sum(case when ${payments.paidAt} >= ${monthStart}::timestamptz then ${payments.taxAmountInCents} else 0 end), 0)`,
       })
       .from(payments)
       .where(eq(payments.status, "paid"));

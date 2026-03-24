@@ -24,7 +24,7 @@ import { VisitFrequencySectionWrapper } from "./sections/VisitFrequencySectionWr
 import { WaitlistConversionSectionWrapper } from "./sections/WaitlistConversionSectionWrapper";
 
 export const metadata: Metadata = {
-  title: "Analytics — T Creative Studio",
+  title: "Insights — T Creative Studio",
   description: "View studio analytics, performance metrics, and insights.",
   robots: { index: false, follow: false },
 };
@@ -44,26 +44,53 @@ export default async function Page({
   const range: Range = VALID_RANGES.includes(rawRange as Range) ? (rawRange as Range) : "30d";
 
   return (
-    <AnalyticsShell>
-      <KpiSection range={range} />
-      <RevenueSectionWrapper range={range} />
-      <RevenueByServiceSectionWrapper range={range} />
-      <RevenuePerHourSectionWrapper range={range} />
-      <RevenueForecastSectionWrapper />
-      <BookingsSectionWrapper range={range} />
-      <StaffSection range={range} />
-      <OperationalSection range={range} />
-      <CheckoutRebookSectionWrapper range={range} />
-      <RetentionSectionWrapper range={range} />
-      <VisitFrequencySectionWrapper range={range} />
-      <AppointmentGapSectionWrapper range={range} />
-      <ClientsSection range={range} />
-      <WaitlistConversionSectionWrapper range={range} />
-      <PromotionRoiSectionWrapper range={range} />
-      <MembershipValueSectionWrapper range={range} />
-      <ReferralStatsSectionWrapper />
-      <GiftCardBreakageSectionWrapper range={range} />
-      <PeakTimesSectionWrapper range={range} />
-    </AnalyticsShell>
+    <AnalyticsShell
+      kpis={<KpiSection range={range} />}
+      overview={
+        <div className="space-y-4">
+          <RevenueSectionWrapper range={range} />
+          <BookingsSectionWrapper range={range} />
+          <ClientsSection range={range} />
+        </div>
+      }
+      revenue={
+        <div className="space-y-4">
+          <RevenueSectionWrapper range={range} />
+          <RevenueByServiceSectionWrapper range={range} />
+          <RevenuePerHourSectionWrapper range={range} />
+          <RevenueForecastSectionWrapper />
+        </div>
+      }
+      bookings={
+        <div className="space-y-4">
+          <BookingsSectionWrapper range={range} />
+          <PeakTimesSectionWrapper range={range} />
+          <AppointmentGapSectionWrapper range={range} />
+          <CheckoutRebookSectionWrapper range={range} />
+          <WaitlistConversionSectionWrapper range={range} />
+        </div>
+      }
+      clients={
+        <div className="space-y-4">
+          <ClientsSection range={range} />
+          <RetentionSectionWrapper range={range} />
+          <VisitFrequencySectionWrapper range={range} />
+          <ReferralStatsSectionWrapper />
+        </div>
+      }
+      team={
+        <div className="space-y-4">
+          <StaffSection range={range} />
+          <OperationalSection range={range} />
+        </div>
+      }
+      marketing={
+        <div className="space-y-4">
+          <PromotionRoiSectionWrapper range={range} />
+          <MembershipValueSectionWrapper range={range} />
+          <GiftCardBreakageSectionWrapper range={range} />
+        </div>
+      }
+    />
   );
 }

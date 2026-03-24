@@ -19,9 +19,8 @@ import {
   BarChart2,
   Ticket,
 } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
 import type { KpiStats } from "@/lib/types/analytics.types";
+import { cn } from "@/lib/utils";
 
 export function KpiCards({ stats }: { stats: KpiStats }) {
   const cards: Array<{
@@ -85,7 +84,7 @@ export function KpiCards({ stats }: { stats: KpiStats }) {
   ];
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
       {cards.map((s) => {
         const isPositive = s.delta !== null && s.delta >= 0;
         const deltaColor = s.invertColor
@@ -98,31 +97,33 @@ export function KpiCards({ stats }: { stats: KpiStats }) {
         const DeltaIcon = isPositive ? TrendingUp : TrendingDown;
 
         return (
-          <Card key={s.label} className="gap-0 py-4">
-            <CardContent className="px-4">
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="text-[10px] font-medium text-muted uppercase tracking-wide leading-tight">
-                    {s.label}
-                  </p>
-                  <p className="text-xl font-semibold text-foreground mt-1 tabular-nums">
-                    {s.value}
-                  </p>
-                  {s.delta !== null && (
-                    <div className={cn("flex items-center gap-1 mt-1", deltaColor)}>
-                      <DeltaIcon className="w-3 h-3" />
-                      <span className="text-[10px] font-medium">
-                        {Math.abs(s.delta)}% vs prior mo.
-                      </span>
-                    </div>
-                  )}
-                </div>
-                <div className={cn("rounded-xl p-2 shrink-0", s.bg)}>
-                  <s.icon className={cn("w-4 h-4", s.color)} />
-                </div>
+          <div key={s.label} className="bg-card border border-border rounded-xl px-4 py-3">
+            <div className="flex items-start justify-between gap-2">
+              <div className="space-y-1 flex-1 min-w-0">
+                <p className="text-[10px] font-semibold text-muted uppercase tracking-wide leading-none">
+                  {s.label}
+                </p>
+                <p className="text-lg font-semibold text-foreground leading-tight tabular-nums">
+                  {s.value}
+                </p>
+                {s.delta !== null ? (
+                  <div className={cn("flex items-center gap-1", deltaColor)}>
+                    <DeltaIcon className="w-3 h-3" />
+                    <span className="text-[10px] font-medium">
+                      {Math.abs(s.delta)}% vs prior mo.
+                    </span>
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted">no prior data</p>
+                )}
               </div>
-            </CardContent>
-          </Card>
+              <div
+                className={cn("w-8 h-8 rounded-xl flex items-center justify-center shrink-0", s.bg)}
+              >
+                <s.icon className={cn("w-4 h-4", s.color)} />
+              </div>
+            </div>
+          </div>
         );
       })}
     </div>

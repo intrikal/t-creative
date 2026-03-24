@@ -7,11 +7,9 @@ function RevenueSkeleton() {
 }
 
 async function RevenueData({ range }: { range: Range }) {
-  const [revenueTrend, revenueGoal, kpiStats] = await Promise.all([
-    getRevenueTrend(range),
-    getRevenueGoal(),
-    getKpiStats(range),
-  ]);
+  const revenueTrend = await getRevenueTrend(range);
+  const revenueGoal = await getRevenueGoal();
+  const kpiStats = await getKpiStats(range);
 
   return (
     <RevenueSection

@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { getCurrentUser } from "@/lib/auth";
 import type { Range } from "@/lib/types/analytics.types";
-import { AnalyticsShell, INSIGHTS_TABS, type InsightsTab } from "./AnalyticsShell";
+import { AnalyticsShell, type InsightsTab } from "./AnalyticsShell";
 import { AppointmentGapSectionWrapper } from "./sections/AppointmentGapSectionWrapper";
 import { BookingsSectionWrapper } from "./sections/BookingsSectionWrapper";
 import { CheckoutRebookSectionWrapper } from "./sections/CheckoutRebookSectionWrapper";
@@ -30,8 +30,16 @@ export const metadata: Metadata = {
 };
 
 const VALID_RANGES: Range[] = ["7d", "30d", "90d", "12m"];
+const VALID_TABS: InsightsTab[] = [
+  "Overview",
+  "Revenue",
+  "Bookings",
+  "Clients",
+  "Team",
+  "Marketing",
+];
 
-function TabContent({ tab, range }: { tab: InsightsTab; range: Range }) {
+function tabContent(tab: InsightsTab, range: Range) {
   switch (tab) {
     case "Overview":
       return (
@@ -44,7 +52,6 @@ function TabContent({ tab, range }: { tab: InsightsTab; range: Range }) {
     case "Revenue":
       return (
         <div className="space-y-4">
-          <RevenueSectionWrapper range={range} />
           <RevenueByServiceSectionWrapper range={range} />
           <RevenuePerHourSectionWrapper range={range} />
           <RevenueForecastSectionWrapper />
@@ -53,7 +60,6 @@ function TabContent({ tab, range }: { tab: InsightsTab; range: Range }) {
     case "Bookings":
       return (
         <div className="space-y-4">
-          <BookingsSectionWrapper range={range} />
           <PeakTimesSectionWrapper range={range} />
           <AppointmentGapSectionWrapper range={range} />
           <CheckoutRebookSectionWrapper range={range} />
@@ -63,7 +69,6 @@ function TabContent({ tab, range }: { tab: InsightsTab; range: Range }) {
     case "Clients":
       return (
         <div className="space-y-4">
-          <ClientsSection range={range} />
           <RetentionSectionWrapper range={range} />
           <VisitFrequencySectionWrapper range={range} />
           <ReferralStatsSectionWrapper />
@@ -98,15 +103,15 @@ export default async function Page({
 
   const { range: rawRange, tab: rawTab } = await searchParams;
   const range: Range = VALID_RANGES.includes(rawRange as Range) ? (rawRange as Range) : "30d";
-  const tab: InsightsTab = (INSIGHTS_TABS as readonly string[]).includes(rawTab ?? "")
+  const tab: InsightsTab = VALID_TABS.includes(rawTab as InsightsTab)
     ? (rawTab as InsightsTab)
     : "Overview";
 
   return (
     <AnalyticsShell
+      tab={tab}
       kpis={<KpiSection range={range} />}
-      tabContent={<TabContent tab={tab} range={range} />}
-      activeTab={tab}
+      content={tabContent(tab, range)}
     />
   );
 }

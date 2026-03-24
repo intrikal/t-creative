@@ -7,10 +7,8 @@ function BookingsSkeleton() {
 }
 
 async function BookingsData({ range }: { range: Range }) {
-  const [bookingsTrend, serviceMix] = await Promise.all([
-    getBookingsTrend(range),
-    getServiceMix(range),
-  ]);
+  const bookingsTrend = await getBookingsTrend(range);
+  const serviceMix = await getServiceMix(range);
   return <BookingsSection bookingsTrend={bookingsTrend} serviceMix={serviceMix} />;
 }
 

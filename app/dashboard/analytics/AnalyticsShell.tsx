@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useTransition } from "react";
+import { type ReactNode, useState, useTransition } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { Download } from "lucide-react";
 import type { BookingExportRow, Range } from "@/lib/types/analytics.types";
@@ -9,45 +9,53 @@ import { exportBookingsCsv } from "./actions";
 
 const RANGES = ["7d", "30d", "90d", "12m"] as const;
 
-export const INSIGHTS_TABS = [
-  "Overview",
-  "Revenue",
-  "Bookings",
-  "Clients",
-  "Team",
-  "Marketing",
-] as const;
-export type InsightsTab = (typeof INSIGHTS_TABS)[number];
+const TABS = ["Overview", "Revenue", "Bookings", "Clients", "Team", "Marketing"] as const;
+type Tab = (typeof TABS)[number];
+
+export type InsightsTab = Tab;
 
 export function AnalyticsShell({
+  tab,
   kpis,
-  tabContent,
-  activeTab,
+  content,
 }: {
+  tab: InsightsTab;
   kpis: ReactNode;
-  tabContent: ReactNode;
-  activeTab: InsightsTab;
+  content: ReactNode;
 }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const range = (searchParams.get("range") as Range) ?? "30d";
   const [isExporting, startExport] = useTransition();
+  const [isNavigating, startNavigation] = useTransition();
+  // Optimistic tab — updates instantly on click, before server responds
+  const [optimisticTab, setOptimisticTab] = useState<Tab>(tab);
+
+  // Sync optimistic tab when server prop arrives (e.g. after navigation completes)
+  if (!isNavigating && optimisticTab !== tab) {
+    setOptimisticTab(tab);
+  }
 
   function setRange(r: Range) {
     const params = new URLSearchParams(searchParams.toString());
     params.set("range", r);
-    router.push(`${pathname}?${params.toString()}`, { scroll: false });
+    startNavigation(() => {
+      router.push(`${pathname}?${params.toString()}`, { scroll: false });
+    });
   }
 
-  function setTab(t: InsightsTab) {
+  function setTab(t: Tab) {
+    setOptimisticTab(t);
     const params = new URLSearchParams(searchParams.toString());
     if (t === "Overview") {
       params.delete("tab");
     } else {
       params.set("tab", t);
     }
-    router.push(`${pathname}?${params.toString()}`, { scroll: false });
+    startNavigation(() => {
+      router.push(`${pathname}?${params.toString()}`, { scroll: false });
+    });
   }
 
   function downloadCsv(rows: BookingExportRow[]) {
@@ -126,13 +134,13 @@ export function AnalyticsShell({
 
       {/* Tab bar */}
       <div className="flex gap-1 border-b border-border">
-        {INSIGHTS_TABS.map((t) => (
+        {TABS.map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
             className={cn(
               "px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px",
-              activeTab === t
+              optimisticTab === t
                 ? "border-accent text-accent"
                 : "border-transparent text-muted hover:text-foreground hover:border-border",
             )}
@@ -142,8 +150,10 @@ export function AnalyticsShell({
         ))}
       </div>
 
-      {/* Tab content — only the active tab's sections are server-rendered */}
-      {tabContent}
+      {/* Active tab content — only the selected tab is rendered server-side */}
+      <div className={cn(isNavigating && "opacity-50 pointer-events-none transition-opacity")}>
+        {content}
+      </div>
     </div>
   );
 }

@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { getCurrentUser } from "@/lib/auth";
 import type { Range } from "@/lib/types/analytics.types";
-import { AnalyticsShell } from "./AnalyticsShell";
+import { AnalyticsShell, type InsightsTab } from "./AnalyticsShell";
 import { AppointmentGapSectionWrapper } from "./sections/AppointmentGapSectionWrapper";
 import { BookingsSectionWrapper } from "./sections/BookingsSectionWrapper";
 import { CheckoutRebookSectionWrapper } from "./sections/CheckoutRebookSectionWrapper";
@@ -24,46 +24,94 @@ import { VisitFrequencySectionWrapper } from "./sections/VisitFrequencySectionWr
 import { WaitlistConversionSectionWrapper } from "./sections/WaitlistConversionSectionWrapper";
 
 export const metadata: Metadata = {
-  title: "Analytics — T Creative Studio",
+  title: "Insights — T Creative Studio",
   description: "View studio analytics, performance metrics, and insights.",
   robots: { index: false, follow: false },
 };
 
 const VALID_RANGES: Range[] = ["7d", "30d", "90d", "12m"];
+const VALID_TABS: InsightsTab[] = [
+  "Overview",
+  "Revenue",
+  "Bookings",
+  "Clients",
+  "Team",
+  "Marketing",
+];
+
+function tabContent(tab: InsightsTab, range: Range) {
+  switch (tab) {
+    case "Overview":
+      return (
+        <div className="space-y-4">
+          <RevenueSectionWrapper range={range} />
+          <BookingsSectionWrapper range={range} />
+          <ClientsSection range={range} />
+        </div>
+      );
+    case "Revenue":
+      return (
+        <div className="space-y-4">
+          <RevenueByServiceSectionWrapper range={range} />
+          <RevenuePerHourSectionWrapper range={range} />
+          <RevenueForecastSectionWrapper />
+        </div>
+      );
+    case "Bookings":
+      return (
+        <div className="space-y-4">
+          <PeakTimesSectionWrapper range={range} />
+          <AppointmentGapSectionWrapper range={range} />
+          <CheckoutRebookSectionWrapper range={range} />
+          <WaitlistConversionSectionWrapper range={range} />
+        </div>
+      );
+    case "Clients":
+      return (
+        <div className="space-y-4">
+          <RetentionSectionWrapper range={range} />
+          <VisitFrequencySectionWrapper range={range} />
+          <ReferralStatsSectionWrapper />
+        </div>
+      );
+    case "Team":
+      return (
+        <div className="space-y-4">
+          <StaffSection range={range} />
+          <OperationalSection range={range} />
+        </div>
+      );
+    case "Marketing":
+      return (
+        <div className="space-y-4">
+          <PromotionRoiSectionWrapper range={range} />
+          <MembershipValueSectionWrapper range={range} />
+          <GiftCardBreakageSectionWrapper range={range} />
+        </div>
+      );
+  }
+}
 
 export default async function Page({
   searchParams,
 }: {
-  searchParams: Promise<{ range?: string }>;
+  searchParams: Promise<{ range?: string; tab?: string }>;
 }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   if (user.profile?.role !== "admin") redirect("/dashboard");
 
-  const { range: rawRange } = await searchParams;
+  const { range: rawRange, tab: rawTab } = await searchParams;
   const range: Range = VALID_RANGES.includes(rawRange as Range) ? (rawRange as Range) : "30d";
+  const tab: InsightsTab = VALID_TABS.includes(rawTab as InsightsTab)
+    ? (rawTab as InsightsTab)
+    : "Overview";
 
   return (
-    <AnalyticsShell>
-      <KpiSection range={range} />
-      <RevenueSectionWrapper range={range} />
-      <RevenueByServiceSectionWrapper range={range} />
-      <RevenuePerHourSectionWrapper range={range} />
-      <RevenueForecastSectionWrapper />
-      <BookingsSectionWrapper range={range} />
-      <StaffSection range={range} />
-      <OperationalSection range={range} />
-      <CheckoutRebookSectionWrapper range={range} />
-      <RetentionSectionWrapper range={range} />
-      <VisitFrequencySectionWrapper range={range} />
-      <AppointmentGapSectionWrapper range={range} />
-      <ClientsSection range={range} />
-      <WaitlistConversionSectionWrapper range={range} />
-      <PromotionRoiSectionWrapper range={range} />
-      <MembershipValueSectionWrapper range={range} />
-      <ReferralStatsSectionWrapper />
-      <GiftCardBreakageSectionWrapper range={range} />
-      <PeakTimesSectionWrapper range={range} />
-    </AnalyticsShell>
+    <AnalyticsShell
+      tab={tab}
+      kpis={<KpiSection range={range} />}
+      content={tabContent(tab, range)}
+    />
   );
 }

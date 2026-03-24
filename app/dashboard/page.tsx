@@ -12,8 +12,6 @@ import { AdminScheduleSection } from "./sections/AdminScheduleSection";
 import {
   StatsSkeletonFallback,
   ScheduleInquiriesSkeletonFallback,
-  RevenueChartSkeletonFallback,
-  CronHealthSkeletonFallback,
   BottomSkeletonFallback,
 } from "./sections/AdminSectionSkeletons";
 import { AdminSetupSection } from "./sections/AdminSetupSection";
@@ -67,46 +65,30 @@ export default async function Page() {
         bookingSlug={toSlug(setupData.studioName ?? "")}
       />
 
-      {/* Setup banner — streams quickly (cached setup data) */}
-      <Suspense fallback={null}>
-        <AdminSetupSection />
-      </Suspense>
-
-      {/* Stats + alerts — streams as aggregate queries resolve */}
+      {/* Setup banner + Stats + alerts (1 boundary — fast cached data + aggregate queries) */}
       <Suspense fallback={<StatsSkeletonFallback />}>
+        <AdminSetupSection />
         <AdminStatsSection />
       </Suspense>
 
-      {/* Schedule + Inquiries — stream independently */}
+      {/* Schedule, Inquiries, Time-off, Revenue (1 boundary — mid-page data) */}
       <Suspense fallback={<ScheduleInquiriesSkeletonFallback />}>
-        <div className="grid grid-cols-1 xl:grid-cols-5 gap-3">
-          <Suspense fallback={null}>
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 xl:grid-cols-5 gap-3">
             <AdminScheduleSection />
-          </Suspense>
-          <Suspense fallback={null}>
             <AdminInquiriesSection />
-          </Suspense>
+          </div>
+          <AdminTimeOffSection />
+          <AdminRevenueChartSection />
         </div>
       </Suspense>
 
-      {/* Time-off approval queue — streams alongside revenue chart */}
-      <Suspense fallback={null}>
-        <AdminTimeOffSection />
-      </Suspense>
-
-      {/* Revenue chart — streams as payment queries resolve */}
-      <Suspense fallback={<RevenueChartSkeletonFallback />}>
-        <AdminRevenueChartSection />
-      </Suspense>
-
-      {/* Cron health — streams last, admin-only */}
-      <Suspense fallback={<CronHealthSkeletonFallback />}>
-        <AdminCronHealthSection />
-      </Suspense>
-
-      {/* Team + Recent clients — streams last */}
+      {/* Cron health + Team + Recent clients (1 boundary — bottom) */}
       <Suspense fallback={<BottomSkeletonFallback />}>
-        <AdminBottomSection />
+        <div className="space-y-4">
+          <AdminCronHealthSection />
+          <AdminBottomSection />
+        </div>
       </Suspense>
     </div>
   );

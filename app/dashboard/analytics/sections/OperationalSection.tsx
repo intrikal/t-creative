@@ -13,11 +13,9 @@ function OperationalSkeleton() {
 }
 
 async function OperationalData({ range }: { range: Range }) {
-  const [attendanceStats, cancellationReasons, rebookRates] = await Promise.all([
-    getAttendanceStats(range),
-    getCancellationReasons(),
-    getRebookRates(),
-  ]);
+  const attendanceStats = await getAttendanceStats(range);
+  const cancellationReasons = await getCancellationReasons();
+  const rebookRates = await getRebookRates();
 
   return (
     <>

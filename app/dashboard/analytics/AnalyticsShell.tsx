@@ -1,25 +1,61 @@
 "use client";
 
-import { type ReactNode, useTransition } from "react";
+import { type ReactNode, useState, useTransition } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { Download } from "lucide-react";
-import { cn } from "@/lib/utils";
 import type { BookingExportRow, Range } from "@/lib/types/analytics.types";
+import { cn } from "@/lib/utils";
 import { exportBookingsCsv } from "./actions";
 
 const RANGES = ["7d", "30d", "90d", "12m"] as const;
 
-export function AnalyticsShell({ children }: { children: ReactNode }) {
+const TABS = ["Overview", "Revenue", "Bookings", "Clients", "Team", "Marketing"] as const;
+type Tab = (typeof TABS)[number];
+
+export type InsightsTab = Tab;
+
+export function AnalyticsShell({
+  tab,
+  kpis,
+  content,
+}: {
+  tab: InsightsTab;
+  kpis: ReactNode;
+  content: ReactNode;
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const range = (searchParams.get("range") as Range) ?? "30d";
   const [isExporting, startExport] = useTransition();
+  const [isNavigating, startNavigation] = useTransition();
+  // Optimistic tab — updates instantly on click, before server responds
+  const [optimisticTab, setOptimisticTab] = useState<Tab>(tab);
+
+  // Sync optimistic tab when server prop arrives (e.g. after navigation completes)
+  if (!isNavigating && optimisticTab !== tab) {
+    setOptimisticTab(tab);
+  }
 
   function setRange(r: Range) {
     const params = new URLSearchParams(searchParams.toString());
     params.set("range", r);
-    router.push(`${pathname}?${params.toString()}`);
+    startNavigation(() => {
+      router.push(`${pathname}?${params.toString()}`, { scroll: false });
+    });
+  }
+
+  function setTab(t: Tab) {
+    setOptimisticTab(t);
+    const params = new URLSearchParams(searchParams.toString());
+    if (t === "Overview") {
+      params.delete("tab");
+    } else {
+      params.set("tab", t);
+    }
+    startNavigation(() => {
+      router.push(`${pathname}?${params.toString()}`, { scroll: false });
+    });
   }
 
   function downloadCsv(rows: BookingExportRow[]) {
@@ -51,11 +87,13 @@ export function AnalyticsShell({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="p-4 md:p-6 lg:p-8 space-y-6">
+    <div className="p-4 md:p-6 lg:p-8 space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-xl font-semibold text-foreground tracking-tight">Analytics</h1>
+          <h1 className="text-2xl sm:text-3xl font-semibold text-foreground tracking-tight">
+            Insights
+          </h1>
           <p className="text-sm text-muted mt-0.5">Trends, insights, and performance</p>
         </div>
         <div className="flex items-center gap-2">
@@ -67,7 +105,7 @@ export function AnalyticsShell({ children }: { children: ReactNode }) {
               })
             }
             disabled={isExporting}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs font-medium text-muted hover:text-foreground hover:border-foreground/20 transition-colors disabled:opacity-50"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-border text-xs font-medium text-foreground hover:bg-foreground/8 hover:border-foreground/20 transition-colors disabled:opacity-50"
           >
             <Download className="w-3.5 h-3.5" />
             {isExporting ? "Exporting\u2026" : "Export CSV"}
@@ -91,7 +129,31 @@ export function AnalyticsShell({ children }: { children: ReactNode }) {
         </div>
       </div>
 
-      {children}
+      {/* KPI cards — always visible */}
+      {kpis}
+
+      {/* Tab bar */}
+      <div className="flex gap-1 border-b border-border">
+        {TABS.map((t) => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={cn(
+              "px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px",
+              optimisticTab === t
+                ? "border-accent text-accent"
+                : "border-transparent text-muted hover:text-foreground hover:border-border",
+            )}
+          >
+            {t}
+          </button>
+        ))}
+      </div>
+
+      {/* Active tab content — only the selected tab is rendered server-side */}
+      <div className={cn(isNavigating && "opacity-50 pointer-events-none transition-opacity")}>
+        {content}
+      </div>
     </div>
   );
 }

@@ -7,10 +7,8 @@ function RetentionSkeleton() {
 }
 
 async function RetentionData({ range }: { range: Range }) {
-  const [retentionTrend, atRiskClients] = await Promise.all([
-    getRetentionTrend(range),
-    getAtRiskClients(),
-  ]);
+  const retentionTrend = await getRetentionTrend(range);
+  const atRiskClients = await getAtRiskClients();
   return <RetentionSection retentionTrend={retentionTrend} atRiskClients={atRiskClients} />;
 }
 

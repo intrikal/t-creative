@@ -13,11 +13,9 @@ function ClientsSkeleton() {
 }
 
 async function ClientsData({ range }: { range: Range }) {
-  const [clientSources, clientLtv, topServices] = await Promise.all([
-    getClientSources(),
-    getClientLifetimeValues(),
-    getTopServices(range),
-  ]);
+  const clientSources = await getClientSources();
+  const clientLtv = await getClientLifetimeValues();
+  const topServices = await getTopServices(range);
 
   return (
     <>

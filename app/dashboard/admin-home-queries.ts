@@ -66,8 +66,7 @@ function getInitials(first: string | null, last: string | null): string {
 }
 
 function formatShiftHours(start: Date, end: Date): string {
-  const fmt = (d: Date) =>
-    d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  const fmt = (d: Date) => d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
   return `${fmt(start)} – ${fmt(end)}`;
 }
 
@@ -90,7 +89,17 @@ function dateBounds() {
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
   const fourteenDaysAgo = new Date(sevenDaysAgo);
   fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 7);
-  return { now, todayStart, todayEnd, yesterdayStart, yesterdayEnd, weekStart, monthStart, sevenDaysAgo, fourteenDaysAgo };
+  return {
+    now,
+    todayStart,
+    todayEnd,
+    yesterdayStart,
+    yesterdayEnd,
+    weekStart,
+    monthStart,
+    sevenDaysAgo,
+    fourteenDaysAgo,
+  };
 }
 
 /* ------------------------------------------------------------------ */
@@ -98,86 +107,91 @@ function dateBounds() {
 /* ------------------------------------------------------------------ */
 
 export const getAdminStatsAndAlerts = cache(async () => {
-  const {
-    todayStart, todayEnd, yesterdayStart, yesterdayEnd,
-    weekStart, monthStart, now,
-  } = dateBounds();
+  const { todayStart, todayEnd, yesterdayStart, yesterdayEnd, weekStart, monthStart, now } =
+    dateBounds();
 
   const invoiceClientP = alias(profiles, "invoiceClientP");
 
-  // Batch 1 (9 queries — fits within max:10 pool)
-  const [
-    revTodayRow,
-    revYesterdayRow,
-    activeClientsMonthRow,
-    newClientsWeekRow,
-    waitlistRow,
-    outstandingRow,
-    openInquiriesRow,
-    newInquiriesTodayRow,
-    remainingTodayRow,
-  ] = await Promise.all([
-    db
-      .select({ total: sql<number>`coalesce(sum(${payments.amountInCents}), 0)` })
-      .from(payments)
-      .where(and(eq(payments.status, "paid"), gte(payments.paidAt, todayStart), lte(payments.paidAt, todayEnd)))
-      .then((r) => r[0]),
-    db
-      .select({ total: sql<number>`coalesce(sum(${payments.amountInCents}), 0)` })
-      .from(payments)
-      .where(and(eq(payments.status, "paid"), gte(payments.paidAt, yesterdayStart), lte(payments.paidAt, yesterdayEnd)))
-      .then((r) => r[0]),
-    db
-      .select({ count: countDistinct(bookings.clientId) })
-      .from(bookings)
-      .where(and(eq(bookings.status, "completed"), gte(bookings.startsAt, monthStart)))
-      .then((r) => r[0]),
-    db
-      .select({ count: count(profiles.id) })
-      .from(profiles)
-      .where(and(eq(profiles.role, "client"), gte(profiles.createdAt, weekStart)))
-      .then((r) => r[0]),
-    // 2 waitlist queries → 1 with conditional count (no Date params inside CASE)
-    db
-      .select({
-        total: count(waitlist.id),
-        notContacted: sql<number>`count(case when ${waitlist.notifiedAt} is null then 1 end)`,
-      })
-      .from(waitlist)
-      .where(eq(waitlist.status, "waiting"))
-      .then((r) => r[0]),
-    db
-      .select({
-        total: sql<number>`coalesce(sum(${invoices.amountInCents}), 0)`,
-        cnt: count(invoices.id),
-      })
-      .from(invoices)
-      .where(inArray(invoices.status, ["sent", "overdue"]))
-      .then((r) => r[0]),
-    db
-      .select({ count: count(inquiries.id) })
-      .from(inquiries)
-      .where(inArray(inquiries.status, ["new", "read"]))
-      .then((r) => r[0]),
-    db
-      .select({ count: count(inquiries.id) })
-      .from(inquiries)
-      .where(and(eq(inquiries.status, "new"), gte(inquiries.createdAt, todayStart)))
-      .then((r) => r[0]),
-    db
-      .select({ count: count(bookings.id) })
-      .from(bookings)
-      .where(
-        and(
-          gte(bookings.startsAt, now),
-          lte(bookings.startsAt, todayEnd),
-          inArray(bookings.status, ["confirmed", "pending"]),
-        ),
-      )
-      .then((r) => r[0]),
-  ]);
+  // Batch 1a — revenue + bookings (4 queries, max 4 connections)
+  const [revTodayRow, revYesterdayRow, activeClientsMonthRow, remainingTodayRow] =
+    await Promise.all([
+      db
+        .select({ total: sql<number>`coalesce(sum(${payments.amountInCents}), 0)` })
+        .from(payments)
+        .where(
+          and(
+            eq(payments.status, "paid"),
+            gte(payments.paidAt, todayStart),
+            lte(payments.paidAt, todayEnd),
+          ),
+        )
+        .then((r) => r[0]),
+      db
+        .select({ total: sql<number>`coalesce(sum(${payments.amountInCents}), 0)` })
+        .from(payments)
+        .where(
+          and(
+            eq(payments.status, "paid"),
+            gte(payments.paidAt, yesterdayStart),
+            lte(payments.paidAt, yesterdayEnd),
+          ),
+        )
+        .then((r) => r[0]),
+      db
+        .select({ count: countDistinct(bookings.clientId) })
+        .from(bookings)
+        .where(and(eq(bookings.status, "completed"), gte(bookings.startsAt, monthStart)))
+        .then((r) => r[0]),
+      db
+        .select({ count: count(bookings.id) })
+        .from(bookings)
+        .where(
+          and(
+            gte(bookings.startsAt, now),
+            lte(bookings.startsAt, todayEnd),
+            inArray(bookings.status, ["confirmed", "pending"]),
+          ),
+        )
+        .then((r) => r[0]),
+    ]);
 
-  // Batch 2 (3 queries — alerts data)
+  // Batch 1b — clients, waitlist, invoices, inquiries (5 queries)
+  const [newClientsWeekRow, waitlistRow, outstandingRow, openInquiriesRow, newInquiriesTodayRow] =
+    await Promise.all([
+      db
+        .select({ count: count(profiles.id) })
+        .from(profiles)
+        .where(and(eq(profiles.role, "client"), gte(profiles.createdAt, weekStart)))
+        .then((r) => r[0]),
+      db
+        .select({
+          total: count(waitlist.id),
+          notContacted: sql<number>`count(case when ${waitlist.notifiedAt} is null then 1 end)`,
+        })
+        .from(waitlist)
+        .where(eq(waitlist.status, "waiting"))
+        .then((r) => r[0]),
+      db
+        .select({
+          total: sql<number>`coalesce(sum(${invoices.amountInCents}), 0)`,
+          cnt: count(invoices.id),
+        })
+        .from(invoices)
+        .where(inArray(invoices.status, ["sent", "overdue"]))
+        .then((r) => r[0]),
+      db
+        .select({ count: count(inquiries.id) })
+        .from(inquiries)
+        .where(inArray(inquiries.status, ["new", "read"]))
+        .then((r) => r[0]),
+      db
+        .select({ count: count(inquiries.id) })
+        .from(inquiries)
+        .where(and(eq(inquiries.status, "new"), gte(inquiries.createdAt, todayStart)))
+        .then((r) => r[0]),
+    ]);
+
+  // Batch 2 — alerts data (3 queries)
   const [overdueInvoicesRaw, lowStockProductsRow, lowStockSuppliesRow] = await Promise.all([
     db
       .select({
@@ -199,14 +213,20 @@ export const getAdminStatsAndAlerts = cache(async () => {
       .where(
         or(
           eq(products.availability, "out_of_stock"),
-          and(eq(products.availability, "in_stock"), gt(products.stockCount, 0), lte(products.stockCount, 5)),
+          and(
+            eq(products.availability, "in_stock"),
+            gt(products.stockCount, 0),
+            lte(products.stockCount, 5),
+          ),
         ),
       )
       .then((r) => r[0]),
     db
       .select({ count: count(supplies.id) })
       .from(supplies)
-      .where(and(gt(supplies.reorderPoint, 0), sql`${supplies.stockCount} <= ${supplies.reorderPoint}`))
+      .where(
+        and(gt(supplies.reorderPoint, 0), sql`${supplies.stockCount} <= ${supplies.reorderPoint}`),
+      )
       .then((r) => r[0]),
   ]);
 
@@ -397,18 +417,29 @@ export const getAdminWeeklyRevenue = cache(async () => {
   const [weeklyRevDailyRaw, priorWeekRevRow] = await Promise.all([
     db
       .select({
-        dateStr:
-          sql<string>`to_char(date_trunc('day', coalesce(${payments.paidAt}, ${payments.createdAt})), 'YYYY-MM-DD')`,
+        dateStr: sql<string>`to_char(date_trunc('day', coalesce(${payments.paidAt}, ${payments.createdAt})), 'YYYY-MM-DD')`,
         total: sql<number>`coalesce(sum(${payments.amountInCents}), 0)`,
       })
       .from(payments)
-      .where(and(eq(payments.status, "paid"), gte(payments.paidAt, sevenDaysAgo), lte(payments.paidAt, todayEnd)))
+      .where(
+        and(
+          eq(payments.status, "paid"),
+          gte(payments.paidAt, sevenDaysAgo),
+          lte(payments.paidAt, todayEnd),
+        ),
+      )
       .groupBy(sql`date_trunc('day', coalesce(${payments.paidAt}, ${payments.createdAt}))`)
       .orderBy(sql`date_trunc('day', coalesce(${payments.paidAt}, ${payments.createdAt})) asc`),
     db
       .select({ total: sql<number>`coalesce(sum(${payments.amountInCents}), 0)` })
       .from(payments)
-      .where(and(eq(payments.status, "paid"), gte(payments.paidAt, fourteenDaysAgo), lt(payments.paidAt, sevenDaysAgo)))
+      .where(
+        and(
+          eq(payments.status, "paid"),
+          gte(payments.paidAt, fourteenDaysAgo),
+          lt(payments.paidAt, sevenDaysAgo),
+        ),
+      )
       .then((r) => r[0]),
   ]);
 
@@ -433,10 +464,7 @@ export const getAdminWeeklyRevenue = cache(async () => {
 
   const priorWeekRev = Math.round(Number(priorWeekRevRow?.total ?? 0) / 100);
   // reduce: sum this week's daily totals for the comparison metric
-  const thisWeekRev = weeklyRevDailyRaw.reduce(
-    (s, r) => s + Math.round(Number(r.total) / 100),
-    0,
-  );
+  const thisWeekRev = weeklyRevDailyRaw.reduce((s, r) => s + Math.round(Number(r.total) / 100), 0);
   const weeklyVsPct =
     priorWeekRev === 0 ? null : Math.round(((thisWeekRev - priorWeekRev) / priorWeekRev) * 100);
 
@@ -521,8 +549,7 @@ export const getAdminRecentClientsAndTeam = cache(async () => {
       initials: getInitials(s.firstName, s.lastName),
       name: [s.firstName, s.lastName].filter(Boolean).join(" "),
       role: s.title ?? null,
-      hours:
-        s.shiftStart && s.shiftEnd ? formatShiftHours(s.shiftStart, s.shiftEnd) : "—",
+      hours: s.shiftStart && s.shiftEnd ? formatShiftHours(s.shiftStart, s.shiftEnd) : "—",
       status: s.shiftStatus === "cancelled" ? "on_leave" : "active",
     });
     return acc;

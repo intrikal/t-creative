@@ -57,25 +57,25 @@ const POLICIES = [
     key: "policyClientPhotos" as const,
     letter: "A",
     label: "Client photo consent",
-    text: "I understand that sharing client photos online requires their explicit consent first",
+    text: "I'll always ask before posting client photos — their trust comes first",
   },
   {
     key: "policyConfidentiality" as const,
     letter: "B",
     label: "Confidentiality",
-    text: "I will keep all client information private and not share it without permission",
+    text: "What clients share stays private — I won't share their info without permission",
   },
   {
     key: "policyConduct" as const,
     letter: "C",
     label: "Studio conduct",
-    text: "I agree to represent T Creative Studio professionally in person and online",
+    text: "I'll represent T Creative professionally, both in the studio and online",
   },
   {
     key: "policyCompensation" as const,
     letter: "D",
     label: "Compensation",
-    text: "I acknowledge the compensation structure that was communicated to me",
+    text: "I've reviewed and understand my pay structure (commission, rates, etc.)",
   },
 ];
 
@@ -91,7 +91,8 @@ export function StepAssistantPolicies({ form, onNext, stepNum }: StepProps) {
 
   // .every() returns true only if every element in the array passes the test.
   // Here it checks that every policy key maps to `true` in the `agreed` object.
-  const allAgreed = POLICIES.every((p) => agreed[p.key]);
+  const agreedCount = POLICIES.filter((p) => agreed[p.key]).length;
+  const allAgreed = agreedCount === POLICIES.length;
 
   const handleAgree = useCallback(
     (key: string) => {
@@ -133,12 +134,19 @@ export function StepAssistantPolicies({ form, onNext, stepNum }: StepProps) {
           <span className="text-accent">&rarr;</span>
         </div>
         <h1 className="text-2xl sm:text-3xl font-medium text-foreground leading-snug">
-          Studio policies
+          Almost done — a few promises
         </h1>
         <p className="text-muted text-sm mt-1">
-          These protect you, your clients, and T Creative. Review the details on the right.
+          These keep things good for everyone. Tap each to agree.
         </p>
       </m.div>
+
+      {/* Progress */}
+      {agreedCount > 0 && !allAgreed && (
+        <m.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-xs text-muted/50">
+          {agreedCount} of {POLICIES.length} agreed
+        </m.p>
+      )}
 
       {/* Agreement toggles */}
       {POLICIES.map((policy, i) => (

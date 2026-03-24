@@ -52,7 +52,7 @@ const ADMIN_EMAILS = ["alvinwquach@gmail.com"];
  * For production, prefer the invite-token flow (`/api/invites`) so new assistants
  * receive a scoped, expiring link rather than being allowlisted permanently.
  */
-const ASSISTANT_EMAILS = ["retrobytetech@gmail.com"];
+const ASSISTANT_EMAILS = ["retrobytetech@gmail.com", "richhomiequach408@gmail.com"];
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);

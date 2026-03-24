@@ -1,11 +1,11 @@
 import { Suspense } from "react";
+import { ExpensesPage } from "../../expenses/ExpensesPage";
 import {
   getExpenses,
   getExpenseStats,
   getMonthlyExpenses,
   getExpenseCategoryBreakdown,
 } from "../actions";
-import { ExpensesPage } from "../../expenses/ExpensesPage";
 
 function ExpensesSkeleton() {
   return (
@@ -21,9 +21,10 @@ function ExpensesSkeleton() {
 }
 
 async function ExpensesData() {
-  const [expenses, stats, monthlyExpenses, expenseCategories] = await Promise.all([
-    getExpenses(),
-    getExpenseStats(),
+  // Sequential to reduce connection pool pressure — all sections stream independently via Suspense.
+  const expenses = await getExpenses();
+  const stats = await getExpenseStats();
+  const [monthlyExpenses, expenseCategories] = await Promise.all([
     getMonthlyExpenses(),
     getExpenseCategoryBreakdown(),
   ]);

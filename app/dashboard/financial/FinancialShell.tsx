@@ -86,13 +86,14 @@ export function FinancialShell({
         ))}
       </div>
 
-      {/* Tab content — only render the active tab to avoid parallel data fetches */}
-      {tab === "Revenue" && revenue}
-      {tab === "Transactions" && transactions}
-      {tab === "Invoices" && invoices}
-      {tab === "Expenses" && expenses}
-      {tab === "Gift Cards" && giftCards}
-      {tab === "Promotions" && promotions}
+      {/* Tab content — show/hide via CSS so server-streamed Suspense
+          boundaries resolve independently without re-mounting on tab switch */}
+      <div style={{ display: tab === "Revenue" ? "block" : "none" }}>{revenue}</div>
+      <div style={{ display: tab === "Transactions" ? "block" : "none" }}>{transactions}</div>
+      <div style={{ display: tab === "Invoices" ? "block" : "none" }}>{invoices}</div>
+      <div style={{ display: tab === "Expenses" ? "block" : "none" }}>{expenses}</div>
+      <div style={{ display: tab === "Gift Cards" ? "block" : "none" }}>{giftCards}</div>
+      <div style={{ display: tab === "Promotions" ? "block" : "none" }}>{promotions}</div>
     </div>
   );
 }

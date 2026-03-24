@@ -334,11 +334,13 @@ export function ClientsPage({
   }
 
   return (
-    <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto w-full space-y-6">
+    <div className="p-4 md:p-6 lg:p-8 space-y-6">
       {/* Header */}
-      <div className="flex items-start justify-between gap-4 flex-wrap">
+      <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-semibold text-foreground tracking-tight">Clients</h1>
+          <h1 className="text-2xl sm:text-3xl font-semibold text-foreground tracking-tight">
+            Clients
+          </h1>
           <p className="text-sm text-muted mt-0.5">{clients.length} total clients</p>
         </div>
         {activeTab === "clients" && (
@@ -457,7 +459,7 @@ export function ClientsPage({
                   placeholder="Search by name or email…"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-accent/30 text-foreground placeholder:text-muted"
+                  className="w-full pl-9 pr-3 py-2 text-sm bg-white border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-accent/30 text-foreground placeholder:text-muted"
                 />
               </div>
               <div className="relative shrink-0">
@@ -465,7 +467,7 @@ export function ClientsPage({
                 <select
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
-                  className="pl-8 pr-7 py-2 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-accent/30 text-foreground appearance-none cursor-pointer"
+                  className="pl-8 pr-7 py-2 text-sm bg-white border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-accent/30 text-foreground appearance-none cursor-pointer"
                 >
                   <option value="recent">Most recent</option>
                   <option value="spend">Highest spend</option>

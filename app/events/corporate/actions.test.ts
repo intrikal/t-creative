@@ -1,7 +1,7 @@
 /**
  * Unit tests for the corporate event inquiry submission action.
  *
- * Tests the full submitCorporateInquiry flow: Zod validation, Turnstile
+ * Tests the full submitCorporateInquiry flow: Zod validation, reCAPTCHA
  * bot check, DB insert, PostHog analytics tracking, and admin email
  * notification. Each test uses vi.resetModules() + vi.doMock() for
  * isolated module state.
@@ -22,17 +22,17 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 /* ------------------------------------------------------------------ */
 
 // vi.fn(): creates mock functions that record calls for assertion
-const mockVerifyTurnstile = vi.fn();   // Cloudflare Turnstile bot verification
-const mockTrackEvent = vi.fn();         // PostHog analytics event tracker
+const mockVerifyRecaptcha = vi.fn(); // Google reCAPTCHA v3 bot verification
+const mockTrackEvent = vi.fn(); // PostHog analytics event tracker
 const mockSendEmail = vi.fn().mockResolvedValue(true); // email service
-const mockInsertValues = vi.fn();       // DB insert — captures the inquiry row data
+const mockInsertValues = vi.fn(); // DB insert — captures the inquiry row data
 
 // setupMocks: registers all vi.doMock() replacements for a fresh module graph.
-// Mocks the DB, schema, Turnstile verification, PostHog, email service,
-// and the email template component. The `turnstileValid` option controls
+// Mocks the DB, schema, reCAPTCHA verification, PostHog, email service,
+// and the email template component. The `recaptchaValid` option controls
 // whether the bot check passes or fails.
-function setupMocks(opts: { turnstileValid?: boolean } = {}) {
-  const { turnstileValid = true } = opts;
+function setupMocks(opts: { recaptchaValid?: boolean } = {}) {
+  const { recaptchaValid = true } = opts;
 
   mockInsertValues.mockReturnValue({
     returning: vi.fn().mockResolvedValue([{ id: 1 }]),
@@ -54,8 +54,8 @@ function setupMocks(opts: { turnstileValid?: boolean } = {}) {
       status: "status",
     },
   }));
-  vi.doMock("@/lib/turnstile", () => ({
-    verifyTurnstileToken: mockVerifyTurnstile.mockResolvedValue(turnstileValid),
+  vi.doMock("@/lib/recaptcha", () => ({
+    verifyRecaptchaToken: mockVerifyRecaptcha.mockResolvedValue(recaptchaValid),
   }));
   vi.doMock("@/lib/posthog", () => ({ trackEvent: mockTrackEvent }));
   vi.doMock("@/lib/resend", () => ({
@@ -83,7 +83,7 @@ const validData = {
   services: "lash",
   eventType: "team_bonding",
   details: "Looking for a fun team event.",
-  turnstileToken: "valid-token",
+  recaptchaToken: "valid-token",
 };
 
 /* ------------------------------------------------------------------ */
@@ -97,7 +97,7 @@ describe("corporate/actions", () => {
   });
 
   // Tests the submitCorporateInquiry action: validation, DB persistence,
-  // Turnstile gating, analytics tracking, and admin email notification
+  // reCAPTCHA gating, analytics tracking, and admin email notification
   describe("submitCorporateInquiry", () => {
     it("returns success: true on valid submission", async () => {
       vi.resetModules();
@@ -165,17 +165,17 @@ describe("corporate/actions", () => {
       expect(result).toEqual({ success: false, error: expect.any(String) });
     });
 
-    it("returns error when Turnstile verification fails", async () => {
+    it("returns error when reCAPTCHA verification fails", async () => {
       vi.resetModules();
-      setupMocks({ turnstileValid: false });
+      setupMocks({ recaptchaValid: false });
       const { submitCorporateInquiry } = await import("./actions");
       const result = await submitCorporateInquiry(validData);
       expect(result).toEqual({ success: false, error: "Bot check failed. Please try again." });
     });
 
-    it("does not insert when Turnstile fails", async () => {
+    it("does not insert when reCAPTCHA fails", async () => {
       vi.resetModules();
-      setupMocks({ turnstileValid: false });
+      setupMocks({ recaptchaValid: false });
       const { submitCorporateInquiry } = await import("./actions");
       await submitCorporateInquiry(validData);
       expect(mockInsertValues).not.toHaveBeenCalled();

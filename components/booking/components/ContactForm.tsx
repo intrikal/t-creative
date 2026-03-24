@@ -7,12 +7,10 @@
  * Self-contained with its own QueryClientProvider so no root provider is needed.
  */
 
-import { useState, useCallback } from "react";
-import { Turnstile } from "@marsidev/react-turnstile";
 import { useForm } from "@tanstack/react-form";
 import { QueryClient, QueryClientProvider, useMutation } from "@tanstack/react-query";
 import { LuCheck } from "react-icons/lu";
-import { env } from "@/lib/env";
+import { useRecaptcha } from "@/lib/useRecaptcha";
 
 const qc = new QueryClient();
 
@@ -25,10 +23,7 @@ export function ContactForm() {
 }
 
 function Form() {
-  const [turnstileToken, setTurnstileToken] = useState("");
-  const handleTurnstileSuccess = useCallback((token: string) => {
-    setTurnstileToken(token);
-  }, []);
+  const { executeRecaptcha } = useRecaptcha();
 
   const {
     mutate: send,
@@ -39,7 +34,7 @@ function Form() {
       name: string;
       email: string;
       question: string;
-      turnstileToken: string;
+      recaptchaToken: string;
     }) => {
       const res = await fetch("/api/chat/fallback", {
         method: "POST",
@@ -52,8 +47,10 @@ function Form() {
 
   const form = useForm({
     defaultValues: { name: "", email: "", message: "" },
-    onSubmit: ({ value }) =>
-      send({ name: value.name, email: value.email, question: value.message, turnstileToken }),
+    onSubmit: async ({ value }) => {
+      const recaptchaToken = await executeRecaptcha("contact");
+      send({ name: value.name, email: value.email, question: value.message, recaptchaToken });
+    },
   });
 
   if (isSuccess) {
@@ -124,16 +121,9 @@ function Form() {
         )}
       </form.Field>
 
-      <Turnstile
-        siteKey={env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
-        onSuccess={handleTurnstileSuccess}
-        onExpire={() => setTurnstileToken("")}
-        options={{ theme: "light", size: "flexible" }}
-      />
-
       <button
         type="submit"
-        disabled={isPending || !turnstileToken}
+        disabled={isPending}
         className="w-full rounded-xl bg-[#96604a] py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#7a4e3a] disabled:opacity-50 active:scale-[0.98]"
       >
         {isPending ? "Sending…" : "Send message"}

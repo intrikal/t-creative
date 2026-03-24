@@ -3,17 +3,16 @@
  *
  * Checks authentication status on open: if the visitor is a logged-in
  * client, name/email fields are hidden (the backend uses their profile).
- * Guest visitors must provide name + email and pass a Cloudflare Turnstile
+ * Guest visitors must provide name + email and pass a reCAPTCHA v3
  * challenge before submitting. After success, shows a confirmation screen.
  */
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { Turnstile } from "@marsidev/react-turnstile";
+import { useState, useEffect } from "react";
 import { X, Clock, Sparkles, Send } from "lucide-react";
 import { checkIsAuthenticated } from "@/app/dashboard/book/actions";
+import { useRecaptcha } from "@/lib/useRecaptcha";
 import { cn } from "@/lib/utils";
-import { env } from "@/lib/env";
 import type { Service } from "./types";
 
 export function WaitlistDialog({
@@ -36,11 +35,7 @@ export function WaitlistDialog({
   /** submitted: flips to the success confirmation screen */
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState("");
-  /** turnstileToken: Cloudflare challenge token, required for guest submissions */
-  const [turnstileToken, setTurnstileToken] = useState("");
-  const handleTurnstileSuccess = useCallback((token: string) => {
-    setTurnstileToken(token);
-  }, []);
+  const { executeRecaptcha } = useRecaptcha();
 
   useEffect(() => {
     if (!open) return;
@@ -54,7 +49,6 @@ export function WaitlistDialog({
     setDatePreference("");
     setNotes("");
     setError("");
-    setTurnstileToken("");
     onClose();
   }
 
@@ -71,6 +65,7 @@ export function WaitlistDialog({
     setError("");
 
     try {
+      const recaptchaToken = isGuest ? await executeRecaptcha("waitlist") : undefined;
       const res = await fetch("/api/book/waitlist", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -80,7 +75,7 @@ export function WaitlistDialog({
           serviceId: service.id,
           datePreference: datePreference.trim(),
           notes: notes.trim(),
-          turnstileToken,
+          recaptchaToken,
         }),
       });
       if (!res.ok) throw new Error("Failed to join waitlist");
@@ -183,15 +178,6 @@ export function WaitlistDialog({
                 className="w-full px-3.5 py-2.5 text-sm bg-white border border-stone-200 rounded-xl text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-amber-200 focus:border-amber-300 transition resize-none"
               />
 
-              {isGuest && (
-                <Turnstile
-                  siteKey={env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
-                  onSuccess={handleTurnstileSuccess}
-                  onExpire={() => setTurnstileToken("")}
-                  options={{ theme: "light", size: "flexible" }}
-                />
-              )}
-
               {error && (
                 <p
                   role="alert"
@@ -204,7 +190,7 @@ export function WaitlistDialog({
 
               <button
                 type="submit"
-                disabled={submitting || (isGuest === true && !turnstileToken)}
+                disabled={submitting}
                 className={cn(
                   "w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold transition-colors",
                   submitting

@@ -65,7 +65,7 @@ vi.mock("@/lib/env", () => ({
     UPSTASH_REDIS_REST_URL: "https://placeholder.upstash.io",
     UPSTASH_REDIS_REST_TOKEN: "placeholder-token",
     RESEND_API_KEY: "re_placeholder",
-    NEXT_PUBLIC_TURNSTILE_SITE_KEY: "0x_placeholder",
+    NEXT_PUBLIC_RECAPTCHA_SITE_KEY: "0x_placeholder",
   },
 }));
 

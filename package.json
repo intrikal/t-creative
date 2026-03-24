@@ -33,7 +33,6 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1009.0",
     "@easypost/api": "^8.8.0",
-    "@marsidev/react-turnstile": "^1.4.2",
     "@react-email/components": "^1.0.8",
     "@react-pdf/renderer": "^4.3.2",
     "@react-spring/web": "^10.0.3",

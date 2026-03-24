@@ -4,12 +4,12 @@
  * Covers:
  *  - Input validation: invalid JSON, missing name/email/question,
  *    invalid email format
- *  - Turnstile bot-check failure (403)
+ *  - reCAPTCHA bot-check failure (403)
  *  - Happy path: admin found → sends email with question, replyTo set
  *    to the visitor's address so admin can reply directly
  *  - Graceful degradation: no admin profile → 200 without sending email
  *
- * Mocks: db (select chain), Resend email sender, Turnstile verifier.
+ * Mocks: db (select chain), Resend email sender, reCAPTCHA verifier.
  * No auth — endpoint is fully public.
  */
 // describe: groups related tests into a labeled block (like a folder for tests)
@@ -28,8 +28,8 @@ let selectIdx = 0;
 let selectData: unknown[][] = [];
 // mockResendSend: captures Resend SDK emails.send() calls
 const mockResendSend = vi.fn();
-// mockVerifyTurnstile: controls the Turnstile bot-check result
-const mockVerifyTurnstile = vi.fn();
+// mockVerifyRecaptcha: controls the reCAPTCHA bot-check result
+const mockVerifyRecaptcha = vi.fn();
 
 function buildDb() {
   return {
@@ -58,7 +58,7 @@ describe("POST /api/chat/fallback", () => {
     vi.clearAllMocks();
     selectIdx = 0;
     selectData = [];
-    mockVerifyTurnstile.mockResolvedValue(true);
+    mockVerifyRecaptcha.mockResolvedValue(true);
     mockResendSend.mockResolvedValue({ id: "email-id" });
 
     vi.resetModules();
@@ -71,7 +71,7 @@ describe("POST /api/chat/fallback", () => {
       RESEND_FROM: "noreply@test.com",
       isResendConfigured: vi.fn().mockReturnValue(true),
     }));
-    vi.doMock("@/lib/turnstile", () => ({ verifyTurnstileToken: mockVerifyTurnstile }));
+    vi.doMock("@/lib/recaptcha", () => ({ verifyRecaptchaToken: mockVerifyRecaptcha }));
     vi.doMock("resend", () => ({
       Resend: function MockResend() {
         return { emails: { send: mockResendSend } };
@@ -122,8 +122,8 @@ describe("POST /api/chat/fallback", () => {
     expect(res.status).toBe(400);
   });
 
-  it("returns 403 when turnstile fails", async () => {
-    mockVerifyTurnstile.mockResolvedValueOnce(false);
+  it("returns 403 when reCAPTCHA fails", async () => {
+    mockVerifyRecaptcha.mockResolvedValueOnce(false);
     const res = await POST(
       makePost({ name: "Alice", email: "a@b.com", question: "Do you do highlights?" }),
     );

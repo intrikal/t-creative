@@ -15,7 +15,6 @@
  */
 
 import { useReducer, useEffect, useMemo, useRef, useCallback } from "react";
-import { Turnstile } from "@marsidev/react-turnstile";
 import {
   X,
   CalendarDays,
@@ -37,22 +36,22 @@ import {
   type PendingWaiver,
 } from "@/app/dashboard/book/actions";
 import { createBookingRequest } from "@/app/dashboard/messages/actions";
-import { getPublicPolicies } from "@/app/dashboard/settings/settings-actions";
-import { Calendar } from "@/components/ui/calendar";
-import { CADENCE_OPTIONS, rruleToCadenceLabel } from "@/lib/cadence";
-import { env } from "@/lib/env";
-import { cn } from "@/lib/utils";
-import { SquarePaymentForm } from "./components/SquarePaymentForm";
-import { IntakeFormStep } from "./IntakeFormStep";
-import { formatPrice } from "./helpers";
-import type { Service, ServiceAddOn } from "./types";
 import {
   getActiveIntakeFormsForBooking,
   getLastSubmissionForCurrentUser,
   type IntakeFormDefinitionRow,
 } from "@/app/dashboard/services/intake-form-actions";
+import { getPublicPolicies } from "@/app/dashboard/settings/settings-actions";
+import { Calendar } from "@/components/ui/calendar";
 import type { IntakeFormField } from "@/db/schema";
 import { enqueuePendingBooking } from "@/lib/booking-sync-db";
+import { CADENCE_OPTIONS, rruleToCadenceLabel } from "@/lib/cadence";
+import { useRecaptcha } from "@/lib/useRecaptcha";
+import { cn } from "@/lib/utils";
+import { SquarePaymentForm } from "./components/SquarePaymentForm";
+import { formatPrice } from "./helpers";
+import { IntakeFormStep } from "./IntakeFormStep";
+import type { Service, ServiceAddOn } from "./types";
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                             */
@@ -206,7 +205,6 @@ interface BookingState {
   photos: PhotoPreview[];
   selectedAddOnIds: Set<number>;
   tosAccepted: boolean;
-  turnstileToken: string;
   // Intake forms
   intakeForms: IntakeFormDefinitionRow[];
   intakePrefill: Record<number, Record<string, unknown>>;
@@ -243,7 +241,6 @@ const INITIAL_STATE: BookingState = {
   photos: [],
   selectedAddOnIds: new Set(),
   tosAccepted: false,
-  turnstileToken: "",
   intakeForms: [],
   intakePrefill: {},
   intakeResponses: [],
@@ -278,7 +275,6 @@ type BookingAction =
   | { type: "ADD_PHOTOS"; photos: PhotoPreview[] }
   | { type: "REMOVE_PHOTO"; index: number; revokedUrl: string }
   | { type: "SET_TOS_ACCEPTED"; value: boolean }
-  | { type: "SET_TURNSTILE_TOKEN"; token: string }
   | {
       type: "SET_INTAKE_FORMS";
       forms: IntakeFormDefinitionRow[];
@@ -361,8 +357,6 @@ function bookingReducer(state: BookingState, action: BookingAction): BookingStat
       return { ...state, photos: state.photos.filter((_, i) => i !== action.index) };
     case "SET_TOS_ACCEPTED":
       return { ...state, tosAccepted: action.value };
-    case "SET_TURNSTILE_TOKEN":
-      return { ...state, turnstileToken: action.token };
     case "SET_INTAKE_FORMS":
       return {
         ...state,
@@ -431,7 +425,6 @@ export function BookingRequestDialog({
     intakePrefill,
     intakeResponses,
     tosAccepted,
-    turnstileToken,
     pendingWaivers,
     waiversChecked,
     submitting,
@@ -441,9 +434,7 @@ export function BookingRequestDialog({
     error,
   } = state;
 
-  const handleTurnstileSuccess = useCallback((token: string) => {
-    dispatch({ type: "SET_TURNSTILE_TOKEN", token });
-  }, []);
+  const { executeRecaptcha } = useRecaptcha();
 
   // Listen for SW message when a queued offline booking is successfully retried
   useEffect(() => {
@@ -588,7 +579,7 @@ export function BookingRequestDialog({
                   name: guestName.trim(),
                   email: guestEmail.trim(),
                   phone: guestPhone.trim(),
-                  turnstileToken,
+                  recaptchaToken: await executeRecaptcha("deposit"),
                 }
               : {}),
           }),
@@ -618,7 +609,7 @@ export function BookingRequestDialog({
       guestName,
       guestEmail,
       guestPhone,
-      turnstileToken,
+      executeRecaptcha,
       selectedAddOns,
       tosVersion,
     ],
@@ -731,7 +722,7 @@ export function BookingRequestDialog({
           notes: notes.trim(),
           referencePhotoUrls,
           preferredCadence: cadence ? rruleToCadenceLabel(cadence) : undefined,
-          turnstileToken,
+          recaptchaToken: await executeRecaptcha("booking"),
           selectedAddOns: addOnPayload,
           tosAccepted: true,
           tosVersion,
@@ -751,7 +742,11 @@ export function BookingRequestDialog({
             await enqueuePendingBooking(guestPayload);
             if ("serviceWorker" in navigator && "SyncManager" in window) {
               const reg = await navigator.serviceWorker.ready;
-              await (reg as ServiceWorkerRegistration & { sync: { register(tag: string): Promise<void> } }).sync.register("guest-booking-sync");
+              await (
+                reg as ServiceWorkerRegistration & {
+                  sync: { register(tag: string): Promise<void> };
+                }
+              ).sync.register("guest-booking-sync");
             }
             dispatch({ type: "SAVED_OFFLINE" });
             return;
@@ -796,8 +791,12 @@ export function BookingRequestDialog({
         : step === "intake"
           ? 3
           : step === "confirm"
-            ? hasIntakeForms ? 4 : 3
-            : hasIntakeForms ? 5 : 4;
+            ? hasIntakeForms
+              ? 4
+              : 3
+            : hasIntakeForms
+              ? 5
+              : 4;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -968,7 +967,12 @@ export function BookingRequestDialog({
                 </div>
 
                 {timeSlots.length > 0 ? (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2" role="group" aria-label="Available time slots" aria-live="polite">
+                  <div
+                    className="grid grid-cols-2 sm:grid-cols-3 gap-2"
+                    role="group"
+                    aria-label="Available time slots"
+                    aria-live="polite"
+                  >
                     {timeSlots.map((slot) => (
                       <button
                         key={slot}
@@ -1003,9 +1007,7 @@ export function BookingRequestDialog({
                   version: def.version,
                 }))}
                 prefill={intakePrefill}
-                onSubmit={(responses) =>
-                  dispatch({ type: "SET_INTAKE_RESPONSES", responses })
-                }
+                onSubmit={(responses) => dispatch({ type: "SET_INTAKE_RESPONSES", responses })}
                 onBack={goBack}
               />
             )}
@@ -1151,7 +1153,10 @@ export function BookingRequestDialog({
                     <p className="text-xs font-medium text-stone-600">Your contact info</p>
                     <div className="space-y-1">
                       <label htmlFor="guest-name" className="text-xs font-medium text-stone-600">
-                        Full name <span className="text-red-400" aria-hidden="true">*</span>
+                        Full name{" "}
+                        <span className="text-red-400" aria-hidden="true">
+                          *
+                        </span>
                         <span className="sr-only">(required)</span>
                       </label>
                       <input
@@ -1159,7 +1164,9 @@ export function BookingRequestDialog({
                         type="text"
                         placeholder="Your full name"
                         value={guestName}
-                        onChange={(e) => dispatch({ type: "SET_GUEST_NAME", value: e.target.value })}
+                        onChange={(e) =>
+                          dispatch({ type: "SET_GUEST_NAME", value: e.target.value })
+                        }
                         required
                         aria-required="true"
                         className="w-full px-3.5 py-2.5 text-sm bg-white border border-stone-200 rounded-xl text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-[#e8c4b8] focus:border-[#96604a] transition"
@@ -1167,7 +1174,10 @@ export function BookingRequestDialog({
                     </div>
                     <div className="space-y-1">
                       <label htmlFor="guest-email" className="text-xs font-medium text-stone-600">
-                        Email address <span className="text-red-400" aria-hidden="true">*</span>
+                        Email address{" "}
+                        <span className="text-red-400" aria-hidden="true">
+                          *
+                        </span>
                         <span className="sr-only">(required)</span>
                       </label>
                       <input
@@ -1175,7 +1185,9 @@ export function BookingRequestDialog({
                         type="email"
                         placeholder="you@example.com"
                         value={guestEmail}
-                        onChange={(e) => dispatch({ type: "SET_GUEST_EMAIL", value: e.target.value })}
+                        onChange={(e) =>
+                          dispatch({ type: "SET_GUEST_EMAIL", value: e.target.value })
+                        }
                         required
                         aria-required="true"
                         className="w-full px-3.5 py-2.5 text-sm bg-white border border-stone-200 rounded-xl text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-[#e8c4b8] focus:border-[#96604a] transition"
@@ -1190,7 +1202,9 @@ export function BookingRequestDialog({
                         type="tel"
                         placeholder="(555) 555-0000"
                         value={guestPhone}
-                        onChange={(e) => dispatch({ type: "SET_GUEST_PHONE", value: e.target.value })}
+                        onChange={(e) =>
+                          dispatch({ type: "SET_GUEST_PHONE", value: e.target.value })
+                        }
                         className="w-full px-3.5 py-2.5 text-sm bg-white border border-stone-200 rounded-xl text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-[#e8c4b8] focus:border-[#96604a] transition"
                       />
                     </div>
@@ -1300,15 +1314,6 @@ export function BookingRequestDialog({
                   )}
                 </div>
 
-                {isGuest && (
-                  <Turnstile
-                    siteKey={env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
-                    onSuccess={handleTurnstileSuccess}
-                    onExpire={() => dispatch({ type: "SET_TURNSTILE_TOKEN", token: "" })}
-                    options={{ theme: "light", size: "flexible" }}
-                  />
-                )}
-
                 {pendingWaivers.length > 0 && !isGuest && (
                   <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 space-y-1.5">
                     <div className="flex items-start gap-2">
@@ -1370,7 +1375,7 @@ export function BookingRequestDialog({
 
                 <button
                   type="submit"
-                  disabled={submitting || (isGuest === true && !turnstileToken) || !tosAccepted}
+                  disabled={submitting || !tosAccepted}
                   className={cn(
                     "w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold transition-colors",
                     submitting

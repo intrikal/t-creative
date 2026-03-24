@@ -1,7 +1,7 @@
 /**
  * POST /api/book/pay-deposit — Process an inline deposit payment during booking.
  *
- * Accepts either an authenticated user or a guest (with Turnstile token).
+ * Accepts either an authenticated user or a guest (with reCAPTCHA token).
  * Creates the booking as "pending" (admin still confirms) with the deposit
  * already collected via Square Payments API.
  *
@@ -18,7 +18,7 @@
  *   idempotencyKey — client-generated UUID for Square payment dedup
  *
  * Guest-only fields (when not authenticated):
- *   name, email, phone, turnstileToken
+ *   name, email, phone, recaptchaToken
  */
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
@@ -31,9 +31,9 @@ import { logAction } from "@/lib/audit";
 import { rruleToCadenceLabel } from "@/lib/cadence";
 import { withRequestLogger } from "@/lib/middleware/request-logger";
 import { trackEvent } from "@/lib/posthog";
+import { verifyRecaptchaToken } from "@/lib/recaptcha";
 import { isResendConfigured, sendEmailHtml } from "@/lib/resend";
 import { isSquareConfigured, createSquarePayment } from "@/lib/square";
-import { verifyTurnstileToken } from "@/lib/turnstile";
 import { createClient } from "@/utils/supabase/server";
 
 const schema = z.object({
@@ -51,7 +51,7 @@ const schema = z.object({
   name: z.string().optional(),
   email: z.string().email().optional(),
   phone: z.string().optional(),
-  turnstileToken: z.string().optional(),
+  recaptchaToken: z.string().optional(),
 });
 
 export const POST = withRequestLogger(async function POST(request: Request) {
@@ -87,7 +87,7 @@ export const POST = withRequestLogger(async function POST(request: Request) {
     name: guestName,
     email: guestEmail,
     phone: guestPhone,
-    turnstileToken,
+    recaptchaToken,
   } = parsed.data;
 
   // ── Determine user identity ──
@@ -101,7 +101,7 @@ export const POST = withRequestLogger(async function POST(request: Request) {
     if (!guestName?.trim() || !guestEmail?.trim()) {
       return NextResponse.json({ error: "Name and email required for guests" }, { status: 400 });
     }
-    const validToken = await verifyTurnstileToken(turnstileToken ?? "");
+    const validToken = await verifyRecaptchaToken(recaptchaToken ?? "");
     if (!validToken) {
       return NextResponse.json({ error: "Bot check failed. Please try again." }, { status: 403 });
     }

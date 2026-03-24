@@ -34,7 +34,7 @@ const guestRequestSchema = z.object({
   notes: z.string().optional(),
   referencePhotoUrls: z.array(z.string().url()).optional(),
   preferredCadence: z.string().optional(),
-  turnstileToken: z.string().optional(),
+  recaptchaToken: z.string().optional(),
   selectedAddOns: z.array(z.object({ name: z.string(), priceInCents: z.number() })).optional(),
 });
 
@@ -53,7 +53,7 @@ const payDepositSchema = z.object({
   name: z.string().optional(),
   email: z.string().email().optional(),
   phone: z.string().optional(),
-  turnstileToken: z.string().optional(),
+  recaptchaToken: z.string().optional(),
 });
 
 // POST /api/book/waitlist
@@ -63,7 +63,7 @@ const waitlistSchema = z.object({
   email: z.string().email().optional(),
   datePreference: z.string().optional(),
   notes: z.string().optional(),
-  turnstileToken: z.string().optional(),
+  recaptchaToken: z.string().optional(),
 });
 
 // POST /api/chat/fallback
@@ -71,7 +71,7 @@ const chatFallbackSchema = z.object({
   name: z.string().min(1),
   email: z.string().email(),
   question: z.string().min(1),
-  turnstileToken: z.string().optional(),
+  recaptchaToken: z.string().optional(),
 });
 
 // POST /api/invites
@@ -157,7 +157,7 @@ describe("POST /api/book/guest-request — guestRequestSchema", () => {
       notes: "First appointment",
       referencePhotoUrls: ["https://cdn.example.com/photo.jpg"],
       preferredCadence: "Every 3 weeks",
-      turnstileToken: "token_abc",
+      recaptchaToken: "token_abc",
       selectedAddOns: [{ name: "Lash bath", priceInCents: 1500 }],
     });
   });
@@ -312,7 +312,7 @@ describe("POST /api/book/pay-deposit — payDepositSchema", () => {
       name: "Jane Guest",
       email: "jane@example.com",
       phone: "+18005550100",
-      turnstileToken: "cf-token-xyz",
+      recaptchaToken: "cf-token-xyz",
     });
   });
 
@@ -438,7 +438,7 @@ describe("POST /api/book/waitlist — waitlistSchema", () => {
       email: "aaliyah@example.com",
       datePreference: "Weekday mornings",
       notes: "Any time after school",
-      turnstileToken: "cf-token",
+      recaptchaToken: "cf-token",
     });
   });
 
@@ -494,8 +494,8 @@ describe("POST /api/chat/fallback — chatFallbackSchema", () => {
     ok(chatFallbackSchema, valid);
   });
 
-  it("happy path — with turnstileToken", () => {
-    ok(chatFallbackSchema, { ...valid, turnstileToken: "cf-token-123" });
+  it("happy path — with recaptchaToken", () => {
+    ok(chatFallbackSchema, { ...valid, recaptchaToken: "cf-token-123" });
   });
 
   it("empty body fails", () => {

@@ -4,12 +4,12 @@
  * Covers:
  *  - Input validation: invalid JSON, missing required fields, empty name,
  *    invalid email format, nonexistent service
- *  - Turnstile bot-check rejection (403)
+ *  - reCAPTCHA bot-check rejection (403)
  *  - Happy path: service found + admin exists → sends notification email to admin
  *  - Graceful degradation: no admin profile → 200 without sending email
  *  - Reference photo URLs included in the email HTML
  *
- * Mocks: db (select chain), Resend email sender, Turnstile verifier.
+ * Mocks: db (select chain), Resend email sender, reCAPTCHA verifier.
  * Does NOT mock Supabase auth — this route is fully unauthenticated.
  */
 // describe: groups related tests into a labeled block (like a folder for tests)
@@ -33,8 +33,8 @@ const mockInsert = vi.fn();
 const mockInsertValues = vi.fn();
 // mockResendSend: captures Resend SDK emails.send() calls
 const mockResendSend = vi.fn();
-// mockVerifyTurnstile: controls the bot-check result (true=pass, false=fail)
-const mockVerifyTurnstile = vi.fn();
+// mockVerifyRecaptcha: controls the bot-check result (true=pass, false=fail)
+const mockVerifyRecaptcha = vi.fn();
 
 // Builds a fake Drizzle DB instance that returns selectData rows in order
 function buildDb() {
@@ -76,7 +76,7 @@ describe("POST /api/book/guest-request", () => {
     vi.clearAllMocks();
     selectIdx = 0;
     selectData = [];
-    mockVerifyTurnstile.mockResolvedValue(true);
+    mockVerifyRecaptcha.mockResolvedValue(true);
     mockResendSend.mockResolvedValue({ id: "email-id" });
 
     vi.resetModules();
@@ -90,7 +90,7 @@ describe("POST /api/book/guest-request", () => {
       RESEND_FROM: "noreply@test.com",
       isResendConfigured: vi.fn().mockReturnValue(true),
     }));
-    vi.doMock("@/lib/turnstile", () => ({ verifyTurnstileToken: mockVerifyTurnstile }));
+    vi.doMock("@/lib/recaptcha", () => ({ verifyRecaptchaToken: mockVerifyRecaptcha }));
     vi.doMock("resend", () => ({
       Resend: function MockResend() {
         return { emails: { send: mockResendSend } };
@@ -132,8 +132,8 @@ describe("POST /api/book/guest-request", () => {
     expect(res.status).toBe(400);
   });
 
-  it("returns 403 when turnstile verification fails", async () => {
-    mockVerifyTurnstile.mockResolvedValueOnce(false);
+  it("returns 403 when reCAPTCHA verification fails", async () => {
+    mockVerifyRecaptcha.mockResolvedValueOnce(false);
     const res = await POST(
       makePost({ name: "Alice", email: "a@b.com", serviceId: "1", preferredDate: "Mon" }),
     );

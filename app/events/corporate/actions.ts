@@ -13,8 +13,8 @@ import { db } from "@/db";
 import { inquiries } from "@/db/schema";
 import { CorporateEventInquiry } from "@/emails/CorporateEventInquiry";
 import { trackEvent } from "@/lib/posthog";
+import { verifyRecaptchaToken } from "@/lib/recaptcha";
 import { sendEmail, RESEND_FROM } from "@/lib/resend";
-import { verifyTurnstileToken } from "@/lib/turnstile";
 
 export const corporateInquirySchema = z.object({
   contactName: z.string().min(2, "Name must be at least 2 characters"),
@@ -26,7 +26,7 @@ export const corporateInquirySchema = z.object({
   services: z.string().min(1, "Please select at least one service"),
   eventType: z.string().min(1, "Please select an event type"),
   details: z.string().optional(),
-  turnstileToken: z.string().min(1, "Bot check is required"),
+  recaptchaToken: z.string().min(1, "Bot check is required"),
 });
 
 export type CorporateInquiryInput = z.infer<typeof corporateInquirySchema>;
@@ -48,7 +48,7 @@ const serviceLabels: Record<string, string> = {
  * Processes a corporate event inquiry form submission.
  *
  * 1. Validates all fields with Zod (corporateInquirySchema).
- * 2. Verifies the Cloudflare Turnstile bot-check token.
+ * 2. Verifies the Google reCAPTCHA v3 bot-check token.
  * 3. Builds a structured message string from the corporate fields (company name,
  *    event type, headcount, preferred date, details).
  * 4. Inserts a row:
@@ -67,7 +67,7 @@ export async function submitCorporateInquiry(
     return { success: false, error: "Invalid form data. Please check your inputs." };
   }
 
-  const valid = await verifyTurnstileToken(parsed.data.turnstileToken);
+  const valid = await verifyRecaptchaToken(parsed.data.recaptchaToken);
   if (!valid) {
     return { success: false, error: "Bot check failed. Please try again." };
   }

@@ -6,8 +6,7 @@
  */
 "use client";
 
-import { useState, useCallback } from "react";
-import { Turnstile } from "@marsidev/react-turnstile";
+import { useState } from "react";
 import { useForm } from "@tanstack/react-form";
 import { format } from "date-fns";
 import { m } from "framer-motion";
@@ -16,11 +15,11 @@ import { z } from "zod";
 import { Footer } from "@/components/landing/Footer";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { env } from "@/lib/env";
+import { useRecaptcha } from "@/lib/useRecaptcha";
 import { cn } from "@/lib/utils";
 import { corporateInquirySchema, submitCorporateInquiry } from "./actions";
 
-type FormData = Omit<z.infer<typeof corporateInquirySchema>, "turnstileToken">;
+type FormData = Omit<z.infer<typeof corporateInquirySchema>, "recaptchaToken">;
 
 const inputClasses =
   "w-full px-4 py-3 bg-surface text-foreground text-sm border border-transparent outline-none focus-visible:ring-2 focus-visible:ring-focus transition-colors";
@@ -45,10 +44,7 @@ const serviceOptions = [
 export function CorporateInquiryForm() {
   const [submitted, setSubmitted] = useState(false);
   const [serverError, setServerError] = useState("");
-  const [turnstileToken, setTurnstileToken] = useState("");
-  const handleTurnstileSuccess = useCallback((token: string) => {
-    setTurnstileToken(token);
-  }, []);
+  const { executeRecaptcha } = useRecaptcha();
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>();
 
@@ -66,7 +62,8 @@ export function CorporateInquiryForm() {
     } as FormData,
     onSubmit: async ({ value }) => {
       setServerError("");
-      const result = await submitCorporateInquiry({ ...value, turnstileToken });
+      const recaptchaToken = await executeRecaptcha("corporate_inquiry");
+      const result = await submitCorporateInquiry({ ...value, recaptchaToken });
       if (result.success) {
         setSubmitted(true);
       } else {
@@ -473,13 +470,6 @@ export function CorporateInquiryForm() {
                     )}
                   </form.Field>
 
-                  <Turnstile
-                    siteKey={env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
-                    onSuccess={handleTurnstileSuccess}
-                    onExpire={() => setTurnstileToken("")}
-                    options={{ theme: "light" }}
-                  />
-
                   {serverError && (
                     <p className={errorClasses} role="alert">
                       {serverError}
@@ -490,7 +480,7 @@ export function CorporateInquiryForm() {
                     {(isSubmitting) => (
                       <button
                         type="submit"
-                        disabled={isSubmitting || !turnstileToken}
+                        disabled={isSubmitting}
                         className="self-start px-8 py-3.5 text-xs tracking-wide uppercase bg-foreground text-background hover:bg-muted transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {isSubmitting ? "Sending..." : "Submit Inquiry"}

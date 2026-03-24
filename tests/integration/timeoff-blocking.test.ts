@@ -327,7 +327,7 @@ function setupMocks(db: ReturnType<typeof createStatefulDb>) {
       NEXT_PUBLIC_SUPABASE_ANON_KEY: "test-anon-key",
       SUPABASE_SERVICE_ROLE_KEY: "test-service-role-key",
       RESEND_API_KEY: "re_test",
-      NEXT_PUBLIC_TURNSTILE_SITE_KEY: "test-key",
+      NEXT_PUBLIC_RECAPTCHA_SITE_KEY: "test-key",
       UPSTASH_REDIS_REST_URL: "https://test.upstash.io",
       UPSTASH_REDIS_REST_TOKEN: "test-token",
     },

@@ -219,7 +219,8 @@ export function StepShiftAvailability({ form, onNext, stepNum }: StepProps) {
           When are you available?
         </h1>
         <p className="text-muted text-sm mt-1">
-          Tap dates to mark yourself open. Navigate months to plan ahead.
+          Set your default hours, then tap dates to mark yourself open. Tap a selected date to set
+          custom hours for that day.
         </p>
       </m.div>
 
@@ -414,8 +415,13 @@ export function StepShiftAvailability({ form, onNext, stepNum }: StepProps) {
                 disabled={isPast}
                 onClick={() => {
                   if (isSelected) {
-                    toggleDate(key);
-                    setExpandedDate(null);
+                    // If already expanded, deselect; otherwise open the override panel
+                    if (isExpanded) {
+                      toggleDate(key);
+                      setExpandedDate(null);
+                    } else {
+                      setExpandedDate(key);
+                    }
                   } else {
                     toggleDate(key);
                     setExpandedDate(key);
@@ -552,11 +558,11 @@ export function StepShiftAvailability({ form, onNext, stepNum }: StepProps) {
           {selectedCount > 0 ? (
             <>
               <strong className="text-foreground/60">{selectedCount}</strong>{" "}
-              {selectedCount === 1 ? "day" : "days"} selected — tap again to remove, or customize
-              hours above
+              {selectedCount === 1 ? "day" : "days"} selected — tap a selected date to adjust its
+              hours, or tap again to remove
             </>
           ) : (
-            "Tap any date to mark yourself available — tap again to remove"
+            "Tap any date to mark yourself available. You can customize hours per day after selecting."
           )}
         </p>
       </m.div>

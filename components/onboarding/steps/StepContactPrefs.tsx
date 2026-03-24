@@ -182,8 +182,7 @@ export function StepContactPrefs({ form, onNext, stepNum, avatarUrl }: StepProps
             transition={{ delay: 0.25, duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
           >
             <label className="block text-[10px] font-medium text-muted uppercase tracking-widest mb-2">
-              Instagram{" "}
-              <span className="normal-case text-muted/50">(optional — for your portfolio)</span>
+              Personal Instagram <span className="normal-case text-muted/50">(optional)</span>
             </label>
             <div className="flex items-center max-w-[360px] border-b-2 border-foreground/15 focus-within:border-accent transition-colors duration-200">
               <span className="text-muted/50 text-lg pb-2 pr-0.5 select-none">@</span>

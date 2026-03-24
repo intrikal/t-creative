@@ -350,8 +350,8 @@ export function StepRoleSkills({ form, onNext, stepNum }: StepProps) {
             <label className="block text-[10px] font-medium text-muted uppercase tracking-widest mb-1.5">
               Short Bio <span className="normal-case text-muted/50">(optional)</span>
             </label>
-            <input
-              type="text"
+            <textarea
+              rows={2}
               placeholder="A few words about yourself..."
               value={field.state.value}
               onChange={(e) => field.handleChange(e.target.value)}
@@ -361,7 +361,7 @@ export function StepRoleSkills({ form, onNext, stepNum }: StepProps) {
                 field.handleBlur();
               }}
               className="w-full max-w-[360px] px-0 py-1.5 text-sm bg-transparent border-b-2 border-foreground/15
-                placeholder:text-muted/30 text-foreground focus:outline-none focus:border-accent transition-colors duration-200"
+                placeholder:text-muted/30 text-foreground focus:outline-none focus:border-accent transition-colors duration-200 resize-none"
             />
           </m.div>
         )}

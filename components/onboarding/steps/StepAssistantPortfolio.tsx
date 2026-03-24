@@ -96,7 +96,7 @@ export function StepAssistantPortfolio({ form, onNext, stepNum }: StepProps) {
           >
             <label className="block text-[10px] font-medium text-muted uppercase tracking-widest mb-1.5">
               Portfolio Instagram{" "}
-              <span className="normal-case text-muted/50">(separate from personal, optional)</span>
+              <span className="normal-case text-muted/50">(work account, optional)</span>
             </label>
             <div className="relative max-w-[360px]">
               <span className="absolute left-0 top-1/2 -translate-y-1/2 text-muted/50 text-base select-none">

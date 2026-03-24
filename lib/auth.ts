@@ -62,8 +62,13 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
  * Throws "Not authenticated" (→ 401) or "Forbidden" (→ 403) otherwise.
  * Returns the Supabase auth user object on success.
  *
+ * Uses getSession() (local JWT decode from cookie, no network round-trip)
+ * for speed in server actions. The proxy middleware already validates the
+ * real token against Supabase's auth server on every request, so we can
+ * safely trust the cookie here.
+ *
  * Wrapped with React `cache()` so repeated calls within the same server
- * render are deduplicated to a single Supabase + DB round-trip.
+ * render are deduplicated to a single DB round-trip.
  */
 export const requireAdmin = cache(async () => {
   const supabase = await createClient();

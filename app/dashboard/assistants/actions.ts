@@ -46,7 +46,6 @@ import {
   services,
 } from "@/db/schema";
 import { requireAdmin, getUser as getAuthUser } from "@/lib/auth";
-import { trackEvent } from "@/lib/posthog";
 
 /* ------------------------------------------------------------------ */
 /*  Auth guard                                                         */
@@ -228,6 +227,33 @@ export async function getAssistantAvailability(): Promise<AvailabilityRow[]> {
       opensAt: r.opensAt,
       closesAt: r.closesAt,
     }));
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
+  }
+}
+
+/**
+ * Upsert a single day's availability for an assistant.
+ * Deletes any existing row for (staffId, dayOfWeek) then inserts the new one.
+ */
+export async function upsertAssistantAvailability(
+  staffId: string,
+  dayOfWeek: number,
+  isOpen: boolean,
+  opensAt: string | null,
+  closesAt: string | null,
+): Promise<void> {
+  try {
+    await getUser();
+
+    await db
+      .delete(businessHours)
+      .where(and(eq(businessHours.staffId, staffId), eq(businessHours.dayOfWeek, dayOfWeek)));
+
+    await db.insert(businessHours).values({ staffId, dayOfWeek, isOpen, opensAt, closesAt });
+
+    revalidatePath("/dashboard/team");
   } catch (err) {
     Sentry.captureException(err);
     throw err;
@@ -663,7 +689,13 @@ export async function getCommissionsData(): Promise<CommissionRow[]> {
       })
       .from(bookings)
       .innerJoin(payments, eq(payments.bookingId, bookings.id))
-      .where(and(eq(bookings.status, "completed"), eq(payments.status, "paid"), lt(bookings.startsAt, startOfThisMonth)))
+      .where(
+        and(
+          eq(bookings.status, "completed"),
+          eq(payments.status, "paid"),
+          lt(bookings.startsAt, startOfThisMonth),
+        ),
+      )
       .groupBy(bookings.staffId)
       .as("prior_tips");
 
@@ -1013,7 +1045,7 @@ export async function generatePayStub(
     // Transform each completed booking into a PayStubEntry with commission and
     // tip calculations applied. Client name is abbreviated to "First L." for
     // privacy when the stub is printed/exported.
-    const entries: PayStubEntry[] = bookingRows.map((r, i) => {
+    const entries: PayStubEntry[] = bookingRows.map((r) => {
       const gross = r.totalInCents;
       const tip = Number(r.tipInCents ?? 0);
       const serviceEarned = calcServiceEarned(commissionType, rate, flatFeeInCents, gross, 1);
@@ -1241,8 +1273,12 @@ export async function generateCommissionReport(
     const cat = e.serviceCategory || "Other";
     if (!byCategory[cat]) {
       byCategory[cat] = {
-        sessions: 0, revenueInCents: 0, commissionInCents: 0,
-        tipsInCents: 0, tipEarnedInCents: 0, totalEarnedInCents: 0,
+        sessions: 0,
+        revenueInCents: 0,
+        commissionInCents: 0,
+        tipsInCents: 0,
+        tipEarnedInCents: 0,
+        totalEarnedInCents: 0,
       };
     }
     byCategory[cat].sessions++;
@@ -1263,8 +1299,12 @@ export async function generateCommissionReport(
       totalEarnedInCents: acc.totalEarnedInCents + e.totalEarnedInCents,
     }),
     {
-      sessions: 0, revenueInCents: 0, commissionInCents: 0,
-      tipsInCents: 0, tipEarnedInCents: 0, totalEarnedInCents: 0,
+      sessions: 0,
+      revenueInCents: 0,
+      commissionInCents: 0,
+      tipsInCents: 0,
+      tipEarnedInCents: 0,
+      totalEarnedInCents: 0,
     },
   );
 

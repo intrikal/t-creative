@@ -1,9 +1,10 @@
 "use client";
 
-import { type ReactNode, useState, useCallback, useEffect } from "react";
-import { SidebarContext } from "./sidebar-context";
-import { LocationContext } from "./location-context";
+import { type ReactNode, useState, useCallback } from "react";
+import { QueryProvider } from "@/components/providers/QueryProvider";
 import type { LocationRow } from "./location-actions";
+import { LocationContext } from "./location-context";
+import { SidebarContext } from "./sidebar-context";
 
 const LOCATION_STORAGE_KEY = "tc-selected-location";
 
@@ -23,35 +24,26 @@ export function DashboardShell({
   const openDrawer = useCallback(() => setDrawerOpen(true), []);
   const closeDrawer = useCallback(() => setDrawerOpen(false), []);
 
-  // Location state — default to first location, persist selection in localStorage
+  // Location state — default to first location, hydrate from localStorage
   const [selectedLocationId, setSelectedLocationId] = useState<number | null>(() => {
-    // SSR-safe: default to first location
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem(LOCATION_STORAGE_KEY);
+      if (stored) {
+        const parsed = Number(stored);
+        if (initialLocations.some((l) => l.id === parsed)) return parsed;
+      }
+    }
     return initialLocations[0]?.id ?? null;
   });
 
-  // Hydrate from localStorage on mount
-  useEffect(() => {
-    const stored = localStorage.getItem(LOCATION_STORAGE_KEY);
-    if (stored) {
-      const parsed = Number(stored);
-      // Validate that the stored location still exists
-      if (initialLocations.some((l) => l.id === parsed)) {
-        setSelectedLocationId(parsed);
-      }
+  const setLocationId = useCallback((id: number | null) => {
+    setSelectedLocationId(id);
+    if (id !== null) {
+      localStorage.setItem(LOCATION_STORAGE_KEY, String(id));
+    } else {
+      localStorage.removeItem(LOCATION_STORAGE_KEY);
     }
-  }, [initialLocations]);
-
-  const setLocationId = useCallback(
-    (id: number | null) => {
-      setSelectedLocationId(id);
-      if (id !== null) {
-        localStorage.setItem(LOCATION_STORAGE_KEY, String(id));
-      } else {
-        localStorage.removeItem(LOCATION_STORAGE_KEY);
-      }
-    },
-    [],
-  );
+  }, []);
 
   return (
     <SidebarContext.Provider value={{ expanded, toggle, drawerOpen, openDrawer, closeDrawer }}>
@@ -62,9 +54,9 @@ export function DashboardShell({
           setLocationId,
         }}
       >
-        <div className="flex h-screen overflow-hidden bg-background">
-          {children}
-        </div>
+        <QueryProvider>
+          <div className="flex h-screen overflow-hidden bg-background">{children}</div>
+        </QueryProvider>
       </LocationContext.Provider>
     </SidebarContext.Provider>
   );

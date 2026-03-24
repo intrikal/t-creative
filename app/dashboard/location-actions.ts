@@ -6,8 +6,8 @@
  */
 "use server";
 
+import { revalidatePath, revalidateTag, unstable_cache } from "next/cache";
 import * as Sentry from "@sentry/nextjs";
-import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
@@ -24,15 +24,18 @@ export type LocationRow = typeof locations.$inferSelect;
 /*  Read                                                               */
 /* ------------------------------------------------------------------ */
 
+/** Cached DB fetch — revalidated when locations are mutated. */
+const fetchActiveLocations = unstable_cache(
+  () => db.select().from(locations).where(eq(locations.isActive, true)).orderBy(locations.name),
+  ["active-locations"],
+  { revalidate: 300, tags: ["active-locations"] },
+);
+
 /** Get all active locations — used by the dashboard location selector. */
 export async function getActiveLocations(): Promise<LocationRow[]> {
   try {
     await getUser();
-    return db
-      .select()
-      .from(locations)
-      .where(eq(locations.isActive, true))
-      .orderBy(locations.name);
+    return await fetchActiveLocations();
   } catch (err) {
     Sentry.captureException(err);
     return [];
@@ -82,6 +85,7 @@ export async function createLocation(
         squareLocationId: input.squareLocationId ?? null,
       })
       .returning();
+    revalidateTag("active-locations");
     revalidatePath("/dashboard");
     return row;
   } catch (err) {
@@ -96,11 +100,8 @@ export async function updateLocation(
 ): Promise<LocationRow> {
   try {
     await requireAdmin();
-    const [row] = await db
-      .update(locations)
-      .set(input)
-      .where(eq(locations.id, id))
-      .returning();
+    const [row] = await db.update(locations).set(input).where(eq(locations.id, id)).returning();
+    revalidateTag("active-locations");
     revalidatePath("/dashboard");
     return row;
   } catch (err) {

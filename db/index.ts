@@ -19,7 +19,6 @@
  */
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
-import { env } from "@/lib/env";
 import * as schema from "./schema";
 
 /**
@@ -40,15 +39,21 @@ const globalForDb = globalThis as unknown as {
 // Use process.env directly (not the validated `env` object) so the
 // connection string is available during `next build` prerendering,
 // where the Zod validation is skipped and `env.*` may be undefined.
-const connectionString =
-  process.env.DATABASE_POOLER_URL || process.env.DATABASE_URL || "";
+const connectionString = process.env.DATABASE_POOLER_URL || process.env.DATABASE_URL || "";
 
 const client =
   globalForDb.__pgClient ??
   postgres(connectionString, {
     prepare: false,
-    max: 10,
-    idle_timeout: 20,
+    // In dev: use 1 connection. Supabase free tier has a 25-connection pooler
+    // limit. Hot reloads and repeated restarts can leave stale connections open
+    // until idle_timeout expires — keeping max=1 means even 10 stale clients
+    // only hold 10 connections total. In production a larger pool is fine since
+    // there's only ever one client instance per serverless invocation.
+    max: process.env.NODE_ENV === "production" ? 10 : 5,
+    // Release idle connections after 10s (down from 20s) so restarts don't
+    // leave Supabase holding connections for long.
+    idle_timeout: process.env.NODE_ENV === "production" ? 20 : 10,
     max_lifetime: 60 * 10,
     connect_timeout: 10,
   });

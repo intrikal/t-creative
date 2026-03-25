@@ -4,8 +4,8 @@ import { useState } from "react";
 import { Search, Star, CalendarDays, Clock, Users } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Card, CardContent } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
 import type { AssistantClientRow, AssistantClientStats } from "@/lib/types/client.types";
+import { cn } from "@/lib/utils";
 
 function categoryDot(cat: string) {
   return (
@@ -36,9 +36,11 @@ export function AssistantClientsPage({
   });
 
   return (
-    <div className="p-4 md:p-6 lg:p-8 space-y-6">
+    <div className="p-4 md:p-6 lg:p-8 space-y-4">
       <div>
-        <h1 className="text-xl font-semibold text-foreground tracking-tight">My Clients</h1>
+        <h1 className="text-2xl sm:text-3xl font-semibold text-foreground tracking-tight">
+          My Clients
+        </h1>
         <p className="text-sm text-muted mt-0.5">
           {stats.totalClients} client{stats.totalClients !== 1 ? "s" : ""} you&apos;ve worked with
         </p>

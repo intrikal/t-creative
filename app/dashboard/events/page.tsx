@@ -21,7 +21,16 @@ export default async function Page() {
     return <ClientEventsPage events={events} />;
   }
 
-  // Admin and assistant both see the full events management view
+  if (user.profile?.role === "assistant") {
+    const [{ getAssistantEvents }, { AssistantEventsPage }] = await Promise.all([
+      import("./assistant-actions"),
+      import("./AssistantEventsPage"),
+    ]);
+    const { events: evts, stats } = await getAssistantEvents();
+    return <AssistantEventsPage initialEvents={evts} stats={stats} />;
+  }
+
+  // Admin — full CRUD with venues and staff
   const [{ getEvents, getVenues, getStaffForEvents }, { EventsPage }] = await Promise.all([
     import("./actions"),
     import("./EventsPage"),

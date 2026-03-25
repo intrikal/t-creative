@@ -15,8 +15,32 @@ export default async function Page() {
   if (!user) redirect("/login");
   if (user.profile?.role === "client") redirect("/dashboard");
 
-  const { appointments, stats, todayKey } = await getScheduleData();
+  if (user.profile?.role === "assistant") {
+    const [{ getAssistantBookings }, { getAssistantEvents }] = await Promise.all([
+      import("../bookings/actions"),
+      import("../events/assistant-actions"),
+    ]);
 
+    const [scheduleData, bookingsData, eventsData] = await Promise.all([
+      getScheduleData(),
+      getAssistantBookings(),
+      getAssistantEvents(),
+    ]);
+
+    return (
+      <AssistantSchedulePage
+        initialAppointments={scheduleData.appointments}
+        stats={scheduleData.stats}
+        todayKey={scheduleData.todayKey}
+        bookings={bookingsData.bookings}
+        bookingStats={bookingsData.stats}
+        events={eventsData.events}
+        eventStats={eventsData.stats}
+      />
+    );
+  }
+
+  const { appointments, stats, todayKey } = await getScheduleData();
   return (
     <AssistantSchedulePage initialAppointments={appointments} stats={stats} todayKey={todayKey} />
   );

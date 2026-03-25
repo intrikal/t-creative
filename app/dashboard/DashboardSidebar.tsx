@@ -101,7 +101,6 @@ const ASSISTANT_NAV_GROUPS: NavGroup[] = [
       { href: "/dashboard/get-started", label: "Get Started", icon: Rocket },
       { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
       { href: "/dashboard/schedule", label: "Schedule", icon: CalendarRange },
-      { href: "/dashboard/bookings", label: "Bookings", icon: CalendarCheck },
       { href: "/dashboard/messages", label: "Messages", icon: MessageSquare },
       { href: "/dashboard/notifications", label: "Notifications", icon: Bell },
     ],
@@ -111,7 +110,6 @@ const ASSISTANT_NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/dashboard/clients", label: "My Clients", icon: Users },
       { href: "/dashboard/services", label: "Services", icon: Scissors },
-      { href: "/dashboard/events", label: "Events", icon: CalendarDays },
     ],
   },
   {

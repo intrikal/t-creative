@@ -4,6 +4,7 @@ import { PostHogIdentify } from "@/components/providers/PostHogIdentify";
 import { getCurrentUser } from "@/lib/auth";
 import { getAdminSetupData } from "./admin-setup-data";
 import { getAssistantSetupData } from "./assistant-setup-data";
+import { getClientSetupData } from "./client-setup-data";
 import { DashboardMain } from "./DashboardMain";
 import { DashboardShell } from "./DashboardShell";
 import { DashboardSidebar } from "./DashboardSidebar";
@@ -32,7 +33,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
       ? getAdminSetupData(user.id).then((d) => d.setupProgress)
       : role === "assistant"
         ? getAssistantSetupData(user.id).then((d) => d.setupProgress)
-        : Promise.resolve(undefined),
+        : getClientSetupData(user.id).then((d) => d.setupProgress),
     getActiveLocations(),
   ]);
 

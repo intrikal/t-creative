@@ -3,7 +3,9 @@ import type { Metadata } from "next";
 import { getCurrentUser } from "@/lib/auth";
 import { getAdminSetupData } from "../admin-setup-data";
 import { getAssistantSetupData } from "../assistant-setup-data";
+import { getClientSetupData } from "../client-setup-data";
 import { AssistantGetStartedPage } from "./AssistantGetStartedPage";
+import { ClientGetStartedPage } from "./ClientGetStartedPage";
 import { GettingStartedPage } from "./GettingStartedPage";
 
 export const metadata: Metadata = {
@@ -17,7 +19,18 @@ export default async function Page() {
   if (!user) redirect("/login");
 
   const role = user.profile?.role;
-  if (role !== "admin" && role !== "assistant") redirect("/dashboard");
+
+  if (role === "client") {
+    const data = await getClientSetupData(user.id);
+    return (
+      <ClientGetStartedPage
+        firstName={data.firstName}
+        hasProfile={data.hasProfile}
+        hasPreferences={data.hasPreferences}
+        hasPolicies={data.hasPolicies}
+      />
+    );
+  }
 
   if (role === "assistant") {
     const data = await getAssistantSetupData(user.id);

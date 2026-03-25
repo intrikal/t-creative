@@ -4,31 +4,31 @@ import type React from "react";
 import Link from "next/link";
 import {
   UserCircle,
-  CalendarRange,
+  Heart,
   ShieldCheck,
   Check,
-  CalendarCheck,
+  CalendarPlus,
   MessageSquare,
-  GraduationCap,
+  ShoppingBag,
   Star,
-  DollarSign,
-  Scissors,
+  Gift,
   Bell,
   PartyPopper,
   ArrowRight,
+  Camera,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
-interface AssistantGetStartedPageProps {
+interface ClientGetStartedPageProps {
   firstName: string;
   hasProfile: boolean;
-  hasAvailability: boolean;
-  hasEmergencyAndPolicies: boolean;
+  hasPreferences: boolean;
+  hasPolicies: boolean;
 }
 
 /* ------------------------------------------------------------------ */
-/*  Setup step card (numbered, gradient left, content right)            */
+/*  Setup step card                                                    */
 /* ------------------------------------------------------------------ */
 
 function SetupStepCard({
@@ -147,35 +147,36 @@ function NextStepRow({
 /*  Main component                                                     */
 /* ------------------------------------------------------------------ */
 
-export function AssistantGetStartedPage({
+export function ClientGetStartedPage({
   firstName,
   hasProfile,
-  hasAvailability,
-  hasEmergencyAndPolicies,
-}: AssistantGetStartedPageProps) {
+  hasPreferences,
+  hasPolicies,
+}: ClientGetStartedPageProps) {
   const steps = [
     {
       done: hasProfile,
       title: "Complete your profile",
       description:
-        "Add your name, skills, experience level, and a short bio so clients know who you are.",
+        "Tell us your name and what services you\u2019re interested in so we can personalize your experience.",
       href: "/onboarding",
       icon: UserCircle,
       gradient: "bg-gradient-to-br from-[#c4907a] to-[#d4a574]",
     },
     {
-      done: hasAvailability,
-      title: "Set your availability",
+      done: hasPreferences,
+      title: "Set your preferences",
       description:
-        "Select the dates and hours you\u2019re available so you can start getting booked.",
+        "Let us know about any allergies or sensitivities, and when you\u2019re typically available.",
       href: "/onboarding",
-      icon: CalendarRange,
+      icon: Heart,
       gradient: "bg-gradient-to-br from-[#96604a] to-[#c4907a]",
     },
     {
-      done: hasEmergencyAndPolicies,
-      title: "Emergency contact & policies",
-      description: "Add your emergency contact and acknowledge studio policies to complete setup.",
+      done: hasPolicies,
+      title: "Review policies & consent",
+      description:
+        "Agree to our cancellation policy and liability waiver so you can start booking.",
       href: "/onboarding",
       icon: ShieldCheck,
       gradient: "bg-gradient-to-br from-[#5b8a8a] to-[#7ba3a3]",
@@ -189,32 +190,32 @@ export function AssistantGetStartedPage({
 
   const nextSteps = [
     {
-      icon: CalendarCheck,
-      title: "Check your schedule",
-      description: "See your upcoming appointments and make sure your calendar looks right.",
-      buttonLabel: "View Schedule",
-      href: "/dashboard/schedule",
+      icon: CalendarPlus,
+      title: "Book your first appointment",
+      description: "Browse available services and pick a time that works for you.",
+      buttonLabel: "Book Now",
+      href: "/dashboard/book",
     },
     {
-      icon: Scissors,
-      title: "Browse services",
-      description: "Review the services you\u2019ll be offering to clients.",
-      buttonLabel: "View Services",
-      href: "/dashboard/services",
+      icon: ShoppingBag,
+      title: "Browse the shop",
+      description: "Check out products, gift cards, and custom orders.",
+      buttonLabel: "View Shop",
+      href: "/dashboard/shop",
     },
     {
       icon: MessageSquare,
-      title: "Check your messages",
-      description: "See if the studio owner or any clients have messaged you.",
-      buttonLabel: "View Messages",
+      title: "Send a message",
+      description: "Have a question? Reach out to the studio directly.",
+      buttonLabel: "Messages",
       href: "/dashboard/messages",
     },
     {
-      icon: GraduationCap,
-      title: "Explore training",
-      description: "Check available training programs and certifications.",
-      buttonLabel: "View Training",
-      href: "/dashboard/training",
+      icon: Camera,
+      title: "View the gallery",
+      description: "See before & after photos and get inspired for your next visit.",
+      buttonLabel: "View Gallery",
+      href: "/dashboard/gallery",
     },
   ];
 
@@ -223,16 +224,12 @@ export function AssistantGetStartedPage({
       {/* Header */}
       <div>
         <h1 className="text-2xl sm:text-3xl font-semibold text-foreground tracking-tight">
-          {allDone ? (
-            <>Welcome aboard, {firstName || "there"}!</>
-          ) : (
-            <>Welcome, {firstName || "there"}!</>
-          )}
+          {allDone ? <>Welcome, {firstName || "there"}!</> : <>Hey, {firstName || "there"}!</>}
         </h1>
         <p className="text-sm text-muted mt-1">
           {allDone
-            ? "You\u2019re all set up. Here\u2019s what you can do next."
-            : "Let\u2019s get you set up so you can start taking appointments."}
+            ? "You\u2019re all set. Here\u2019s what you can do next."
+            : "Let\u2019s get you set up so you can start booking."}
         </p>
       </div>
 
@@ -245,24 +242,23 @@ export function AssistantGetStartedPage({
                 <PartyPopper className="w-6 h-6 text-[#4e6b51]" />
               </div>
               <div>
-                <p className="text-sm font-semibold text-foreground">Setup complete!</p>
+                <p className="text-sm font-semibold text-foreground">You&apos;re all set!</p>
                 <p className="text-xs text-muted mt-0.5 leading-relaxed">
-                  Your profile, availability, and policies are all set. You&apos;re ready to start
-                  taking appointments.
+                  Your profile is complete. You&apos;re ready to book your first appointment.
                 </p>
               </div>
               <Link
-                href="/dashboard"
+                href="/dashboard/book"
                 className="px-4 py-2 rounded-lg bg-[#4e6b51] text-white text-xs font-semibold hover:bg-[#4e6b51]/90 transition-colors shrink-0 ml-auto"
               >
-                Go to Dashboard
+                Book Now
               </Link>
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* Setup progress — hidden when all done */}
+      {/* Setup progress */}
       {!allDone && (
         <Card className="gap-0">
           <CardContent className="px-5 py-5 space-y-4">
@@ -270,7 +266,7 @@ export function AssistantGetStartedPage({
               <div>
                 <h2 className="text-lg font-semibold text-foreground">Finish setting up</h2>
                 <p className="text-sm text-muted mt-0.5">
-                  {`You\u2019re just ${remaining} step${remaining !== 1 ? "s" : ""} away from being ready!`}
+                  {`You\u2019re just ${remaining} step${remaining !== 1 ? "s" : ""} away from booking!`}
                 </p>
               </div>
 
@@ -301,12 +297,12 @@ export function AssistantGetStartedPage({
         </Card>
       )}
 
-      {/* Next steps + tips side by side */}
+      {/* Next steps + tips */}
       <div className="grid grid-cols-1 xl:grid-cols-5 gap-4">
-        {/* Next steps — left */}
+        {/* Next steps */}
         <div className="xl:col-span-3">
           <h2 className="text-lg font-semibold text-foreground mb-3">
-            {allDone ? "Explore your dashboard" : "Your next steps"}
+            {allDone ? "Explore" : "Your next steps"}
           </h2>
           <div className="space-y-2">
             {nextSteps.map((step) => (
@@ -315,9 +311,26 @@ export function AssistantGetStartedPage({
           </div>
         </div>
 
-        {/* Tips — right */}
+        {/* Tips */}
         <div className="xl:col-span-2 space-y-4">
           <h2 className="text-lg font-semibold text-foreground">Tips</h2>
+
+          <Card className="gap-0">
+            <CardContent className="px-5 py-4">
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-lg bg-[#d4a574]/10 flex items-center justify-center shrink-0 mt-0.5">
+                  <Gift className="w-4 h-4 text-[#d4a574]" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-foreground">Earn loyalty points</p>
+                  <p className="text-xs text-muted mt-1 leading-relaxed">
+                    You earn points with every visit, referral, and review. Redeem them for
+                    discounts and perks.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
           <Card className="gap-0">
             <CardContent className="px-5 py-4">
@@ -326,10 +339,10 @@ export function AssistantGetStartedPage({
                   <Star className="w-4 h-4 text-[#c4907a]" />
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-foreground">Build your reputation</p>
+                  <p className="text-sm font-semibold text-foreground">Leave a review</p>
                   <p className="text-xs text-muted mt-1 leading-relaxed">
-                    After each appointment, clients can leave reviews. Great reviews help you get
-                    more bookings.
+                    After your appointment, leave a review to help others and earn bonus loyalty
+                    points.
                   </p>
                 </div>
               </div>
@@ -340,36 +353,16 @@ export function AssistantGetStartedPage({
             <CardContent className="px-5 py-4">
               <div className="flex items-start gap-3">
                 <div className="w-8 h-8 rounded-lg bg-[#5b8a8a]/10 flex items-center justify-center shrink-0 mt-0.5">
-                  <DollarSign className="w-4 h-4 text-[#5b8a8a]" />
+                  <Bell className="w-4 h-4 text-[#5b8a8a]" />
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-foreground">Track your earnings</p>
-                  <p className="text-xs text-muted mt-1 leading-relaxed">
-                    Visit{" "}
-                    <Link href="/dashboard/earnings" className="text-accent hover:underline">
-                      Earnings
-                    </Link>{" "}
-                    to see your commissions, tips, and payout history.
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="gap-0">
-            <CardContent className="px-5 py-4">
-              <div className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded-lg bg-[#d4a574]/10 flex items-center justify-center shrink-0 mt-0.5">
-                  <Bell className="w-4 h-4 text-[#d4a574]" />
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-foreground">Stay in the loop</p>
+                  <p className="text-sm font-semibold text-foreground">Never miss an appointment</p>
                   <p className="text-xs text-muted mt-1 leading-relaxed">
                     Check{" "}
                     <Link href="/dashboard/notifications" className="text-accent hover:underline">
                       Notifications
                     </Link>{" "}
-                    to make sure you&apos;re getting booking alerts and schedule changes.
+                    to make sure you&apos;re getting booking reminders.
                   </p>
                 </div>
               </div>

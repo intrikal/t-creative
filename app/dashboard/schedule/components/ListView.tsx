@@ -12,23 +12,32 @@ import { Building2, Clock, MapPin } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
 import type { AppointmentRow } from "@/lib/types/booking.types";
+import { cn } from "@/lib/utils";
 import { statusConfig, categoryDot } from "./helpers";
 
 export function ListView({
   appointments,
   todayLabel,
   onApptClick,
+  selectedDateKey,
 }: {
   appointments: AppointmentRow[];
   todayLabel: string;
   onApptClick: (a: AppointmentRow) => void;
+  /** Optional YYYY-MM-DD filter — when set, only shows that day's appointments */
+  selectedDateKey?: string | null;
 }) {
+  // When a date is selected from the mini calendar, filter to just that day.
+  // Otherwise show all appointments grouped by day.
+  const filtered = selectedDateKey
+    ? appointments.filter((a) => a.date === selectedDateKey)
+    : appointments;
+
   // reduce: group appointments into a Record keyed by dayLabel so each
   // day renders as a separate card. Nullish coalescing (??=) initialises
   // the array on first encounter of a new day key.
-  const byDay = appointments.reduce<Record<string, AppointmentRow[]>>((acc, a) => {
+  const byDay = filtered.reduce<Record<string, AppointmentRow[]>>((acc, a) => {
     (acc[a.dayLabel] ??= []).push(a);
     return acc;
   }, {});

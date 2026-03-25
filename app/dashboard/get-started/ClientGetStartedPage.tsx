@@ -220,7 +220,7 @@ export function ClientGetStartedPage({
   ];
 
   return (
-    <div className="p-4 md:p-6 lg:p-8 space-y-6">
+    <div className="p-4 md:p-6 lg:p-8 space-y-4">
       {/* Header */}
       <div>
         <h1 className="text-2xl sm:text-3xl font-semibold text-foreground tracking-tight">

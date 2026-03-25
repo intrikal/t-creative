@@ -98,6 +98,7 @@ const ASSISTANT_NAV_GROUPS: NavGroup[] = [
   {
     label: "Daily",
     items: [
+      { href: "/dashboard/get-started", label: "Get Started", icon: Rocket },
       { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
       { href: "/dashboard/schedule", label: "Schedule", icon: CalendarRange },
       { href: "/dashboard/bookings", label: "Bookings", icon: CalendarCheck },

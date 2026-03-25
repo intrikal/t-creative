@@ -2,10 +2,11 @@ import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 import { PostHogIdentify } from "@/components/providers/PostHogIdentify";
 import { getCurrentUser } from "@/lib/auth";
+import { getAdminSetupData } from "./admin-setup-data";
+import { getAssistantSetupData } from "./assistant-setup-data";
+import { DashboardMain } from "./DashboardMain";
 import { DashboardShell } from "./DashboardShell";
 import { DashboardSidebar } from "./DashboardSidebar";
-import { DashboardMain } from "./DashboardMain";
-import { getAdminSetupData } from "./admin-setup-data";
 import { getActiveLocations } from "./location-actions";
 
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
@@ -27,17 +28,18 @@ export default async function DashboardLayout({ children }: { children: ReactNod
       : user.email.split("@")[0];
 
   const [setupProgress, activeLocations] = await Promise.all([
-    role === "admin" ? getAdminSetupData(user.id).then((d) => d.setupProgress) : Promise.resolve(undefined),
+    role === "admin"
+      ? getAdminSetupData(user.id).then((d) => d.setupProgress)
+      : role === "assistant"
+        ? getAssistantSetupData(user.id).then((d) => d.setupProgress)
+        : Promise.resolve(undefined),
     getActiveLocations(),
   ]);
 
   return (
     <DashboardShell initialLocations={activeLocations}>
       <PostHogIdentify userId={user.id} email={user.email} role={role} name={userName} />
-      <DashboardSidebar
-        role={role}
-        setupProgress={setupProgress}
-      />
+      <DashboardSidebar role={role} setupProgress={setupProgress} />
       <DashboardMain
         role={role}
         userName={userName}

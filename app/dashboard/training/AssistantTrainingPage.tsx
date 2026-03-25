@@ -15,8 +15,12 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import type {
+  AssistantTrainingData,
+  AssistantModule,
+  AssistantLesson,
+} from "@/lib/types/training.types";
 import { cn } from "@/lib/utils";
-import type { AssistantTrainingData, AssistantModule, AssistantLesson } from "@/lib/types/training.types";
 import { toggleLessonCompletion } from "./actions";
 
 type ModuleCategory = string;
@@ -150,10 +154,12 @@ export function AssistantTrainingPage({ data }: { data: AssistantTrainingData })
   }
 
   return (
-    <div className="p-4 md:p-6 lg:p-8 space-y-6">
+    <div className="p-4 md:p-6 lg:p-8 space-y-4">
       <div>
-        <h1 className="text-xl font-semibold text-foreground tracking-tight">Training</h1>
-        <p className="text-sm text-muted mt-0.5">Courses and modules assigned by Trini</p>
+        <h1 className="text-2xl sm:text-3xl font-semibold text-foreground tracking-tight">
+          Training
+        </h1>
+        <p className="text-sm text-muted mt-0.5">Courses and modules assigned to you</p>
       </div>
 
       {/* Stats */}
@@ -195,7 +201,7 @@ export function AssistantTrainingPage({ data }: { data: AssistantTrainingData })
           <GraduationCap className="w-10 h-10 text-foreground/15 mb-3" />
           <p className="text-sm text-muted">No training modules assigned yet.</p>
           <p className="text-xs text-muted/60 mt-1">
-            Trini will add modules when new training is available.
+            Your studio owner will add modules when new training is available.
           </p>
         </div>
       )}

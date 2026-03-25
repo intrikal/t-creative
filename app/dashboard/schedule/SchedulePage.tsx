@@ -1,14 +1,15 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { ChevronLeft, ChevronRight, List, CalendarDays, CalendarRange, Clock } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
 import type { AppointmentRow, ScheduleStats } from "@/lib/types/booking.types";
+import { cn } from "@/lib/utils";
 import { AgendaView } from "./components/AgendaView";
 import { ApptDetailDialog } from "./components/ApptDetailDialog";
 import { type View, fmtDate, navigate, periodLabel, CATEGORY_COLORS } from "./components/helpers";
 import { ListView } from "./components/ListView";
+import { MiniCalendar } from "./components/MiniCalendar";
 import { MonthView } from "./components/MonthView";
 import { WeekGridView } from "./components/WeekGridView";
 
@@ -28,9 +29,11 @@ export function AssistantSchedulePage({
   stats: ScheduleStats;
   todayKey: string;
 }) {
-  const [view, setView] = useState<View>("list");
+  const [view, setView] = useState<View>("week");
   const [cursor, setCursor] = useState(() => new Date());
   const [selected, setSelected] = useState<AppointmentRow | null>(null);
+  const [listSelectedDate, setListSelectedDate] = useState<string | null>(todayKey);
+  const [listCalendarCursor, setListCalendarCursor] = useState(() => new Date());
   const handleApptClick = useCallback((appt: AppointmentRow) => {
     setSelected(appt);
   }, []);
@@ -47,10 +50,19 @@ export function AssistantSchedulePage({
 
   const handleDayClick = (d: Date) => {
     setCursor(d);
-    setView("week");
   };
 
-  const showNav = view !== "list";
+  // Collect all dates that have appointments for the mini calendar dots
+  const appointmentDays = useMemo(
+    () => new Set(initialAppointments.map((a) => a.date)),
+    [initialAppointments],
+  );
+
+  // Navigate helper for list view
+  const listPeriodLabel = listCalendarCursor.toLocaleDateString("en-US", {
+    month: "long",
+    year: "numeric",
+  });
 
   return (
     <div className="flex flex-col h-full">
@@ -98,83 +110,122 @@ export function AssistantSchedulePage({
           ))}
         </div>
 
-        {/* Nav bar (prev / period / next / Today) — only for calendar views */}
-        {showNav && (
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1">
-              <button
-                onClick={prev}
-                className="p-1.5 rounded-lg text-muted hover:text-foreground hover:bg-foreground/5 transition-colors"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-              <button
-                onClick={next}
-                className="p-1.5 rounded-lg text-muted hover:text-foreground hover:bg-foreground/5 transition-colors"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
-              <span className="text-sm font-semibold text-foreground ml-2">
-                {periodLabel(view, cursor)}
-              </span>
-            </div>
-            <button
-              onClick={goToday}
-              className="text-xs font-medium px-3 py-1.5 rounded-lg border border-border text-muted hover:text-foreground hover:bg-foreground/5 transition-colors"
-            >
-              Today
-            </button>
+        {/* Nav bar — always visible */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1">
+            {view !== "list" && (
+              <>
+                <button
+                  onClick={prev}
+                  className="p-1.5 rounded-lg text-muted hover:text-foreground hover:bg-foreground/5 transition-colors"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={next}
+                  className="p-1.5 rounded-lg text-muted hover:text-foreground hover:bg-foreground/5 transition-colors"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </>
+            )}
+            <span className="text-sm font-semibold text-foreground ml-2">
+              {view === "list" ? listPeriodLabel : periodLabel(view, cursor)}
+            </span>
           </div>
-        )}
-
-        {/* Category legend */}
-        {showNav && (
-          <div className="flex items-center gap-3 flex-wrap">
-            {(Object.entries(CATEGORY_COLORS) as [string, { dot: string }][]).map(
-              ([cat, { dot }]) => (
-                <span key={cat} className="flex items-center gap-1.5 text-xs text-muted capitalize">
-                  <span className="w-2 h-2 rounded-full" style={{ background: dot }} />
-                  {cat}
-                </span>
-              ),
+          <div className="flex items-center gap-3">
+            {/* Category legend */}
+            <div className="hidden sm:flex items-center gap-3">
+              {(Object.entries(CATEGORY_COLORS) as [string, { dot: string }][]).map(
+                ([cat, { dot }]) => (
+                  <span
+                    key={cat}
+                    className="flex items-center gap-1.5 text-xs text-muted capitalize"
+                  >
+                    <span className="w-2 h-2 rounded-full" style={{ background: dot }} />
+                    {cat}
+                  </span>
+                ),
+              )}
+            </div>
+            {view !== "list" && (
+              <button
+                onClick={goToday}
+                className="text-xs font-medium px-3 py-1.5 rounded-lg border border-border text-muted hover:text-foreground hover:bg-foreground/5 transition-colors"
+              >
+                Today
+              </button>
             )}
           </div>
-        )}
+        </div>
       </div>
 
       {/* View body */}
       <div className="flex-1 min-h-0 p-4 md:px-6 lg:px-8 md:pb-6 lg:pb-8">
         {view === "list" && (
-          <ListView
-            appointments={initialAppointments}
-            todayLabel={todayLabel}
-            onApptClick={handleApptClick}
-          />
+          <div className="flex gap-6 h-full">
+            {/* Mini calendar sidebar */}
+            <div className="hidden md:block w-64 shrink-0">
+              <Card className="gap-0 sticky top-0">
+                <CardContent className="px-4 py-4">
+                  <MiniCalendar
+                    cursor={listCalendarCursor}
+                    onCursorChange={setListCalendarCursor}
+                    selectedDate={listSelectedDate}
+                    onSelect={(key) => setListSelectedDate(key === listSelectedDate ? null : key)}
+                    appointmentDays={appointmentDays}
+                    todayKey={todayKey}
+                  />
+                </CardContent>
+              </Card>
+            </div>
+            {/* Appointment list */}
+            <div className="flex-1 min-w-0">
+              <ListView
+                appointments={initialAppointments}
+                todayLabel={todayLabel}
+                onApptClick={handleApptClick}
+                selectedDateKey={listSelectedDate}
+              />
+            </div>
+          </div>
         )}
         {view === "month" && (
-          <MonthView
-            cursor={cursor}
-            todayKey={todayKey}
-            appointments={initialAppointments}
-            onApptClick={handleApptClick}
-            onDayClick={handleDayClick}
-          />
+          <Card className="gap-0 flex-1 flex flex-col overflow-hidden">
+            <CardContent className="p-0 flex-1 flex flex-col overflow-hidden">
+              <MonthView
+                cursor={cursor}
+                todayKey={todayKey}
+                appointments={initialAppointments}
+                onApptClick={handleApptClick}
+                onDayClick={handleDayClick}
+              />
+            </CardContent>
+          </Card>
         )}
         {view === "week" && (
-          <WeekGridView
-            cursor={cursor}
-            todayKey={todayKey}
-            appointments={initialAppointments}
-            onApptClick={handleApptClick}
-          />
+          <Card className="gap-0 flex-1 flex flex-col overflow-hidden">
+            <CardContent className="p-0 flex-1 flex flex-col overflow-hidden">
+              <WeekGridView
+                cursor={cursor}
+                todayKey={todayKey}
+                appointments={initialAppointments}
+                onApptClick={handleApptClick}
+              />
+            </CardContent>
+          </Card>
         )}
         {view === "agenda" && (
-          <AgendaView
-            cursor={cursor}
-            todayKey={todayKey}
-            appointments={initialAppointments}
-            onApptClick={handleApptClick}
-          />
+          <Card className="gap-0 flex-1 flex flex-col overflow-hidden">
+            <CardContent className="p-0 flex-1 flex flex-col overflow-hidden">
+              <AgendaView
+                cursor={cursor}
+                todayKey={todayKey}
+                appointments={initialAppointments}
+                onApptClick={handleApptClick}
+              />
+            </CardContent>
+          </Card>
         )}
       </div>
 

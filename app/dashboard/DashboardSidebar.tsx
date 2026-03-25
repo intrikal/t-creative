@@ -131,7 +131,6 @@ const CLIENT_NAV_GROUPS: NavGroup[] = [
       { href: "/dashboard/get-started", label: "Get Started", icon: Rocket },
       { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
       { href: "/dashboard/bookings", label: "My Bookings", icon: CalendarCheck },
-      { href: "/dashboard/events", label: "My Events", icon: PartyPopper },
       { href: "/dashboard/loyalty", label: "Loyalty & Rewards", icon: Gift },
       { href: "/dashboard/invoices", label: "Invoices", icon: Receipt },
       { href: "/dashboard/messages", label: "Messages", icon: MessageSquare },
@@ -143,8 +142,7 @@ const CLIENT_NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/dashboard/book", label: "Book a Service", icon: CalendarPlus },
       { href: "/dashboard/shop", label: "Shop", icon: ShoppingBag },
-      { href: "/dashboard/my-photos", label: "My Photos", icon: Camera },
-      { href: "/dashboard/gallery", label: "Gallery", icon: Images },
+      { href: "/dashboard/my-photos", label: "Photos", icon: Camera },
       { href: "/dashboard/training", label: "Training", icon: GraduationCap },
       { href: "/dashboard/aftercare", label: "Aftercare", icon: HeartHandshake },
     ],

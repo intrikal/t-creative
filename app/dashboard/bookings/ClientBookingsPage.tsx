@@ -34,6 +34,9 @@ import { useState, useTransition, useCallback } from "react";
 import { CalendarDays, Rss, X } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { ClientBookingRow, ClientBookingsData } from "@/lib/types/booking.types";
+import { cn } from "@/lib/utils";
+import type { EventRow } from "../events/actions";
+import { ClientEventsPage } from "../events/ClientEventsPage";
 import { submitClientReview, cancelClientBooking, rescheduleClientBooking } from "./client-actions";
 import { BookingCard } from "./components/BookingCard";
 import { BookingsMiniCal } from "./components/BookingsMiniCal";
@@ -47,7 +50,16 @@ import { ReviewModal } from "./components/ReviewModal";
 /*  Main export                                                         */
 /* ------------------------------------------------------------------ */
 
-export function ClientBookingsPage({ data }: { data: ClientBookingsData }) {
+type Tab = "bookings" | "events";
+
+export function ClientBookingsPage({
+  data,
+  events,
+}: {
+  data: ClientBookingsData;
+  events?: EventRow[];
+}) {
+  const [tab, setTab] = useState<Tab>("bookings");
   const [expanded, setExpanded] = useState<number | null>(null);
   const [bookings, setBookings] = useState<ClientBookingRow[]>(data.bookings);
   const [reviewTarget, setReviewTarget] = useState<ClientBookingRow | null>(null);
@@ -160,127 +172,166 @@ export function ClientBookingsPage({ data }: { data: ClientBookingsData }) {
   }
 
   return (
-    <div className="p-4 md:p-6 lg:p-8 space-y-6">
+    <div className="p-4 md:p-6 lg:p-8 space-y-4">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-xl font-semibold text-foreground tracking-tight">My Bookings</h1>
-          <p className="text-sm text-muted mt-0.5">
-            Your appointment history with T Creative Studio
-          </p>
+          <h1 className="text-2xl sm:text-3xl font-semibold text-foreground tracking-tight">
+            My Bookings
+          </h1>
+          <p className="text-sm text-muted mt-0.5">Your appointments and events</p>
         </div>
-        <button
-          onClick={() => setShowCalSubscribe(true)}
-          className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs font-medium text-muted hover:text-foreground hover:bg-surface transition-colors"
-        >
-          <Rss className="w-3.5 h-3.5" />
-          Subscribe
-        </button>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-3 gap-3">
-        {[
-          { label: "Total Visits", value: allCompleted.length },
-          { label: "Upcoming", value: allUpcoming.length },
-          { label: "Total Spent", value: `$${allCompleted.reduce((s, b) => s + b.price, 0)}` },
-        ].map((s) => (
-          <Card key={s.label} className="gap-0 py-4">
-            <CardContent className="px-4 text-center">
-              <p className="text-2xl font-semibold text-foreground">{s.value}</p>
-              <p className="text-[11px] text-muted mt-0.5">{s.label}</p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      {/* Calendar */}
-      <BookingsMiniCal bookings={bookings} selected={selectedDate} onSelect={handleSelectDate} />
-
-      {/* Active date filter */}
-      {selectedDate && (
-        <div className="flex items-center gap-2">
-          <p className="text-sm text-muted">
-            Showing{" "}
-            <span className="text-foreground font-medium">{fmtDateLabel(selectedDate)}</span>
-          </p>
+        {tab === "bookings" && (
           <button
-            onClick={() => setSelectedDate(null)}
-            className="text-xs text-muted hover:text-foreground transition-colors flex items-center gap-0.5"
+            onClick={() => setShowCalSubscribe(true)}
+            className="shrink-0 flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-border text-xs font-semibold text-foreground bg-background hover:border-foreground/30 hover:shadow-md shadow-sm transition-all"
           >
-            <X className="w-3 h-3" /> Clear
+            <Rss className="w-3.5 h-3.5" />
+            Subscribe
           </button>
+        )}
+      </div>
+
+      {/* Tabs */}
+      {events && (
+        <div className="flex gap-1 border-b border-border">
+          {(
+            [
+              { key: "bookings", label: `Appointments (${allUpcoming.length})` },
+              { key: "events", label: `Events (${events.length})` },
+            ] as { key: Tab; label: string }[]
+          ).map(({ key, label }) => (
+            <button
+              key={key}
+              onClick={() => setTab(key)}
+              className={cn(
+                "px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px",
+                tab === key
+                  ? "border-foreground text-foreground"
+                  : "border-transparent text-muted hover:text-foreground",
+              )}
+            >
+              {label}
+            </button>
+          ))}
         </div>
       )}
 
-      {/* Upcoming */}
-      {upcoming.length > 0 && (
-        <Card className="gap-0">
-          <CardHeader className="pb-0 pt-4 px-5">
+      {/* Events tab */}
+      {tab === "events" && events && <ClientEventsPage events={events} embedded />}
+
+      {/* Bookings tab content */}
+      {tab === "bookings" && (
+        <>
+          {/* Stats */}
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              { label: "Total Visits", value: allCompleted.length },
+              { label: "Upcoming", value: allUpcoming.length },
+              { label: "Total Spent", value: `$${allCompleted.reduce((s, b) => s + b.price, 0)}` },
+            ].map((s) => (
+              <Card key={s.label} className="gap-0 py-4">
+                <CardContent className="px-4 text-center">
+                  <p className="text-2xl font-semibold text-foreground">{s.value}</p>
+                  <p className="text-[11px] text-muted mt-0.5">{s.label}</p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          {/* Calendar */}
+          <BookingsMiniCal
+            bookings={bookings}
+            selected={selectedDate}
+            onSelect={handleSelectDate}
+          />
+
+          {/* Active date filter */}
+          {selectedDate && (
             <div className="flex items-center gap-2">
-              <CalendarDays className="w-4 h-4 text-accent" />
-              <CardTitle className="text-sm font-semibold">Upcoming</CardTitle>
+              <p className="text-sm text-muted">
+                Showing{" "}
+                <span className="text-foreground font-medium">{fmtDateLabel(selectedDate)}</span>
+              </p>
+              <button
+                onClick={() => setSelectedDate(null)}
+                className="text-xs text-muted hover:text-foreground transition-colors flex items-center gap-0.5"
+              >
+                <X className="w-3 h-3" /> Clear
+              </button>
             </div>
-          </CardHeader>
-          <CardContent className="px-0 pb-0 pt-2">
-            {upcoming.map((b) => (
-              <BookingCard
-                key={b.id}
-                booking={b}
-                isExpanded={expanded === b.id}
-                onToggle={() => setExpanded(expanded === b.id ? null : b.id)}
-                onReschedule={handleReschedule}
-                onCancel={handleCancel}
-                onReview={handleReview}
-                cancelWindowHours={data.policy.cancelWindowHours}
-              />
-            ))}
-          </CardContent>
-        </Card>
-      )}
+          )}
 
-      {/* Past visits */}
-      {past.length > 0 && (
-        <Card className="gap-0">
-          <CardHeader className="pb-0 pt-4 px-5">
-            <CardTitle className="text-sm font-semibold">Past Visits</CardTitle>
-          </CardHeader>
-          <CardContent className="px-0 pb-0 pt-2">
-            {past.map((b) => (
-              <BookingCard
-                key={b.id}
-                booking={b}
-                isExpanded={expanded === b.id}
-                onToggle={() => setExpanded(expanded === b.id ? null : b.id)}
-                onReschedule={handleReschedule}
-                onCancel={handleCancel}
-                onReview={handleReview}
-                cancelWindowHours={data.policy.cancelWindowHours}
-              />
-            ))}
-          </CardContent>
-        </Card>
-      )}
+          {/* Upcoming */}
+          {upcoming.length > 0 && (
+            <Card className="gap-0">
+              <CardHeader className="pb-0 pt-4 px-5">
+                <div className="flex items-center gap-2">
+                  <CalendarDays className="w-4 h-4 text-accent" />
+                  <CardTitle className="text-sm font-semibold">Upcoming</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent className="px-0 pb-0 pt-2">
+                {upcoming.map((b) => (
+                  <BookingCard
+                    key={b.id}
+                    booking={b}
+                    isExpanded={expanded === b.id}
+                    onToggle={() => setExpanded(expanded === b.id ? null : b.id)}
+                    onReschedule={handleReschedule}
+                    onCancel={handleCancel}
+                    onReview={handleReview}
+                    cancelWindowHours={data.policy.cancelWindowHours}
+                  />
+                ))}
+              </CardContent>
+            </Card>
+          )}
 
-      {/* Empty state */}
-      {selectedDate && upcoming.length === 0 && past.length === 0 && (
-        <div className="text-center py-14 border border-dashed border-border rounded-xl">
-          <p className="text-sm text-muted">No bookings on {fmtDateLabel(selectedDate)}.</p>
-          <button
-            onClick={() => setSelectedDate(null)}
-            className="text-xs text-accent mt-1.5 hover:underline"
-          >
-            View all bookings
-          </button>
-        </div>
-      )}
+          {/* Past visits */}
+          {past.length > 0 && (
+            <Card className="gap-0">
+              <CardHeader className="pb-0 pt-4 px-5">
+                <CardTitle className="text-sm font-semibold">Past Visits</CardTitle>
+              </CardHeader>
+              <CardContent className="px-0 pb-0 pt-2">
+                {past.map((b) => (
+                  <BookingCard
+                    key={b.id}
+                    booking={b}
+                    isExpanded={expanded === b.id}
+                    onToggle={() => setExpanded(expanded === b.id ? null : b.id)}
+                    onReschedule={handleReschedule}
+                    onCancel={handleCancel}
+                    onReview={handleReview}
+                    cancelWindowHours={data.policy.cancelWindowHours}
+                  />
+                ))}
+              </CardContent>
+            </Card>
+          )}
 
-      {/* No bookings at all */}
-      {bookings.length === 0 && !selectedDate && (
-        <div className="text-center py-14 border border-dashed border-border rounded-xl">
-          <CalendarDays className="w-10 h-10 text-foreground/15 mx-auto mb-3" />
-          <p className="text-sm text-muted">No bookings yet.</p>
-          <p className="text-xs text-muted/60 mt-1">Your appointments will appear here.</p>
-        </div>
+          {/* Empty state */}
+          {selectedDate && upcoming.length === 0 && past.length === 0 && (
+            <div className="text-center py-14 border border-dashed border-border rounded-xl">
+              <p className="text-sm text-muted">No bookings on {fmtDateLabel(selectedDate)}.</p>
+              <button
+                onClick={() => setSelectedDate(null)}
+                className="text-xs text-accent mt-1.5 hover:underline"
+              >
+                View all bookings
+              </button>
+            </div>
+          )}
+
+          {/* No bookings at all */}
+          {bookings.length === 0 && !selectedDate && (
+            <div className="text-center py-14 border border-dashed border-border rounded-xl">
+              <CalendarDays className="w-10 h-10 text-foreground/15 mx-auto mb-3" />
+              <p className="text-sm text-muted">No bookings yet.</p>
+              <p className="text-xs text-muted/60 mt-1">Your appointments will appear here.</p>
+            </div>
+          )}
+        </>
       )}
 
       {/* Calendar subscribe modal */}

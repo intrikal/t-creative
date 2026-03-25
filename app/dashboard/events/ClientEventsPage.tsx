@@ -227,19 +227,29 @@ function ClientEventCard({ event }: { event: EventRow }) {
 /*  Main export                                                         */
 /* ------------------------------------------------------------------ */
 
-export function ClientEventsPage({ events }: { events: EventRow[] }) {
+export function ClientEventsPage({
+  events,
+  embedded,
+}: {
+  events: EventRow[];
+  /** When true, strips outer padding and page header (used inside Bookings page tabs) */
+  embedded?: boolean;
+}) {
   const upcoming = events.filter(
     (e) => e.status === "upcoming" || e.status === "confirmed" || e.status === "draft",
   );
   const past = events.filter((e) => e.status === "completed" || e.status === "cancelled");
 
   return (
-    <div className="p-4 md:p-6 lg:p-8 max-w-3xl mx-auto space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-xl font-semibold text-foreground tracking-tight">My Events</h1>
-        <p className="text-sm text-muted mt-0.5">Your private events, parties, and bookings</p>
-      </div>
+    <div className={cn(embedded ? "space-y-4" : "p-4 md:p-6 lg:p-8 max-w-3xl mx-auto space-y-4")}>
+      {!embedded && (
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-semibold text-foreground tracking-tight">
+            My Events
+          </h1>
+          <p className="text-sm text-muted mt-0.5">Your private events, parties, and bookings</p>
+        </div>
+      )}
 
       {events.length === 0 ? (
         <Card className="gap-0">

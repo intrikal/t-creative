@@ -29,12 +29,13 @@ export default async function Page() {
   if (!user) redirect("/login");
 
   if (user.profile?.role === "client") {
-    const [{ getClientBookings }, { ClientBookingsPage }] = await Promise.all([
+    const [{ getClientBookings }, { getClientEvents }, { ClientBookingsPage }] = await Promise.all([
       import("./client-actions"),
+      import("../events/actions"),
       import("./ClientBookingsPage"),
     ]);
-    const data = await getClientBookings();
-    return <ClientBookingsPage data={data} />;
+    const [data, events] = await Promise.all([getClientBookings(), getClientEvents()]);
+    return <ClientBookingsPage data={data} events={events} />;
   }
 
   if (user.profile?.role === "assistant") {
@@ -60,13 +61,12 @@ export default async function Page() {
     import("./sections/MembershipsSection"),
   ]);
 
-  const [bookingsResult, serviceOptions, staffOptions, allSubscriptions] =
-    await Promise.all([
-      getBookings(),
-      getServicesForSelect(),
-      getStaffForSelect(),
-      getSubscriptions("active"),
-    ]);
+  const [bookingsResult, serviceOptions, staffOptions, allSubscriptions] = await Promise.all([
+    getBookings(),
+    getServicesForSelect(),
+    getStaffForSelect(),
+    getSubscriptions("active"),
+  ]);
 
   const activeSubscriptions = allSubscriptions.map((s) => ({
     id: s.id,

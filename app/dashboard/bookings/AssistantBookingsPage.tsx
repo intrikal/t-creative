@@ -23,8 +23,9 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
 import type { AppointmentRow, BookingStatus, ServiceCategory } from "@/lib/types/booking.types";
+import type { AssistantBookingRow, AssistantBookingStats } from "@/lib/types/booking.types";
+import { cn } from "@/lib/utils";
 import { AgendaView } from "../schedule/components/AgendaView";
 import { ApptDetailDialog } from "../schedule/components/ApptDetailDialog";
 import {
@@ -34,9 +35,9 @@ import {
   periodLabel,
   CATEGORY_COLORS,
 } from "../schedule/components/helpers";
+import { MiniCalendar } from "../schedule/components/MiniCalendar";
 import { MonthView } from "../schedule/components/MonthView";
 import { WeekGridView } from "../schedule/components/WeekGridView";
-import type { AssistantBookingRow, AssistantBookingStats } from "@/lib/types/booking.types";
 
 /* ------------------------------------------------------------------ */
 /*  Config                                                             */
@@ -132,6 +133,8 @@ export function AssistantBookingsPage({
   const [view, setView] = useState<View>("list");
   const [cursor, setCursor] = useState(() => new Date());
   const [selected, setSelected] = useState<AppointmentRow | null>(null);
+  const [listSelectedDate, setListSelectedDate] = useState<string | null>(null);
+  const [listCalendarCursor, setListCalendarCursor] = useState(() => new Date());
   const handleApptClick = useCallback((appt: AppointmentRow) => {
     setSelected(appt);
   }, []);
@@ -153,20 +156,28 @@ export function AssistantBookingsPage({
           : statusFilter === "Completed"
             ? b.status === "completed"
             : ["cancelled", "no_show"].includes(b.status);
-    return matchSearch && matchStatus;
+    const matchDate = listSelectedDate ? b.date === listSelectedDate : true;
+    return matchSearch && matchStatus && matchDate;
   });
 
   const appointments = useMemo(() => initialBookings.map(toAppointmentRow), [initialBookings]);
+
+  const appointmentDays = useMemo(
+    () => new Set(initialBookings.map((b) => b.date)),
+    [initialBookings],
+  );
 
   const prev = () => setCursor((c) => navCursor(view, c, -1));
   const next = () => setCursor((c) => navCursor(view, c, 1));
   const goToday = () => setCursor(new Date());
   const handleDayClick = (d: Date) => {
     setCursor(d);
-    setView("week");
   };
 
-  const showNav = view !== "list";
+  const listPeriodLabel = listCalendarCursor.toLocaleDateString("en-US", {
+    month: "long",
+    year: "numeric",
+  });
 
   return (
     <div className="flex flex-col h-full">
@@ -214,51 +225,56 @@ export function AssistantBookingsPage({
           ))}
         </div>
 
-        {/* Calendar nav — only for calendar views */}
-        {showNav && (
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1">
-              <button
-                onClick={prev}
-                className="p-1.5 rounded-lg text-muted hover:text-foreground hover:bg-foreground/5 transition-colors"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-              <button
-                onClick={next}
-                className="p-1.5 rounded-lg text-muted hover:text-foreground hover:bg-foreground/5 transition-colors"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
-              <span className="text-sm font-semibold text-foreground ml-2">
-                {periodLabel(view, cursor)}
-              </span>
-            </div>
-            <button
-              onClick={goToday}
-              className="text-xs font-medium px-3 py-1.5 rounded-lg border border-border text-muted hover:text-foreground hover:bg-foreground/5 transition-colors"
-            >
-              Today
-            </button>
+        {/* Nav bar — always visible */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1">
+            {view !== "list" && (
+              <>
+                <button
+                  onClick={prev}
+                  className="p-1.5 rounded-lg text-muted hover:text-foreground hover:bg-foreground/5 transition-colors"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={next}
+                  className="p-1.5 rounded-lg text-muted hover:text-foreground hover:bg-foreground/5 transition-colors"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </>
+            )}
+            <span className="text-sm font-semibold text-foreground ml-2">
+              {view === "list" ? listPeriodLabel : periodLabel(view, cursor)}
+            </span>
           </div>
-        )}
-
-        {/* Category legend — only for calendar views */}
-        {showNav && (
-          <div className="flex items-center gap-3 flex-wrap">
-            {(Object.entries(CATEGORY_COLORS) as [string, { dot: string }][]).map(
-              ([cat, { dot }]) => (
-                <span key={cat} className="flex items-center gap-1.5 text-xs text-muted capitalize">
-                  <span className="w-2 h-2 rounded-full" style={{ background: dot }} />
-                  {cat}
-                </span>
-              ),
+          <div className="flex items-center gap-3">
+            <div className="hidden sm:flex items-center gap-3">
+              {(Object.entries(CATEGORY_COLORS) as [string, { dot: string }][]).map(
+                ([cat, { dot }]) => (
+                  <span
+                    key={cat}
+                    className="flex items-center gap-1.5 text-xs text-muted capitalize"
+                  >
+                    <span className="w-2 h-2 rounded-full" style={{ background: dot }} />
+                    {cat}
+                  </span>
+                ),
+              )}
+            </div>
+            {view !== "list" && (
+              <button
+                onClick={goToday}
+                className="text-xs font-medium px-3 py-1.5 rounded-lg border border-border text-muted hover:text-foreground hover:bg-foreground/5 transition-colors"
+              >
+                Today
+              </button>
             )}
           </div>
-        )}
+        </div>
 
-        {/* Search + status filters — only for list view */}
-        {!showNav && (
+        {/* Search + status filters — list view only */}
+        {view === "list" && (
           <div className="flex flex-col sm:flex-row gap-2">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted" />
@@ -292,108 +308,152 @@ export function AssistantBookingsPage({
       {/* View body */}
       <div className="flex-1 min-h-0 p-4 md:px-6 lg:px-8 md:pb-6 lg:pb-8">
         {view === "list" && (
-          <Card className="gap-0">
-            <CardContent className="px-0 py-0">
-              {filtered.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-12">
-                  <CalendarX className="w-8 h-8 text-foreground/15 mb-2" />
-                  <p className="text-sm text-muted">No bookings found.</p>
-                </div>
-              ) : (
-                filtered.map((b) => {
-                  const sts = statusConfig(b.status);
-                  const isExpanded = expanded === b.id;
-                  return (
-                    <div key={b.id} className="border-b border-border/40 last:border-0">
-                      <button
-                        onClick={() => setExpanded(isExpanded ? null : b.id)}
-                        className="w-full flex items-center gap-3 px-5 py-3.5 hover:bg-surface/60 transition-colors text-left"
-                      >
-                        <div className="flex flex-col items-center gap-1 shrink-0 w-14">
-                          <span
-                            className={cn("w-1.5 h-1.5 rounded-full", categoryDot(b.category))}
-                          />
-                          <span className="text-[10px] text-muted font-medium">{b.dayLabel}</span>
-                          <span className="text-[10px] text-muted/60">{b.time}</span>
-                        </div>
-                        <Avatar size="sm">
-                          <AvatarFallback className="text-[10px] bg-surface text-muted font-semibold">
-                            {b.clientInitials}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-foreground truncate">
-                            {b.service}
-                          </p>
-                          <p className="text-xs text-muted mt-0.5 flex items-center gap-2">
-                            {b.client}
-                            <span className="flex items-center gap-0.5 text-muted/60">
-                              <Clock className="w-2.5 h-2.5" />
-                              {b.durationMin}m
-                            </span>
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-3 shrink-0">
-                          <span className="text-sm font-semibold text-foreground hidden sm:block">
-                            ${b.price}
-                          </span>
-                          <Badge
-                            className={cn("border text-[10px] px-1.5 py-0.5", sts.className)}
-                          >
-                            {sts.label}
-                          </Badge>
-                        </div>
-                      </button>
-                      {isExpanded && (
-                        <div className="px-5 pb-4 bg-surface/30 space-y-2 border-t border-border/30">
-                          {b.clientPhone && (
-                            <div className="flex items-center gap-2 pt-3">
-                              <Phone className="w-3 h-3 text-muted" />
-                              <span className="text-xs text-muted">{b.clientPhone}</span>
-                            </div>
-                          )}
-                          {b.notes && (
-                            <p className="text-xs text-muted bg-background rounded-lg px-3 py-2 border border-border/50 italic">
-                              &ldquo;{b.notes}&rdquo;
-                            </p>
-                          )}
-                          {!b.clientPhone && !b.notes && (
-                            <p className="text-xs text-muted/50 pt-3">No additional details.</p>
-                          )}
-                        </div>
+          <div className="flex gap-6 h-full">
+            {/* Mini calendar sidebar */}
+            <div className="hidden md:block w-64 shrink-0">
+              <Card className="gap-0 sticky top-0">
+                <CardContent className="px-4 py-4">
+                  <MiniCalendar
+                    cursor={listCalendarCursor}
+                    onCursorChange={setListCalendarCursor}
+                    selectedDate={listSelectedDate}
+                    onSelect={(key) => setListSelectedDate(key === listSelectedDate ? null : key)}
+                    appointmentDays={appointmentDays}
+                    todayKey={todayKey}
+                  />
+                </CardContent>
+              </Card>
+            </div>
+            {/* Booking list */}
+            <div className="flex-1 min-w-0">
+              <Card className="gap-0">
+                <CardContent className="px-0 py-0">
+                  {filtered.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-12">
+                      <CalendarX className="w-8 h-8 text-foreground/15 mb-2" />
+                      <p className="text-sm text-muted">
+                        {listSelectedDate ? "No bookings on this date." : "No bookings found."}
+                      </p>
+                      {listSelectedDate && (
+                        <button
+                          onClick={() => setListSelectedDate(null)}
+                          className="text-xs text-accent hover:underline mt-1"
+                        >
+                          Show all bookings
+                        </button>
                       )}
                     </div>
-                  );
-                })
-              )}
-            </CardContent>
-          </Card>
+                  ) : (
+                    filtered.map((b) => {
+                      const sts = statusConfig(b.status);
+                      const isExpanded = expanded === b.id;
+                      return (
+                        <div key={b.id} className="border-b border-border/40 last:border-0">
+                          <button
+                            onClick={() => setExpanded(isExpanded ? null : b.id)}
+                            className="w-full flex items-center gap-3 px-5 py-3.5 hover:bg-surface/60 transition-colors text-left"
+                          >
+                            <div className="flex flex-col items-center gap-1 shrink-0 w-14">
+                              <span
+                                className={cn("w-1.5 h-1.5 rounded-full", categoryDot(b.category))}
+                              />
+                              <span className="text-[10px] text-muted font-medium">
+                                {b.dayLabel}
+                              </span>
+                              <span className="text-[10px] text-muted/60">{b.time}</span>
+                            </div>
+                            <Avatar size="sm">
+                              <AvatarFallback className="text-[10px] bg-surface text-muted font-semibold">
+                                {b.clientInitials}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-foreground truncate">
+                                {b.service}
+                              </p>
+                              <p className="text-xs text-muted mt-0.5 flex items-center gap-2">
+                                {b.client}
+                                <span className="flex items-center gap-0.5 text-muted/60">
+                                  <Clock className="w-2.5 h-2.5" />
+                                  {b.durationMin}m
+                                </span>
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-3 shrink-0">
+                              <span className="text-sm font-semibold text-foreground hidden sm:block">
+                                ${b.price}
+                              </span>
+                              <Badge
+                                className={cn("border text-[10px] px-1.5 py-0.5", sts.className)}
+                              >
+                                {sts.label}
+                              </Badge>
+                            </div>
+                          </button>
+                          {isExpanded && (
+                            <div className="px-5 pb-4 bg-surface/30 space-y-2 border-t border-border/30">
+                              {b.clientPhone && (
+                                <div className="flex items-center gap-2 pt-3">
+                                  <Phone className="w-3 h-3 text-muted" />
+                                  <span className="text-xs text-muted">{b.clientPhone}</span>
+                                </div>
+                              )}
+                              {b.notes && (
+                                <p className="text-xs text-muted bg-background rounded-lg px-3 py-2 border border-border/50 italic">
+                                  &ldquo;{b.notes}&rdquo;
+                                </p>
+                              )}
+                              {!b.clientPhone && !b.notes && (
+                                <p className="text-xs text-muted/50 pt-3">No additional details.</p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </div>
         )}
 
         {view === "week" && (
-          <WeekGridView
-            cursor={cursor}
-            todayKey={todayKey}
-            appointments={appointments}
-            onApptClick={handleApptClick}
-          />
+          <Card className="gap-0 flex-1 flex flex-col overflow-hidden">
+            <CardContent className="p-0 flex-1 flex flex-col overflow-hidden">
+              <WeekGridView
+                cursor={cursor}
+                todayKey={todayKey}
+                appointments={appointments}
+                onApptClick={handleApptClick}
+              />
+            </CardContent>
+          </Card>
         )}
         {view === "month" && (
-          <MonthView
-            cursor={cursor}
-            todayKey={todayKey}
-            appointments={appointments}
-            onApptClick={handleApptClick}
-            onDayClick={handleDayClick}
-          />
+          <Card className="gap-0 flex-1 flex flex-col overflow-hidden">
+            <CardContent className="p-0 flex-1 flex flex-col overflow-hidden">
+              <MonthView
+                cursor={cursor}
+                todayKey={todayKey}
+                appointments={appointments}
+                onApptClick={handleApptClick}
+                onDayClick={handleDayClick}
+              />
+            </CardContent>
+          </Card>
         )}
         {view === "agenda" && (
-          <AgendaView
-            cursor={cursor}
-            todayKey={todayKey}
-            appointments={appointments}
-            onApptClick={handleApptClick}
-          />
+          <Card className="gap-0 flex-1 flex flex-col overflow-hidden">
+            <CardContent className="p-0 flex-1 flex flex-col overflow-hidden">
+              <AgendaView
+                cursor={cursor}
+                todayKey={todayKey}
+                appointments={appointments}
+                onApptClick={handleApptClick}
+              />
+            </CardContent>
+          </Card>
         )}
       </div>
 

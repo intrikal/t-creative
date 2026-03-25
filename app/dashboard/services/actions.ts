@@ -31,7 +31,7 @@ import { z } from "zod";
 import { db } from "@/db";
 import { bookings, services } from "@/db/schema";
 import { logAction } from "@/lib/audit";
-import { requireAdmin } from "@/lib/auth";
+import { getCurrentUser, requireAdmin } from "@/lib/auth";
 import { trackEvent } from "@/lib/posthog";
 import { upsertCatalogItem, isSquareConfigured } from "@/lib/square";
 import type {
@@ -603,7 +603,10 @@ export async function getAssistantServices(): Promise<{
   stats: AssistantServiceStats;
 }> {
   try {
-    const user = await getUser();
+    const cu = await getCurrentUser();
+    if (!cu) throw new Error("Not authenticated");
+    if (cu.profile?.role !== "assistant") throw new Error("Forbidden");
+    const user = { id: cu.id, email: cu.email };
 
     // Promise.all runs both queries concurrently — fetching services and
     // completed-booking aggregates are independent DB reads, so parallel

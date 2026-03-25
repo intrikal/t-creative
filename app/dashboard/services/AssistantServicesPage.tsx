@@ -1,11 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { CheckCircle2, Clock, Tag, PackageOpen } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
+import { CheckCircle2, Clock, PackageOpen, DollarSign, Search } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
 import type { AssistantServiceRow, AssistantServiceStats } from "@/lib/types/services.types";
+import { cn } from "@/lib/utils";
 
 function formatDuration(min: number): string {
   if (min < 60) return `${min}min`;
@@ -15,24 +14,86 @@ function formatDuration(min: number): string {
   return `${hrs}hr ${rem}min`;
 }
 
-const CATEGORY_CONFIG: Record<string, { label: string; className: string }> = {
-  lash: { label: "Lash", className: "bg-[#c4907a]/12 text-[#96604a] border-[#c4907a]/20" },
-  jewelry: {
-    label: "Jewelry",
-    className: "bg-[#d4a574]/12 text-[#a07040] border-[#d4a574]/20",
-  },
-  crochet: {
-    label: "Crochet",
-    className: "bg-[#7ba3a3]/12 text-[#5b8a8a] border-[#7ba3a3]/20",
-  },
-  consulting: {
-    label: "Consulting",
-    className: "bg-[#4e6b51]/12 text-[#4e6b51] border-[#4e6b51]/20",
-  },
+const CATEGORY_LABELS: Record<string, string> = {
+  lash: "Lash",
+  jewelry: "Jewelry",
+  crochet: "Crochet",
+  consulting: "Consulting",
+  "3d_printing": "3D Printing",
+  aesthetics: "Aesthetics",
 };
 
-const FILTER_TABS = ["all", "lash", "jewelry", "crochet", "consulting"] as const;
-type FilterTab = (typeof FILTER_TABS)[number];
+const CATEGORY_ACCENT: Record<string, string> = {
+  lash: "#c4907a",
+  jewelry: "#d4a574",
+  crochet: "#7ba3a3",
+  consulting: "#4e6b51",
+  "3d_printing": "#7a5c10",
+  aesthetics: "#96604a",
+};
+
+function categoryLabel(cat: string): string {
+  return CATEGORY_LABELS[cat] ?? cat.charAt(0).toUpperCase() + cat.slice(1).replace(/_/g, " ");
+}
+
+function categoryAccent(cat: string): string {
+  return CATEGORY_ACCENT[cat] ?? "#999";
+}
+
+/* ------------------------------------------------------------------ */
+/*  Service card                                                       */
+/* ------------------------------------------------------------------ */
+
+function ServiceCard({ svc }: { svc: AssistantServiceRow }) {
+  return (
+    <Card className="gap-0 overflow-hidden hover:shadow-sm transition-shadow">
+      <div className="h-1" style={{ background: categoryAccent(svc.category) }} />
+      <CardContent className="px-4 py-4 space-y-3">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-foreground leading-snug">{svc.name}</p>
+            {svc.description && (
+              <p className="text-xs text-muted mt-0.5 leading-relaxed line-clamp-2">
+                {svc.description}
+              </p>
+            )}
+          </div>
+          {svc.certified && <CheckCircle2 className="w-4 h-4 text-[#4e6b51] shrink-0 mt-0.5" />}
+        </div>
+
+        <div className="flex items-center gap-3 flex-wrap">
+          <span className="flex items-center gap-1 text-sm font-semibold text-foreground">
+            <DollarSign className="w-3.5 h-3.5 text-muted" />
+            {svc.price === 0 ? "Free" : `${svc.price}`}
+          </span>
+          {svc.deposit != null && svc.deposit > 0 && (
+            <span className="text-[10px] text-muted px-1.5 py-0.5 rounded-full bg-surface border border-border">
+              ${svc.deposit} deposit
+            </span>
+          )}
+          {svc.durationMin != null && (
+            <span className="flex items-center gap-1 text-xs text-muted ml-auto">
+              <Clock className="w-3 h-3" />
+              {formatDuration(svc.durationMin)}
+            </span>
+          )}
+        </div>
+
+        {svc.certified && (
+          <div className="flex items-center gap-2 text-[10px] text-muted pt-1 border-t border-border/40">
+            <span className="font-medium text-[#4e6b51]">Certified</span>
+            <span>{svc.timesPerformed}x performed</span>
+            {svc.certDate && <span>· since {svc.certDate}</span>}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Main component                                                     */
+/* ------------------------------------------------------------------ */
 
 export function AssistantServicesPage({
   initialServices,
@@ -41,15 +102,32 @@ export function AssistantServicesPage({
   initialServices: AssistantServiceRow[];
   stats: AssistantServiceStats;
 }) {
-  const [filter, setFilter] = useState<FilterTab>("all");
+  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState<string>("all");
 
-  const filtered =
-    filter === "all" ? initialServices : initialServices.filter((s) => s.category === filter);
+  // Derive unique categories from data
+  const categories = [...new Set(initialServices.map((s) => s.category))];
+
+  const filtered = initialServices.filter((svc) => {
+    const matchSearch =
+      svc.name.toLowerCase().includes(search.toLowerCase()) ||
+      (svc.description ?? "").toLowerCase().includes(search.toLowerCase());
+    const matchFilter = filter === "all" || svc.category === filter;
+    return matchSearch && matchFilter;
+  });
+
+  // Group filtered services by category for section display
+  const grouped = filtered.reduce<Record<string, AssistantServiceRow[]>>((acc, svc) => {
+    (acc[svc.category] ??= []).push(svc);
+    return acc;
+  }, {});
 
   return (
-    <div className="p-4 md:p-6 lg:p-8 space-y-6">
+    <div className="p-4 md:p-6 lg:p-8 space-y-4">
       <div>
-        <h1 className="text-xl font-semibold text-foreground tracking-tight">My Services</h1>
+        <h1 className="text-2xl sm:text-3xl font-semibold text-foreground tracking-tight">
+          My Services
+        </h1>
         <p className="text-sm text-muted mt-0.5">
           Services you&apos;re certified and active to perform
         </p>
@@ -74,126 +152,92 @@ export function AssistantServicesPage({
         ))}
       </div>
 
-      {/* Category filter tabs */}
-      <div className="flex gap-1">
-        {FILTER_TABS.map((tab) => (
+      {/* Search + category filter */}
+      <div className="flex flex-col sm:flex-row gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search services…"
+            className="w-full pl-8 pr-3 py-2 text-sm bg-surface border border-border rounded-lg text-foreground placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-accent/40 transition"
+          />
+        </div>
+        <div className="flex gap-1 overflow-x-auto">
           <button
-            key={tab}
-            onClick={() => setFilter(tab)}
+            onClick={() => setFilter("all")}
             className={cn(
-              "px-3 py-2 rounded-lg text-xs font-medium transition-colors capitalize",
-              filter === tab
+              "px-3 py-2 rounded-lg text-xs font-medium transition-colors whitespace-nowrap",
+              filter === "all"
                 ? "bg-foreground/8 text-foreground"
                 : "text-muted hover:text-foreground",
             )}
           >
-            {tab}
+            All
           </button>
-        ))}
+          {categories.map((cat) => (
+            <button
+              key={cat}
+              onClick={() => setFilter(cat)}
+              className={cn(
+                "px-3 py-2 rounded-lg text-xs font-medium transition-colors whitespace-nowrap",
+                filter === cat
+                  ? "bg-foreground/8 text-foreground"
+                  : "text-muted hover:text-foreground",
+              )}
+            >
+              {categoryLabel(cat)}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* Services table */}
-      <Card className="gap-0">
-        <CardHeader className="pb-0 pt-4 px-5">
-          <CardTitle className="text-sm font-semibold">
-            {filter === "all"
-              ? "All Services"
-              : `${CATEGORY_CONFIG[filter]?.label ?? filter} Services`}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="px-0 pb-0 pt-3">
-          {filtered.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12">
+      {/* Service cards grouped by category */}
+      {Object.keys(grouped).length === 0 ? (
+        <Card className="gap-0">
+          <CardContent className="py-12">
+            <div className="flex flex-col items-center justify-center text-center">
               <PackageOpen className="w-8 h-8 text-foreground/15 mb-2" />
-              <p className="text-sm text-muted">No services found.</p>
+              <p className="text-sm text-muted font-medium">
+                {search ? "No services match your search." : "No services assigned yet"}
+              </p>
+              {search && (
+                <button
+                  onClick={() => setSearch("")}
+                  className="text-xs text-accent hover:underline mt-1"
+                >
+                  Clear search
+                </button>
+              )}
             </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border/60 bg-surface/30">
-                    <th className="text-left text-[10px] font-semibold uppercase tracking-wide text-muted px-5 pb-2.5 pt-1">
-                      Service
-                    </th>
-                    <th className="text-left text-[10px] font-semibold uppercase tracking-wide text-muted px-4 pb-2.5 pt-1 hidden md:table-cell">
-                      Category
-                    </th>
-                    <th className="text-center text-[10px] font-semibold uppercase tracking-wide text-muted px-4 pb-2.5 pt-1">
-                      Duration
-                    </th>
-                    <th className="text-center text-[10px] font-semibold uppercase tracking-wide text-muted px-4 pb-2.5 pt-1">
-                      Price
-                    </th>
-                    <th className="text-center text-[10px] font-semibold uppercase tracking-wide text-muted px-5 pb-2.5 pt-1">
-                      Certified
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.map((svc) => {
-                    const cat = CATEGORY_CONFIG[svc.category] ?? {
-                      label: svc.category,
-                      className: "bg-foreground/5 text-muted border-border/30",
-                    };
-                    return (
-                      <tr
-                        key={svc.id}
-                        className="border-b border-border/40 last:border-0 hover:bg-surface/60 transition-colors"
-                      >
-                        <td className="px-5 py-3.5 align-middle">
-                          <p className="text-sm font-medium text-foreground">{svc.name}</p>
-                          {svc.description && (
-                            <p className="text-[10px] text-muted mt-0.5 hidden sm:block">
-                              {svc.description}
-                            </p>
-                          )}
-                        </td>
-                        <td className="px-4 py-3.5 hidden md:table-cell align-middle">
-                          <Badge className={cn("border text-[10px] px-1.5 py-0.5", cat.className)}>
-                            {cat.label}
-                          </Badge>
-                        </td>
-                        <td className="px-4 py-3.5 text-center align-middle">
-                          <span className="text-xs text-muted flex items-center justify-center gap-0.5">
-                            <Clock className="w-3 h-3" />
-                            {svc.durationMin != null ? formatDuration(svc.durationMin) : "TBD"}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3.5 text-center align-middle">
-                          <div className="flex flex-col items-center gap-0.5">
-                            <span className="text-sm font-semibold text-foreground flex items-center gap-0.5">
-                              <Tag className="w-3 h-3 text-muted" />
-                              {svc.price === 0 ? "Free" : `$${svc.price}`}
-                            </span>
-                            {svc.deposit != null && (
-                              <span className="text-[9px] text-muted">${svc.deposit} deposit</span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-5 py-3.5 text-center align-middle">
-                          {svc.certified ? (
-                            <div className="flex flex-col items-center gap-0.5">
-                              <CheckCircle2 className="w-4 h-4 text-[#4e6b51]" />
-                              <span className="text-[9px] text-muted">
-                                {svc.timesPerformed}x{svc.certDate && ` · ${svc.certDate}`}
-                              </span>
-                            </div>
-                          ) : (
-                            <span className="text-[10px] text-muted">—</span>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-6">
+          {Object.entries(grouped).map(([cat, services]) => (
+            <div key={cat}>
+              {/* Category header */}
+              <div className="flex items-center gap-2 mb-3">
+                <div
+                  className="w-1 h-5 rounded-full shrink-0"
+                  style={{ background: categoryAccent(cat) }}
+                />
+                <span className="text-sm font-semibold text-foreground">{categoryLabel(cat)}</span>
+                <span className="text-xs text-muted">{services.length}</span>
+              </div>
+              {/* Card grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {services.map((svc) => (
+                  <ServiceCard key={svc.id} svc={svc} />
+                ))}
+              </div>
             </div>
-          )}
-        </CardContent>
-      </Card>
+          ))}
+        </div>
+      )}
 
       <p className="text-xs text-muted text-center">
-        Need to add a service or update certification? Message Trini.
+        Need to add a service or update certification? Reach out to your studio owner.
       </p>
     </div>
   );

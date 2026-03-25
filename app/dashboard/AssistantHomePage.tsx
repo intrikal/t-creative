@@ -2,7 +2,6 @@
 
 import type React from "react";
 import { useState } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import {
   CalendarDays,
@@ -25,6 +24,7 @@ import {
   Check,
   Rocket,
   ArrowRight,
+  Scissors,
 } from "lucide-react";
 import { submitTimeOffRequest } from "@/app/dashboard/settings/assistant-settings-actions";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -112,11 +112,48 @@ interface AssistantHomePageProps {
 /* ------------------------------------------------------------------ */
 
 const QUICK_ACTIONS = [
-  { label: "My Schedule", icon: CalendarCheck, href: "/dashboard/schedule" },
-  { label: "Messages", icon: MessageSquare, href: "/dashboard/messages" },
-  { label: "My Clients", icon: Users, href: "/dashboard/clients" },
-  { label: "Earnings", icon: DollarSign, href: "/dashboard/earnings" },
-  { label: "Training", icon: GraduationCap, href: "/dashboard/training" },
+  {
+    label: "My Schedule",
+    icon: CalendarCheck,
+    href: "/dashboard/schedule",
+    color: "text-blush",
+    bg: "bg-blush/10",
+  },
+  {
+    label: "Messages",
+    icon: MessageSquare,
+    href: "/dashboard/messages",
+    color: "text-[#5b8a8a]",
+    bg: "bg-[#5b8a8a]/10",
+  },
+  {
+    label: "My Clients",
+    icon: Users,
+    href: "/dashboard/clients",
+    color: "text-accent",
+    bg: "bg-accent/10",
+  },
+  {
+    label: "Earnings",
+    icon: DollarSign,
+    href: "/dashboard/earnings",
+    color: "text-[#4e6b51]",
+    bg: "bg-[#4e6b51]/10",
+  },
+  {
+    label: "Training",
+    icon: GraduationCap,
+    href: "/dashboard/training",
+    color: "text-[#d4a574]",
+    bg: "bg-[#d4a574]/10",
+  },
+  {
+    label: "Services",
+    icon: Scissors,
+    href: "/dashboard/services",
+    color: "text-[#7a5c10]",
+    bg: "bg-[#7a5c10]/10",
+  },
 ];
 
 function bookingStatusConfig(status: BookingStatus) {
@@ -568,7 +605,6 @@ function MyAvailabilitySection({ entries }: { entries: TimeOffEntry[] }) {
 
 export function AssistantHomePage({
   firstName,
-  avatarUrl,
   adminName,
   setupProgress,
   setupComplete,
@@ -635,28 +671,12 @@ export function AssistantHomePage({
   ];
 
   return (
-    <div className="p-4 md:p-6 lg:p-8 space-y-6">
+    <div className="p-4 md:p-6 lg:p-8 space-y-4">
       {/* ── Header ─────────────────────────────────────────────────── */}
-      <div className="flex items-center gap-3">
-        {avatarUrl ? (
-          <Image
-            src={avatarUrl}
-            alt={firstName}
-            width={40}
-            height={40}
-            referrerPolicy="no-referrer"
-            className="rounded-full object-cover shrink-0"
-          />
-        ) : (
-          <div className="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center shrink-0">
-            <span className="text-sm font-semibold text-accent">
-              {firstName?.[0]?.toUpperCase() ?? "?"}
-            </span>
-          </div>
-        )}
+      <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-semibold text-foreground tracking-tight">
-            {greeting}, {firstName} ✦
+          <h1 className="text-2xl sm:text-3xl font-semibold text-foreground tracking-tight">
+            {greeting}, {firstName}
           </h1>
           <p className="text-sm text-muted mt-0.5">{today}</p>
         </div>
@@ -682,28 +702,30 @@ export function AssistantHomePage({
       )}
 
       {/* ── Quick actions ───────────────────────────────────────────── */}
-      <div className="flex gap-2 flex-wrap">
-        {QUICK_ACTIONS.map(({ label, icon: Icon, href }) => (
+      <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+        {QUICK_ACTIONS.map(({ label, icon: Icon, href, color, bg }) => (
           <Link
             key={label}
             href={href}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-surface border border-border text-sm font-medium text-foreground hover:bg-foreground/5 hover:border-foreground/20 transition-colors"
+            className="relative group flex flex-col items-center gap-1.5 px-2 py-3 rounded-xl bg-surface border border-border hover:border-foreground/20 hover:shadow-sm transition-all text-center"
           >
-            <Icon className="w-3.5 h-3.5 text-muted" />
-            {label}
+            <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center", bg)}>
+              <Icon className={cn("w-4 h-4", color)} />
+            </div>
+            <span className="text-xs font-medium text-foreground">{label}</span>
           </Link>
         ))}
       </div>
 
       {/* ── Stats ───────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
         {statCards.map((stat) => (
           <StatCard key={stat.label} {...stat} />
         ))}
       </div>
 
       {/* ── Today's schedule + Messages ─────────────────────────────── */}
-      <div className="grid grid-cols-1 xl:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 xl:grid-cols-5 gap-3">
         {/* Schedule */}
         <Card className="xl:col-span-3 gap-0">
           <CardHeader className="pb-0 pt-5">

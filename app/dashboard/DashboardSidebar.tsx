@@ -130,6 +130,7 @@ const CLIENT_NAV_GROUPS: NavGroup[] = [
   {
     label: "My Account",
     items: [
+      { href: "/dashboard/get-started", label: "Get Started", icon: Rocket },
       { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
       { href: "/dashboard/bookings", label: "My Bookings", icon: CalendarCheck },
       { href: "/dashboard/events", label: "My Events", icon: PartyPopper },

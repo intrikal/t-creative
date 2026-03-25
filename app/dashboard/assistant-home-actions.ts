@@ -13,6 +13,7 @@ import {
   trainingPrograms,
 } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
+import { getAssistantSetupData } from "./assistant-setup-data";
 import type {
   AssistantEnrollment,
   RecentMessage,
@@ -50,6 +51,8 @@ export async function getAssistantHomeData() {
     recentMessagesRaw,
     enrollmentsRaw,
     timeOffRaw,
+    adminRow,
+    setupData,
   ] = await Promise.all([
     db
       .select({ firstName: profiles.firstName, avatarUrl: profiles.avatarUrl })
@@ -149,6 +152,13 @@ export async function getAssistantHomeData() {
       .where(and(eq(timeOff.staffId, userId), gte(timeOff.endDate, todayStr)))
       .orderBy(asc(timeOff.startDate))
       .limit(10),
+    db
+      .select({ firstName: profiles.firstName })
+      .from(profiles)
+      .where(eq(profiles.role, "admin"))
+      .limit(1)
+      .then((r) => r[0]),
+    getAssistantSetupData(userId),
   ]);
 
   const todayBookings: TodayBooking[] = todayBookingsRaw.map((b) => ({
@@ -209,6 +219,9 @@ export async function getAssistantHomeData() {
   return {
     firstName: profileRow?.firstName ?? user.email?.split("@")[0] ?? "there",
     avatarUrl: profileRow?.avatarUrl ?? null,
+    adminName: adminRow?.firstName ?? "the studio owner",
+    setupProgress: setupData.setupProgress,
+    setupComplete: setupData.setupProgress === "3/3",
     todayBookings,
     stats: {
       appointmentsToday: todayBookings.length,

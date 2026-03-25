@@ -2,6 +2,7 @@
 
 import type React from "react";
 import { useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import {
   CalendarDays,
@@ -22,6 +23,8 @@ import {
   BookMarked,
   Plus,
   Check,
+  Rocket,
+  ArrowRight,
 } from "lucide-react";
 import { submitTimeOffRequest } from "@/app/dashboard/settings/assistant-settings-actions";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -94,6 +97,9 @@ export interface TimeOffEntry {
 interface AssistantHomePageProps {
   firstName: string;
   avatarUrl: string | null;
+  adminName: string;
+  setupProgress: string;
+  setupComplete: boolean;
   todayBookings: TodayBooking[];
   stats: AssistantStats;
   recentMessages: RecentMessage[];
@@ -563,6 +569,9 @@ function MyAvailabilitySection({ entries }: { entries: TimeOffEntry[] }) {
 export function AssistantHomePage({
   firstName,
   avatarUrl,
+  adminName,
+  setupProgress,
+  setupComplete,
   todayBookings,
   stats,
   recentMessages,
@@ -629,14 +638,21 @@ export function AssistantHomePage({
     <div className="p-4 md:p-6 lg:p-8 max-w-5xl mx-auto space-y-6">
       {/* ── Header ─────────────────────────────────────────────────── */}
       <div className="flex items-center gap-3">
-        {avatarUrl && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
+        {avatarUrl ? (
+          <Image
             src={avatarUrl}
             alt={firstName}
+            width={40}
+            height={40}
             referrerPolicy="no-referrer"
-            className="w-10 h-10 rounded-full object-cover shrink-0"
+            className="rounded-full object-cover shrink-0"
           />
+        ) : (
+          <div className="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center shrink-0">
+            <span className="text-sm font-semibold text-accent">
+              {firstName?.[0]?.toUpperCase() ?? "?"}
+            </span>
+          </div>
         )}
         <div>
           <h1 className="text-xl font-semibold text-foreground tracking-tight">
@@ -645,6 +661,25 @@ export function AssistantHomePage({
           <p className="text-sm text-muted mt-0.5">{today}</p>
         </div>
       </div>
+
+      {/* ── Get Started banner ────────────────────────────────────────── */}
+      {!setupComplete && (
+        <Link
+          href="/dashboard/get-started"
+          className="flex items-center gap-3 px-4 py-3 rounded-xl bg-gradient-to-r from-[#c4907a]/15 to-[#d4a574]/15 border border-[#c4907a]/20 hover:border-[#c4907a]/40 transition-colors group"
+        >
+          <div className="w-8 h-8 rounded-lg bg-[#c4907a]/15 flex items-center justify-center shrink-0">
+            <Rocket className="w-4 h-4 text-[#c4907a]" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-foreground">Finish setting up your profile</p>
+            <p className="text-xs text-muted mt-0.5">
+              You&apos;re {setupProgress} done — complete your setup to start getting booked.
+            </p>
+          </div>
+          <ArrowRight className="w-4 h-4 text-muted group-hover:text-foreground transition-colors shrink-0" />
+        </Link>
+      )}
 
       {/* ── Quick actions ───────────────────────────────────────────── */}
       <div className="flex gap-2 flex-wrap">
@@ -751,7 +786,7 @@ export function AssistantHomePage({
                 <Inbox className="w-8 h-8 text-foreground/15 mb-2" />
                 <p className="text-sm text-muted/60 font-medium">No messages yet</p>
                 <p className="text-xs text-muted/40 mt-0.5">
-                  Trini will reach out here with updates and announcements.
+                  {adminName} will reach out here with updates and announcements.
                 </p>
               </div>
             )}
@@ -842,7 +877,7 @@ export function AssistantHomePage({
               <BookMarked className="w-8 h-8 text-foreground/15 mb-2" />
               <p className="text-sm text-muted/60 font-medium">No training assigned yet</p>
               <p className="text-xs text-muted/40 mt-0.5">
-                Trini will assign programs here as you join the team.
+                {adminName} will assign programs here as you join the team.
               </p>
             </div>
           )}

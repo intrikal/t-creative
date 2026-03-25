@@ -18,17 +18,27 @@ const TYPE_COLOR: Record<string, string> = {
   reference: "bg-blue-50 text-blue-700",
 };
 
-export function MyPhotosPage({ groups }: { groups: BookingPhotoGroup[] }) {
+export function MyPhotosPage({
+  groups,
+  embedded,
+}: {
+  groups: BookingPhotoGroup[];
+  embedded?: boolean;
+}) {
   const [lightbox, setLightbox] = useState<ClientPhoto | null>(null);
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-lg font-semibold text-foreground">My Photos</h1>
-        <p className="text-xs text-muted mt-0.5">
-          Before, after, and reference photos from your appointments.
-        </p>
-      </div>
+    <div className="space-y-4">
+      {!embedded && (
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-semibold text-foreground tracking-tight">
+            My Photos
+          </h1>
+          <p className="text-xs text-muted mt-0.5">
+            Before, after, and reference photos from your appointments.
+          </p>
+        </div>
+      )}
 
       {groups.length === 0 ? (
         <Card className="gap-0">

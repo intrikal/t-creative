@@ -242,7 +242,13 @@ function Lightbox({
 
 type Tab = "portfolio" | "my-photos";
 
-export function ClientGalleryPage({ data }: { data: ClientGalleryData }) {
+export function ClientGalleryPage({
+  data,
+  embedded,
+}: {
+  data: ClientGalleryData;
+  embedded?: boolean;
+}) {
   const [tab, setTab] = useState<Tab>(data.myPhotos.length > 0 ? "my-photos" : "portfolio");
   const [categoryFilter, setCategoryFilter] = useState<"all" | GalleryCategory>("all");
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
@@ -290,11 +296,15 @@ export function ClientGalleryPage({ data }: { data: ClientGalleryData }) {
   }
 
   return (
-    <div className="p-4 md:p-6 lg:p-8 space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold text-foreground tracking-tight">Gallery</h1>
-        <p className="text-sm text-muted mt-0.5">Lookbook from T Creative Studio</p>
-      </div>
+    <div className={cn(embedded ? "space-y-4" : "p-4 md:p-6 lg:p-8 space-y-4")}>
+      {!embedded && (
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-semibold text-foreground tracking-tight">
+            Gallery
+          </h1>
+          <p className="text-sm text-muted mt-0.5">Lookbook from T Creative Studio</p>
+        </div>
+      )}
 
       {/* Tab switcher — only show if client has tagged photos */}
       {data.myPhotos.length > 0 && (

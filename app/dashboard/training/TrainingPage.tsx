@@ -122,7 +122,9 @@ export function TrainingPage({
       {!embedded && (
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-xl font-semibold text-foreground tracking-tight">Training</h1>
+            <h1 className="text-2xl sm:text-3xl font-semibold text-foreground tracking-tight">
+              Training
+            </h1>
             <p className="text-sm text-muted mt-0.5">Programs, students, and certifications</p>
           </div>
           <button

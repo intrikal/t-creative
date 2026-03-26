@@ -3,8 +3,8 @@
 import { useState, useTransition } from "react";
 import { GraduationCap, Award, Download } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
 import type { ClientProgram, ClientTrainingData, EnrollStatus } from "@/lib/types/training.types";
+import { cn } from "@/lib/utils";
 import { clientEnroll, clientJoinWaitlist } from "./client-actions";
 import { PROG_STYLE } from "./components/client-helpers";
 import { ClientProgramCard } from "./components/ClientProgramCard";
@@ -51,11 +51,13 @@ export function ClientTrainingPage({ data }: { data: ClientTrainingData }) {
   }
 
   return (
-    <div className="p-4 md:p-6 lg:p-8 space-y-6">
+    <div className="p-4 md:p-6 lg:p-8 space-y-4">
       <div>
-        <h1 className="text-xl font-semibold text-foreground tracking-tight">Training Programs</h1>
+        <h1 className="text-2xl sm:text-3xl font-semibold text-foreground tracking-tight">
+          Training Programs
+        </h1>
         <p className="text-sm text-muted mt-0.5">
-          Learn from Trini — certification courses and workshops
+          Certification courses and workshops from T Creative Studio
         </p>
       </div>
 

@@ -70,6 +70,27 @@ function clientReducer(state: ClientState, action: ClientAction): ClientState {
   }
 }
 
+function fmtTime(date: Date) {
+  return new Date(date).toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function timeAgo(date: Date) {
+  const now = Date.now();
+  const diff = now - new Date(date).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "now";
+  if (mins < 60) return `${mins}m`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d`;
+}
+
 /* ------------------------------------------------------------------ */
 /*  Component                                                          */
 /* ------------------------------------------------------------------ */
@@ -89,7 +110,9 @@ export function ClientMessagesPage({ currentUserId }: { currentUserId: string })
 
   // Stable ref for Realtime callback
   const selectedIdRef = useRef(selectedId);
-  selectedIdRef.current = selectedId;
+  useEffect(() => {
+    selectedIdRef.current = selectedId;
+  }, [selectedId]);
 
   // Load threads on mount
   useEffect(() => {
@@ -252,27 +275,6 @@ export function ClientMessagesPage({ currentUserId }: { currentUserId: string })
     }
   }
 
-  function fmtTime(date: Date) {
-    return new Date(date).toLocaleString("en-US", {
-      month: "short",
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-    });
-  }
-
-  function timeAgo(date: Date) {
-    const now = Date.now();
-    const diff = now - new Date(date).getTime();
-    const mins = Math.floor(diff / 60000);
-    if (mins < 1) return "now";
-    if (mins < 60) return `${mins}m`;
-    const hrs = Math.floor(mins / 60);
-    if (hrs < 24) return `${hrs}h`;
-    const days = Math.floor(hrs / 24);
-    return `${days}d`;
-  }
-
   const handleComposeClose = useCallback(() => {
     dispatch({ type: "CLOSE_COMPOSE" });
   }, []);
@@ -301,7 +303,7 @@ export function ClientMessagesPage({ currentUserId }: { currentUserId: string })
             <button
               onClick={() => dispatch({ type: "OPEN_COMPOSE" })}
               className="p-1.5 rounded-lg hover:bg-foreground/8 text-muted hover:text-foreground transition-colors"
-              title="New message"
+              aria-label="New message"
             >
               <PenSquare className="w-4 h-4" />
             </button>
@@ -350,6 +352,7 @@ export function ClientMessagesPage({ currentUserId }: { currentUserId: string })
               <button
                 onClick={() => dispatch({ type: "DESELECT_THREAD" })}
                 className="lg:hidden p-1 rounded-lg hover:bg-foreground/8 text-muted"
+                aria-label="Back to thread list"
               >
                 <ArrowLeft className="w-4 h-4" />
               </button>
@@ -471,6 +474,7 @@ export function ClientMessagesPage({ currentUserId }: { currentUserId: string })
               <button
                 onClick={handleSend}
                 disabled={!draft.trim() || sending}
+                aria-label="Send message"
                 className={cn(
                   "w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-colors",
                   draft.trim() && !sending
@@ -489,11 +493,7 @@ export function ClientMessagesPage({ currentUserId }: { currentUserId: string })
       </div>
 
       {/* Compose dialog */}
-      <ComposeDialog
-        open={composeOpen}
-        onClose={handleComposeClose}
-        onCreated={handleCreated}
-      />
+      <ComposeDialog open={composeOpen} onClose={handleComposeClose} onCreated={handleCreated} />
     </div>
   );
 }

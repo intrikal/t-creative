@@ -1,7 +1,7 @@
 import * as React from "react";
 import { Section, Text } from "@react-email/components";
-import { Layout } from "./components/Layout";
 import { formatCents } from "./components/format";
+import { Layout } from "./components/Layout";
 
 export type BookingCancellationProps = {
   clientName: string;
@@ -11,6 +11,7 @@ export type BookingCancellationProps = {
   refundDecision?: "full_refund" | "partial_refund" | "no_refund" | "no_deposit";
   refundAmountInCents?: number;
   depositAmountInCents?: number;
+  businessName?: string;
 };
 
 export function BookingCancellation({
@@ -21,12 +22,12 @@ export function BookingCancellation({
   refundDecision,
   refundAmountInCents,
   depositAmountInCents,
+  businessName = "T Creative Studio",
 }: BookingCancellationProps) {
-  const showRefundSection =
-    refundDecision && refundDecision !== "no_deposit";
+  const showRefundSection = refundDecision && refundDecision !== "no_deposit";
 
   return (
-    <Layout preview={`Booking cancelled — ${serviceName}`}>
+    <Layout preview={`Booking cancelled — ${serviceName}`} businessName={businessName}>
       <Section style={content}>
         <Text style={heading}>Booking Cancelled</Text>
         <Text style={paragraph}>Hey {clientName}, your appointment has been cancelled.</Text>
@@ -49,23 +50,21 @@ export function BookingCancellation({
             <Text style={detailLabel}>Deposit Refund</Text>
             {refundDecision === "full_refund" && (
               <Text style={detailValue}>
-                A full refund of {formatCents(refundAmountInCents ?? 0)} has been
-                issued to your original payment method. Please allow 5–10 business
-                days for it to appear.
+                A full refund of {formatCents(refundAmountInCents ?? 0)} has been issued to your
+                original payment method. Please allow 5–10 business days for it to appear.
               </Text>
             )}
             {refundDecision === "partial_refund" && (
               <Text style={detailValue}>
-                A partial refund of {formatCents(refundAmountInCents ?? 0)} (of
-                your {formatCents(depositAmountInCents ?? 0)} deposit) has been
-                issued to your original payment method. Please allow 5–10 business
-                days for it to appear.
+                A partial refund of {formatCents(refundAmountInCents ?? 0)} (of your{" "}
+                {formatCents(depositAmountInCents ?? 0)} deposit) has been issued to your original
+                payment method. Please allow 5–10 business days for it to appear.
               </Text>
             )}
             {refundDecision === "no_refund" && (
               <Text style={detailValue}>
-                Because this cancellation was made less than 24 hours before the
-                appointment, no deposit refund will be issued.
+                Because this cancellation was made less than 24 hours before the appointment, no
+                deposit refund will be issued.
               </Text>
             )}
           </>

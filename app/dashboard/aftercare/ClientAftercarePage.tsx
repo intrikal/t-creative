@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useTimeoutFlag } from "@/lib/hooks/use-timeout-flag";
 import Link from "next/link";
 import {
   CheckCircle2,
@@ -17,6 +16,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useTimeoutFlag } from "@/lib/hooks/use-timeout-flag";
 import { cn } from "@/lib/utils";
 import type { ClientAftercareSection } from "./client-actions";
 
@@ -66,9 +66,11 @@ export function ClientAftercarePage({ sections }: { sections: ClientAftercareSec
     : "";
 
   return (
-    <div className="p-4 md:p-6 lg:p-8 space-y-6">
+    <div className="p-4 md:p-6 lg:p-8 space-y-4">
       <div>
-        <h1 className="text-xl font-semibold text-foreground tracking-tight">Aftercare Guide</h1>
+        <h1 className="text-2xl sm:text-3xl font-semibold text-foreground tracking-tight">
+          Aftercare Guide
+        </h1>
         <p className="text-sm text-muted mt-0.5">
           Follow these instructions to protect your results
         </p>

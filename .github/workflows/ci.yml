@@ -216,6 +216,8 @@ jobs:
 
   # ─────────────────────────────────────────────────────────────────────────────
   # Job 5: Lighthouse Audit (depends on Build passing)
+  # Runs @lhci/cli against the production build, asserts score thresholds, and
+  # uploads results to temporary-public-storage. Scores are posted as a PR comment.
   # ─────────────────────────────────────────────────────────────────────────────
   lighthouse:
     name: Lighthouse Audit
@@ -256,34 +258,64 @@ jobs:
         run: npm run build
 
       - name: Run Lighthouse CI
-        id: lighthouse
-        uses: treosh/lighthouse-ci-action@v12
+        run: npx lhci autorun --config=lighthouserc.js
+        env:
+          LHCI_GITHUB_APP_TOKEN: ${{ secrets.LHCI_GITHUB_APP_TOKEN }}
+
+      - name: Upload Lighthouse results
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
-          configPath: ./lighthouserc.json
-          uploadArtifacts: true
+          name: lighthouse-results
+          path: .lighthouseci/
+          retention-days: 7
 
       - name: Post Lighthouse scores as PR comment
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && always()
         uses: actions/github-script@v7
         with:
           script: |
-            const results = ${{ steps.lighthouse.outputs.manifest }};
-            if (!results || results.length === 0) return;
+            const fs = require('fs');
+            const path = require('path');
 
-            const rows = results.map(({ url, summary }) => {
-              const score = (key) => summary[key] != null ? `${Math.round(summary[key] * 100)}` : 'N/A';
-              const icon  = (key, threshold) => {
-                const v = summary[key];
-                return v == null ? '—' : v >= threshold ? '✅' : '❌';
-              };
-              return [
-                `| \`${url}\``,
-                `${icon('performance', 0.9)} ${score('performance')}`,
-                `${icon('accessibility', 0.95)} ${score('accessibility')}`,
-                `${icon('best-practices', 0.95)} ${score('best-practices')}`,
-                `${icon('seo', 0.95)} ${score('seo')} |`,
-              ].join(' | ');
-            }).join('\n');
+            const lhciDir = '.lighthouseci';
+            if (!fs.existsSync(lhciDir)) {
+              console.log('No Lighthouse results found.');
+              return;
+            }
+
+            const manifests = fs.readdirSync(lhciDir)
+              .filter(f => f.startsWith('manifest-') && f.endsWith('.json'))
+              .map(f => JSON.parse(fs.readFileSync(path.join(lhciDir, f), 'utf8')));
+
+            if (manifests.length === 0) {
+              console.log('No manifest files found.');
+              return;
+            }
+
+            // Build a map of url -> best median run scores
+            const byUrl = {};
+            for (const manifest of manifests) {
+              for (const entry of manifest) {
+                const { url, summary } = entry;
+                if (!byUrl[url]) byUrl[url] = summary;
+              }
+            }
+
+            const score = (summary, key) =>
+              summary[key] != null ? `${Math.round(summary[key] * 100)}` : 'N/A';
+            const icon = (summary, key, threshold) => {
+              const v = summary[key];
+              return v == null ? '—' : v >= threshold ? '✅' : '❌';
+            };
+
+            const rows = Object.entries(byUrl).map(([url, summary]) => [
+              `| \`${url}\``,
+              `${icon(summary, 'performance', 0.9)} ${score(summary, 'performance')}`,
+              `${icon(summary, 'accessibility', 0.95)} ${score(summary, 'accessibility')}`,
+              `${icon(summary, 'best-practices', 0.95)} ${score(summary, 'best-practices')}`,
+              `${icon(summary, 'seo', 0.95)} ${score(summary, 'seo')} |`,
+            ].join(' | ')).join('\n');
 
             const body = [
               '## Lighthouse CI Results',

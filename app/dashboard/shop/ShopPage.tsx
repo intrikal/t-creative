@@ -2,7 +2,6 @@
 
 import { useState, useTransition } from "react";
 import { ShoppingCart, Package, Heart, ExternalLink } from "lucide-react";
-import { type ClientCommission } from "@/lib/types/commission.types";
 import {
   placeOrder,
   addToWishlist,
@@ -10,14 +9,15 @@ import {
   type ShopProduct,
   type ClientOrder,
 } from "@/app/shop/actions";
+import { type ClientCommission } from "@/lib/types/commission.types";
 import { cn } from "@/lib/utils";
 import { useCartStore, cartItemCount } from "@/stores/useCartStore";
 import { CommissionsTab } from "./CommissionsTab";
-import { getCatConfig } from "./components/shop-helpers";
-import { ProductCard } from "./components/ProductCard";
 import { CartDrawer } from "./components/CartDrawer";
-import { ProductModal } from "./components/ProductModal";
 import { OrdersList } from "./components/OrdersList";
+import { ProductCard } from "./components/ProductCard";
+import { ProductModal } from "./components/ProductModal";
+import { getCatConfig } from "./components/shop-helpers";
 
 /* ------------------------------------------------------------------ */
 /*  Main export                                                         */
@@ -107,11 +107,13 @@ export function ClientShopPage({
   }
 
   return (
-    <div className="p-4 md:p-6 lg:p-8 space-y-6">
+    <div className="p-4 md:p-6 lg:p-8 space-y-4">
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-xl font-semibold text-foreground tracking-tight">Shop</h1>
+          <h1 className="text-2xl sm:text-3xl font-semibold text-foreground tracking-tight">
+            Shop
+          </h1>
           <p className="text-sm text-muted mt-0.5">Products from T Creative Studio</p>
         </div>
         <button

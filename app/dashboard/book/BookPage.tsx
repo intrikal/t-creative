@@ -119,9 +119,11 @@ export function ClientBookPage({
   }, [services, search, activeTab]);
 
   return (
-    <div className="p-4 md:p-6 lg:p-8 space-y-6">
+    <div className="p-4 md:p-6 lg:p-8 space-y-4">
       <div>
-        <h1 className="text-xl font-semibold text-foreground tracking-tight">Book a Service</h1>
+        <h1 className="text-2xl sm:text-3xl font-semibold text-foreground tracking-tight">
+          Book a Service
+        </h1>
         <p className="text-sm text-muted mt-0.5">Browse services and request an appointment</p>
       </div>
 

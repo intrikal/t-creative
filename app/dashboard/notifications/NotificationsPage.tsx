@@ -150,16 +150,16 @@ export function NotificationsPage({
   }
 
   return (
-    <div className="p-4 md:p-6 lg:p-8 space-y-6">
+    <div className="p-4 md:p-6 lg:p-8 space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-foreground tracking-tight">Notifications</h1>
+          <h1 className="text-2xl sm:text-3xl font-semibold text-foreground tracking-tight">
+            Notifications
+          </h1>
           <p className="text-sm text-muted mt-0.5">
             {total} notification{total !== 1 ? "s" : ""}
-            {unreadCount > 0 && (
-              <span className="text-accent"> &middot; {unreadCount} unread</span>
-            )}
+            {unreadCount > 0 && <span className="text-accent"> &middot; {unreadCount} unread</span>}
           </p>
         </div>
         {unreadCount > 0 && (
@@ -196,9 +196,7 @@ export function NotificationsPage({
         </Card>
         <Card className="gap-0 py-4">
           <div className="px-4">
-            <p className="text-[10px] font-medium text-muted uppercase tracking-wide">
-              This Page
-            </p>
+            <p className="text-[10px] font-medium text-muted uppercase tracking-wide">This Page</p>
             <p className="text-2xl font-semibold text-foreground mt-1 tabular-nums">
               {items.length}
             </p>
@@ -209,7 +207,7 @@ export function NotificationsPage({
           <div className="px-4">
             <p className="text-[10px] font-medium text-muted uppercase tracking-wide">Filter</p>
             <p className="text-2xl font-semibold text-foreground mt-1 tabular-nums">
-              {activeType ? TYPE_CONFIG[activeType]?.label ?? activeType : "All"}
+              {activeType ? (TYPE_CONFIG[activeType]?.label ?? activeType) : "All"}
             </p>
             <p className="text-xs text-muted mt-1">Active filter</p>
           </div>
@@ -282,14 +280,14 @@ export function NotificationsPage({
                       <p
                         className={cn(
                           "text-[13px] leading-tight truncate",
-                          isUnread ? "font-semibold text-foreground" : "font-medium text-foreground",
+                          isUnread
+                            ? "font-semibold text-foreground"
+                            : "font-medium text-foreground",
                         )}
                       >
                         {item.title}
                       </p>
-                      {isUnread && (
-                        <span className="w-1.5 h-1.5 rounded-full bg-accent shrink-0" />
-                      )}
+                      {isUnread && <span className="w-1.5 h-1.5 rounded-full bg-accent shrink-0" />}
                     </div>
                     {item.body && (
                       <p className="text-xs text-muted mt-0.5 line-clamp-1">{item.body}</p>

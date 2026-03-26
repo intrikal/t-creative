@@ -1,10 +1,19 @@
 "use server";
 
-import { and, asc, count, desc, eq, gte, inArray, sum } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, inArray, sum, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
-import { bookings, loyaltyTransactions, profiles, services } from "@/db/schema";
+import {
+  bookings,
+  loyaltyTransactions,
+  messages,
+  policies,
+  profiles,
+  services,
+  threads,
+} from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
+import { getClientSetupData } from "./client-setup-data";
 
 export async function getClientHomeData() {
   const user = await getCurrentUser();
@@ -15,7 +24,16 @@ export async function getClientHomeData() {
   const staffProfiles = alias(profiles, "staff");
   const servicesTable = services;
 
-  const [upcomingBookings, pastBookings, stats, monthStats, loyaltyResult] = await Promise.all([
+  const [
+    upcomingBookings,
+    pastBookings,
+    stats,
+    monthStats,
+    loyaltyResult,
+    setupData,
+    recentMessages,
+    aftercareGuides,
+  ] = await Promise.all([
     db
       .select({
         id: bookings.id,
@@ -76,6 +94,39 @@ export async function getClientHomeData() {
       .from(loyaltyTransactions)
       .where(eq(loyaltyTransactions.profileId, user.id))
       .then((r) => r[0]),
+    getClientSetupData(user.id),
+    // Recent unread messages (up to 3)
+    db
+      .select({
+        id: messages.id,
+        body: messages.body,
+        senderName: profiles.firstName,
+        createdAt: messages.createdAt,
+        threadSubject: threads.subject,
+      })
+      .from(messages)
+      .innerJoin(threads, eq(messages.threadId, threads.id))
+      .innerJoin(profiles, eq(messages.senderId, profiles.id))
+      .where(
+        and(
+          eq(threads.clientId, user.id),
+          eq(messages.isRead, false),
+          sql`${messages.senderId} != ${user.id}`,
+        ),
+      )
+      .orderBy(desc(messages.createdAt))
+      .limit(3),
+    // Aftercare guides relevant to recent bookings
+    db
+      .select({
+        id: policies.id,
+        title: policies.title,
+        slug: policies.slug,
+      })
+      .from(policies)
+      .where(eq(policies.type, "aftercare"))
+      .orderBy(policies.title)
+      .limit(4),
   ]);
 
   const lastLashVisit = pastBookings.find((b) => b.serviceCategory === "lash")?.startsAt ?? null;
@@ -90,5 +141,9 @@ export async function getClientHomeData() {
     upcomingBookings,
     pastBookings,
     lastLashVisitDate: lastLashVisit,
+    setupComplete: setupData.setupProgress === "3/3",
+    setupProgress: setupData.setupProgress,
+    recentMessages,
+    aftercareGuides,
   };
 }

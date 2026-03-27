@@ -30,6 +30,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { m, AnimatePresence } from "framer-motion";
+import { ShoppingBag } from "lucide-react";
+import { useCartStore, cartItemCount } from "@/stores/useCartStore";
 import { TCLogo } from "./TCLogo";
 
 /** All top-level navigation destinations. Update this array to add/remove links. */
@@ -56,6 +58,8 @@ export function Navbar({ user = null }: NavbarProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const profileRef = useRef<HTMLDivElement>(null);
+  const cartItems = useCartStore((s) => s.items);
+  const cartCount = cartItemCount(cartItems);
 
   // Close profile menu when clicking outside
   useEffect(() => {
@@ -176,10 +180,24 @@ export function Navbar({ user = null }: NavbarProps) {
               Sign In
             </Link>
           )}
+          {/* Cart icon */}
+          <Link
+            href="/shop/checkout"
+            className="relative text-muted hover:text-foreground transition-colors"
+            aria-label={`Cart (${cartCount} items)`}
+          >
+            <ShoppingBag size={18} />
+            {cartCount > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-accent text-[9px] font-medium text-white flex items-center justify-center">
+                {cartCount}
+              </span>
+            )}
+          </Link>
+
           {/* Primary CTA — always visible regardless of auth state */}
           <Link
             href="/contact"
-            className="inline-flex items-center justify-center px-5 py-2 text-xs tracking-wide uppercase bg-foreground text-background hover:bg-muted transition-colors duration-200"
+            className="inline-flex items-center justify-center px-5 py-2 text-xs tracking-wide uppercase rounded-full bg-foreground text-background hover:bg-foreground/80 transition-colors duration-200"
           >
             Book Appointment
           </Link>
@@ -300,9 +318,19 @@ export function Navbar({ user = null }: NavbarProps) {
                     Sign In
                   </Link>
                 )}
+                {cartCount > 0 && (
+                  <Link
+                    href="/shop/checkout"
+                    className="flex items-center gap-2 text-sm text-muted hover:text-foreground transition-colors"
+                    onClick={() => setMobileOpen(false)}
+                  >
+                    <ShoppingBag size={16} />
+                    Cart ({cartCount})
+                  </Link>
+                )}
                 <Link
                   href="/contact"
-                  className="inline-flex items-center justify-center px-5 py-3 text-xs tracking-wide uppercase bg-foreground text-background"
+                  className="inline-flex items-center justify-center px-5 py-3 text-xs tracking-wide uppercase rounded-full bg-foreground text-background"
                   onClick={() => setMobileOpen(false)}
                 >
                   Book Appointment

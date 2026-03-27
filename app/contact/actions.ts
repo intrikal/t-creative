@@ -19,6 +19,7 @@ import { sendEmail } from "@/lib/resend";
 const contactFormSchema = z.object({
   name: z.string().min(1).max(200),
   email: z.string().email().max(320),
+  phone: z.string().max(30).optional(),
   interest: z.string().min(1),
   message: z.string().min(1).max(5000),
 });
@@ -63,6 +64,7 @@ const contactRateLimit = new Ratelimit({
 export async function submitContactForm(data: {
   name: string;
   email: string;
+  phone?: string;
   interest: string;
   message: string;
 }) {
@@ -77,6 +79,7 @@ export async function submitContactForm(data: {
   await db.insert(inquiries).values({
     name: data.name,
     email: data.email,
+    phone: data.phone ?? null,
     interest: category,
     message: `[${data.interest}] ${data.message}`,
     status: "new",

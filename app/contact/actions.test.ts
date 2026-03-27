@@ -25,6 +25,7 @@ function setupMocks() {
     inquiries: {
       name: "name",
       email: "email",
+      phone: "phone",
       interest: "interest",
       message: "message",
       status: "status",
@@ -112,6 +113,7 @@ describe("submitContactForm", () => {
         expect.objectContaining({
           name: "Jane Doe",
           email: "jane@example.com",
+          phone: null,
           interest: "lash",
           message: "[Lash Extensions] I'd love to book an appointment.",
           status: "new",

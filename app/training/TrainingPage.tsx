@@ -86,92 +86,95 @@ type ProgramDisplay = {
   curriculum: string[];
 };
 
-const FALLBACK_PROGRAMS: ProgramDisplay[] = [
-  {
-    title: "Classic Lash Certification",
-    color: "#C4907A",
-    format: "In Person",
-    location: "T Creative Studio — San Jose, CA",
-    nextDate: "Mar 15, 2026",
-    duration: "16 hours",
-    price: "Starting at $1,800",
-    certificationProvided: true,
-    kitIncluded: true,
-    description:
-      "Master classic lash application from the ground up. Covers lash mapping, client consultation, adhesive chemistry, isolation technique, and retention.",
-    curriculum: [
-      "Classic lash application and isolation technique",
-      "Lash mapping and eye shape analysis",
-      "Adhesive chemistry and retention troubleshooting",
-      "Client consultation and contraindications",
-      "Aftercare protocols and client education",
-      "Business basics and pricing your services",
-    ],
-  },
-  {
-    title: "Volume Lash Certification",
-    color: "#b07d6a",
-    format: "In Person",
-    location: "T Creative Studio — San Jose, CA",
-    nextDate: "Apr 5, 2026",
-    duration: "24 hours",
-    price: "Starting at $2,200",
-    certificationProvided: true,
-    kitIncluded: true,
-    description:
-      "An advanced course building on classic foundations — 2D through 6D fan construction, mega volume, wispy and textured styles, and advanced mapping.",
-    curriculum: [
-      "2D–6D handmade fan construction",
-      "Pre-made and promade fan techniques",
-      "Mega volume application",
-      "Wispy and textured style mapping",
-      "Advanced retention and lash health",
-      "Managing difficult eye shapes",
-    ],
-  },
-  {
-    title: "Permanent Jewelry Certification",
-    color: "#D4A574",
-    format: "In Person",
-    location: "T Creative Studio — San Jose, CA",
-    nextDate: "Mar 8, 2026",
-    duration: "8 hours",
-    price: "Starting at $1,200",
-    certificationProvided: true,
-    kitIncluded: true,
-    description:
-      "Learn the full permanent jewelry process — welding technique, chain types and sizing, application, and client aftercare. Includes hands-on practice with a pulse arc welder.",
-    curriculum: [
-      "Pulse arc welder operation and safety",
-      "Chain selection — box, rope, figaro, and more",
-      "Bracelet, necklace, anklet, and ring application",
-      "Sizing, fitting, and custom adjustments",
-      "Contraindications and client screening",
-      "Client consultation and aftercare education",
-    ],
-  },
-  {
-    title: "Beauty Business Bootcamp",
-    color: "#5B8A8A",
-    format: "Hybrid",
-    location: "Virtual + T Creative Studio",
-    nextDate: "Mar 29, 2026",
-    duration: "18 hours",
-    price: "Starting at $450",
-    certificationProvided: true,
-    kitIncluded: false,
-    description:
-      "The operational and business side of running a beauty studio — pricing, client management, social media, booking systems, and sustainable growth.",
-    curriculum: [
-      "Pricing strategy and service menu design",
-      "Client retention and rebooking systems",
-      "Instagram and content strategy for beauty pros",
-      "Booking software, deposits, and cancellation policies",
-      "Building a referral-based clientele",
-      "When and how to hire your first assistant",
-    ],
-  },
-];
+function buildFallbackPrograms(bizName: string, loc: string): ProgramDisplay[] {
+  const studioLabel = `${bizName} — ${loc}`;
+  return [
+    {
+      title: "Classic Lash Certification",
+      color: "#C4907A",
+      format: "In Person",
+      location: studioLabel,
+      nextDate: "Mar 15, 2026",
+      duration: "16 hours",
+      price: "Starting at $1,800",
+      certificationProvided: true,
+      kitIncluded: true,
+      description:
+        "Master classic lash application from the ground up. Covers lash mapping, client consultation, adhesive chemistry, isolation technique, and retention.",
+      curriculum: [
+        "Classic lash application and isolation technique",
+        "Lash mapping and eye shape analysis",
+        "Adhesive chemistry and retention troubleshooting",
+        "Client consultation and contraindications",
+        "Aftercare protocols and client education",
+        "Business basics and pricing your services",
+      ],
+    },
+    {
+      title: "Volume Lash Certification",
+      color: "#b07d6a",
+      format: "In Person",
+      location: studioLabel,
+      nextDate: "Apr 5, 2026",
+      duration: "24 hours",
+      price: "Starting at $2,200",
+      certificationProvided: true,
+      kitIncluded: true,
+      description:
+        "An advanced course building on classic foundations — 2D through 6D fan construction, mega volume, wispy and textured styles, and advanced mapping.",
+      curriculum: [
+        "2D–6D handmade fan construction",
+        "Pre-made and promade fan techniques",
+        "Mega volume application",
+        "Wispy and textured style mapping",
+        "Advanced retention and lash health",
+        "Managing difficult eye shapes",
+      ],
+    },
+    {
+      title: "Permanent Jewelry Certification",
+      color: "#D4A574",
+      format: "In Person",
+      location: studioLabel,
+      nextDate: "Mar 8, 2026",
+      duration: "8 hours",
+      price: "Starting at $1,200",
+      certificationProvided: true,
+      kitIncluded: true,
+      description:
+        "Learn the full permanent jewelry process — welding technique, chain types and sizing, application, and client aftercare. Includes hands-on practice with a pulse arc welder.",
+      curriculum: [
+        "Pulse arc welder operation and safety",
+        "Chain selection — box, rope, figaro, and more",
+        "Bracelet, necklace, anklet, and ring application",
+        "Sizing, fitting, and custom adjustments",
+        "Contraindications and client screening",
+        "Client consultation and aftercare education",
+      ],
+    },
+    {
+      title: "Beauty Business Bootcamp",
+      color: "#5B8A8A",
+      format: "Hybrid",
+      location: "Virtual + T Creative Studio",
+      nextDate: "Mar 29, 2026",
+      duration: "18 hours",
+      price: "Starting at $450",
+      certificationProvided: true,
+      kitIncluded: false,
+      description:
+        "The operational and business side of running a beauty studio — pricing, client management, social media, booking systems, and sustainable growth.",
+      curriculum: [
+        "Pricing strategy and service menu design",
+        "Client retention and rebooking systems",
+        "Instagram and content strategy for beauty pros",
+        "Booking software, deposits, and cancellation policies",
+        "Building a referral-based clientele",
+        "When and how to hire your first assistant",
+      ],
+    },
+  ];
+}
 
 function toDisplay(programs: PublicProgram[]): ProgramDisplay[] {
   return programs.map((p) => ({
@@ -267,7 +270,9 @@ export function TrainingPage({
   socialLinks?: { platform: string; handle: string; url: string }[];
 }) {
   const displayPrograms: ProgramDisplay[] =
-    programs.length > 0 ? toDisplay(programs) : FALLBACK_PROGRAMS;
+    programs.length > 0
+      ? toDisplay(programs)
+      : buildFallbackPrograms(businessName ?? "T Creative Studio", location ?? "San Jose, CA");
 
   const containerRef = useRef<HTMLElement>(null);
   const heroRef = useRef<HTMLDivElement>(null);

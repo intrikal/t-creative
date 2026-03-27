@@ -4,6 +4,7 @@ import { UnauthorizedPage } from "./UnauthorizedPage";
 export const metadata: Metadata = {
   title: "Unauthorized | T Creative Studio",
   description: "You don't have permission to access this page.",
+  robots: { index: false, follow: false },
 };
 
 export default function Page() {

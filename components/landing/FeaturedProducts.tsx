@@ -5,7 +5,8 @@
  * Cards feature a hover-lift effect (whileHover y:-6) with subtle shadow for premium feel.
  * Client Component — uses Framer Motion for staggered card entrance and hover interactions.
  *
- * No props — product data is static. All CTAs link to the public /shop page.
+ * Props:
+ * - products: optional array of { name, desc, price } from the DB. Falls back to FEATURED.
  */
 "use client";
 
@@ -53,7 +54,16 @@ const FEATURED = [
   },
 ];
 
-export function FeaturedProducts() {
+type ProductItem = { name: string; desc: string; price: string; color?: string; dot?: string };
+
+export function FeaturedProducts({ products }: { products?: ProductItem[] }) {
+  const displayProducts: ProductItem[] = (products ?? FEATURED).map((p, i) => ({
+    color:
+      (p as ProductItem).color ?? FEATURED[i % FEATURED.length]?.color ?? "bg-foreground/[0.04]",
+    dot: (p as ProductItem).dot ?? FEATURED[i % FEATURED.length]?.dot ?? "#888",
+    ...p,
+  }));
+
   return (
     <SectionWrapper id="shop" className="py-32 md:py-48 px-6">
       <div className="mx-auto max-w-6xl">
@@ -83,10 +93,10 @@ export function FeaturedProducts() {
         </m.div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-          {/* .map() over FEATURED to render product cards in a responsive grid (1→2→5 columns).
+          {/* .map() over displayProducts to render product cards in a responsive grid (1→2→5 columns).
               Each card gets stagger delay (i * 0.08) and a whileHover y:-6 lift for tactile feel.
               Array approach keeps the animation timing DRY across all products. */}
-          {FEATURED.map((product, i) => (
+          {displayProducts.map((product, i) => (
             <m.div
               key={product.name}
               className="border border-foreground/8 flex flex-col transition-all duration-300 hover:border-foreground/20 hover:shadow-[0_8px_30px_-12px_rgba(0,0,0,0.12)]"

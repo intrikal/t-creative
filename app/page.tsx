@@ -21,7 +21,7 @@
  */
 
 import dynamic from "next/dynamic";
-import { and, avg, count, countDistinct, desc, eq, gte, sql } from "drizzle-orm";
+import { and, asc, avg, count, countDistinct, desc, eq, gte, sql } from "drizzle-orm";
 import type { Metadata } from "next";
 import { ChatWidgetLoader } from "@/components/chat/ChatWidgetLoader";
 import { CallToAction } from "@/components/landing/CallToAction";
@@ -61,7 +61,7 @@ const FeaturedProducts = dynamic(
   { loading: () => <SectionSkeleton /> },
 );
 import { db } from "@/db";
-import { bookings, instagramPosts, profiles, reviews, services } from "@/db/schema";
+import { bookings, instagramPosts, products, profiles, reviews, services } from "@/db/schema";
 import { getFeaturedReviews } from "@/lib/public-reviews";
 import { SITE_URL } from "@/lib/site-config";
 import { getSiteData } from "@/lib/site-data";
@@ -216,11 +216,32 @@ async function computeLiveStats() {
 }
 
 export default async function Home() {
-  const [{ business, content, policies }, featuredReviews, liveStats] = await Promise.all([
-    getSiteData(),
-    getFeaturedReviews(),
-    computeLiveStats().catch(() => null),
-  ]);
+  const [{ business, content, policies }, featuredReviews, liveStats, featuredProductRows] =
+    await Promise.all([
+      getSiteData(),
+      getFeaturedReviews(),
+      computeLiveStats().catch(() => null),
+      db
+        .select({
+          name: products.title,
+          description: products.description,
+          price_in_cents: products.priceInCents,
+        })
+        .from(products)
+        .where(eq(products.isPublished, true))
+        .orderBy(asc(products.sortOrder))
+        .limit(5)
+        .catch(() => []),
+    ]);
+
+  const featuredProducts =
+    featuredProductRows.length > 0
+      ? featuredProductRows.map((p) => ({
+          name: p.name,
+          desc: p.description ?? "",
+          price: p.price_in_cents != null ? `$${(p.price_in_cents / 100).toFixed(0)}` : "",
+        }))
+      : undefined;
 
   const statsOverrides = content.statsOverrides ?? {};
   const statsProps = {
@@ -268,7 +289,7 @@ export default async function Home() {
           subheadline={content.heroSubheadline}
           ctaText={content.heroCtaText}
         />
-        <TrustBar />
+        <TrustBar location={business.location} />
         <Services />
         <HowItWorks />
         <StudioDiorama />
@@ -276,7 +297,7 @@ export default async function Home() {
         <EditorialPortfolio />
         <Events eventDescriptions={content.eventDescriptions} />
         <TrainingTeaser />
-        <FeaturedProducts />
+        <FeaturedProducts products={featuredProducts} />
         <InstagramFeed posts={igPostsSerialized} />
         <Testimonials reviews={featuredReviews} />
         <FAQ entries={content.faqEntries} policies={policies} />

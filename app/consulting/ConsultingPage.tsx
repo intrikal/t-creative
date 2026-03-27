@@ -137,7 +137,7 @@ export function ConsultingPage({
 
         {/* Services */}
         <section className="py-20 md:py-24 px-6">
-          <div ref={servicesRef} className="mx-auto max-w-4xl flex flex-col gap-6">
+          <div ref={servicesRef} className="mx-auto max-w-7xl flex flex-col gap-6">
             {(services ?? []).map((service) => (
               <Card
                 key={service.title}
@@ -199,12 +199,12 @@ export function ConsultingPage({
           </div>
         </section>
 
-        <Separator className="mx-auto max-w-4xl" />
+        <Separator className="mx-auto max-w-7xl" />
 
         {/* How It Works */}
         {(process ?? []).length > 0 && (
           <section className="py-20 md:py-24 px-6">
-            <div className="mx-auto max-w-4xl">
+            <div className="mx-auto max-w-7xl">
               <div ref={processHeaderRef} className="text-center mb-14 opacity-0">
                 <span className="text-xs tracking-widest uppercase text-accent mb-4 block">
                   How It Works
@@ -234,12 +234,12 @@ export function ConsultingPage({
           </section>
         )}
 
-        <Separator className="mx-auto max-w-4xl" />
+        <Separator className="mx-auto max-w-7xl" />
 
         {/* Testimonials */}
         {(testimonials ?? []).length > 0 && (
           <section className="py-20 md:py-24 px-6 bg-surface/50">
-            <div className="mx-auto max-w-4xl">
+            <div className="mx-auto max-w-7xl">
               <div ref={testimonialsHeaderRef} className="text-center mb-14 opacity-0">
                 <span className="text-xs tracking-widest uppercase text-accent mb-4 block">
                   Results
@@ -298,13 +298,13 @@ export function ConsultingPage({
           </div>
         </section>
 
-        <Separator className="mx-auto max-w-4xl" />
+        <Separator className="mx-auto max-w-7xl" />
 
         {/* Discovery Call CTA */}
         <section className="py-20 md:py-24 px-6">
           <div
             ref={ctaRef}
-            className="mx-auto max-w-4xl rounded-2xl bg-foreground text-background p-10 md:p-14 flex flex-col items-center text-center gap-6 opacity-0"
+            className="mx-auto max-w-7xl rounded-2xl bg-foreground text-background p-10 md:p-14 flex flex-col items-center text-center gap-6 opacity-0"
           >
             <span className="text-xs tracking-widest uppercase text-accent block">
               Free Discovery Call

@@ -184,7 +184,7 @@ export function AboutPage({
       <main id="main-content" className="pt-16" ref={containerRef}>
         {/* Hero — dark background with circular photo */}
         <section className="bg-foreground text-background py-20 md:py-24 px-6">
-          <div className="mx-auto max-w-5xl grid grid-cols-1 md:grid-cols-2 gap-12 md:gap-16 items-center">
+          <div className="mx-auto max-w-7xl grid grid-cols-1 md:grid-cols-2 gap-12 md:gap-16 items-center">
             <div ref={heroTextRef} className="opacity-0">
               <span className="text-xs tracking-widest uppercase text-accent mb-6 block">
                 About
@@ -219,7 +219,7 @@ export function AboutPage({
 
         {/* Credentials */}
         <section className="py-20 md:py-24 px-6">
-          <div className="mx-auto max-w-4xl">
+          <div className="mx-auto max-w-7xl">
             <div ref={credentialsRef} className="text-center mb-14 opacity-0">
               <span className="text-xs tracking-widest uppercase text-accent mb-4 block">
                 At a Glance
@@ -247,7 +247,7 @@ export function AboutPage({
           </div>
         </section>
 
-        <Separator className="mx-auto max-w-4xl" />
+        <Separator className="mx-auto max-w-7xl" />
 
         {/* Mission */}
         <section className="py-20 md:py-24 px-6">
@@ -268,11 +268,11 @@ export function AboutPage({
           </div>
         </section>
 
-        <Separator className="mx-auto max-w-4xl" />
+        <Separator className="mx-auto max-w-7xl" />
 
         {/* Timeline */}
         <section className="py-20 md:py-24 px-6">
-          <div className="mx-auto max-w-4xl">
+          <div className="mx-auto max-w-7xl">
             <div ref={timelineRef} className="text-center mb-14 opacity-0">
               <span className="text-xs tracking-widest uppercase text-accent mb-4 block">
                 The Journey
@@ -298,11 +298,11 @@ export function AboutPage({
           </div>
         </section>
 
-        <Separator className="mx-auto max-w-4xl" />
+        <Separator className="mx-auto max-w-7xl" />
 
         {/* Certifications */}
         <section className="py-20 md:py-24 px-6 bg-surface/50">
-          <div className="mx-auto max-w-4xl">
+          <div className="mx-auto max-w-7xl">
             <div ref={certsRef} className="text-center mb-14 opacity-0">
               <span className="text-xs tracking-widest uppercase text-accent mb-4 block">
                 Credentials
@@ -328,7 +328,7 @@ export function AboutPage({
 
         {/* What I Do — Service Pillars */}
         <section className="py-20 md:py-24 px-6">
-          <div className="mx-auto max-w-4xl">
+          <div className="mx-auto max-w-7xl">
             <div ref={pillarsHeaderRef} className="text-center mb-16 opacity-0">
               <span className="text-xs tracking-widest uppercase text-accent mb-4 block">
                 What I Do
@@ -368,11 +368,11 @@ export function AboutPage({
           </div>
         </section>
 
-        <Separator className="mx-auto max-w-4xl" />
+        <Separator className="mx-auto max-w-7xl" />
 
         {/* Testimonials */}
         <section className="py-20 md:py-24 px-6 bg-surface/50">
-          <div className="mx-auto max-w-4xl">
+          <div className="mx-auto max-w-7xl">
             <div ref={testimonialsHeaderRef} className="text-center mb-14 opacity-0">
               <span className="text-xs tracking-widest uppercase text-accent mb-4 block">
                 Kind Words
@@ -404,7 +404,7 @@ export function AboutPage({
 
         {/* Connect — Social Links */}
         <section className="py-20 md:py-24 px-6">
-          <div className="mx-auto max-w-4xl">
+          <div className="mx-auto max-w-7xl">
             <div ref={socialHeaderRef} className="text-center mb-12 opacity-0">
               <span className="text-xs tracking-widest uppercase text-accent mb-4 block">
                 Connect
@@ -449,7 +449,7 @@ export function AboutPage({
           </div>
         </section>
 
-        <Separator className="mx-auto max-w-4xl" />
+        <Separator className="mx-auto max-w-7xl" />
 
         {/* Location CTA */}
         <section className="py-20 md:py-24 px-6">

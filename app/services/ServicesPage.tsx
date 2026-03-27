@@ -1,35 +1,48 @@
 /**
- * ServicesPage — Full service catalog, driven by database with hardcoded fallback.
+ * ServicesPage — Full service catalog with category anchor nav, GSAP animations,
+ * shadcn components, and PostHog CTA tracking.
  */
 "use client";
 
+import { useRef, useState } from "react";
 import Link from "next/link";
-import { m } from "framer-motion";
+import { useGSAP } from "@gsap/react";
+import gsap from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { ArrowRight, Search, X } from "lucide-react";
+import posthog from "posthog-js";
 import { Footer } from "@/components/landing/Footer";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
 import type { PublicService } from "./actions";
+
+gsap.registerPlugin(ScrollTrigger);
 
 /* ------------------------------------------------------------------ */
 /*  Category display config                                            */
 /* ------------------------------------------------------------------ */
 
-const CATEGORY_META: Record<string, { label: string; color: string; note?: string }> = {
-  lash: { label: "Lash Extensions", color: "#C4907A" },
-  jewelry: {
-    label: "Permanent Jewelry",
-    color: "#D4A574",
-    note: "All chains are 14k gold-filled, nickel-free, and waterproof. No clasp — welded on-site.",
-  },
-  crochet: { label: "Custom Crochet Crafts", color: "#9BB8B8" },
-  consulting: {
-    label: "Business Consulting",
-    color: "#5B8A8A",
-    note: "All consulting services are available remotely. Contact for scheduling and quote.",
-  },
-  "3d_printing": { label: "3D Printing", color: "#8B7DAF" },
-  aesthetics: { label: "Aesthetics", color: "#B8927A" },
-};
+const CATEGORY_META: Record<string, { label: string; color: string; slug: string; note?: string }> =
+  {
+    lash: { label: "Lash Extensions", color: "#C4907A", slug: "lash" },
+    jewelry: {
+      label: "Permanent Jewelry",
+      color: "#D4A574",
+      slug: "jewelry",
+      note: "All chains are 14k gold-filled, nickel-free, and waterproof. No clasp — welded on-site.",
+    },
+    crochet: { label: "Custom Crochet Crafts", color: "#9BB8B8", slug: "crochet" },
+    consulting: {
+      label: "Business Consulting",
+      color: "#5B8A8A",
+      slug: "consulting",
+      note: "All consulting services are available remotely. Contact for scheduling and quote.",
+    },
+    "3d_printing": { label: "3D Printing", color: "#8B7DAF", slug: "3d-printing" },
+    aesthetics: { label: "Aesthetics", color: "#B8927A", slug: "aesthetics" },
+  };
 
-/** Display order for categories on the public page. */
 const CATEGORY_ORDER = ["lash", "jewelry", "crochet", "consulting", "3d_printing", "aesthetics"];
 
 /* ------------------------------------------------------------------ */
@@ -43,13 +56,10 @@ function formatCents(cents: number): string {
 
 function formatPrice(service: PublicService): string {
   const { priceInCents, priceMinInCents, priceMaxInCents } = service;
-
   if (priceMinInCents != null && priceMaxInCents != null) {
     return `${formatCents(priceMinInCents)}–${formatCents(priceMaxInCents)}`;
   }
-  if (priceMinInCents != null) {
-    return `From ${formatCents(priceMinInCents)}`;
-  }
+  if (priceMinInCents != null) return `From ${formatCents(priceMinInCents)}`;
   if (priceInCents != null) {
     if (priceInCents === 0) return "Free";
     return formatCents(priceInCents);
@@ -63,12 +73,21 @@ function formatDuration(minutes: number | null): string {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Hardcoded fallback (shown when DB is empty)                        */
+/*  Hardcoded fallback                                                 */
 /* ------------------------------------------------------------------ */
 
-const FALLBACK_CATEGORIES = [
+type ServiceCategory = {
+  name: string;
+  slug: string;
+  color: string;
+  note?: string;
+  services: { name: string; description: string; price: string; duration: string }[];
+};
+
+const FALLBACK_CATEGORIES: ServiceCategory[] = [
   {
     name: "Lash Extensions",
+    slug: "lash",
     color: "#C4907A",
     services: [
       {
@@ -133,6 +152,7 @@ const FALLBACK_CATEGORIES = [
   },
   {
     name: "Permanent Jewelry",
+    slug: "jewelry",
     color: "#D4A574",
     note: "All chains are 14k gold-filled, nickel-free, and waterproof. No clasp — welded on-site.",
     services: [
@@ -177,6 +197,7 @@ const FALLBACK_CATEGORIES = [
   },
   {
     name: "Custom Crochet Crafts",
+    slug: "crochet",
     color: "#9BB8B8",
     services: [
       {
@@ -220,6 +241,7 @@ const FALLBACK_CATEGORIES = [
   },
   {
     name: "Business Consulting",
+    slug: "consulting",
     color: "#5B8A8A",
     note: "All consulting services are available remotely. Contact for scheduling and quote.",
     services: [
@@ -242,19 +264,11 @@ const FALLBACK_CATEGORIES = [
 ];
 
 /* ------------------------------------------------------------------ */
-/*  Component                                                          */
+/*  Transform DB → display                                             */
 /* ------------------------------------------------------------------ */
-
-type ServiceCategory = {
-  name: string;
-  color: string;
-  note?: string;
-  services: { name: string; description: string; price: string; duration: string }[];
-};
 
 function groupByCategory(dbServices: PublicService[]): ServiceCategory[] {
   const grouped = new Map<string, PublicService[]>();
-
   for (const s of dbServices) {
     const list = grouped.get(s.category) ?? [];
     list.push(s);
@@ -262,10 +276,11 @@ function groupByCategory(dbServices: PublicService[]): ServiceCategory[] {
   }
 
   return CATEGORY_ORDER.filter((cat) => grouped.has(cat)).map((cat) => {
-    const meta = CATEGORY_META[cat] ?? { label: cat, color: "#888" };
+    const meta = CATEGORY_META[cat] ?? { label: cat, color: "#888", slug: cat };
     const items = grouped.get(cat)!;
     return {
       name: meta.label,
+      slug: meta.slug,
       color: meta.color,
       note: meta.note,
       services: items.map((s) => ({
@@ -277,6 +292,10 @@ function groupByCategory(dbServices: PublicService[]): ServiceCategory[] {
     };
   });
 }
+
+/* ------------------------------------------------------------------ */
+/*  Component                                                          */
+/* ------------------------------------------------------------------ */
 
 export function ServicesPage({
   services,
@@ -293,57 +312,235 @@ export function ServicesPage({
   footerTagline?: string;
   socialLinks?: { platform: string; handle: string; url: string }[];
 }) {
-  const categories: ServiceCategory[] =
+  const allCategories: ServiceCategory[] =
     services.length > 0 ? groupByCategory(services) : FALLBACK_CATEGORIES;
+
+  const [activeFilter, setActiveFilter] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const query = searchQuery.toLowerCase().trim();
+
+  // Filter categories and services based on dropdown + search
+  const filteredCategories = (
+    activeFilter ? allCategories.filter((c) => c.slug === activeFilter) : allCategories
+  )
+    .map((cat) => ({
+      ...cat,
+      services: query
+        ? cat.services.filter(
+            (s) =>
+              s.name.toLowerCase().includes(query) || s.description.toLowerCase().includes(query),
+          )
+        : cat.services,
+    }))
+    .filter((cat) => cat.services.length > 0);
+
+  const totalShown = filteredCategories.reduce((sum, c) => sum + c.services.length, 0);
+  const totalAll = allCategories.reduce((sum, c) => sum + c.services.length, 0);
+  const isFiltered = activeFilter !== null || query.length > 0;
+
+  const containerRef = useRef<HTMLElement>(null);
+  const heroRef = useRef<HTMLDivElement>(null);
+  const toolbarRef = useRef<HTMLDivElement>(null);
+  const ctaRef = useRef<HTMLDivElement>(null);
+
+  // Initial mount animations (hero, toolbar, CTA)
+  useGSAP(
+    () => {
+      if (heroRef.current) {
+        gsap.fromTo(
+          heroRef.current.children,
+          { opacity: 0, y: 20 },
+          { opacity: 1, y: 0, duration: 0.6, stagger: 0.1, ease: "power3.out" },
+        );
+      }
+      if (toolbarRef.current) {
+        gsap.fromTo(
+          toolbarRef.current,
+          { opacity: 0, y: 10 },
+          { opacity: 1, y: 0, duration: 0.5, delay: 0.3, ease: "power3.out" },
+        );
+      }
+      if (ctaRef.current) {
+        gsap.fromTo(
+          ctaRef.current,
+          { opacity: 0, y: 24 },
+          {
+            opacity: 1,
+            y: 0,
+            duration: 0.7,
+            ease: "power3.out",
+            scrollTrigger: { trigger: ctaRef.current, start: "top 85%", once: true },
+          },
+        );
+      }
+    },
+    { scope: containerRef },
+  );
+
+  // Re-animate cards when filter/search changes
+  useGSAP(
+    () => {
+      const sections = containerRef.current?.querySelectorAll("[data-category-section]");
+      sections?.forEach((section) => {
+        const targets = section.querySelectorAll("[data-animate]");
+        if (targets.length === 0) return;
+        gsap.fromTo(
+          targets,
+          { opacity: 0, y: 16 },
+          { opacity: 1, y: 0, duration: 0.4, stagger: 0.03, ease: "power3.out" },
+        );
+      });
+    },
+    { scope: containerRef, dependencies: [activeFilter, searchQuery] },
+  );
+
+  function trackCta(cta: string, category?: string) {
+    posthog.capture("cta_clicked", {
+      cta,
+      location: "services_page",
+      ...(category ? { category } : {}),
+    });
+  }
 
   return (
     <>
-      <main id="main-content" className="pt-16">
+      <main id="main-content" className="pt-16" ref={containerRef}>
         {/* Hero */}
-        <section className="py-24 md:py-32 px-6">
-          <div className="mx-auto max-w-5xl text-center">
-            <m.span
-              className="text-xs tracking-widest uppercase text-muted mb-6 block"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6 }}
-            >
+        <section className="py-20 md:py-24 px-6">
+          <div ref={heroRef} className="mx-auto max-w-7xl text-center">
+            <span className="text-xs tracking-widest uppercase text-accent mb-6 block opacity-0">
               Our Services
-            </m.span>
-            <m.h1
-              className="text-4xl md:text-6xl font-light tracking-tight text-foreground mb-6"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.1 }}
-            >
+            </span>
+            <h1 className="text-4xl md:text-6xl font-light tracking-tight text-foreground mb-6 opacity-0">
               Handcrafted services in San Jose.
-            </m.h1>
-            <m.p
-              className="text-base md:text-lg text-muted max-w-xl mx-auto"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.2 }}
-            >
+            </h1>
+            <p className="text-base md:text-lg text-muted max-w-xl mx-auto opacity-0">
               From lash extensions to permanent jewelry, handcrafted pieces, and business consulting
               — every service is crafted with intention and care.
-            </m.p>
+            </p>
           </div>
         </section>
 
-        {/* Service categories */}
-        {categories.map((category, ci) => (
-          <section
-            key={category.name}
-            className={`py-16 md:py-24 px-6 ${ci % 2 === 1 ? "bg-surface" : ""}`}
-          >
-            <div className="mx-auto max-w-5xl">
-              <m.div
-                className="flex items-start gap-4 mb-4"
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.6 }}
+        {/* Search + filter toolbar */}
+        <div
+          ref={toolbarRef}
+          className="sticky top-16 z-40 bg-background/90 backdrop-blur-md border-b border-foreground/5 px-6 py-4 opacity-0"
+        >
+          <div className="mx-auto max-w-xl flex gap-3">
+            {/* Search input */}
+            <div className="relative flex-1">
+              <Search
+                size={16}
+                className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none"
+              />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search services..."
+                className="w-full pl-10 pr-9 py-2.5 text-sm bg-surface rounded-lg border border-muted/20 outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:border-transparent transition-colors placeholder:text-muted/50"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-foreground"
+                  aria-label="Clear search"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+
+            {/* Category dropdown */}
+            <div className="relative shrink-0">
+              <select
+                value={activeFilter ?? ""}
+                onChange={(e) => setActiveFilter(e.target.value || null)}
+                className="w-full sm:w-48 appearance-none px-4 pr-10 py-2.5 text-sm bg-surface rounded-lg border border-muted/20 outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:border-transparent transition-colors"
               >
+                <option value="">All Categories</option>
+                {allCategories.map((cat) => (
+                  <option key={cat.slug} value={cat.slug}>
+                    {cat.name}
+                  </option>
+                ))}
+              </select>
+              <svg
+                className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted"
+                width="16"
+                height="16"
+                viewBox="0 0 16 16"
+                fill="none"
+                aria-hidden="true"
+              >
+                <path
+                  d="M4 6l4 4 4-4"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </div>
+          </div>
+
+          {/* Result count */}
+          {isFiltered && (
+            <div className="mx-auto max-w-xl mt-2 text-center">
+              <span className="text-xs text-muted">
+                Showing {totalShown} of {totalAll} services
+                {activeFilter && (
+                  <>
+                    {" "}
+                    in{" "}
+                    <span className="text-foreground">
+                      {allCategories.find((c) => c.slug === activeFilter)?.name}
+                    </span>
+                  </>
+                )}
+                {query && (
+                  <>
+                    {" "}
+                    matching &ldquo;
+                    <span className="text-foreground">{searchQuery}</span>&rdquo;
+                  </>
+                )}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Empty state */}
+        {filteredCategories.length === 0 && (
+          <section className="py-20 px-6">
+            <div className="mx-auto max-w-7xl text-center">
+              <p className="text-muted text-sm mb-4">
+                No services found{query ? ` matching "${searchQuery}"` : ""}.
+              </p>
+              <button
+                onClick={() => {
+                  setSearchQuery("");
+                  setActiveFilter(null);
+                }}
+                className="text-xs tracking-wide uppercase text-accent hover:text-foreground transition-colors"
+              >
+                Clear filters
+              </button>
+            </div>
+          </section>
+        )}
+
+        {/* Service categories */}
+        {filteredCategories.map((category, ci) => (
+          <section
+            key={category.slug}
+            data-category-section
+            className={`py-16 md:py-20 px-6 ${!isFiltered && ci % 2 === 1 ? "bg-surface/50" : ""}`}
+          >
+            <div className="mx-auto max-w-7xl">
+              {/* Category header */}
+              <div data-animate className="flex items-start gap-4 mb-10 opacity-0">
                 <div
                   className="w-3 h-3 rounded-full mt-2 flex-shrink-0"
                   style={{ backgroundColor: category.color }}
@@ -353,72 +550,88 @@ export function ServicesPage({
                     <h2 className="text-2xl md:text-3xl font-light tracking-tight text-foreground">
                       {category.name}
                     </h2>
-                    <span className="text-xs text-muted">{category.services.length} services</span>
+                    <Badge variant="secondary" className="text-[10px]">
+                      {category.services.length} services
+                    </Badge>
                   </div>
-                  {category.note && (
-                    <p className="text-xs text-muted mb-8 max-w-xl">{category.note}</p>
-                  )}
+                  {category.note && <p className="text-xs text-muted max-w-xl">{category.note}</p>}
                 </div>
-              </m.div>
+              </div>
 
-              {!category.note && <div className="mb-12" />}
-
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {category.services.map((service, i) => (
-                  <m.div
+              {/* Service cards */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+                {category.services.map((service) => (
+                  <Card
                     key={service.name}
-                    className="border border-foreground/8 p-6 flex flex-col gap-3 hover:border-foreground/20 transition-colors duration-200"
-                    initial={{ opacity: 0, y: 20 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    viewport={{ once: true }}
-                    transition={{ duration: 0.4, delay: i * 0.05 }}
+                    data-animate
+                    className="opacity-0 border-muted/15 shadow-none hover:border-muted/30 transition-colors duration-200"
                   >
-                    <h3 className="text-sm font-medium text-foreground">{service.name}</h3>
-                    <p className="text-xs text-muted leading-relaxed flex-1">
-                      {service.description}
-                    </p>
-                    <div className="flex items-center justify-between pt-2 border-t border-foreground/5">
-                      <span className="text-sm font-medium text-accent">{service.price}</span>
-                      {service.duration && (
-                        <span className="text-xs text-muted">{service.duration}</span>
-                      )}
-                    </div>
-                  </m.div>
+                    <CardContent className="pt-5 pb-5 flex flex-col gap-3 h-full">
+                      <h3 className="text-sm font-medium text-foreground">{service.name}</h3>
+                      <p className="text-xs text-muted leading-relaxed flex-1">
+                        {service.description}
+                      </p>
+                      <Separator />
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-accent">{service.price}</span>
+                        {service.duration && (
+                          <span className="text-xs text-muted">{service.duration}</span>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
                 ))}
+              </div>
+
+              {/* Per-category inline CTA */}
+              <div data-animate className="opacity-0">
+                <Link
+                  href={`/contact?interest=${encodeURIComponent(category.name)}`}
+                  onClick={() => trackCta("category_inquiry", category.name)}
+                  className="inline-flex items-center gap-2 text-xs tracking-wide uppercase text-muted hover:text-accent transition-colors"
+                >
+                  Interested in {category.name.toLowerCase()}? Get in touch
+                  <ArrowRight size={12} />
+                </Link>
               </div>
             </div>
           </section>
         ))}
 
-        {/* CTA */}
-        <section className="py-24 md:py-32 px-6 bg-foreground text-background text-center">
-          <m.div
-            className="mx-auto max-w-xl"
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
+        {/* Bottom CTA */}
+        <section className="py-20 md:py-24 px-6">
+          <div
+            ref={ctaRef}
+            className="mx-auto max-w-7xl rounded-2xl bg-foreground text-background p-10 md:p-14 flex flex-col items-center text-center gap-6 opacity-0"
           >
-            <h2 className="text-3xl md:text-4xl font-light tracking-tight mb-6">Ready to book?</h2>
-            <p className="text-background/60 mb-8">
-              Existing clients can book directly through the client portal. New clients, reach out
-              through the contact form.
+            <span className="text-xs tracking-widest uppercase text-accent block">
+              Ready to Book
+            </span>
+            <h2 className="text-2xl md:text-3xl font-light tracking-tight max-w-lg">
+              Ready to book?
+            </h2>
+            <p className="text-sm text-background/60 max-w-md">
+              New clients, reach out through the contact form. Existing clients can book directly
+              through the client portal.
             </p>
-            <div className="flex flex-col sm:flex-row gap-3 justify-center">
-              <Link
-                href="/dashboard/book"
-                className="inline-flex items-center justify-center px-8 py-3.5 text-xs tracking-wide uppercase bg-accent text-background hover:bg-accent/80 transition-colors"
-              >
-                Book via Client Portal
-              </Link>
+            <div className="flex flex-col sm:flex-row gap-3">
               <Link
                 href="/contact"
-                className="inline-flex items-center justify-center px-8 py-3.5 text-xs tracking-wide uppercase border border-background/20 text-background hover:border-background/40 transition-colors"
+                onClick={() => trackCta("new_client_inquiry")}
+                className="inline-flex items-center justify-center gap-2 px-8 py-3.5 text-xs tracking-wide uppercase rounded-full bg-background text-foreground hover:bg-background/90 transition-colors duration-200"
               >
-                New Client Inquiry
+                Get in Touch
+                <ArrowRight size={14} />
+              </Link>
+              <Link
+                href="/dashboard/book"
+                onClick={() => trackCta("existing_client_book")}
+                className="inline-flex items-center justify-center px-8 py-3.5 text-xs tracking-wide uppercase rounded-full border border-background/20 text-background hover:border-background/40 transition-colors duration-200"
+              >
+                Client Portal
               </Link>
             </div>
-          </m.div>
+          </div>
         </section>
       </main>
       <Footer

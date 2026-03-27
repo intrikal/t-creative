@@ -333,7 +333,7 @@ export function ContactPage({
 
         {/* Form + Info */}
         <section className="pb-24 px-6">
-          <div className="mx-auto max-w-4xl rounded-2xl border border-muted/10 bg-surface/30 p-8 md:p-12 grid grid-cols-1 md:grid-cols-5 gap-12 md:gap-16">
+          <div className="mx-auto max-w-7xl rounded-2xl border border-muted/10 bg-surface/30 p-8 md:p-12 grid grid-cols-1 md:grid-cols-5 gap-12 md:gap-16">
             {/* Form */}
             <div ref={formRef} className="md:col-span-3 opacity-0">
               {submitted ? (
@@ -681,7 +681,7 @@ export function ContactPage({
 
         {/* What happens next */}
         <section className="pb-24 md:pb-32 px-6" aria-label="What happens next">
-          <div className="mx-auto max-w-4xl">
+          <div className="mx-auto max-w-7xl">
             <div ref={stepsHeaderRef} className="text-center mb-14 opacity-0">
               <span className="text-xs tracking-widest uppercase text-accent mb-4 block">
                 What Happens Next
@@ -730,7 +730,7 @@ export function ContactPage({
         <section className="pb-24 md:pb-32 px-6">
           <div
             ref={calloutRef}
-            className="mx-auto max-w-4xl rounded-2xl bg-foreground text-background p-10 md:p-14 flex flex-col md:flex-row items-center justify-between gap-6 opacity-0"
+            className="mx-auto max-w-7xl rounded-2xl bg-foreground text-background p-10 md:p-14 flex flex-col md:flex-row items-center justify-between gap-6 opacity-0"
           >
             <div>
               <h2 className="text-xl md:text-2xl font-light tracking-tight mb-2">

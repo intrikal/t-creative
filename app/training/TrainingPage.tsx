@@ -331,7 +331,7 @@ export function TrainingPage({
       <main id="main-content" className="pt-16" ref={containerRef}>
         {/* Hero */}
         <section className="py-20 md:py-24 px-6">
-          <div ref={heroRef} className="mx-auto max-w-5xl text-center">
+          <div ref={heroRef} className="mx-auto max-w-7xl text-center">
             <span className="text-xs tracking-widest uppercase text-accent mb-6 block opacity-0">
               Training Programs
             </span>
@@ -347,7 +347,7 @@ export function TrainingPage({
 
         {/* Programs */}
         <section className="pb-20 md:pb-24 px-6">
-          <div ref={programsRef} className="mx-auto max-w-5xl flex flex-col gap-6">
+          <div ref={programsRef} className="mx-auto max-w-7xl flex flex-col gap-6">
             {displayPrograms.map((program) => (
               <Card
                 key={program.title}
@@ -448,7 +448,7 @@ export function TrainingPage({
           </div>
         </section>
 
-        <Separator className="mx-auto max-w-5xl" />
+        <Separator className="mx-auto max-w-7xl" />
 
         {/* Instructor */}
         <section className="py-20 md:py-24 px-6 bg-surface/50">
@@ -490,9 +490,9 @@ export function TrainingPage({
         {/* Testimonials */}
         {(testimonials ?? []).length > 0 && (
           <>
-            <Separator className="mx-auto max-w-5xl" />
+            <Separator className="mx-auto max-w-7xl" />
             <section className="py-20 md:py-24 px-6">
-              <div className="mx-auto max-w-5xl">
+              <div className="mx-auto max-w-7xl">
                 <div ref={testimonialsHeaderRef} className="text-center mb-14 opacity-0">
                   <span className="text-xs tracking-widest uppercase text-accent mb-4 block">
                     Student Stories
@@ -529,7 +529,7 @@ export function TrainingPage({
         {/* FAQ */}
         {(faqEntries ?? []).length > 0 && (
           <>
-            <Separator className="mx-auto max-w-5xl" />
+            <Separator className="mx-auto max-w-7xl" />
             <section className="py-20 md:py-24 px-6" aria-label="FAQ">
               <div className="mx-auto max-w-3xl">
                 <div ref={faqHeaderRef} className="text-center mb-12 md:mb-16 opacity-0">
@@ -552,11 +552,11 @@ export function TrainingPage({
         )}
 
         {/* Bottom CTA */}
-        <Separator className="mx-auto max-w-5xl" />
+        <Separator className="mx-auto max-w-7xl" />
         <section className="py-20 md:py-24 px-6">
           <div
             ref={ctaRef}
-            className="mx-auto max-w-5xl rounded-2xl bg-foreground text-background p-10 md:p-14 flex flex-col items-center text-center gap-6 opacity-0"
+            className="mx-auto max-w-7xl rounded-2xl bg-foreground text-background p-10 md:p-14 flex flex-col items-center text-center gap-6 opacity-0"
           >
             <span className="text-xs tracking-widest uppercase text-accent block">Get Started</span>
             <h2 className="text-2xl md:text-3xl font-light tracking-tight max-w-lg">

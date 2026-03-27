@@ -88,7 +88,7 @@ export type GiftCardRow = {
   originalAmount: number;
   balance: number;
   status: string;
-  purchasedAt: string;
+  purchasedAt: string | null;
   expiresAt: string | null;
 };
 
@@ -152,11 +152,12 @@ export async function getGiftCards(): Promise<GiftCardRow[]> {
       originalAmount: Math.round(r.originalAmountInCents / 100),
       balance: Math.round(r.balanceInCents / 100),
       status: r.status,
-      purchasedAt: r.purchasedAt.toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      }),
+      purchasedAt:
+        r.purchasedAt?.toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        }) ?? null,
       expiresAt:
         r.expiresAt?.toLocaleDateString("en-US", {
           month: "short",

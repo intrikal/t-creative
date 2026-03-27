@@ -114,7 +114,7 @@ export function GiftCardsTab({
                           <span className="text-sm font-medium text-foreground">
                             {gc.recipientName ?? "—"}
                           </span>
-                          <p className="text-[10px] text-muted mt-0.5">{gc.purchasedAt}</p>
+                          <p className="text-[10px] text-muted mt-0.5">{gc.purchasedAt ?? "—"}</p>
                         </td>
                         <td className="px-3 py-3 text-right align-middle">
                           <span className="text-sm font-semibold text-foreground tabular-nums">

@@ -58,6 +58,11 @@ export default async function Page() {
         ownerName={business.owner}
         businessName={business.businessName}
         bio={content.aboutBio}
+        mission={content.aboutMission}
+        credentials={content.aboutCredentials}
+        timeline={content.aboutTimeline}
+        certifications={content.aboutCertifications}
+        testimonials={content.aboutTestimonials}
         location={business.location}
         email={business.email}
         footerTagline={content.footerTagline}

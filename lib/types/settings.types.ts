@@ -159,6 +159,20 @@ export interface SiteContent {
     rebookingRate?: string;
     servicesCount?: string;
   };
+  /** About page — mission/story paragraphs. */
+  aboutMission: string;
+  /** About page — credentials stats (e.g. "500+" / "Clients served"). */
+  aboutCredentials: { stat: string; label: string }[];
+  /** About page — timeline milestones. */
+  aboutTimeline: { year: string; title: string; description: string }[];
+  /** About page — certifications and training. */
+  aboutCertifications: string[];
+  /** About page — client testimonials. */
+  aboutTestimonials: { quote: string; name: string; service: string }[];
+  /** Contact page — interest/service options for the dropdown. */
+  contactInterests: string[];
+  /** Contact page — FAQ entries (separate from landing page FAQ). */
+  contactFaqEntries: { question: string; answer: string }[];
 }
 
 export type CcpaDeletionEntry = {

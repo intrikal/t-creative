@@ -61,6 +61,10 @@ export function WebsiteContentTab({ initial }: { initial: SiteContent }) {
         aboutTestimonials: d.aboutTestimonials.filter((t) => t.quote.trim() && t.name.trim()),
         contactInterests: d.contactInterests.filter((i) => i.trim()),
         contactFaqEntries: d.contactFaqEntries.filter((e) => e.question.trim() && e.answer.trim()),
+        consultingProcess: d.consultingProcess.filter((p) => p.step.trim() && p.title.trim()),
+        consultingTestimonials: d.consultingTestimonials.filter(
+          (t) => t.quote.trim() && t.name.trim(),
+        ),
       };
       return saveSiteContent(cleaned);
     },
@@ -956,6 +960,180 @@ export function WebsiteContentTab({ initial }: { initial: SiteContent }) {
               + Add benefit
             </button>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Consulting — Process */}
+      <SectionHeader
+        title="Consulting — Process"
+        description="How It Works steps on the consulting page"
+      />
+      <Card className="gap-0">
+        <CardContent className="px-5 pb-5 pt-5 space-y-3">
+          {data.consultingProcess.map((item, i) => (
+            <div key={i} className="flex items-start gap-2">
+              <input
+                type="text"
+                placeholder="01"
+                value={item.step}
+                onChange={(e) => {
+                  const next = [...data.consultingProcess];
+                  next[i] = { ...next[i], step: e.target.value };
+                  update("consultingProcess", next);
+                }}
+                className={cn(INPUT_CLASS, "w-16 shrink-0")}
+              />
+              <div className="flex-1 space-y-1">
+                <input
+                  type="text"
+                  placeholder="Step title"
+                  value={item.title}
+                  onChange={(e) => {
+                    const next = [...data.consultingProcess];
+                    next[i] = { ...next[i], title: e.target.value };
+                    update("consultingProcess", next);
+                  }}
+                  className={INPUT_CLASS}
+                />
+                <input
+                  type="text"
+                  placeholder="Brief description"
+                  value={item.description}
+                  onChange={(e) => {
+                    const next = [...data.consultingProcess];
+                    next[i] = { ...next[i], description: e.target.value };
+                    update("consultingProcess", next);
+                  }}
+                  className={INPUT_CLASS}
+                />
+              </div>
+              <button
+                onClick={() =>
+                  update(
+                    "consultingProcess",
+                    data.consultingProcess.filter((_, j) => j !== i),
+                  )
+                }
+                className="text-muted hover:text-destructive shrink-0 p-1 mt-1"
+                aria-label="Remove step"
+              >
+                <Trash2 size={14} />
+              </button>
+            </div>
+          ))}
+          <button
+            onClick={() =>
+              update("consultingProcess", [
+                ...data.consultingProcess,
+                { step: "", title: "", description: "" },
+              ])
+            }
+            className="flex items-center gap-1.5 text-xs text-muted hover:text-foreground"
+          >
+            <Plus size={12} /> Add step
+          </button>
+        </CardContent>
+      </Card>
+
+      {/* Consulting — Testimonials */}
+      <SectionHeader
+        title="Consulting — Testimonials"
+        description="Client results shown on the consulting page"
+      />
+      <Card className="gap-0">
+        <CardContent className="px-5 pb-5 pt-5 space-y-4">
+          {data.consultingTestimonials.map((t, i) => (
+            <div key={i} className="space-y-2 border-b border-border pb-4 last:border-0 last:pb-0">
+              <textarea
+                rows={2}
+                placeholder="Client quote"
+                value={t.quote}
+                onChange={(e) => {
+                  const next = [...data.consultingTestimonials];
+                  next[i] = { ...next[i], quote: e.target.value };
+                  update("consultingTestimonials", next);
+                }}
+                className={TEXTAREA_CLASS}
+              />
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Name"
+                  value={t.name}
+                  onChange={(e) => {
+                    const next = [...data.consultingTestimonials];
+                    next[i] = { ...next[i], name: e.target.value };
+                    update("consultingTestimonials", next);
+                  }}
+                  className={cn(INPUT_CLASS, "flex-1")}
+                />
+                <input
+                  type="text"
+                  placeholder="Role"
+                  value={t.role}
+                  onChange={(e) => {
+                    const next = [...data.consultingTestimonials];
+                    next[i] = { ...next[i], role: e.target.value };
+                    update("consultingTestimonials", next);
+                  }}
+                  className={cn(INPUT_CLASS, "flex-1")}
+                />
+                <input
+                  type="text"
+                  placeholder="Result (e.g. +40% revenue)"
+                  value={t.result}
+                  onChange={(e) => {
+                    const next = [...data.consultingTestimonials];
+                    next[i] = { ...next[i], result: e.target.value };
+                    update("consultingTestimonials", next);
+                  }}
+                  className={cn(INPUT_CLASS, "flex-1")}
+                />
+                <button
+                  onClick={() =>
+                    update(
+                      "consultingTestimonials",
+                      data.consultingTestimonials.filter((_, j) => j !== i),
+                    )
+                  }
+                  className="text-muted hover:text-destructive shrink-0 p-1"
+                  aria-label="Remove testimonial"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            </div>
+          ))}
+          <button
+            onClick={() =>
+              update("consultingTestimonials", [
+                ...data.consultingTestimonials,
+                { quote: "", name: "", role: "", result: "" },
+              ])
+            }
+            className="flex items-center gap-1.5 text-xs text-muted hover:text-foreground"
+          >
+            <Plus size={12} /> Add testimonial
+          </button>
+        </CardContent>
+      </Card>
+
+      {/* Consulting — CTA Text */}
+      <SectionHeader
+        title="Consulting — Discovery Call CTA"
+        description="Heading text for the discovery call section"
+      />
+      <Card className="gap-0">
+        <CardContent className="px-5 pb-5 pt-5 space-y-4">
+          <FieldRow label="CTA Heading">
+            <input
+              type="text"
+              value={data.consultingCtaText}
+              onChange={(e) => update("consultingCtaText", e.target.value)}
+              className={INPUT_CLASS}
+              placeholder="Let's talk about your business..."
+            />
+          </FieldRow>
         </CardContent>
       </Card>
 

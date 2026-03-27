@@ -173,6 +173,12 @@ export interface SiteContent {
   contactInterests: string[];
   /** Contact page — FAQ entries (separate from landing page FAQ). */
   contactFaqEntries: { question: string; answer: string }[];
+  /** Consulting page — process steps (How It Works). */
+  consultingProcess: { step: string; title: string; description: string }[];
+  /** Consulting page — client testimonials with results. */
+  consultingTestimonials: { quote: string; name: string; role: string; result: string }[];
+  /** Consulting page — discovery call CTA heading. */
+  consultingCtaText: string;
 }
 
 export type CcpaDeletionEntry = {

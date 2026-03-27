@@ -899,6 +899,56 @@ const DEFAULT_SITE_CONTENT: SiteContent = {
       service: "Business Consulting",
     },
   ],
+  consultingProcess: [
+    {
+      step: "01",
+      title: "Free discovery call",
+      description:
+        "We'll talk through your goals, challenges, and what success looks like. No commitment — just clarity.",
+    },
+    {
+      step: "02",
+      title: "Custom roadmap",
+      description:
+        "I'll build a tailored plan with clear deliverables, timelines, and priorities specific to your business.",
+    },
+    {
+      step: "03",
+      title: "Implementation sessions",
+      description:
+        "We work together to execute the plan. Recorded sessions, written deliverables, and real accountability.",
+    },
+    {
+      step: "04",
+      title: "Ongoing support",
+      description:
+        "Follow-up check-ins and async support to make sure the changes stick and scale.",
+    },
+  ],
+  consultingTestimonials: [
+    {
+      quote:
+        "Her consulting helped me restructure my entire pricing model. My revenue went up 40% in three months.",
+      name: "Danielle K.",
+      role: "Salon Owner",
+      result: "+40% revenue",
+    },
+    {
+      quote:
+        "Trini built our entire HR process from scratch — hiring docs, onboarding, reviews. We finally feel like a real company.",
+      name: "Marcus T.",
+      role: "Startup Founder",
+      result: "Full HR infrastructure",
+    },
+    {
+      quote:
+        "I went from booth rental to my own studio in 6 months. She gave me the roadmap and the confidence.",
+      name: "Priya S.",
+      role: "Lash Artist",
+      result: "Studio launch in 6 months",
+    },
+  ],
+  consultingCtaText: "Let's talk about your business — no pitch, just a conversation.",
   contactInterests: [
     "Lash Extensions",
     "Permanent Jewelry",
@@ -1011,6 +1061,18 @@ const siteContentSchema = z.object({
   ),
   contactInterests: z.array(z.string()),
   contactFaqEntries: z.array(z.object({ question: z.string().min(1), answer: z.string().min(1) })),
+  consultingProcess: z.array(
+    z.object({ step: z.string().min(1), title: z.string().min(1), description: z.string() }),
+  ),
+  consultingTestimonials: z.array(
+    z.object({
+      quote: z.string().min(1),
+      name: z.string().min(1),
+      role: z.string().min(1),
+      result: z.string(),
+    }),
+  ),
+  consultingCtaText: z.string(),
 });
 
 export async function saveSiteContent(data: SiteContent): Promise<ActionResult<void>> {

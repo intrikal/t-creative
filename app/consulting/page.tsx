@@ -70,6 +70,9 @@ export default async function Page() {
       <ConsultingPage
         services={content.consultingServices}
         benefits={content.consultingBenefits}
+        process={content.consultingProcess}
+        testimonials={content.consultingTestimonials}
+        ctaText={content.consultingCtaText}
         businessName={business.businessName}
         location={business.location}
         email={business.email}

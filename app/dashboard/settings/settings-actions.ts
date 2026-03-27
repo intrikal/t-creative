@@ -949,6 +949,53 @@ const DEFAULT_SITE_CONTENT: SiteContent = {
     },
   ],
   consultingCtaText: "Let's talk about your business — no pitch, just a conversation.",
+  trainingTestimonials: [
+    {
+      quote:
+        "I got certified and booked my first paying client the same week. Trini's training is hands-on and practical — no fluff.",
+      name: "Keyla R.",
+      program: "Classic Lash Certification",
+    },
+    {
+      quote:
+        "The permanent jewelry course was incredible. I left with a full kit and the confidence to start taking clients immediately.",
+      name: "Mia C.",
+      program: "Permanent Jewelry Certification",
+    },
+    {
+      quote:
+        "The business bootcamp changed how I think about pricing. I raised my rates and my clients actually appreciated it.",
+      name: "Tasha L.",
+      program: "Beauty Business Bootcamp",
+    },
+  ],
+  trainingFaqEntries: [
+    {
+      question: "Do I need prior experience?",
+      answer:
+        "No prior experience is required for our beginner certifications. Advanced courses (like Volume Lash) require completion of the Classic Lash Certification or equivalent experience.",
+    },
+    {
+      question: "What's included in the training?",
+      answer:
+        "All programs include hands-on instruction, a professional-grade take-home kit, written materials, and a certificate of completion. Specific kit contents vary by program.",
+    },
+    {
+      question: "Do you offer payment plans?",
+      answer:
+        "Yes — we offer flexible payment plans for all programs over $500. A deposit is required to secure your spot, with the balance due before your start date.",
+    },
+    {
+      question: "What if I need to reschedule?",
+      answer:
+        "We require at least 7 days notice to reschedule. Rescheduling within 7 days may be subject to a fee. Contact us and we'll work with you.",
+    },
+    {
+      question: "Do I get support after the training?",
+      answer:
+        "Absolutely. All graduates get access to a private alumni group, ongoing Q&A support, and discounted rates on advanced courses and refresher sessions.",
+    },
+  ],
   contactInterests: [
     "Lash Extensions",
     "Permanent Jewelry",
@@ -1073,6 +1120,10 @@ const siteContentSchema = z.object({
     }),
   ),
   consultingCtaText: z.string(),
+  trainingTestimonials: z.array(
+    z.object({ quote: z.string().min(1), name: z.string().min(1), program: z.string().min(1) }),
+  ),
+  trainingFaqEntries: z.array(z.object({ question: z.string().min(1), answer: z.string().min(1) })),
 });
 
 export async function saveSiteContent(data: SiteContent): Promise<ActionResult<void>> {

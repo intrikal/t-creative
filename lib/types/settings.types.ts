@@ -179,6 +179,10 @@ export interface SiteContent {
   consultingTestimonials: { quote: string; name: string; role: string; result: string }[];
   /** Consulting page — discovery call CTA heading. */
   consultingCtaText: string;
+  /** Training page — student testimonials. */
+  trainingTestimonials: { quote: string; name: string; program: string }[];
+  /** Training page — FAQ entries. */
+  trainingFaqEntries: { question: string; answer: string }[];
 }
 
 export type CcpaDeletionEntry = {

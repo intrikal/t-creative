@@ -65,6 +65,10 @@ export function WebsiteContentTab({ initial }: { initial: SiteContent }) {
         consultingTestimonials: d.consultingTestimonials.filter(
           (t) => t.quote.trim() && t.name.trim(),
         ),
+        trainingTestimonials: d.trainingTestimonials.filter((t) => t.quote.trim() && t.name.trim()),
+        trainingFaqEntries: d.trainingFaqEntries.filter(
+          (e) => e.question.trim() && e.answer.trim(),
+        ),
       };
       return saveSiteContent(cleaned);
     },
@@ -1134,6 +1138,139 @@ export function WebsiteContentTab({ initial }: { initial: SiteContent }) {
               placeholder="Let's talk about your business..."
             />
           </FieldRow>
+        </CardContent>
+      </Card>
+
+      {/* Training — Testimonials */}
+      <SectionHeader
+        title="Training — Testimonials"
+        description="Student quotes shown on the training page"
+      />
+      <Card className="gap-0">
+        <CardContent className="px-5 pb-5 pt-5 space-y-4">
+          {data.trainingTestimonials.map((t, i) => (
+            <div key={i} className="space-y-2 border-b border-border pb-4 last:border-0 last:pb-0">
+              <textarea
+                rows={2}
+                placeholder="Student quote"
+                value={t.quote}
+                onChange={(e) => {
+                  const next = [...data.trainingTestimonials];
+                  next[i] = { ...next[i], quote: e.target.value };
+                  update("trainingTestimonials", next);
+                }}
+                className={TEXTAREA_CLASS}
+              />
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Name"
+                  value={t.name}
+                  onChange={(e) => {
+                    const next = [...data.trainingTestimonials];
+                    next[i] = { ...next[i], name: e.target.value };
+                    update("trainingTestimonials", next);
+                  }}
+                  className={cn(INPUT_CLASS, "flex-1")}
+                />
+                <input
+                  type="text"
+                  placeholder="Program name"
+                  value={t.program}
+                  onChange={(e) => {
+                    const next = [...data.trainingTestimonials];
+                    next[i] = { ...next[i], program: e.target.value };
+                    update("trainingTestimonials", next);
+                  }}
+                  className={cn(INPUT_CLASS, "flex-1")}
+                />
+                <button
+                  onClick={() =>
+                    update(
+                      "trainingTestimonials",
+                      data.trainingTestimonials.filter((_, j) => j !== i),
+                    )
+                  }
+                  className="text-muted hover:text-destructive shrink-0 p-1"
+                  aria-label="Remove testimonial"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            </div>
+          ))}
+          <button
+            onClick={() =>
+              update("trainingTestimonials", [
+                ...data.trainingTestimonials,
+                { quote: "", name: "", program: "" },
+              ])
+            }
+            className="flex items-center gap-1.5 text-xs text-muted hover:text-foreground"
+          >
+            <Plus size={12} /> Add testimonial
+          </button>
+        </CardContent>
+      </Card>
+
+      {/* Training — FAQ */}
+      <SectionHeader
+        title="Training — FAQ"
+        description="Frequently asked questions on the training page"
+      />
+      <Card className="gap-0">
+        <CardContent className="px-5 pb-5 pt-5 space-y-4">
+          {data.trainingFaqEntries.map((entry, i) => (
+            <div key={i} className="space-y-2 border-b border-border pb-4 last:border-0 last:pb-0">
+              <div className="flex items-start gap-2">
+                <input
+                  type="text"
+                  placeholder="Question"
+                  value={entry.question}
+                  onChange={(e) => {
+                    const next = [...data.trainingFaqEntries];
+                    next[i] = { ...next[i], question: e.target.value };
+                    update("trainingFaqEntries", next);
+                  }}
+                  className={cn(INPUT_CLASS, "flex-1")}
+                />
+                <button
+                  onClick={() =>
+                    update(
+                      "trainingFaqEntries",
+                      data.trainingFaqEntries.filter((_, j) => j !== i),
+                    )
+                  }
+                  className="text-muted hover:text-destructive shrink-0 p-1 mt-1"
+                  aria-label="Remove FAQ entry"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+              <textarea
+                rows={2}
+                placeholder="Answer"
+                value={entry.answer}
+                onChange={(e) => {
+                  const next = [...data.trainingFaqEntries];
+                  next[i] = { ...next[i], answer: e.target.value };
+                  update("trainingFaqEntries", next);
+                }}
+                className={TEXTAREA_CLASS}
+              />
+            </div>
+          ))}
+          <button
+            onClick={() =>
+              update("trainingFaqEntries", [
+                ...data.trainingFaqEntries,
+                { question: "", answer: "" },
+              ])
+            }
+            className="flex items-center gap-1.5 text-xs text-muted hover:text-foreground"
+          >
+            <Plus size={12} /> Add FAQ entry
+          </button>
         </CardContent>
       </Card>
 

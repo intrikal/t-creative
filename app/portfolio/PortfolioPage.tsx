@@ -1,15 +1,23 @@
 /**
- * PortfolioPage — Filterable portfolio gallery.
- * Driven by database with hardcoded fallback.
+ * PortfolioPage — Filterable portfolio gallery with lightbox, GSAP animations,
+ * shadcn components, and PostHog tracking.
  */
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Image from "next/image";
-import { m } from "framer-motion";
+import Link from "next/link";
+import { useGSAP } from "@gsap/react";
+import gsap from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { ArrowRight, X } from "lucide-react";
+import posthog from "posthog-js";
 import { Footer } from "@/components/landing/Footer";
+import { Badge } from "@/components/ui/badge";
 import type { PublicMediaItem } from "./actions";
 import { BeforeAfterSlider } from "./BeforeAfterSlider";
+
+gsap.registerPlugin(ScrollTrigger);
 
 /* ------------------------------------------------------------------ */
 /*  Category config                                                    */
@@ -23,6 +31,12 @@ const CATEGORY_COLORS: Record<string, string> = {
   crochet: "#7BA3A3",
 };
 
+const CATEGORY_LABELS: Record<string, string> = {
+  lash: "Lash Extensions",
+  jewelry: "Permanent Jewelry",
+  crochet: "Custom Crochet",
+};
+
 const filters: { label: string; value: Category }[] = [
   { label: "All", value: "all" },
   { label: "Lash Extensions", value: "lash" },
@@ -31,7 +45,7 @@ const filters: { label: string; value: Category }[] = [
 ];
 
 /* ------------------------------------------------------------------ */
-/*  Hardcoded fallback                                                 */
+/*  Display type + fallback                                            */
 /* ------------------------------------------------------------------ */
 
 type WorkItem = {
@@ -80,10 +94,6 @@ const FALLBACK_WORKS: WorkItem[] = [
   { caption: "Wispy Lashes — Natural Beauty", category: "lash", color: "#C4907A", imageUrl: null },
 ];
 
-/* ------------------------------------------------------------------ */
-/*  Transform DB media to display format                               */
-/* ------------------------------------------------------------------ */
-
 function toWorkItems(media: PublicMediaItem[]): WorkItem[] {
   return media.map((m) => ({
     caption: m.caption || m.title || "",
@@ -93,6 +103,82 @@ function toWorkItems(media: PublicMediaItem[]): WorkItem[] {
     type: m.type,
     beforeImageUrl: m.beforePublicUrl,
   }));
+}
+
+/* ------------------------------------------------------------------ */
+/*  Lightbox                                                           */
+/* ------------------------------------------------------------------ */
+
+function Lightbox({ item, onClose }: { item: WorkItem; onClose: () => void }) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 md:p-8"
+      onClick={onClose}
+      onKeyDown={(e) => e.key === "Escape" && onClose()}
+      role="dialog"
+      aria-modal="true"
+      aria-label={item.caption}
+    >
+      <div
+        className="relative max-w-4xl w-full max-h-[90vh] flex flex-col bg-background rounded-xl overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Close button */}
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 z-10 w-8 h-8 flex items-center justify-center rounded-full bg-background/80 backdrop-blur-sm text-foreground hover:bg-background transition-colors"
+          aria-label="Close lightbox"
+        >
+          <X size={16} />
+        </button>
+
+        {/* Image */}
+        <div className="relative aspect-[4/5] md:aspect-[3/2] w-full">
+          {item.imageUrl ? (
+            <Image
+              src={item.imageUrl}
+              alt={item.caption}
+              fill
+              className="object-cover"
+              sizes="(max-width: 768px) 100vw, 896px"
+              priority
+            />
+          ) : (
+            <div
+              className="w-full h-full"
+              style={{
+                background: `linear-gradient(135deg, ${item.color}33 0%, ${item.color}11 50%, ${item.color}22 100%)`,
+              }}
+            />
+          )}
+        </div>
+
+        {/* Caption + CTA */}
+        <div className="p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium text-foreground mb-1">{item.caption}</p>
+            <Badge variant="outline" className="text-[10px]">
+              {CATEGORY_LABELS[item.category] ?? item.category}
+            </Badge>
+          </div>
+          <Link
+            href={`/contact?interest=${encodeURIComponent(CATEGORY_LABELS[item.category] ?? item.category)}`}
+            onClick={() =>
+              posthog.capture("cta_clicked", {
+                cta: "book_this_look",
+                location: "portfolio_lightbox",
+                category: item.category,
+              })
+            }
+            className="inline-flex items-center gap-2 px-5 py-2.5 text-xs tracking-wide uppercase rounded-full bg-foreground text-background hover:bg-foreground/80 transition-colors duration-200 shrink-0"
+          >
+            Book This Look
+            <ArrowRight size={12} />
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 /* ------------------------------------------------------------------ */
@@ -115,10 +201,10 @@ export function PortfolioPage({
   socialLinks?: { platform: string; handle: string; url: string }[];
 }) {
   const [active, setActive] = useState<Category>("all");
+  const [lightboxItem, setLightboxItem] = useState<WorkItem | null>(null);
 
   const works: WorkItem[] = media.length > 0 ? toWorkItems(media) : FALLBACK_WORKS;
 
-  // Split before/after items from regular portfolio items
   const allBeforeAfter = works.filter(
     (w) => w.type === "before_after" && w.imageUrl && w.beforeImageUrl,
   );
@@ -129,52 +215,111 @@ export function PortfolioPage({
   const filtered =
     active === "all" ? regularWorks : regularWorks.filter((w) => w.category === active);
 
+  const totalFiltered = filteredBeforeAfter.length + filtered.length;
+  const totalAll = works.length;
+  const isFiltered = active !== "all";
+
+  const containerRef = useRef<HTMLElement>(null);
+  const heroRef = useRef<HTMLDivElement>(null);
+  const filtersRef = useRef<HTMLDivElement>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
+  const ctaRef = useRef<HTMLDivElement>(null);
+
+  // Mount animations
+  useGSAP(
+    () => {
+      if (heroRef.current) {
+        gsap.fromTo(
+          heroRef.current.children,
+          { opacity: 0, y: 20 },
+          { opacity: 1, y: 0, duration: 0.6, stagger: 0.1, ease: "power3.out" },
+        );
+      }
+      if (filtersRef.current) {
+        gsap.fromTo(
+          filtersRef.current,
+          { opacity: 0, y: 10 },
+          { opacity: 1, y: 0, duration: 0.5, delay: 0.3, ease: "power3.out" },
+        );
+      }
+      if (ctaRef.current) {
+        gsap.fromTo(
+          ctaRef.current,
+          { opacity: 0, y: 24 },
+          {
+            opacity: 1,
+            y: 0,
+            duration: 0.7,
+            ease: "power3.out",
+            scrollTrigger: { trigger: ctaRef.current, start: "top 85%", once: true },
+          },
+        );
+      }
+    },
+    { scope: containerRef },
+  );
+
+  // Re-animate grid when filter changes
+  useGSAP(
+    () => {
+      if (gridRef.current) {
+        const items = gridRef.current.querySelectorAll("[data-animate]");
+        if (items.length > 0) {
+          gsap.fromTo(
+            items,
+            { opacity: 0, scale: 0.95 },
+            { opacity: 1, scale: 1, duration: 0.4, stagger: 0.03, ease: "power3.out" },
+          );
+        }
+      }
+    },
+    { scope: containerRef, dependencies: [active] },
+  );
+
+  function openLightbox(item: WorkItem) {
+    setLightboxItem(item);
+    posthog.capture("portfolio_image_viewed", {
+      caption: item.caption,
+      category: item.category,
+    });
+  }
+
   return (
     <>
-      <main id="main-content" className="pt-16">
+      <main id="main-content" className="pt-16" ref={containerRef}>
         {/* Hero */}
-        <section className="py-24 md:py-32 px-6">
-          <div className="mx-auto max-w-5xl text-center">
-            <m.span
-              className="text-xs tracking-widest uppercase text-muted mb-6 block"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6 }}
-            >
+        <section className="py-20 md:py-24 px-6">
+          <div ref={heroRef} className="mx-auto max-w-7xl text-center">
+            <span className="text-xs tracking-widest uppercase text-accent mb-6 block opacity-0">
               Portfolio
-            </m.span>
-            <m.h1
-              className="text-4xl md:text-6xl font-light tracking-tight text-foreground mb-6"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.1 }}
-            >
+            </span>
+            <h1 className="text-4xl md:text-6xl font-light tracking-tight text-foreground mb-6 opacity-0">
               Explore the work.
-            </m.h1>
-            <m.p
-              className="text-base md:text-lg text-muted max-w-xl mx-auto"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.2 }}
-            >
+            </h1>
+            <p className="text-base md:text-lg text-muted max-w-xl mx-auto opacity-0">
               Each piece tells a story of intention, care, and transformation.
-            </m.p>
+            </p>
           </div>
         </section>
 
         {/* Filter + Grid */}
-        <section className="pb-32 px-6">
-          <div className="mx-auto max-w-6xl">
+        <section className="pb-24 px-6">
+          <div className="mx-auto max-w-7xl">
             {/* Filters */}
-            <div className="flex flex-wrap gap-3 mb-12 justify-center">
+            <div ref={filtersRef} className="flex flex-wrap gap-2 mb-6 justify-center opacity-0">
               {filters.map((f) => (
                 <button
                   key={f.value}
-                  onClick={() => setActive(f.value)}
-                  className={`text-xs tracking-widest uppercase px-5 py-2.5 border transition-colors duration-200 ${
+                  onClick={() => {
+                    setActive(f.value);
+                    if (f.value !== "all") {
+                      posthog.capture("portfolio_filter_used", { category: f.value });
+                    }
+                  }}
+                  className={`px-5 py-2 text-xs tracking-wide rounded-full border transition-colors duration-200 ${
                     active === f.value
                       ? "border-foreground bg-foreground text-background"
-                      : "border-foreground/15 text-muted hover:border-foreground/30"
+                      : "border-muted/20 text-muted hover:text-foreground hover:border-foreground/30"
                   }`}
                 >
                   {f.label}
@@ -182,23 +327,27 @@ export function PortfolioPage({
               ))}
             </div>
 
+            {/* Result count */}
+            {isFiltered && (
+              <p className="text-xs text-muted text-center mb-8">
+                Showing {totalFiltered} of {totalAll} works
+              </p>
+            )}
+
             {/* Before & After Transformations */}
             {filteredBeforeAfter.length > 0 && (
-              <div className="mb-16">
-                <h2 className="text-xl md:text-2xl font-light tracking-tight text-foreground text-center mb-2">
+              <div className="mb-12">
+                <h2 className="text-lg font-light tracking-tight text-foreground text-center mb-2">
                   Transformations
                 </h2>
-                <p className="text-sm text-muted text-center mb-8">
+                <p className="text-xs text-muted text-center mb-8">
                   Drag to reveal the before &amp; after.
                 </p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
-                  {filteredBeforeAfter.map((item, i) => (
-                    <m.div
+                  {filteredBeforeAfter.map((item) => (
+                    <div
                       key={`ba-${item.caption}`}
-                      className="rounded-lg overflow-hidden shadow-sm border border-foreground/5"
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.5, delay: i * 0.1 }}
+                      className="rounded-lg overflow-hidden shadow-sm border border-muted/15"
                     >
                       <BeforeAfterSlider
                         beforeSrc={item.beforeImageUrl!}
@@ -208,22 +357,21 @@ export function PortfolioPage({
                       {item.caption && (
                         <p className="text-sm text-muted px-4 py-3 text-center">{item.caption}</p>
                       )}
-                    </m.div>
+                    </div>
                   ))}
                 </div>
               </div>
             )}
 
             {/* Grid */}
-            <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
-              {filtered.map((item, i) => (
-                <m.div
+            <div ref={gridRef} className="grid grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
+              {filtered.map((item) => (
+                <button
                   key={item.caption}
-                  className="group relative overflow-hidden cursor-pointer"
-                  layout
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ duration: 0.4, delay: i * 0.05 }}
+                  data-animate
+                  className="group relative overflow-hidden rounded-lg opacity-0 text-left"
+                  onClick={() => openLightbox(item)}
+                  aria-label={`View ${item.caption}`}
                 >
                   {item.imageUrl ? (
                     <div className="aspect-[4/5] relative">
@@ -244,22 +392,72 @@ export function PortfolioPage({
                     />
                   )}
                   <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all duration-300 flex items-end p-4 md:p-6">
-                    <p className="text-sm text-white opacity-0 group-hover:opacity-100 translate-y-4 group-hover:translate-y-0 transition-all duration-300">
-                      {item.caption}
-                    </p>
+                    <div className="opacity-0 group-hover:opacity-100 translate-y-4 group-hover:translate-y-0 transition-all duration-300">
+                      <p className="text-sm text-white mb-1">{item.caption}</p>
+                      <Badge variant="outline" className="text-[9px] text-white/70 border-white/30">
+                        {CATEGORY_LABELS[item.category] ?? item.category}
+                      </Badge>
+                    </div>
                   </div>
-                </m.div>
+                </button>
               ))}
             </div>
 
+            {filtered.length === 0 && filteredBeforeAfter.length === 0 && (
+              <div className="text-center py-16">
+                <p className="text-sm text-muted mb-4">No works found in this category yet.</p>
+                <button
+                  onClick={() => setActive("all")}
+                  className="text-xs tracking-wide uppercase text-accent hover:text-foreground transition-colors"
+                >
+                  View all work
+                </button>
+              </div>
+            )}
+
             {media.length === 0 && (
-              <p className="text-center text-sm text-muted mt-12">
-                More work coming soon — placeholder images will be replaced with real photos.
+              <p className="text-center text-xs text-muted mt-8">
+                Portfolio images coming soon — placeholders shown.
               </p>
             )}
           </div>
         </section>
+
+        {/* Bottom CTA */}
+        <section className="pb-24 px-6">
+          <div
+            ref={ctaRef}
+            className="mx-auto max-w-7xl rounded-2xl bg-foreground text-background p-10 md:p-14 flex flex-col items-center text-center gap-6 opacity-0"
+          >
+            <span className="text-xs tracking-widest uppercase text-accent block">
+              Like What You See?
+            </span>
+            <h2 className="text-2xl md:text-3xl font-light tracking-tight max-w-lg">
+              Ready to book your own transformation?
+            </h2>
+            <p className="text-sm text-background/60 max-w-md">
+              Reach out to discuss your vision. Every service is tailored to you.
+            </p>
+            <Link
+              href="/contact"
+              onClick={() =>
+                posthog.capture("cta_clicked", {
+                  cta: "portfolio_book",
+                  location: "portfolio_bottom",
+                })
+              }
+              className="inline-flex items-center gap-2 px-8 py-3.5 text-xs tracking-wide uppercase rounded-full bg-background text-foreground hover:bg-background/90 transition-colors duration-200"
+            >
+              Get in Touch
+              <ArrowRight size={14} />
+            </Link>
+          </div>
+        </section>
       </main>
+
+      {/* Lightbox */}
+      {lightboxItem && <Lightbox item={lightboxItem} onClose={() => setLightboxItem(null)} />}
+
       <Footer
         businessName={businessName}
         location={location}

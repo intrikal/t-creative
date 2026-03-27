@@ -49,52 +49,12 @@ const contactSchema = z.object({
 
 type ContactFormData = z.infer<typeof contactSchema>;
 
-const interests = [
-  "Lash Extensions",
-  "Permanent Jewelry",
-  "Crochet Hair Install",
-  "Custom Crochet Crafts",
-  "Beauty Business Consulting",
-  "HR Consulting",
-  "Training Programs",
-  "Shop Products",
-  "Other",
-];
-
 const inputClasses =
   "w-full px-4 py-3 bg-surface text-foreground text-sm rounded-lg border border-muted/20 outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:border-transparent transition-colors placeholder:text-muted/50";
 const errorInputClasses =
   "w-full px-4 py-3 bg-surface text-foreground text-sm rounded-lg border border-error/40 outline-none focus-visible:ring-2 focus-visible:ring-error/50 focus-visible:border-transparent transition-colors placeholder:text-muted/50";
 const labelClasses = "text-xs tracking-wide uppercase text-muted mb-2 block";
 const errorClasses = "text-xs text-error mt-1.5";
-
-const CONTACT_FAQ = [
-  {
-    question: "Where are you located?",
-    answer:
-      "T Creative Studio is based in San Jose, California, serving the greater Bay Area. For events and pop-ups, I travel to your location.",
-  },
-  {
-    question: "Do I need to pay a deposit?",
-    answer:
-      "Yes — a deposit is required to confirm your appointment. The remaining balance is due at the time of service. I'll share exact amounts when we confirm your booking.",
-  },
-  {
-    question: "What's the cancellation policy?",
-    answer:
-      "I require at least 48 hours notice for cancellations. Late cancellations are subject to a fee, and no-shows are charged the full service amount.",
-  },
-  {
-    question: "Can I book for a group or event?",
-    answer:
-      "Absolutely! I offer private lash parties, permanent jewelry pop-ups, bridal packages, and corporate events. Just mention it in your message and I'll send details.",
-  },
-  {
-    question: "How do I prepare for my appointment?",
-    answer:
-      "Come with a clean face (no eye makeup for lash services). I'll send you a confirmation email with specific prep instructions for your service.",
-  },
-];
 
 function ContactFAQItem({ question, answer }: { question: string; answer: string }) {
   const [open, setOpen] = useState(false);
@@ -144,10 +104,10 @@ function ContactFAQItem({ question, answer }: { question: string; answer: string
   );
 }
 
-function ContactFAQ() {
+function ContactFAQ({ entries }: { entries: { question: string; answer: string }[] }) {
   return (
     <>
-      {CONTACT_FAQ.map((item) => (
+      {entries.map((item) => (
         <ContactFAQItem key={item.question} question={item.question} answer={item.answer} />
       ))}
     </>
@@ -160,12 +120,16 @@ export function ContactPage({
   email,
   footerTagline,
   socialLinks,
+  interests,
+  faqEntries,
 }: {
   businessName?: string;
   location?: string;
   email?: string;
   footerTagline?: string;
   socialLinks?: { platform: string; handle: string; url: string }[];
+  interests?: string[];
+  faqEntries?: { question: string; answer: string }[];
 } = {}) {
   // Transform CMS-sourced social links into the internal {label, href, icon,
   // description} shape the sidebar renders. Resolves platform name to an icon
@@ -568,7 +532,7 @@ export function ContactPage({
                             </option>
                             {/* Render each interest as a <select> option. The interest
                                 string serves as both the display label and the form value. */}
-                            {interests.map((interest) => (
+                            {(interests ?? []).map((interest) => (
                               <option key={interest} value={interest}>
                                 {interest}
                               </option>
@@ -797,7 +761,7 @@ export function ContactPage({
             </div>
 
             <div ref={faqListRef} className="opacity-0">
-              <ContactFAQ />
+              <ContactFAQ entries={faqEntries ?? []} />
             </div>
           </div>
         </section>

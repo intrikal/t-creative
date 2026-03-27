@@ -71,6 +71,8 @@ export default async function Page() {
         email={business.email}
         footerTagline={content.footerTagline}
         socialLinks={content.socialLinks}
+        interests={content.contactInterests}
+        faqEntries={content.contactFaqEntries}
       />
     </>
   );

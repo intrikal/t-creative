@@ -843,6 +843,100 @@ const DEFAULT_SITE_CONTENT: SiteContent = {
   ],
   showConsultingPage: true,
   statsOverrides: {},
+  aboutMission:
+    "I've always believed that beauty is more than skin deep — it's about how you feel when you walk out the door. I started doing lashes for friends and family, and quickly realized this was more than a side hustle. It was my calling.\n\nAs my clientele grew, so did my ambitions. I trained in permanent jewelry welding, picked up crochet hair installs, and started creating handmade pieces. Each new skill felt like an extension of the same mission: helping people feel like the best version of themselves.\n\nT Creative Studio is the result of combining everything I love — artistry, entrepreneurship, and genuine connection with the people I serve. Whether I'm doing a full volume set, welding a forever bracelet, or consulting with a fellow beauty entrepreneur on their business strategy, I bring the same level of intention and care.",
+  aboutCredentials: [
+    { stat: "500+", label: "Clients served" },
+    { stat: "5+", label: "Years of experience" },
+    { stat: "4", label: "Creative disciplines" },
+    { stat: "Bay Area", label: "Based & serving" },
+  ],
+  aboutTimeline: [
+    {
+      year: "2019",
+      title: "Started lash artistry",
+      description: "Began training in classic and volume lash extensions.",
+    },
+    {
+      year: "2020",
+      title: "Launched permanent jewelry",
+      description: "Added custom chain welding to the service lineup.",
+    },
+    {
+      year: "2022",
+      title: "Expanded into crochet",
+      description: "Began offering crochet hair installs and handmade crafts.",
+    },
+    {
+      year: "2023",
+      title: "Founded T Creative Studio",
+      description: "Unified all services under one brand, serving the Bay Area.",
+    },
+  ],
+  aboutCertifications: [
+    "Certified Lash Extension Technician",
+    "Permanent Jewelry Welding Certified",
+    "Licensed Cosmetology Professional",
+    "HR Business Partner (PHR)",
+  ],
+  aboutTestimonials: [
+    {
+      quote:
+        "Trini made me feel so comfortable during my first lash appointment. The results were stunning and lasted weeks!",
+      name: "Jessica M.",
+      service: "Lash Extensions",
+    },
+    {
+      quote:
+        "I got a permanent bracelet for my birthday and I'm obsessed. The process was quick, painless, and so fun.",
+      name: "Alyssa R.",
+      service: "Permanent Jewelry",
+    },
+    {
+      quote:
+        "Her consulting helped me restructure my entire pricing model. My revenue went up 40% in three months.",
+      name: "Danielle K.",
+      service: "Business Consulting",
+    },
+  ],
+  contactInterests: [
+    "Lash Extensions",
+    "Permanent Jewelry",
+    "Crochet Hair Install",
+    "Custom Crochet Crafts",
+    "Beauty Business Consulting",
+    "HR Consulting",
+    "Training Programs",
+    "Shop Products",
+    "Other",
+  ],
+  contactFaqEntries: [
+    {
+      question: "Where are you located?",
+      answer:
+        "T Creative Studio is based in San Jose, California, serving the greater Bay Area. For events and pop-ups, I travel to your location.",
+    },
+    {
+      question: "Do I need to pay a deposit?",
+      answer:
+        "Yes — a deposit is required to confirm your appointment. The remaining balance is due at the time of service. I'll share exact amounts when we confirm your booking.",
+    },
+    {
+      question: "What's the cancellation policy?",
+      answer:
+        "I require at least 48 hours notice for cancellations. Late cancellations are subject to a fee, and no-shows are charged the full service amount.",
+    },
+    {
+      question: "Can I book for a group or event?",
+      answer:
+        "Absolutely! I offer private lash parties, permanent jewelry pop-ups, bridal packages, and corporate events. Just mention it in your message and I'll send details.",
+    },
+    {
+      question: "How do I prepare for my appointment?",
+      answer:
+        "Come with a clean face (no eye makeup for lash services). I'll send you a confirmation email with specific prep instructions for your service.",
+    },
+  ],
 };
 
 const KEY_SITE_CONTENT = "site_content";
@@ -906,6 +1000,17 @@ const siteContentSchema = z.object({
     rebookingRate: z.string().optional(),
     servicesCount: z.string().optional(),
   }),
+  aboutMission: z.string(),
+  aboutCredentials: z.array(z.object({ stat: z.string().min(1), label: z.string().min(1) })),
+  aboutTimeline: z.array(
+    z.object({ year: z.string().min(1), title: z.string().min(1), description: z.string() }),
+  ),
+  aboutCertifications: z.array(z.string()),
+  aboutTestimonials: z.array(
+    z.object({ quote: z.string().min(1), name: z.string().min(1), service: z.string().min(1) }),
+  ),
+  contactInterests: z.array(z.string()),
+  contactFaqEntries: z.array(z.object({ question: z.string().min(1), answer: z.string().min(1) })),
 });
 
 export async function saveSiteContent(data: SiteContent): Promise<ActionResult<void>> {

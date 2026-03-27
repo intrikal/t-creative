@@ -55,6 +55,12 @@ export function WebsiteContentTab({ initial }: { initial: SiteContent }) {
         eventDescriptions: d.eventDescriptions.filter((e) => e.title.trim()),
         consultingServices: d.consultingServices.filter((s) => s.title.trim()),
         consultingBenefits: d.consultingBenefits.filter((b) => b.trim()),
+        aboutCredentials: d.aboutCredentials.filter((c) => c.stat.trim() && c.label.trim()),
+        aboutTimeline: d.aboutTimeline.filter((t) => t.year.trim() && t.title.trim()),
+        aboutCertifications: d.aboutCertifications.filter((c) => c.trim()),
+        aboutTestimonials: d.aboutTestimonials.filter((t) => t.quote.trim() && t.name.trim()),
+        contactInterests: d.contactInterests.filter((i) => i.trim()),
+        contactFaqEntries: d.contactFaqEntries.filter((e) => e.question.trim() && e.answer.trim()),
       };
       return saveSiteContent(cleaned);
     },
@@ -114,6 +120,384 @@ export function WebsiteContentTab({ initial }: { initial: SiteContent }) {
               className={TEXTAREA_CLASS}
             />
           </FieldRow>
+          <FieldRow label="Mission / My Story">
+            <textarea
+              rows={8}
+              value={data.aboutMission}
+              onChange={(e) => update("aboutMission", e.target.value)}
+              className={TEXTAREA_CLASS}
+              placeholder="I've always believed that beauty is more than skin deep..."
+            />
+          </FieldRow>
+        </CardContent>
+      </Card>
+
+      {/* About — Credentials */}
+      <SectionHeader
+        title="About — Credentials"
+        description="Key stats displayed on the About page (e.g. 500+ / Clients served)"
+      />
+      <Card className="gap-0">
+        <CardContent className="px-5 pb-5 pt-5 space-y-3">
+          {data.aboutCredentials.map((item, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <input
+                type="text"
+                placeholder="500+"
+                value={item.stat}
+                onChange={(e) => {
+                  const next = [...data.aboutCredentials];
+                  next[i] = { ...next[i], stat: e.target.value };
+                  update("aboutCredentials", next);
+                }}
+                className={cn(INPUT_CLASS, "w-24 shrink-0")}
+              />
+              <input
+                type="text"
+                placeholder="Clients served"
+                value={item.label}
+                onChange={(e) => {
+                  const next = [...data.aboutCredentials];
+                  next[i] = { ...next[i], label: e.target.value };
+                  update("aboutCredentials", next);
+                }}
+                className={cn(INPUT_CLASS, "flex-1")}
+              />
+              <button
+                onClick={() =>
+                  update(
+                    "aboutCredentials",
+                    data.aboutCredentials.filter((_, j) => j !== i),
+                  )
+                }
+                className="text-muted hover:text-destructive shrink-0 p-1"
+                aria-label="Remove credential"
+              >
+                <Trash2 size={14} />
+              </button>
+            </div>
+          ))}
+          <button
+            onClick={() =>
+              update("aboutCredentials", [...data.aboutCredentials, { stat: "", label: "" }])
+            }
+            className="flex items-center gap-1.5 text-xs text-muted hover:text-foreground"
+          >
+            <Plus size={12} /> Add credential
+          </button>
+        </CardContent>
+      </Card>
+
+      {/* About — Timeline */}
+      <SectionHeader title="About — Timeline" description="Milestones shown on the About page" />
+      <Card className="gap-0">
+        <CardContent className="px-5 pb-5 pt-5 space-y-3">
+          {data.aboutTimeline.map((item, i) => (
+            <div key={i} className="flex items-start gap-2">
+              <input
+                type="text"
+                placeholder="2023"
+                value={item.year}
+                onChange={(e) => {
+                  const next = [...data.aboutTimeline];
+                  next[i] = { ...next[i], year: e.target.value };
+                  update("aboutTimeline", next);
+                }}
+                className={cn(INPUT_CLASS, "w-20 shrink-0")}
+              />
+              <div className="flex-1 space-y-1">
+                <input
+                  type="text"
+                  placeholder="Milestone title"
+                  value={item.title}
+                  onChange={(e) => {
+                    const next = [...data.aboutTimeline];
+                    next[i] = { ...next[i], title: e.target.value };
+                    update("aboutTimeline", next);
+                  }}
+                  className={INPUT_CLASS}
+                />
+                <input
+                  type="text"
+                  placeholder="Brief description"
+                  value={item.description}
+                  onChange={(e) => {
+                    const next = [...data.aboutTimeline];
+                    next[i] = { ...next[i], description: e.target.value };
+                    update("aboutTimeline", next);
+                  }}
+                  className={INPUT_CLASS}
+                />
+              </div>
+              <button
+                onClick={() =>
+                  update(
+                    "aboutTimeline",
+                    data.aboutTimeline.filter((_, j) => j !== i),
+                  )
+                }
+                className="text-muted hover:text-destructive shrink-0 p-1 mt-1"
+                aria-label="Remove milestone"
+              >
+                <Trash2 size={14} />
+              </button>
+            </div>
+          ))}
+          <button
+            onClick={() =>
+              update("aboutTimeline", [
+                ...data.aboutTimeline,
+                { year: "", title: "", description: "" },
+              ])
+            }
+            className="flex items-center gap-1.5 text-xs text-muted hover:text-foreground"
+          >
+            <Plus size={12} /> Add milestone
+          </button>
+        </CardContent>
+      </Card>
+
+      {/* About — Certifications */}
+      <SectionHeader
+        title="About — Certifications"
+        description="Training and credentials shown on the About page"
+      />
+      <Card className="gap-0">
+        <CardContent className="px-5 pb-5 pt-5 space-y-3">
+          {data.aboutCertifications.map((cert, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <input
+                type="text"
+                placeholder="Certification name"
+                value={cert}
+                onChange={(e) => {
+                  const next = [...data.aboutCertifications];
+                  next[i] = e.target.value;
+                  update("aboutCertifications", next);
+                }}
+                className={cn(INPUT_CLASS, "flex-1")}
+              />
+              <button
+                onClick={() =>
+                  update(
+                    "aboutCertifications",
+                    data.aboutCertifications.filter((_, j) => j !== i),
+                  )
+                }
+                className="text-muted hover:text-destructive shrink-0 p-1"
+                aria-label="Remove certification"
+              >
+                <Trash2 size={14} />
+              </button>
+            </div>
+          ))}
+          <button
+            onClick={() => update("aboutCertifications", [...data.aboutCertifications, ""])}
+            className="flex items-center gap-1.5 text-xs text-muted hover:text-foreground"
+          >
+            <Plus size={12} /> Add certification
+          </button>
+        </CardContent>
+      </Card>
+
+      {/* About — Testimonials */}
+      <SectionHeader
+        title="About — Testimonials"
+        description="Client quotes shown on the About page"
+      />
+      <Card className="gap-0">
+        <CardContent className="px-5 pb-5 pt-5 space-y-4">
+          {data.aboutTestimonials.map((t, i) => (
+            <div key={i} className="space-y-2 border-b border-border pb-4 last:border-0 last:pb-0">
+              <textarea
+                rows={2}
+                placeholder="Client quote"
+                value={t.quote}
+                onChange={(e) => {
+                  const next = [...data.aboutTestimonials];
+                  next[i] = { ...next[i], quote: e.target.value };
+                  update("aboutTestimonials", next);
+                }}
+                className={TEXTAREA_CLASS}
+              />
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Client name"
+                  value={t.name}
+                  onChange={(e) => {
+                    const next = [...data.aboutTestimonials];
+                    next[i] = { ...next[i], name: e.target.value };
+                    update("aboutTestimonials", next);
+                  }}
+                  className={cn(INPUT_CLASS, "flex-1")}
+                />
+                <input
+                  type="text"
+                  placeholder="Service"
+                  value={t.service}
+                  onChange={(e) => {
+                    const next = [...data.aboutTestimonials];
+                    next[i] = { ...next[i], service: e.target.value };
+                    update("aboutTestimonials", next);
+                  }}
+                  className={cn(INPUT_CLASS, "flex-1")}
+                />
+                <button
+                  onClick={() =>
+                    update(
+                      "aboutTestimonials",
+                      data.aboutTestimonials.filter((_, j) => j !== i),
+                    )
+                  }
+                  className="text-muted hover:text-destructive shrink-0 p-1"
+                  aria-label="Remove testimonial"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            </div>
+          ))}
+          <button
+            onClick={() =>
+              update("aboutTestimonials", [
+                ...data.aboutTestimonials,
+                { quote: "", name: "", service: "" },
+              ])
+            }
+            className="flex items-center gap-1.5 text-xs text-muted hover:text-foreground"
+          >
+            <Plus size={12} /> Add testimonial
+          </button>
+        </CardContent>
+      </Card>
+
+      {/* Contact — Interests */}
+      <SectionHeader
+        title="Contact — Service Interests"
+        description="Dropdown options on the contact form"
+      />
+      <Card className="gap-0">
+        <CardContent className="px-5 pb-5 pt-5 space-y-3">
+          {data.contactInterests.map((interest, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <input
+                type="text"
+                placeholder="Service name"
+                value={interest}
+                onChange={(e) => {
+                  const next = [...data.contactInterests];
+                  next[i] = e.target.value;
+                  update("contactInterests", next);
+                }}
+                className={cn(INPUT_CLASS, "flex-1")}
+              />
+              <div className="flex items-center gap-1 shrink-0">
+                {i > 0 && (
+                  <button
+                    onClick={() => {
+                      const next = [...data.contactInterests];
+                      [next[i - 1], next[i]] = [next[i], next[i - 1]];
+                      update("contactInterests", next);
+                    }}
+                    className="text-muted hover:text-foreground p-1"
+                    aria-label="Move up"
+                  >
+                    <ArrowUp size={12} />
+                  </button>
+                )}
+                {i < data.contactInterests.length - 1 && (
+                  <button
+                    onClick={() => {
+                      const next = [...data.contactInterests];
+                      [next[i], next[i + 1]] = [next[i + 1], next[i]];
+                      update("contactInterests", next);
+                    }}
+                    className="text-muted hover:text-foreground p-1"
+                    aria-label="Move down"
+                  >
+                    <ArrowDown size={12} />
+                  </button>
+                )}
+                <button
+                  onClick={() =>
+                    update(
+                      "contactInterests",
+                      data.contactInterests.filter((_, j) => j !== i),
+                    )
+                  }
+                  className="text-muted hover:text-destructive p-1"
+                  aria-label="Remove interest"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            </div>
+          ))}
+          <button
+            onClick={() => update("contactInterests", [...data.contactInterests, ""])}
+            className="flex items-center gap-1.5 text-xs text-muted hover:text-foreground"
+          >
+            <Plus size={12} /> Add interest
+          </button>
+        </CardContent>
+      </Card>
+
+      {/* Contact — FAQ */}
+      <SectionHeader
+        title="Contact — FAQ"
+        description="Frequently asked questions shown on the contact page"
+      />
+      <Card className="gap-0">
+        <CardContent className="px-5 pb-5 pt-5 space-y-4">
+          {data.contactFaqEntries.map((entry, i) => (
+            <div key={i} className="space-y-2 border-b border-border pb-4 last:border-0 last:pb-0">
+              <div className="flex items-start gap-2">
+                <input
+                  type="text"
+                  placeholder="Question"
+                  value={entry.question}
+                  onChange={(e) => {
+                    const next = [...data.contactFaqEntries];
+                    next[i] = { ...next[i], question: e.target.value };
+                    update("contactFaqEntries", next);
+                  }}
+                  className={cn(INPUT_CLASS, "flex-1")}
+                />
+                <button
+                  onClick={() =>
+                    update(
+                      "contactFaqEntries",
+                      data.contactFaqEntries.filter((_, j) => j !== i),
+                    )
+                  }
+                  className="text-muted hover:text-destructive shrink-0 p-1 mt-1"
+                  aria-label="Remove FAQ entry"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+              <textarea
+                rows={2}
+                placeholder="Answer"
+                value={entry.answer}
+                onChange={(e) => {
+                  const next = [...data.contactFaqEntries];
+                  next[i] = { ...next[i], answer: e.target.value };
+                  update("contactFaqEntries", next);
+                }}
+                className={TEXTAREA_CLASS}
+              />
+            </div>
+          ))}
+          <button
+            onClick={() =>
+              update("contactFaqEntries", [...data.contactFaqEntries, { question: "", answer: "" }])
+            }
+            className="flex items-center gap-1.5 text-xs text-muted hover:text-foreground"
+          >
+            <Plus size={12} /> Add FAQ entry
+          </button>
         </CardContent>
       </Card>
 

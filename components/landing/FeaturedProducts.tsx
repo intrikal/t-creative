@@ -2,20 +2,15 @@
  * FeaturedProducts — Bestseller product strip on the landing page.
  *
  * Used on the landing page to let visitors browse top products without an account.
- * Cards feature a hover-lift effect (whileHover y:-6) with subtle shadow for premium feel.
- * Client Component — uses Framer Motion for staggered card entrance and hover interactions.
+ * Cards feature a CSS hover-lift effect for premium feel.
  *
  * Props:
  * - products: optional array of { name, desc, price } from the DB. Falls back to FEATURED.
  */
-"use client";
 
 import Link from "next/link";
-import { m } from "framer-motion";
 import { SectionWrapper } from "@/components/ui/SectionWrapper";
 
-// Static product catalog — each entry includes name, description, price, a Tailwind bg class
-// for the placeholder swatch, and a hex dot color. Array structure enables .map() with stagger.
 const FEATURED = [
   {
     name: "Lash Aftercare Kit",
@@ -67,13 +62,7 @@ export function FeaturedProducts({ products }: { products?: ProductItem[] }) {
   return (
     <SectionWrapper id="shop" className="py-32 md:py-48 px-6">
       <div className="mx-auto max-w-6xl">
-        <m.div
-          className="mb-16 md:mb-20 flex items-end justify-between gap-4 flex-wrap"
-          initial={{ opacity: 0, y: 30 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.8 }}
-        >
+        <div className="mb-16 md:mb-20 flex items-end justify-between gap-4 flex-wrap">
           <div>
             <span className="text-xs tracking-widest uppercase text-muted mb-4 block">Shop</span>
             <h2 className="text-3xl md:text-5xl font-light tracking-tight text-foreground">
@@ -90,23 +79,14 @@ export function FeaturedProducts({ products }: { products?: ProductItem[] }) {
           >
             View All Products
           </Link>
-        </m.div>
+        </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-          {/* .map() over displayProducts to render product cards in a responsive grid (1→2→5 columns).
-              Each card gets stagger delay (i * 0.08) and a whileHover y:-6 lift for tactile feel.
-              Array approach keeps the animation timing DRY across all products. */}
-          {displayProducts.map((product, i) => (
-            <m.div
+          {displayProducts.map((product) => (
+            <div
               key={product.name}
-              className="border border-foreground/8 flex flex-col transition-all duration-300 hover:border-foreground/20 hover:shadow-[0_8px_30px_-12px_rgba(0,0,0,0.12)]"
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              whileHover={{ y: -6 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.5, delay: i * 0.08 }}
+              className="border border-foreground/8 flex flex-col transition-all duration-300 hover:border-foreground/20 hover:shadow-[0_8px_30px_-12px_rgba(0,0,0,0.12)] hover:-translate-y-1.5"
             >
-              {/* Placeholder image */}
               <div
                 className={`w-full aspect-square flex items-center justify-center ${product.color}`}
               >
@@ -125,7 +105,7 @@ export function FeaturedProducts({ products }: { products?: ProductItem[] }) {
                   </Link>
                 </div>
               </div>
-            </m.div>
+            </div>
           ))}
         </div>
       </div>

@@ -3,16 +3,10 @@
  *
  * Showcases Trini as an educator, not just a practitioner. This section adds
  * authority and reveals a major revenue stream (training programs $450–$2,200).
- *
- * Client Component — Framer Motion whileInView entrance.
  */
-"use client";
 
 import Link from "next/link";
-import { m } from "framer-motion";
 
-// Training program summaries — lighter version than the full Training component.
-// Each has title, duration, price, and zone color for the dot indicator.
 const PROGRAMS = [
   {
     title: "Classic Lash Certification",
@@ -44,14 +38,7 @@ export function TrainingTeaser() {
   return (
     <section className="bg-surface py-28 md:py-40 px-6" aria-label="Training programs">
       <div className="mx-auto max-w-5xl">
-        {/* Header */}
-        <m.div
-          className="mb-16 md:mb-20"
-          initial={{ opacity: 0, y: 24 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.8 }}
-        >
+        <div className="mb-16 md:mb-20">
           <span className="text-[10px] tracking-[0.3em] uppercase text-muted mb-5 block">
             Education
           </span>
@@ -63,20 +50,13 @@ export function TrainingTeaser() {
             Hands-on training with the same techniques and standards behind every T Creative
             service.
           </p>
-        </m.div>
+        </div>
 
-        {/* Program cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-12">
-          {/* .map() over PROGRAMS to render cards in a 1x4 (mobile) or 2x2 (desktop) grid.
-              Stagger delay (i * 0.1) cascades entrance animation. */}
-          {PROGRAMS.map((program, i) => (
-            <m.div
+          {PROGRAMS.map((program) => (
+            <div
               key={program.title}
               className="border border-foreground/8 p-6 md:p-8 hover:border-foreground/20 transition-all duration-300 group"
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.5, delay: i * 0.1 }}
             >
               <div className="flex items-center gap-3 mb-4">
                 <div className="w-2 h-2 rounded-full" style={{ backgroundColor: program.color }} />
@@ -88,25 +68,17 @@ export function TrainingTeaser() {
                 {program.title}
               </h3>
               <p className="text-sm text-accent font-medium">{program.price}</p>
-            </m.div>
+            </div>
           ))}
         </div>
 
-        {/* CTA */}
-        <m.div
-          initial={{ opacity: 0 }}
-          whileInView={{ opacity: 1 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.6, delay: 0.3 }}
+        <Link
+          href="/training"
+          className="inline-flex items-center gap-3 text-xs tracking-[0.2em] uppercase text-foreground group"
         >
-          <Link
-            href="/training"
-            className="inline-flex items-center gap-3 text-xs tracking-[0.2em] uppercase text-foreground group"
-          >
-            <span className="nav-link-reveal pb-px">View All Programs</span>
-            <span className="transition-transform duration-200 group-hover:translate-x-1">→</span>
-          </Link>
-        </m.div>
+          <span className="nav-link-reveal pb-px">View All Programs</span>
+          <span className="transition-transform duration-200 group-hover:translate-x-1">→</span>
+        </Link>
       </div>
     </section>
   );

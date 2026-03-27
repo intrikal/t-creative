@@ -5,7 +5,7 @@
  * Features a magnetic button on the primary CTA and a slow ambient
  * gradient animation on the background.
  *
- * Client Component — Framer Motion scroll-triggered entrance + magnetic CTA.
+ * Client Component — Framer Motion magnetic CTA (useMotionValue/useSpring).
  */
 "use client";
 
@@ -16,11 +16,6 @@ import { m, useMotionValue, useSpring } from "framer-motion";
 /**
  * MagneticButton — Link element that subtly follows the cursor within ±4px, creating a
  * "magnetic" tactile feel. Uses Framer Motion springs for smooth easing back to center.
- *
- * Props:
- * - href: link destination
- * - children: button label content
- * - className: optional styling override
  */
 function MagneticButton({
   href,
@@ -31,19 +26,12 @@ function MagneticButton({
   children: React.ReactNode;
   className?: string;
 }) {
-  // useRef tracks the anchor element for bounding rect calculations.
   const ref = useRef<HTMLAnchorElement>(null);
-  // useMotionValue for x/y offsets — MotionValues update without triggering React re-renders,
-  // which is critical here since mousemove fires at 60fps and re-renders would be expensive.
   const x = useMotionValue(0);
   const y = useMotionValue(0);
-  // useSpring wraps raw MotionValues with spring physics for smooth, organic easing
-  // back to center when the cursor leaves.
   const springX = useSpring(x, { stiffness: 200, damping: 20 });
   const springY = useSpring(y, { stiffness: 200, damping: 20 });
 
-  // Calculates cursor offset from button center and scales by 0.08 (8% of distance).
-  // The 0.08 multiplier keeps the magnetic pull subtle — larger values would feel jittery.
   function handleMouseMove(e: React.MouseEvent) {
     if (!ref.current) return;
     const rect = ref.current.getBoundingClientRect();
@@ -92,13 +80,7 @@ export function TheInvitation() {
         T Creative
       </p>
 
-      <m.div
-        className="relative z-10 mx-auto max-w-2xl text-center"
-        initial={{ opacity: 0, y: 32 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true }}
-        transition={{ duration: 1, ease: [0.16, 1, 0.3, 1] }}
-      >
+      <div className="relative z-10 mx-auto max-w-2xl text-center">
         <span className="text-[10px] tracking-[0.3em] uppercase text-muted mb-8 block">
           Your Move
         </span>
@@ -107,7 +89,6 @@ export function TheInvitation() {
           The studio is yours.
         </h2>
 
-        {/* Closing thesis — completes the narrative arc */}
         <p className="font-display text-lg md:text-xl text-foreground/60 italic leading-relaxed mb-14 max-w-lg mx-auto">
           Every transformation starts with a decision to begin.
         </p>
@@ -124,16 +105,12 @@ export function TheInvitation() {
             className="inline-flex items-center gap-2 justify-center px-8 py-4 text-xs tracking-[0.2em] uppercase text-foreground hover:text-accent transition-colors duration-300 group"
           >
             See What&apos;s Possible
-            <m.span
-              className="inline-block"
-              animate={{ x: [0, 4, 0] }}
-              transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-            >
+            <span className="inline-block transition-transform duration-200 group-hover:translate-x-1">
               →
-            </m.span>
+            </span>
           </Link>
         </div>
-      </m.div>
+      </div>
     </section>
   );
 }

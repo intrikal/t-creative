@@ -1046,7 +1046,14 @@ export async function getSiteContent(): Promise<SiteContent> {
   try {
     const stored = await getPublicSetting(KEY_SITE_CONTENT, DEFAULT_SITE_CONTENT);
     // Merge so that new fields added to DEFAULT_SITE_CONTENT backfill for existing rows.
-    return { ...DEFAULT_SITE_CONTENT, ...stored };
+    // Strip undefined values from stored before merging so that fields added after the
+    // row was first written fall back to DEFAULT_SITE_CONTENT instead of becoming undefined.
+    const defined = Object.fromEntries(
+      Object.entries(stored as unknown as Record<string, unknown>).filter(
+        ([, v]) => v !== undefined,
+      ),
+    );
+    return { ...DEFAULT_SITE_CONTENT, ...defined } as SiteContent;
   } catch (err) {
     Sentry.captureException(err);
     return DEFAULT_SITE_CONTENT;
@@ -1267,7 +1274,14 @@ export async function getAdminSettingsBundle(): Promise<AdminSettingsBundle> {
       notifications: (map.get(KEY_NOTIFICATIONS) as NotificationPrefs) ?? DEFAULT_NOTIFICATIONS,
       bookingRules: (map.get(KEY_BOOKING_RULES) as BookingRulesConfig) ?? DEFAULT_BOOKING_RULES,
       reminders: (map.get(KEY_REMINDERS) as RemindersConfig) ?? DEFAULT_REMINDERS,
-      siteContent: (map.get(KEY_SITE_CONTENT) as SiteContent) ?? DEFAULT_SITE_CONTENT,
+      siteContent: (() => {
+        const stored = map.get(KEY_SITE_CONTENT) as Record<string, unknown> | undefined;
+        if (!stored) return DEFAULT_SITE_CONTENT;
+        const defined = Object.fromEntries(
+          Object.entries(stored).filter(([, v]) => v !== undefined),
+        );
+        return { ...DEFAULT_SITE_CONTENT, ...defined } as SiteContent;
+      })(),
       inventory: (map.get(KEY_INVENTORY) as InventoryConfig) ?? DEFAULT_INVENTORY,
       financial: (map.get(KEY_FINANCIAL) as FinancialConfig) ?? DEFAULT_FINANCIAL,
       revenueGoals: (map.get(KEY_REVENUE_GOALS) as RevenueGoal[]) ?? [],

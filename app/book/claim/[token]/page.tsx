@@ -10,7 +10,10 @@ import { getPublicBusinessProfile } from "@/app/dashboard/settings/settings-acti
 import { getClaimPageData } from "./actions";
 import { ClaimUI } from "./ClaimUI";
 
-export const metadata: Metadata = { title: "Claim Your Spot" };
+export const metadata: Metadata = {
+  title: "Claim Your Spot",
+  robots: { index: false, follow: false },
+};
 
 interface Props {
   params: Promise<{ token: string }>;

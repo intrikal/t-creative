@@ -7,25 +7,27 @@ import { getSiteData } from "@/lib/site-data";
 import { getPublishedServices } from "./actions";
 import { ServicesPage } from "./ServicesPage";
 
-export const metadata: Metadata = {
-  title: "Services | Lash Extensions, Permanent Jewelry & More | T Creative Studio",
-  description:
-    "Handcrafted services in San Jose. Lash extensions starting at $150, permanent jewelry starting at $65, custom crochet commissions, and business consulting.",
-  alternates: {
-    canonical: "/services",
-  },
-  openGraph: {
+export async function generateMetadata(): Promise<Metadata> {
+  const { business } = await getSiteData();
+  const location = business.location ?? "San Jose";
+  const description = `Handcrafted services in ${location}. Lash extensions starting at $150, permanent jewelry starting at $65, custom crochet commissions, and business consulting.`;
+  return {
     title: "Services | Lash Extensions, Permanent Jewelry & More | T Creative Studio",
-    description:
-      "Handcrafted services in San Jose. Lash extensions starting at $150, permanent jewelry starting at $65, custom crochet commissions, and business consulting.",
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "Services | Lash Extensions, Permanent Jewelry & More | T Creative Studio",
-    description:
-      "Handcrafted services in San Jose. Lash extensions starting at $150, permanent jewelry starting at $65, custom crochet commissions, and business consulting.",
-  },
-};
+    description,
+    alternates: {
+      canonical: "/services",
+    },
+    openGraph: {
+      title: "Services | Lash Extensions, Permanent Jewelry & More | T Creative Studio",
+      description,
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: "Services | Lash Extensions, Permanent Jewelry & More | T Creative Studio",
+      description,
+    },
+  };
+}
 
 function buildServicesJsonLd(
   services: Awaited<ReturnType<typeof getPublishedServices>>,

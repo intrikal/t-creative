@@ -4,16 +4,21 @@
  * Used on the landing page directly below the hero to establish credibility immediately.
  * Client Component — uses Framer Motion for staggered fade-in of each proof point.
  *
- * No props — proof points are static marketing copy.
+ * Props:
+ * - location: optional city name; defaults to "San Jose" in the first proof point.
  */
 "use client";
 
 import { m } from "framer-motion";
 
-// Four social-proof signals — ordered by geographic context → volume → quality → exclusivity.
-const proofPoints = ["San Jose & Bay Area", "500+ Clients", "5-Star Rated", "By Appointment Only"];
-
-export function TrustBar() {
+export function TrustBar({ location }: { location?: string }) {
+  // Four social-proof signals — ordered by geographic context → volume → quality → exclusivity.
+  const proofPoints = [
+    `${location ?? "San Jose"} & Bay Area`,
+    "500+ Clients",
+    "5-Star Rated",
+    "By Appointment Only",
+  ];
   return (
     <m.div
       className="py-6 px-6 bg-surface"

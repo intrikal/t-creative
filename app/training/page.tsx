@@ -7,25 +7,27 @@ import { getSiteData } from "@/lib/site-data";
 import { getPublishedPrograms } from "./actions";
 import { TrainingPage } from "./TrainingPage";
 
-export const metadata: Metadata = {
-  title: "Training Programs | Lash & Permanent Jewelry Certification | T Creative Studio",
-  description:
-    "Comprehensive lash extension and permanent jewelry certification programs. Learn from an expert in San Jose. In-person training starting at $1,200.",
-  alternates: {
-    canonical: "/training",
-  },
-  openGraph: {
+export async function generateMetadata(): Promise<Metadata> {
+  const { business } = await getSiteData();
+  const location = business.location ?? "San Jose";
+  const description = `Comprehensive lash extension and permanent jewelry certification programs. Learn from an expert in ${location}. In-person training starting at $1,200.`;
+  return {
     title: "Training Programs | Lash & Permanent Jewelry Certification | T Creative Studio",
-    description:
-      "Comprehensive lash extension and permanent jewelry certification programs. Learn from an expert in San Jose. In-person training starting at $1,200.",
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "Training Programs | Lash & Permanent Jewelry Certification | T Creative Studio",
-    description:
-      "Comprehensive lash extension and permanent jewelry certification programs. Learn from an expert in San Jose. In-person training starting at $1,200.",
-  },
-};
+    description,
+    alternates: {
+      canonical: "/training",
+    },
+    openGraph: {
+      title: "Training Programs | Lash & Permanent Jewelry Certification | T Creative Studio",
+      description,
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: "Training Programs | Lash & Permanent Jewelry Certification | T Creative Studio",
+      description,
+    },
+  };
+}
 
 const BASE_URL = SITE_URL;
 

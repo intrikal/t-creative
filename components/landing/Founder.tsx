@@ -22,6 +22,13 @@ const PHOTOS = [
   "/images/trini.jpg", // top card last
 ];
 
+const PHOTO_ALTS = [
+  "Trini working on lash extensions",
+  "Trini with permanent jewelry tools",
+  "Trini in the studio",
+  "Trini Lam — founder of T Creative Studio",
+];
+
 // Resting stack position for each card — slight y offset (i * -4) and random rotation
 // give the pile a natural, scattered look. Math.random() is intentional here:
 // it runs once per card on initial render, giving each card a unique tilt.
@@ -131,7 +138,7 @@ function CardStack() {
           >
             <Image
               src={PHOTOS[i]}
-              alt="Trini Lam — founder of T Creative Studio"
+              alt={PHOTO_ALTS[i]}
               fill
               className="object-cover object-top select-none"
               draggable={false}

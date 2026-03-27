@@ -4,25 +4,27 @@ import { getSiteData } from "@/lib/site-data";
 import { PublicShopPage } from "./PublicShopPage";
 import { getPublishedProducts } from "./queries";
 
-export const metadata: Metadata = {
-  title: "Shop | Aftercare Products & Studio Merch | T Creative Studio",
-  description:
-    "Aftercare products, permanent jewelry, and studio merch from T Creative Studio in San Jose, CA.",
-  alternates: {
-    canonical: "/shop",
-  },
-  openGraph: {
+export async function generateMetadata(): Promise<Metadata> {
+  const { business } = await getSiteData();
+  const location = business.location ?? "San Jose, CA";
+  const description = `Aftercare products, permanent jewelry, and studio merch from T Creative Studio in ${location}.`;
+  return {
     title: "Shop | Aftercare Products & Studio Merch | T Creative Studio",
-    description:
-      "Aftercare products, permanent jewelry, and studio merch from T Creative Studio in San Jose, CA.",
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "Shop | Aftercare Products & Studio Merch | T Creative Studio",
-    description:
-      "Aftercare products, permanent jewelry, and studio merch from T Creative Studio in San Jose, CA.",
-  },
-};
+    description,
+    alternates: {
+      canonical: "/shop",
+    },
+    openGraph: {
+      title: "Shop | Aftercare Products & Studio Merch | T Creative Studio",
+      description,
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: "Shop | Aftercare Products & Studio Merch | T Creative Studio",
+      description,
+    },
+  };
+}
 
 const BASE_URL = SITE_URL;
 

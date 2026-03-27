@@ -36,9 +36,9 @@ import { TCLogo } from "./TCLogo";
 const navLinks = [
   { label: "Services", href: "/services" },
   { label: "Portfolio", href: "/portfolio" },
-  { label: "Shop", href: "/shop" },
   { label: "Training", href: "/training" },
   { label: "Consulting", href: "/consulting" },
+  { label: "Shop", href: "/shop" },
   { label: "About", href: "/about" },
   { label: "Contact", href: "/contact" },
 ];

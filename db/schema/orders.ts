@@ -52,9 +52,13 @@ export const orders = pgTable(
     /** Display order number (e.g. "ord-123"). Auto-formatted in app layer. */
     orderNumber: varchar("order_number", { length: 50 }).notNull().unique(),
 
-    clientId: uuid("client_id")
-      .notNull()
-      .references(() => profiles.id, { onDelete: "restrict" }),
+    /** Nullable — null for guest checkout orders. */
+    clientId: uuid("client_id").references(() => profiles.id, { onDelete: "restrict" }),
+
+    /** Guest contact info — populated when ordering without an account. */
+    guestEmail: varchar("guest_email", { length: 320 }),
+    guestName: varchar("guest_name", { length: 200 }),
+    guestPhone: varchar("guest_phone", { length: 30 }),
 
     /** Link to the product catalog. Null for freeform custom commissions. */
     productId: integer("product_id").references(() => products.id, {
@@ -166,6 +170,7 @@ export const orders = pgTable(
     index("orders_status_idx").on(t.status),
     index("orders_category_idx").on(t.category),
     index("orders_square_idx").on(t.squareOrderId),
+    index("orders_guest_email_idx").on(t.guestEmail),
   ],
 );
 

@@ -1,4 +1,3 @@
-import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { createClient } from "@/utils/supabase/server";
 import { CheckoutPage } from "./CheckoutPage";
@@ -13,9 +12,5 @@ export default async function Page() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) {
-    redirect("/login?redirect=/shop/checkout");
-  }
-
-  return <CheckoutPage />;
+  return <CheckoutPage user={user ? { id: user.id, email: user.email ?? "" } : null} />;
 }

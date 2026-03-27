@@ -9,7 +9,7 @@
 "use server";
 
 import { revalidatePath, updateTag } from "next/cache";
-import { eq, desc, asc, sql, ilike, and, isNotNull } from "drizzle-orm";
+import { eq, desc, sql, ilike, and, isNotNull } from "drizzle-orm";
 import { getPublicBusinessProfile } from "@/app/dashboard/settings/settings-actions";
 import { db } from "@/db";
 import {
@@ -23,7 +23,7 @@ import {
   type ShippingAddress,
 } from "@/db/schema";
 import { OrderConfirmation } from "@/emails/OrderConfirmation";
-import { getUser } from "@/lib/auth";
+import { getCurrentUser, getUser } from "@/lib/auth";
 import { getShippingRates, isEasyPostConfigured } from "@/lib/easypost";
 import type { ShipmentResult } from "@/lib/easypost";
 import { trackEvent } from "@/lib/posthog";
@@ -71,6 +71,12 @@ export type PlaceOrderInput = {
   easypostRateId?: string;
   /** Shipping cost in cents (from the selected rate). */
   shippingCostInCents?: number;
+  /** Guest checkout — provided when the user is not logged in. */
+  guestInfo?: {
+    email: string;
+    name: string;
+    phone?: string;
+  };
 };
 
 export type GiftCardLookupResult = {
@@ -167,7 +173,23 @@ export async function lookupGiftCard(code: string): Promise<GiftCardLookupResult
  * Square payment link for online payments.
  */
 export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResult> {
-  const user = await getUser();
+  const currentUser = await getCurrentUser();
+  const user = currentUser ? { id: currentUser.id, email: currentUser.email } : null;
+
+  // Require either auth or guest info
+  if (!user && !input.guestInfo?.email) {
+    return { success: false, error: "Please log in or provide contact information." };
+  }
+
+  // Validate guest info
+  if (!user && input.guestInfo) {
+    if (!input.guestInfo.email.includes("@")) {
+      return { success: false, error: "Please enter a valid email address." };
+    }
+    if (input.guestInfo.name.trim().length < 2) {
+      return { success: false, error: "Please enter your name." };
+    }
+  }
 
   if (input.items.length === 0) {
     return { success: false, error: "Cart is empty" };
@@ -259,7 +281,10 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
       .insert(orders)
       .values({
         orderNumber: `${orderNumber}-${item.productId}`,
-        clientId: user.id,
+        clientId: user?.id ?? null,
+        guestEmail: user ? null : input.guestInfo!.email,
+        guestName: user ? null : input.guestInfo!.name,
+        guestPhone: user ? null : (input.guestInfo!.phone ?? null),
         productId: item.productId,
         status: "accepted",
         title: product.title,
@@ -412,22 +437,29 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
   }
 
   // Send order confirmation email (non-fatal)
-  // QUERY: Fetch the buyer's email and first name so we can send the confirmation.
-  // SELECT — Reads only email and firstName (minimal data for the email template).
-  // FROM   — The profiles table (one row per user, stores contact info).
-  // WHERE  — Matches the authenticated user's ID.
-  const [clientProfile] = await db
-    .select({ email: profiles.email, firstName: profiles.firstName })
-    .from(profiles)
-    .where(eq(profiles.id, user.id));
+  // Resolve buyer contact info — from profile (authenticated) or guest input.
+  let buyerEmail: string | undefined;
+  let buyerName: string | undefined;
 
-  if (clientProfile?.email) {
+  if (user) {
+    const [clientProfile] = await db
+      .select({ email: profiles.email, firstName: profiles.firstName })
+      .from(profiles)
+      .where(eq(profiles.id, user.id));
+    buyerEmail = clientProfile?.email;
+    buyerName = clientProfile?.firstName;
+  } else if (input.guestInfo) {
+    buyerEmail = input.guestInfo.email;
+    buyerName = input.guestInfo.name.split(" ")[0];
+  }
+
+  if (buyerEmail) {
     const bp = await getPublicBusinessProfile();
     await sendEmail({
-      to: clientProfile.email,
+      to: buyerEmail,
       subject: `Order ${orderNumber} confirmed — ${bp.businessName}`,
       react: OrderConfirmation({
-        clientName: clientProfile.firstName,
+        clientName: buyerName || "there",
         orderNumber,
         items: lineItems,
         totalInCents,
@@ -440,7 +472,7 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
     });
   }
 
-  trackEvent(user.id, "order_placed", {
+  trackEvent(user?.id ?? `guest-${input.guestInfo?.email}`, "order_placed", {
     orderNumber,
     itemCount: input.items.length,
     totalInCents,
@@ -451,14 +483,10 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
   });
 
   // Zoho CRM: create deal for shop order
-  if (clientProfile?.email) {
-    // Pluck just the product names and join them into a comma-separated string
-    // for the Zoho CRM deal title (e.g. "Lash Cleanser, Spoolie Set"). Using
-    // .map() + .join() is the idiomatic way to produce a delimited summary from
-    // an array of objects.
+  if (buyerEmail) {
     const itemNames = lineItems.map((i) => i.name).join(", ");
     createZohoDeal({
-      contactEmail: clientProfile.email,
+      contactEmail: buyerEmail,
       dealName: `Shop Order ${orderNumber} — ${itemNames}`,
       stage: "Closed Won",
       amountInCents: totalInCents,
@@ -466,22 +494,21 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
       externalId: orderNumber,
     });
 
-    // Zoho Books: create invoice for shop order
-    createZohoBooksInvoice({
-      entityType: "order",
-      entityId: createdOrderIds[0],
-      profileId: user.id,
-      email: clientProfile.email,
-      firstName: clientProfile.firstName,
-      // Reshape each line item into the {name, rate, quantity} structure Zoho
-      // Books expects. The rate is derived by dividing the total back to a
-      // per-unit price because Zoho computes the line total itself (rate * qty).
-      lineItems: lineItems.map((item) => ({
-        name: item.name,
-        rate: item.amountInCents / item.quantity,
-        quantity: item.quantity,
-      })),
-    });
+    // Zoho Books: create invoice for shop order (only for authenticated users with a profile)
+    if (user) {
+      createZohoBooksInvoice({
+        entityType: "order",
+        entityId: createdOrderIds[0],
+        profileId: user.id,
+        email: buyerEmail,
+        firstName: buyerName,
+        lineItems: lineItems.map((item) => ({
+          name: item.name,
+          rate: item.amountInCents / item.quantity,
+          quantity: item.quantity,
+        })),
+      });
+    }
   }
 
   updateTag("products");

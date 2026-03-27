@@ -2,19 +2,12 @@
  * Training — Live certification programs with upcoming dates and CTAs.
  *
  * Used on the landing page to showcase training programs and drive enrollment.
- * Client Component — links to the full /training page.
- *
  * No props — program data is static. Wrapped in SectionWrapper for scroll-anchor id.
  */
-"use client";
 
 import Link from "next/link";
-import { m } from "framer-motion";
 import { SectionWrapper } from "@/components/ui/SectionWrapper";
 
-// Training program definitions — each includes title, zone color for the dot indicator,
-// format (In Person / Hybrid), next session date, price, and description.
-// Array structure enables .map() with index-based stagger delay.
 const programs = [
   {
     title: "Classic Lash Certification",
@@ -58,13 +51,7 @@ export function Training() {
   return (
     <SectionWrapper id="training" className="py-32 md:py-48 px-6 bg-surface">
       <div className="mx-auto max-w-5xl">
-        <m.div
-          className="mb-16 md:mb-20 text-center"
-          initial={{ opacity: 0, y: 30 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.8 }}
-        >
+        <div className="mb-16 md:mb-20 text-center">
           <span className="text-xs tracking-widest uppercase text-muted mb-6 block">
             Training Programs
           </span>
@@ -75,19 +62,13 @@ export function Training() {
             Certification-based programs taught with the same rigor they&apos;re practiced.
             Studio-standard. Not a course — a professional formation.
           </p>
-        </m.div>
+        </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* .map() over programs to render cards in a 1x4 (mobile) or 2x2 (desktop) grid.
-              Stagger delay (i * 0.08) cascades the entrance animation top-left to bottom-right. */}
-          {programs.map((program, i) => (
-            <m.div
+          {programs.map((program) => (
+            <div
               key={program.title}
               className="border border-foreground/8 p-6 flex flex-col gap-3 hover:border-foreground/20 transition-colors duration-200"
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.5, delay: i * 0.08 }}
             >
               <div className="flex items-center gap-2.5">
                 <div
@@ -105,24 +86,18 @@ export function Training() {
                 </div>
                 <span className="text-xs font-medium text-accent">{program.price}</span>
               </div>
-            </m.div>
+            </div>
           ))}
         </div>
 
-        <m.div
-          className="mt-10 text-center"
-          initial={{ opacity: 0 }}
-          whileInView={{ opacity: 1 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.6, delay: 0.3 }}
-        >
+        <div className="mt-10 text-center">
           <Link
             href="/training"
             className="text-sm tracking-widest uppercase text-accent hover:text-foreground transition-colors duration-300 border-b border-accent/40 pb-1"
           >
             View All Programs & Enroll
           </Link>
-        </m.div>
+        </div>
       </div>
     </SectionWrapper>
   );

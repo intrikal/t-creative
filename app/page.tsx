@@ -7,7 +7,6 @@
  *   Services         — Four service zones with pricing and CTAs
  *   HowItWorks       — Three-step booking process
  *   StudioDiorama    — Interactive isometric 3D studio (drag to rotate)
- *   Stats            — Key metrics (clients, rating, rebooking, services)
  *   Portfolio        — Filterable work gallery with loupe interaction
  *   Events           — Private parties, pop-ups, bridal, corporate
  *   TrainingTeaser   — Certification programs preview
@@ -21,7 +20,7 @@
  */
 
 import dynamic from "next/dynamic";
-import { and, asc, avg, count, countDistinct, desc, eq, gte, sql } from "drizzle-orm";
+import { asc, desc, eq } from "drizzle-orm";
 import type { Metadata } from "next";
 import { ChatWidgetLoader } from "@/components/chat/ChatWidgetLoader";
 import { CallToAction } from "@/components/landing/CallToAction";
@@ -31,7 +30,6 @@ import { Footer } from "@/components/landing/Footer";
 import { Hero } from "@/components/landing/Hero";
 import { HowItWorks } from "@/components/landing/HowItWorks";
 import { Services } from "@/components/landing/Services";
-import { Stats } from "@/components/landing/Stats";
 import { StickyMobileCTA } from "@/components/landing/StickyMobileCTA";
 import { StudioDiorama } from "@/components/landing/StudioDiorama";
 import { TrustBar } from "@/components/landing/TrustBar";
@@ -162,65 +160,11 @@ function buildEventServicesJsonLd(bizName: string) {
   };
 }
 
-async function computeLiveStats() {
-  const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
-
-  const [clientCountResult, ratingResult, servicesCountResult, rebookingResult] = await Promise.all(
-    [
-      // Total clients
-      db.select({ count: count() }).from(profiles).where(eq(profiles.role, "client")),
-
-      // Average rating across approved reviews
-      db
-        .select({ avg: avg(reviews.rating) })
-        .from(reviews)
-        .where(eq(reviews.status, "approved")),
-
-      // Active service count
-      db.select({ count: count() }).from(services).where(eq(services.isActive, true)),
-
-      // Rebooking rate: % of clients with 2+ completed bookings in the last 90 days.
-      // Two queries: total unique clients who booked, and those who booked 2+.
-      Promise.all([
-        db
-          .select({ count: countDistinct(bookings.clientId) })
-          .from(bookings)
-          .where(and(eq(bookings.status, "completed"), gte(bookings.startsAt, ninetyDaysAgo))),
-        db
-          .select({ clientId: bookings.clientId })
-          .from(bookings)
-          .where(and(eq(bookings.status, "completed"), gte(bookings.startsAt, ninetyDaysAgo)))
-          .groupBy(bookings.clientId)
-          .having(sql`count(*) >= 2`),
-      ]),
-    ],
-  );
-
-  const clientCount = clientCountResult[0]?.count ?? 0;
-  const avgRatingRaw = ratingResult[0]?.avg;
-  const servicesCount = servicesCountResult[0]?.count ?? 0;
-
-  const [totalClientsResult, rebookersResult] = rebookingResult;
-  const totalClients = totalClientsResult[0]?.count ?? 0;
-  const rebookers = rebookersResult.length;
-  const rebookingPct = totalClients > 0 ? Math.round((rebookers / totalClients) * 100) : 0;
-
-  const avgRating = avgRatingRaw != null ? Number(Number(avgRatingRaw).toFixed(1)) : null;
-
-  return {
-    clientsServed: String(clientCount),
-    averageRating: avgRating != null ? String(avgRating) : null,
-    rebookingRate: `${rebookingPct}%`,
-    servicesCount: String(servicesCount),
-  };
-}
-
 export default async function Home() {
-  const [{ business, content, policies }, featuredReviews, liveStats, featuredProductRows] =
-    await Promise.all([
+  const [{ business, content, policies }, featuredReviews, featuredProductRows] = await Promise.all(
+    [
       getSiteData(),
       getFeaturedReviews(),
-      computeLiveStats().catch(() => null),
       db
         .select({
           name: products.title,
@@ -232,7 +176,8 @@ export default async function Home() {
         .orderBy(asc(products.sortOrder))
         .limit(5)
         .catch(() => []),
-    ]);
+    ],
+  );
 
   const featuredProducts =
     featuredProductRows.length > 0
@@ -242,14 +187,6 @@ export default async function Home() {
           price: p.price_in_cents != null ? `$${(p.price_in_cents / 100).toFixed(0)}` : "",
         }))
       : undefined;
-
-  const statsOverrides = content.statsOverrides ?? {};
-  const statsProps = {
-    clientsServed: statsOverrides.clientsServed ?? liveStats?.clientsServed ?? "500+",
-    averageRating: statsOverrides.averageRating ?? liveStats?.averageRating ?? "4.9",
-    rebookingRate: statsOverrides.rebookingRate ?? liveStats?.rebookingRate ?? "98%",
-    servicesCount: statsOverrides.servicesCount ?? liveStats?.servicesCount ?? "4",
-  };
 
   // Fetch cached Instagram posts (non-blocking — empty array if table is empty)
   const igPosts = await db
@@ -293,7 +230,6 @@ export default async function Home() {
         <Services />
         <HowItWorks />
         <StudioDiorama />
-        <Stats {...statsProps} />
         <EditorialPortfolio />
         <Events eventDescriptions={content.eventDescriptions} />
         <TrainingTeaser />

@@ -19,8 +19,6 @@ import { Portfolio } from "./Portfolio";
 import { Services } from "./Services";
 import { Testimonials } from "./Testimonials";
 import { Training } from "./Training";
-import { TrustBar } from "./TrustBar";
-
 export function LandingContent() {
   // Selector reads only the mode field from the Zustand store — avoids re-renders
   // when other store fields (activeZone, isTransitioning) change.
@@ -39,7 +37,6 @@ export function LandingContent() {
       transition={{ duration: 0.5 }}
       aria-hidden={isHidden}
     >
-      <TrustBar />
       <Services />
       <Portfolio />
       <FeaturedProducts />

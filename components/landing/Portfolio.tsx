@@ -2,18 +2,12 @@
  * Portfolio — Grid gallery of work samples with hover overlays and captions.
  *
  * Used on the landing page to showcase the studio's range of creative work.
- * Client Component — uses Framer Motion for staggered grid item animations on scroll.
- *
  * No props — placeholder data is static. Links to /portfolio for the full gallery.
  */
-"use client";
 
 import Link from "next/link";
-import { m } from "framer-motion";
 import { SectionWrapper } from "@/components/ui/SectionWrapper";
 
-// Placeholder portfolio items — each has a caption and brand-palette color for the gradient.
-// These are decorative stand-ins until real portfolio images are integrated.
 const placeholders = [
   { caption: "Volume Set — Special Event", color: "#C4907A" },
   { caption: "Permanent Bracelet — Gold Chain", color: "#D4A574" },
@@ -27,13 +21,7 @@ export function Portfolio() {
   return (
     <section className="bg-foreground text-background py-32 md:py-48 px-6">
       <div className="mx-auto max-w-6xl">
-        <m.div
-          className="mb-16 md:mb-24"
-          initial={{ opacity: 0, y: 30 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.8 }}
-        >
+        <div className="mb-16 md:mb-24">
           <span className="text-xs tracking-widest uppercase text-accent mb-6 block">The Work</span>
           <h2 className="text-3xl md:text-5xl font-light tracking-tight">
             Each piece tells a story.
@@ -41,52 +29,34 @@ export function Portfolio() {
           <p className="mt-4 text-background/60 text-base max-w-lg">
             Intention, care, and transformation.
           </p>
-        </m.div>
+        </div>
 
         <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
-          {/* .map() over placeholders to render a 2x3 (mobile) / 3x2 (desktop) grid.
-              Each card has a gradient background built from the item's color with varying alpha
-              stops — chosen over flat colors to add depth without requiring actual images.
-              Stagger delay (i * 0.08) cascades the entrance animation. */}
-          {placeholders.map((item, i) => (
-            <m.div
-              key={item.caption}
-              className="group relative overflow-hidden cursor-pointer"
-              initial={{ opacity: 0, y: 30 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.6, delay: i * 0.08 }}
-            >
+          {placeholders.map((item) => (
+            <div key={item.caption} className="group relative overflow-hidden cursor-pointer">
               <div
                 className="aspect-[4/5] transition-transform duration-500 group-hover:scale-105"
                 style={{
                   background: `linear-gradient(135deg, ${item.color}33 0%, ${item.color}11 50%, ${item.color}22 100%)`,
                 }}
               />
-              {/* Overlay on hover */}
               <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all duration-300 flex items-end p-4 md:p-6">
                 <p className="text-sm text-white opacity-0 group-hover:opacity-100 translate-y-4 group-hover:translate-y-0 transition-all duration-300">
                   {item.caption}
                 </p>
               </div>
-            </m.div>
+            </div>
           ))}
         </div>
 
-        <m.div
-          className="mt-12 text-center"
-          initial={{ opacity: 0 }}
-          whileInView={{ opacity: 1 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.6, delay: 0.4 }}
-        >
+        <div className="mt-12 text-center">
           <Link
             href="/portfolio"
             className="text-sm tracking-widest uppercase text-accent hover:text-background transition-colors duration-300 border-b border-accent/40 pb-1"
           >
             View Full Portfolio
           </Link>
-        </m.div>
+        </div>
       </div>
     </section>
   );

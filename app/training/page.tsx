@@ -126,6 +126,9 @@ export default async function Page() {
       />
       <TrainingPage
         programs={programs}
+        testimonials={content.trainingTestimonials}
+        faqEntries={content.trainingFaqEntries}
+        ownerName={business.owner}
         businessName={business.businessName}
         location={business.location}
         email={business.email}

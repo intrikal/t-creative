@@ -217,9 +217,13 @@ const FILTERABLE_TABS: Set<PageTab> = new Set([
 export function AssistantsPage({
   pageTitle = "Assistants",
   pageSubtitle = "Your team overview and performance",
+  initialAssistants,
+  initialAvailability,
 }: {
   pageTitle?: string;
   pageSubtitle?: string;
+  initialAssistants?: AssistantRow[];
+  initialAvailability?: import("./actions").AvailabilityRow[];
 }) {
   const [, startTransition] = useTransition();
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -237,11 +241,13 @@ export function AssistantsPage({
   const assistantsQuery = useQuery({
     queryKey: ["assistants"],
     queryFn: getAssistants,
+    initialData: initialAssistants,
   });
 
   const availabilityQuery = useQuery({
     queryKey: ["assistant-availability"],
     queryFn: getAssistantAvailability,
+    initialData: initialAvailability,
     enabled: pageTab === "Availability" || pageTab === "Roster",
   });
 

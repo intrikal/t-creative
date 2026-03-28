@@ -239,6 +239,7 @@ export async function getThreads(): Promise<ThreadRow[]> {
           AND sender_id != ${user.id}
       ) uc ON true
       ORDER BY t.last_message_at DESC NULLS LAST
+      LIMIT 50
     `);
 
     return [...rows];
@@ -340,6 +341,7 @@ export async function getClientThreads(): Promise<ThreadRow[]> {
           SELECT thread_id FROM thread_participants WHERE profile_id = ${user.id}
         )
       ORDER BY t.last_message_at DESC NULLS LAST
+      LIMIT 50
     `);
 
     return [...rows];

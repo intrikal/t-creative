@@ -7,7 +7,7 @@ import {
   getServicesForSelect,
   getStaffForSelect,
 } from "../bookings/select-actions";
-import { getEvents, getVenues, getStaffForEvents } from "../events/actions";
+import { getEvents, getVenues } from "../events/actions";
 import { getBusinessHours, getTimeOff, getLunchBreak } from "../settings/hours-actions";
 import { CalendarPage } from "./CalendarPage";
 
@@ -28,28 +28,23 @@ export default async function Page() {
   const endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   endDate.setDate(endDate.getDate() + 60);
 
-  const [
-    bookingsResult,
-    clients,
-    serviceOptions,
-    staffOptions,
-    businessHours,
-    timeOffRows,
-    lunchBreak,
-    eventRows,
-    venues,
-    eventStaff,
-  ] = await Promise.all([
+  // Batch 1: heavy queries (bookings, events) + lightweight reference data.
+  // getBookings and getEvents each do follow-up queries internally, so we
+  // keep the total concurrent connection count well within the pool size.
+  const [bookingsResult, eventRows, staffOptions, clients] = await Promise.all([
     getBookings({ limit: 500, startDate, endDate }),
-    getClientsForSelect(),
-    getServicesForSelect(),
+    getEvents({ startDate, endDate }),
     getStaffForSelect(),
+    getClientsForSelect(),
+  ]);
+
+  // Batch 2: remaining lightweight lookups (5 simple single-table queries).
+  const [serviceOptions, businessHours, timeOffRows, lunchBreak, venues] = await Promise.all([
+    getServicesForSelect(),
     getBusinessHours(),
     getTimeOff(),
     getLunchBreak(),
-    getEvents({ startDate, endDate }),
     getVenues(),
-    getStaffForEvents(),
   ]);
 
   return (
@@ -63,7 +58,7 @@ export default async function Page() {
       lunchBreak={lunchBreak}
       events={eventRows}
       venues={venues}
-      eventStaff={eventStaff}
+      eventStaff={staffOptions}
     />
   );
 }

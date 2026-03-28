@@ -1,9 +1,9 @@
 import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
+import type { Metadata } from "next";
 import { db } from "@/db";
 import { profiles } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
-import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "Messages — T Creative Studio",
@@ -41,10 +41,11 @@ export default async function Page() {
     return <AssistantMessagesPage initialThreads={threads} currentUserId={user.id} />;
   }
 
-  const [{ getThreads }, { MessagesPage }] = await Promise.all([
+  const [{ getThreads }, { MessagesPage }, clients] = await Promise.all([
     import("./actions"),
     import("./MessagesPage"),
+    getClientList(),
   ]);
-  const [threads, clients] = await Promise.all([getThreads(), getClientList()]);
+  const threads = await getThreads();
   return <MessagesPage initialThreads={threads} clients={clients} currentUserId={user.id} />;
 }

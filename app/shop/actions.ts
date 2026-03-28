@@ -501,7 +501,7 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
         entityId: createdOrderIds[0],
         profileId: user.id,
         email: buyerEmail,
-        firstName: buyerName,
+        firstName: buyerName ?? "",
         lineItems: lineItems.map((item) => ({
           name: item.name,
           rate: item.amountInCents / item.quantity,

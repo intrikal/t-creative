@@ -8,8 +8,8 @@
  * license — do not tree-shake this file.
  */
 import gsap from "gsap";
-import { Flip } from "gsap/Flip";
-import { Observer } from "gsap/Observer";
+import { Flip } from "gsap/dist/Flip";
+import { Observer } from "gsap/dist/Observer";
 import { ScrollSmoother } from "gsap/ScrollSmoother";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { SplitText } from "gsap/SplitText";

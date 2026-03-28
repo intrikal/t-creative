@@ -1,48 +1,72 @@
 "use client";
 
 /**
- * StudioLighting — Gallery-style warm lighting.
+ * StudioLighting — Dynamic gallery lighting with subtle animation.
  *
- * THREE.JS LIGHTING CONCEPTS:
- * ───────────────────────────
- * ambientLight  — even light everywhere, no direction. Low intensity base.
- * directionalLight — parallel rays from one direction (like sunlight).
- * pointLight    — a light bulb. Radiates from a point, fades with distance.
+ * Base lighting: unchanged (ambient + two directional + back wall teal).
+ * Zone spotlights: now use useRef + useFrame to pulse intensity gently,
+ *   and brighten (1.4x) when the corresponding zone is active.
  *
- * No shadows (castShadow=false) — too expensive for this scene.
- * The ambient + point combination creates enough depth cues.
+ * Performance: all math is scalar, no allocations in useFrame.
  */
 
-import { ZONES } from "@/lib/zones";
+import { useRef } from "react";
+import { useFrame } from "@react-three/fiber";
+import type { PointLight } from "three";
+import { ZONES, type ZoneId } from "@/lib/zones";
+import { useStudioStore } from "@/stores/useStudioStore";
+
+const ZONE_IDS = Object.keys(ZONES) as ZoneId[];
+
+/** Animated point light for a single zone. Pulses softly, brightens when active. */
+function ZoneLight({ zoneId, offset }: { zoneId: ZoneId; offset: number }) {
+  const lightRef = useRef<PointLight>(null);
+  const zone = ZONES[zoneId];
+  const activeZone = useStudioStore((s) => s.activeZone);
+  const isActive = activeZone === zoneId;
+
+  useFrame(({ clock }) => {
+    if (!lightRef.current) return;
+    const t = clock.getElapsedTime();
+    const base = isActive ? 1.2 : 0.7;
+    const amplitude = isActive ? 0.15 : 0.06;
+    // Phase offset so lights don't all pulse together
+    lightRef.current.intensity = base + Math.sin(t * 0.9 + offset) * amplitude;
+  });
+
+  return (
+    <pointLight
+      ref={lightRef}
+      color="#F5E6D3"
+      intensity={0.7}
+      distance={6}
+      position={[zone.pedestalPosition[0], 3.2, zone.pedestalPosition[2]]}
+    />
+  );
+}
 
 export function StudioLighting() {
   return (
     <>
-      {/* Ambient base — warm undertone for the whole room */}
+      {/* Ambient — warm base */}
       <ambientLight color="#F5E6D3" intensity={0.45} />
 
-      {/* Key light — main overhead, warm studio lighting */}
+      {/* Key light */}
       <directionalLight color="#FFF5EB" intensity={0.8} position={[0, 6, 3]} />
 
-      {/* Fill light — softer, from the side */}
+      {/* Fill light */}
       <directionalLight color="#F5F0E8" intensity={0.25} position={[-4, 3, 2]} />
 
-      {/* Back wall wash — subtle teal glow on accent wall */}
+      {/* Back wall teal wash */}
       <pointLight color="#5B8A8A" intensity={0.3} distance={10} position={[0, 3.5, -9]} />
 
-      {/* Zone spotlights — gallery-style overhead accents per zone */}
-      {Object.values(ZONES).map((zone) => (
-        <pointLight
-          key={zone.id}
-          color="#F5E6D3"
-          intensity={0.7}
-          distance={6}
-          position={[zone.pedestalPosition[0], 3.2, zone.pedestalPosition[2]]}
-        />
-      ))}
-
-      {/* Center warm pool — subtle overhead at camera home */}
+      {/* Center warm pool */}
       <pointLight color="#F5E6D3" intensity={0.3} distance={10} position={[0, 4, -2]} />
+
+      {/* Animated zone spotlights */}
+      {ZONE_IDS.map((id, i) => (
+        <ZoneLight key={id} zoneId={id} offset={i * 1.3} />
+      ))}
     </>
   );
 }

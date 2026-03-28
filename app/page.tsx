@@ -6,7 +6,6 @@
  *   TrustBar         — Social proof strip (location, clients, rating)
  *   Services         — Four service zones with pricing and CTAs
  *   HowItWorks       — Three-step booking process
- *   StudioDiorama    — Interactive isometric 3D studio (drag to rotate)
  *   Portfolio        — Filterable work gallery with loupe interaction
  *   Events           — Private parties, pop-ups, bridal, corporate
  *   TrainingTeaser   — Certification programs preview
@@ -23,39 +22,63 @@ import dynamic from "next/dynamic";
 import { asc, desc, eq } from "drizzle-orm";
 import type { Metadata } from "next";
 import { ChatWidgetLoader } from "@/components/chat/ChatWidgetLoader";
-import { CallToAction } from "@/components/landing/CallToAction";
-import { Events } from "@/components/landing/Events";
-import { FAQ } from "@/components/landing/FAQ";
 import { Footer } from "@/components/landing/Footer";
 import { Hero } from "@/components/landing/Hero";
-import { HowItWorks } from "@/components/landing/HowItWorks";
+import { SectionTransition } from "@/components/landing/SectionTransition";
 import { Services } from "@/components/landing/Services";
 import { StickyMobileCTA } from "@/components/landing/StickyMobileCTA";
-import { StudioDiorama } from "@/components/landing/StudioDiorama";
-import { TrustBar } from "@/components/landing/TrustBar";
 
+// All below-fold sections are dynamically imported to keep the Hero fast.
+// SectionSkeleton gives height so the page doesn't reflow when sections mount.
 function SectionSkeleton() {
-  return <div className="w-full animate-pulse bg-warm-cream/40" style={{ minHeight: "20rem" }} />;
+  return (
+    <div className="w-full animate-pulse bg-foreground/[0.02]" style={{ minHeight: "20rem" }} />
+  );
 }
 
+// Tall skeleton for pinned sections (Diorama = 400vh, Testimonials = variable)
+function TallSkeleton() {
+  return (
+    <div className="w-full animate-pulse bg-foreground/[0.02]" style={{ minHeight: "100vh" }} />
+  );
+}
+
+const StudioDiorama = dynamic(
+  () => import("@/components/landing/StudioDiorama").then((m) => m.StudioDiorama),
+  { loading: () => <TallSkeleton /> },
+);
 const EditorialPortfolio = dynamic(
   () => import("@/components/landing/EditorialPortfolio").then((m) => m.EditorialPortfolio),
-  { loading: () => <SectionSkeleton /> },
-);
-const InstagramFeed = dynamic(
-  () => import("@/components/landing/InstagramFeed").then((m) => m.InstagramFeed),
-  { loading: () => <SectionSkeleton /> },
+  { loading: () => <TallSkeleton /> },
 );
 const Testimonials = dynamic(
   () => import("@/components/landing/Testimonials").then((m) => m.Testimonials),
   { loading: () => <SectionSkeleton /> },
 );
+const HowItWorks = dynamic(
+  () => import("@/components/landing/HowItWorks").then((m) => m.HowItWorks),
+  { loading: () => <SectionSkeleton /> },
+);
+const Events = dynamic(() => import("@/components/landing/Events").then((m) => m.Events), {
+  loading: () => <SectionSkeleton />,
+});
+const FAQ = dynamic(() => import("@/components/landing/FAQ").then((m) => m.FAQ), {
+  loading: () => <SectionSkeleton />,
+});
 const TrainingTeaser = dynamic(
   () => import("@/components/landing/TrainingTeaser").then((m) => m.TrainingTeaser),
   { loading: () => <SectionSkeleton /> },
 );
 const FeaturedProducts = dynamic(
   () => import("@/components/landing/FeaturedProducts").then((m) => m.FeaturedProducts),
+  { loading: () => <SectionSkeleton /> },
+);
+const InstagramFeed = dynamic(
+  () => import("@/components/landing/InstagramFeed").then((m) => m.InstagramFeed),
+  { loading: () => <SectionSkeleton /> },
+);
+const CallToAction = dynamic(
+  () => import("@/components/landing/CallToAction").then((m) => m.CallToAction),
   { loading: () => <SectionSkeleton /> },
 );
 import { db } from "@/db";
@@ -221,23 +244,48 @@ export default async function Home() {
         }}
       />
       <main id="main-content">
+        {/* ── Act I: Hero — above fold, renders immediately ── */}
         <Hero
           headline={content.heroHeadline}
           subheadline={content.heroSubheadline}
           ctaText={content.heroCtaText}
         />
-        <TrustBar location={business.location} />
+
+        {/* ── Act II: Services — 2×2 grid cards, bleeds into Diorama ── */}
         <Services />
-        <HowItWorks />
+
+        {/* ── Act III: Diorama — pinned 3D studio tour (overlaps up into Services) ── */}
         <StudioDiorama />
+
+        {/* background → dark: gradient transition */}
+        <SectionTransition from="background" to="foreground" />
+
+        {/* ── Act IV: Portfolio — dark horizontal scrub ── */}
         <EditorialPortfolio />
+
+        {/* dark → light: gradient transition */}
+        <SectionTransition from="foreground" to="background" />
+
+        {/* ── Act V: Testimonials — dual-row marquee ── */}
+        <Testimonials reviews={featuredReviews} />
+
+        {/* ── Act VI: Book CTA ── */}
+        <CallToAction />
+
+        {/* ── Supporting sections ── */}
+        <HowItWorks />
+
+        {/* background → dark: gradient transition */}
+        <SectionTransition from="background" to="foreground" />
         <Events eventDescriptions={content.eventDescriptions} />
+
+        {/* dark → light: gradient transition */}
+        <SectionTransition from="foreground" to="surface" />
         <TrainingTeaser />
         <FeaturedProducts products={featuredProducts} />
         <InstagramFeed posts={igPostsSerialized} />
-        <Testimonials reviews={featuredReviews} />
         <FAQ entries={content.faqEntries} policies={policies} />
-        <CallToAction />
+
         <Footer
           businessName={business.businessName}
           location={business.location}
@@ -246,7 +294,6 @@ export default async function Home() {
           socialLinks={content.socialLinks}
         />
 
-        {/* Sticky mobile booking CTA */}
         <StickyMobileCTA />
         <ChatWidgetLoader />
       </main>

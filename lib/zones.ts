@@ -58,14 +58,16 @@ export interface ZoneDefinition {
  * CENTER_CAMERA: Inside the room, high enough to see all four zones.
  * Used when the user clicks "back" from a zone view.
  */
+// Elevated isometric overview — see the whole room like a dollhouse
 export const HERO_CAMERA = {
-  position: [0, 2.8, 9] as [number, number, number],
-  lookAt: [0, 1, -4] as [number, number, number],
+  position: [10, 9, 10] as [number, number, number],
+  lookAt: [0, 0.5, -5] as [number, number, number],
 };
 
+// Same elevated view used as the "overview" when no zone is selected
 export const CENTER_CAMERA = {
-  position: [0, 2.2, 3] as [number, number, number],
-  lookAt: [0, 0.8, -5] as [number, number, number],
+  position: [10, 9, 10] as [number, number, number],
+  lookAt: [0, 0.5, -5] as [number, number, number],
 };
 
 /**

@@ -1,23 +1,10 @@
-/**
- * StudioDiorama — Isometric 3D studio scene embedded as a landing page section.
- *
- * Used on the landing page as the interactive studio exploration. Renders the full studio
- * room with service zones in an isometric view. Users can rotate the scene by dragging
- * (OrbitControls). No scroll-jacking. Clicking a zone opens a sidesheet overlay anchored
- * inside the canvas area.
- *
- * Client Component — dynamic import (SSR disabled) for Three.js canvas.
- *
- * No props — reads activeZone/unfocusZone from Zustand store for zone focus state.
- */
 "use client";
 
 import { Suspense, useEffect } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { m, AnimatePresence } from "framer-motion";
-import { Button } from "@/components/ui/Button";
-import { ZONES } from "@/lib/zones";
+import { ZONES, ZONE_ORDER } from "@/lib/zones";
 import { useStudioStore } from "@/stores/useStudioStore";
 
 function DioramaLoadingSkeleton() {
@@ -31,160 +18,189 @@ function DioramaLoadingSkeleton() {
   );
 }
 
-// Dynamic import with ssr:false — Three.js Canvas requires WebGL (browser-only).
-// .then() extracts the named export for next/dynamic compatibility.
 const DioramaCanvas = dynamic(
   () => import("./StudioDioramaCanvas").then((mod) => mod.StudioDioramaCanvas),
-  {
-    ssr: false,
-    loading: () => <DioramaLoadingSkeleton />,
-  },
+  { ssr: false, loading: () => <DioramaLoadingSkeleton /> },
 );
 
 export function StudioDiorama() {
-  // Selectors read only the needed fields from Zustand — avoids re-renders from unrelated store changes.
   const activeZone = useStudioStore((s) => s.activeZone);
+  const focusZone = useStudioStore((s) => s.focusZone);
   const unfocusZone = useStudioStore((s) => s.unfocusZone);
-  // Ternary: look up full zone config only when a zone is focused; null otherwise.
+  const nextZone = useStudioStore((s) => s.nextZone);
+  const prevZone = useStudioStore((s) => s.prevZone);
+  const isTransitioning = useStudioStore((s) => s.isTransitioning);
   const zone = activeZone ? ZONES[activeZone] : null;
 
-  // useEffect adds a keyboard listener for Escape to close the zone sidesheet.
-  // Early return when !zone avoids adding a listener when no panel is open.
-  // Cannot run during render because it needs to register a DOM event listener.
-  // Cleanup function removes the listener when the zone changes or the panel closes.
+  // Escape to exit zone
   useEffect(() => {
-    if (!zone) return;
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        unfocusZone();
-      }
+    if (!activeZone) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") unfocusZone();
+      if (e.key === "ArrowRight") nextZone();
+      if (e.key === "ArrowLeft") prevZone();
     };
-    window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
-  }, [zone, unfocusZone]);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [activeZone, unfocusZone, nextZone, prevZone]);
 
   return (
-    <section className="py-28 md:py-40 px-6 bg-background" aria-label="3D Studio">
+    <section
+      className="relative -mt-24 pt-40 md:pt-52 pb-28 md:pb-40 px-6 bg-background"
+      aria-label="3D Studio"
+    >
       <div className="mx-auto max-w-7xl">
-        <m.div
-          className="mb-12 md:mb-16 text-center"
-          initial={{ opacity: 0, y: 30 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.8 }}
-        >
-          <span className="text-xs tracking-widest uppercase text-muted mb-6 block">
-            The Studio
-          </span>
-          <h2 className="text-3xl md:text-5xl font-light tracking-tight text-foreground mb-4">
-            Step inside.
-          </h2>
-          <p className="text-muted text-base max-w-lg mx-auto">
-            Explore the studio in 3D. Drag to rotate. Click a zone to learn more.
+        {/* Header */}
+        <div className="mb-10 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+          <div>
+            <span className="text-[10px] tracking-[0.35em] uppercase text-muted mb-4 block">
+              The Studio
+            </span>
+            <h2 className="font-display text-3xl md:text-5xl font-light tracking-tight text-foreground">
+              Step inside.
+            </h2>
+          </div>
+          <p className="text-sm text-muted max-w-xs leading-relaxed sm:text-right">
+            Move your mouse to explore. Click a zone to learn more.
           </p>
-        </m.div>
+        </div>
 
-        {/* Canvas wrapper — position:relative so the sidesheet is anchored here */}
-        <m.div
-          className="relative w-full aspect-[16/10] md:aspect-[16/9] rounded-lg overflow-hidden border border-foreground/8 bg-[#FAF6F1]"
-          initial={{ opacity: 0, y: 40 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.8, delay: 0.2 }}
-        >
+        {/* Canvas + overlays */}
+        <div className="relative w-full aspect-[16/9] md:aspect-[16/8] overflow-hidden border border-foreground/8 bg-[#FAF6F1]">
           <Suspense fallback={<DioramaLoadingSkeleton />}>
             <DioramaCanvas />
           </Suspense>
 
-          {/* Conditional render: drag hint only shows when no zone panel is open.
-              Hides during zone focus to keep the UI clean and avoid overlapping the sidesheet. */}
-          {!activeZone && (
-            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-[10px] tracking-widest uppercase text-muted/50 pointer-events-none select-none">
-              Drag to rotate · Click a zone to explore
-            </div>
-          )}
+          {/* Idle hint */}
+          <AnimatePresence>
+            {!activeZone && (
+              <m.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="absolute bottom-4 left-1/2 -translate-x-1/2 text-[10px] tracking-widest uppercase text-muted/40 pointer-events-none select-none"
+              >
+                Click a zone to explore
+              </m.div>
+            )}
+          </AnimatePresence>
 
-          {/* Sidesheet overlay — AnimatePresence enables enter/exit spring animations.
-              mode="wait" ensures the old panel fully exits before the new one enters.
-              Conditional render: only mounts when a zone is focused (zone is truthy). */}
+          {/* ── Prev / Next arrows — visible when a zone is focused ── */}
+          <AnimatePresence>
+            {activeZone && (
+              <>
+                <m.button
+                  key="prev"
+                  initial={{ opacity: 0, x: -8 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -8 }}
+                  transition={{ duration: 0.25 }}
+                  onClick={prevZone}
+                  disabled={isTransitioning}
+                  className="absolute left-4 top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center border border-background/20 bg-background/10 backdrop-blur-sm text-background hover:bg-background/20 transition-colors disabled:opacity-30"
+                  aria-label="Previous zone"
+                >
+                  <span className="text-sm">←</span>
+                </m.button>
+                <m.button
+                  key="next"
+                  initial={{ opacity: 0, x: 8 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 8 }}
+                  transition={{ duration: 0.25 }}
+                  onClick={nextZone}
+                  disabled={isTransitioning}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center border border-background/20 bg-background/10 backdrop-blur-sm text-background hover:bg-background/20 transition-colors disabled:opacity-30"
+                  aria-label="Next zone"
+                >
+                  <span className="text-sm">→</span>
+                </m.button>
+              </>
+            )}
+          </AnimatePresence>
+
+          {/* ── Bottom info overlay — slides up when zone is focused ── */}
           <AnimatePresence mode="wait">
             {zone && (
               <m.div
                 key={zone.id}
-                className="absolute right-0 top-0 bottom-0 w-full max-w-sm z-10 pointer-events-auto"
-                initial={{ x: "100%", opacity: 0 }}
-                animate={{ x: 0, opacity: 1 }}
-                exit={{ x: "100%", opacity: 0 }}
-                transition={{ type: "spring", damping: 30, stiffness: 280 }}
+                initial={{ y: "100%" }}
+                animate={{ y: 0 }}
+                exit={{ y: "100%" }}
+                transition={{ type: "spring", damping: 36, stiffness: 320 }}
+                className="absolute bottom-0 left-0 right-0 bg-foreground/90 backdrop-blur-md px-6 md:px-10 py-5 md:py-6"
               >
-                <div className="h-full bg-background/95 backdrop-blur-lg p-8 md:p-10 flex flex-col justify-center border-l border-foreground/5 overflow-y-auto">
-                  {/* Close button */}
-                  <button
-                    className="absolute top-5 right-5 text-[10px] tracking-widest uppercase text-muted hover:text-foreground transition-colors"
-                    onClick={unfocusZone}
-                    aria-label="Close panel"
-                  >
-                    Close
-                  </button>
+                <div className="flex items-center justify-between gap-6">
+                  {/* Zone info */}
+                  <div className="flex items-start gap-5 min-w-0">
+                    {/* Color bar */}
+                    <div
+                      className="w-0.5 self-stretch shrink-0 rounded-full"
+                      style={{ backgroundColor: zone.color }}
+                    />
+                    <div className="min-w-0">
+                      <p
+                        className="text-[10px] tracking-[0.25em] uppercase mb-1"
+                        style={{ color: zone.color }}
+                      >
+                        {zone.label}
+                      </p>
+                      <h3 className="font-display text-lg md:text-2xl font-light text-background tracking-tight truncate">
+                        {zone.heading}
+                      </h3>
+                      <p className="text-xs text-background/50 mt-0.5 hidden md:block">
+                        {zone.subtitle}
+                      </p>
+                    </div>
+                  </div>
 
-                  {/* Accent line */}
-                  <div className="w-8 h-px mb-6" style={{ backgroundColor: zone.color }} />
-
-                  {/* Label */}
-                  <p className="text-[10px] tracking-[0.3em] uppercase text-muted mb-3">
-                    {zone.label}
-                  </p>
-
-                  {/* Heading */}
-                  <m.h3
-                    className="text-2xl md:text-3xl font-light tracking-tight text-foreground mb-2"
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.1 }}
-                  >
-                    {zone.heading}
-                  </m.h3>
-
-                  {/* Subtitle */}
-                  <m.p
-                    className="text-sm italic text-muted/70 mb-5"
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.15 }}
-                  >
-                    {zone.subtitle}
-                  </m.p>
-
-                  {/* Description */}
-                  <m.p
-                    className="text-sm leading-relaxed text-muted mb-8"
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.2 }}
-                  >
-                    {zone.description}
-                  </m.p>
-
-                  {/* CTA */}
-                  <m.div
-                    className="flex flex-col gap-2"
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.25 }}
-                  >
-                    <Button asChild>
-                      <Link href={zone.cta.href}>{zone.cta.label}</Link>
-                    </Button>
-                    <Button variant="secondary" onClick={unfocusZone}>
-                      Back
-                    </Button>
-                  </m.div>
+                  {/* Actions */}
+                  <div className="flex items-center gap-3 shrink-0">
+                    <Link
+                      href={zone.cta.href}
+                      className="text-[10px] tracking-[0.2em] uppercase bg-background text-foreground px-5 py-2.5 hover:bg-background/90 transition-colors"
+                    >
+                      {zone.cta.label}
+                    </Link>
+                    <button
+                      onClick={unfocusZone}
+                      className="text-[10px] tracking-[0.2em] uppercase text-background/50 hover:text-background transition-colors px-3 py-2.5"
+                      aria-label="Back to overview"
+                    >
+                      ✕
+                    </button>
+                  </div>
                 </div>
               </m.div>
             )}
           </AnimatePresence>
-        </m.div>
+        </div>
+
+        {/* Zone strip */}
+        <div className="mt-5 flex flex-wrap gap-x-6 gap-y-2">
+          {ZONE_ORDER.map((id) => {
+            const z = ZONES[id];
+            const isActive = activeZone === id;
+            return (
+              <button
+                key={id}
+                onClick={() => (isActive ? unfocusZone() : focusZone(id))}
+                className="flex items-center gap-2 text-[10px] tracking-[0.18em] uppercase transition-colors duration-300 hover:text-foreground"
+                style={{ color: isActive ? z.color : undefined }}
+              >
+                <div
+                  className="w-1.5 h-1.5 rounded-full transition-all duration-300"
+                  style={{
+                    backgroundColor: z.color,
+                    opacity: isActive ? 1 : 0.3,
+                    transform: isActive ? "scale(1.5)" : "scale(1)",
+                  }}
+                />
+                {z.label}
+              </button>
+            );
+          })}
+        </div>
       </div>
     </section>
   );

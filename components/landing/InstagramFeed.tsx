@@ -103,7 +103,7 @@ export function InstagramFeed({ posts }: { posts: InstagramPost[] }) {
           transition={{ duration: 0.6 }}
         >
           <div>
-            <span className="text-[10px] tracking-[0.3em] uppercase text-accent mb-3 block">
+            <span className="text-[10px] tracking-[0.3em] uppercase text-accent mb-4 block">
               Follow Along
             </span>
             <h2 className="font-display text-2xl md:text-4xl font-light tracking-tight text-foreground leading-tight">

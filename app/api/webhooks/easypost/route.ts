@@ -127,7 +127,7 @@ export async function POST(request: Request): Promise<Response> {
               .where(eq(orders.id, order.id));
 
             // Send shipping notification email on first "shipped" status
-            if (newStatus === "shipped" && order.status !== "shipped") {
+            if (newStatus === "shipped" && order.status !== "shipped" && order.clientId) {
               try {
                 const [client] = await db
                   .select({ email: profiles.email, firstName: profiles.firstName })

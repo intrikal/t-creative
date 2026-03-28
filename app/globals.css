@@ -3,7 +3,25 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* Hide scrollbar visually but keep scroll functional */
+/* ── Scroll line keyframe (Hero scroll indicator) ── */
+@keyframes scrollLine {
+  0% {
+    transform: translateY(-100%);
+  }
+  100% {
+    transform: translateY(250%);
+  }
+}
+
+/* ── Perspective helper for 3D tilt ── */
+.perspective-800 {
+  perspective: 800px;
+}
+.perspective-1200 {
+  perspective: 1200px;
+}
+
+/* ── Hide scrollbar visually but keep scroll functional ── */
 .scrollbar-none {
   scrollbar-width: none; /* Firefox */
   -ms-overflow-style: none; /* IE/Edge */

@@ -27,7 +27,6 @@
  */
 
 import { useRef, useState } from "react";
-import { Html } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import type { ZoneId, ZoneDefinition } from "@/lib/zones";
@@ -126,34 +125,6 @@ export function ServiceZone({ zone }: ServiceZoneProps) {
       >
         <DisplayComponent />
       </group>
-
-      {/* ── Zone label ──
-          Always-visible pill badge floating above each zone.
-          Brightens on hover to reinforce clickability. */}
-      {isInteractive && (
-        <Html
-          center
-          distanceFactor={10}
-          position={[0, zone.labelHeight, 0]}
-          style={{ pointerEvents: "none", userSelect: "none" }}
-        >
-          <div
-            className={`text-center transition-opacity duration-300 ${
-              isFaded ? "opacity-20" : "opacity-100"
-            }`}
-          >
-            <p
-              className={`text-[10px] tracking-[0.2em] uppercase whitespace-nowrap rounded-full px-3 py-1.5 transition-all duration-200 backdrop-blur-sm ${
-                hovered && !isFaded
-                  ? "text-foreground bg-background/95 shadow-sm"
-                  : "text-foreground/70 bg-background/70"
-              }`}
-            >
-              {zone.label}
-            </p>
-          </div>
-        </Html>
-      )}
     </group>
   );
 }

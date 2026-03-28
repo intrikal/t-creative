@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -29,8 +29,7 @@ import {
   Gift,
   Bell,
   Camera,
-  PanelLeft,
-  PanelLeftClose,
+  Menu,
   X,
   ShieldCheck,
   Rocket,
@@ -278,16 +277,6 @@ export function DashboardSidebar({
         ? CLIENT_NAV_GROUPS
         : ADMIN_NAV_GROUPS;
 
-  // Close expanded sidebar on route change
-  const pathname = usePathname();
-  const prevPathRef = useRef(pathname);
-  useEffect(() => {
-    if (pathname !== prevPathRef.current && expanded) {
-      toggle();
-      prevPathRef.current = pathname;
-    }
-  }, [pathname, expanded, toggle]);
-
   // Close on Escape
   useEffect(() => {
     if (!expanded) return;
@@ -301,137 +290,174 @@ export function DashboardSidebar({
   // Flatten all nav items for the icon rail
   const allItems = navGroups.flatMap((g) => g.items);
 
+  // Split nav: settings goes to the bottom, everything else is main nav
+  const mainItems: NavItem[] = [];
+  const bottomItems: NavItem[] = [];
+  for (const item of allItems) {
+    if (item.href === "/dashboard/settings") {
+      bottomItems.push(item);
+    } else {
+      mainItems.push(item);
+    }
+  }
+
   return (
     <>
       {/* ── Desktop sidebar (push) ─────────────────────────────── */}
       <aside
         className={cn(
-          "fixed top-0 left-0 bottom-0 hidden lg:flex flex-col bg-background border-r border-border z-40 transition-[width] duration-200 ease-out overflow-hidden",
+          "fixed top-0 left-0 bottom-0 hidden lg:flex flex-col bg-background border-r border-border z-40 transition-[width] duration-300 ease-in-out overflow-hidden",
           expanded ? "w-56" : "w-14",
         )}
       >
-        {/* Nav area */}
         <TooltipProvider delayDuration={0}>
-          <nav
-            aria-label="Dashboard"
-            className={cn(
-              "flex-1 flex flex-col overflow-y-auto overflow-x-hidden",
-              expanded ? "px-2 py-2 gap-0.5" : "px-2 py-3 gap-1",
-            )}
-          >
-            {/* Sidebar toggle — always visible, toggles open/close */}
-            {expanded ? (
-              <button
-                onClick={toggle}
-                className="flex items-center gap-2.5 px-2 py-2 rounded-md text-muted hover:bg-foreground/5 hover:text-foreground transition-colors whitespace-nowrap mb-1"
-                aria-label="Collapse navigation"
-                type="button"
-              >
-                <PanelLeftClose className="w-5 h-5 shrink-0" />
-              </button>
-            ) : (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    onClick={toggle}
-                    className="flex items-center justify-center w-10 h-10 mx-auto rounded-lg text-muted hover:bg-foreground/5 hover:text-foreground transition-colors mb-1"
-                    aria-label="Expand navigation"
-                    type="button"
-                  >
-                    <PanelLeft className="w-5 h-5" />
-                  </button>
-                </TooltipTrigger>
+          {/* Toggle — hamburger */}
+          <div className={cn("shrink-0 px-2 pt-3 pb-1", expanded ? "px-3" : "px-2")}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={toggle}
+                  className={cn(
+                    "flex items-center justify-center rounded-lg text-muted hover:bg-foreground/5 hover:text-foreground transition-colors",
+                    expanded ? "w-10 h-10" : "w-10 h-10 mx-auto",
+                  )}
+                  aria-label={expanded ? "Collapse navigation" : "Expand navigation"}
+                  type="button"
+                >
+                  <Menu className="w-5 h-5" />
+                </button>
+              </TooltipTrigger>
+              {!expanded && (
                 <TooltipContent side="right" sideOffset={8}>
                   Expand sidebar
                 </TooltipContent>
-              </Tooltip>
+              )}
+            </Tooltip>
+          </div>
+
+          {/* Main nav — flat list */}
+          <nav
+            aria-label="Dashboard"
+            className="flex-1 flex flex-col overflow-y-auto overflow-x-hidden px-2 py-1"
+          >
+            <div className={cn("flex flex-col", expanded ? "gap-0.5" : "gap-1")}>
+              {mainItems.map(({ href, label, icon: Icon }) => {
+                const isGetStarted = setupProgress && label === "Get Started";
+                return expanded ? (
+                  <Link
+                    key={href}
+                    href={href}
+                    prefetch={false}
+                    aria-current={isActive(href) ? "page" : undefined}
+                    className={cn(
+                      "flex items-center gap-3 px-3 py-2.5 rounded-lg text-[15px] font-medium transition-colors whitespace-nowrap",
+                      isActive(href)
+                        ? "bg-foreground/8 text-foreground"
+                        : "text-muted hover:bg-foreground/5 hover:text-foreground",
+                    )}
+                  >
+                    {isGetStarted ? (
+                      <span className="text-[13px] font-semibold text-muted/60 tabular-nums shrink-0">
+                        {setupProgress}
+                      </span>
+                    ) : (
+                      <Icon className="w-5 h-5 shrink-0" />
+                    )}
+                    <span className="truncate">{label}</span>
+                  </Link>
+                ) : (
+                  <Tooltip key={href}>
+                    <TooltipTrigger asChild>
+                      <Link
+                        href={href}
+                        prefetch={false}
+                        aria-current={isActive(href) ? "page" : undefined}
+                        className={cn(
+                          "flex items-center justify-center w-10 h-10 mx-auto rounded-lg transition-colors",
+                          isActive(href)
+                            ? "bg-foreground/8 text-foreground"
+                            : "text-muted hover:bg-foreground/5 hover:text-foreground",
+                        )}
+                      >
+                        {isGetStarted ? (
+                          <span className="text-[11px] font-bold tabular-nums leading-none">
+                            {setupProgress}
+                          </span>
+                        ) : (
+                          <Icon className="w-5 h-5" />
+                        )}
+                      </Link>
+                    </TooltipTrigger>
+                    <TooltipContent side="right" sideOffset={8}>
+                      {label}
+                    </TooltipContent>
+                  </Tooltip>
+                );
+              })}
+            </div>
+          </nav>
+
+          {/* Bottom items (Settings) + brand */}
+          <div
+            className={cn(
+              "shrink-0 flex flex-col border-t border-border px-2 py-2",
+              expanded ? "gap-0.5" : "gap-1",
+            )}
+          >
+            {bottomItems.map(({ href, label, icon: Icon }) =>
+              expanded ? (
+                <Link
+                  key={href}
+                  href={href}
+                  prefetch={false}
+                  aria-current={isActive(href) ? "page" : undefined}
+                  className={cn(
+                    "flex items-center gap-3 px-3 py-2.5 rounded-lg text-[15px] font-medium transition-colors whitespace-nowrap",
+                    isActive(href)
+                      ? "bg-foreground/8 text-foreground"
+                      : "text-muted hover:bg-foreground/5 hover:text-foreground",
+                  )}
+                >
+                  <Icon className="w-5 h-5 shrink-0" />
+                  <span className="truncate">{label}</span>
+                </Link>
+              ) : (
+                <Tooltip key={href}>
+                  <TooltipTrigger asChild>
+                    <Link
+                      href={href}
+                      prefetch={false}
+                      aria-current={isActive(href) ? "page" : undefined}
+                      className={cn(
+                        "flex items-center justify-center w-10 h-10 mx-auto rounded-lg transition-colors",
+                        isActive(href)
+                          ? "bg-foreground/8 text-foreground"
+                          : "text-muted hover:bg-foreground/5 hover:text-foreground",
+                      )}
+                    >
+                      <Icon className="w-5 h-5" />
+                    </Link>
+                  </TooltipTrigger>
+                  <TooltipContent side="right" sideOffset={8}>
+                    {label}
+                  </TooltipContent>
+                </Tooltip>
+              ),
             )}
 
-            {/* Nav items */}
-            {expanded
-              ? navGroups.map((group) => (
-                  <div key={group.label}>
-                    <p className="px-2 mt-2 mb-0.5 text-[9px] font-semibold uppercase tracking-widest text-muted/50">
-                      {group.label}
-                    </p>
-                    <div className="space-y-px">
-                      {group.items.map(({ href, label, icon: Icon }) => {
-                        const isGetStarted = setupProgress && label === "Get Started";
-                        return (
-                          <Link
-                            key={href}
-                            href={href}
-                            prefetch={false}
-                            aria-current={isActive(href) ? "page" : undefined}
-                            className={cn(
-                              "flex items-center gap-2.5 px-2 py-1.5 rounded-md text-[13px] font-medium transition-colors whitespace-nowrap",
-                              isActive(href)
-                                ? "bg-foreground/8 text-foreground"
-                                : "text-muted hover:bg-foreground/5 hover:text-foreground",
-                            )}
-                          >
-                            {isGetStarted ? (
-                              <span className="text-[11px] font-semibold text-muted/60 tabular-nums shrink-0">
-                                {setupProgress}
-                              </span>
-                            ) : (
-                              <Icon className="w-4 h-4 shrink-0" />
-                            )}
-                            <span className="truncate">{label}</span>
-                          </Link>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))
-              : allItems.map(({ href, label, icon: Icon }) => {
-                  const isGetStarted = setupProgress && label === "Get Started";
-                  return (
-                    <Tooltip key={href}>
-                      <TooltipTrigger asChild>
-                        <Link
-                          href={href}
-                          prefetch={false}
-                          aria-current={isActive(href) ? "page" : undefined}
-                          className={cn(
-                            "flex items-center justify-center w-10 h-10 mx-auto rounded-lg transition-colors",
-                            isActive(href)
-                              ? "bg-foreground/8 text-foreground"
-                              : "text-muted hover:bg-foreground/5 hover:text-foreground",
-                          )}
-                        >
-                          {isGetStarted ? (
-                            <span className="text-[11px] font-bold tabular-nums leading-none">
-                              {setupProgress}
-                            </span>
-                          ) : (
-                            <Icon className="w-5 h-5" />
-                          )}
-                        </Link>
-                      </TooltipTrigger>
-                      <TooltipContent side="right" sideOffset={8}>
-                        {label}
-                      </TooltipContent>
-                    </Tooltip>
-                  );
-                })}
-          </nav>
+            {/* Brand */}
+            <div
+              className={cn("flex items-center py-2", expanded ? "px-3 gap-2" : "justify-center")}
+            >
+              <TCLogo size={18} className="text-accent shrink-0" />
+              {expanded && (
+                <span className="text-[9px] font-semibold uppercase tracking-[0.2em] text-muted/50 whitespace-nowrap">
+                  T Creative Studio
+                </span>
+              )}
+            </div>
+          </div>
         </TooltipProvider>
-
-        {/* Footer — brand */}
-        <div
-          className={cn(
-            "shrink-0 flex items-center py-3",
-            expanded ? "px-4 gap-2" : "px-2 justify-center",
-          )}
-        >
-          <TCLogo size={18} className="text-accent shrink-0" />
-          {expanded && (
-            <span className="text-[9px] font-semibold uppercase tracking-[0.2em] text-muted/50 whitespace-nowrap">
-              T Creative Studio
-            </span>
-          )}
-        </div>
       </aside>
 
       {/* ── Mobile full-screen menu ──────────────────────────────── */}

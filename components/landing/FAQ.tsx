@@ -66,9 +66,11 @@ function FAQItem({ question, answer }: { question: string; answer: string }) {
     <div className="border-b border-foreground/10">
       <button
         onClick={() => setOpen(!open)}
+        aria-expanded={open}
         className="w-full flex items-center justify-between py-5 text-left group"
+        data-cursor="link"
       >
-        <span className="text-sm font-medium text-foreground group-hover:text-accent transition-colors duration-200 pr-4">
+        <span className="text-sm font-medium text-foreground group-hover:text-accent transition-colors duration-300 pr-4">
           {question}
         </span>
         <ChevronDown
@@ -96,7 +98,7 @@ export function FAQ({
     <section className="py-28 md:py-40 px-6 bg-background" aria-label="FAQ">
       <div className="mx-auto max-w-3xl">
         <div className="mb-12 md:mb-16 text-center">
-          <span className="text-[10px] tracking-[0.3em] uppercase text-muted mb-5 block">FAQ</span>
+          <span className="text-[10px] tracking-[0.3em] uppercase text-muted mb-4 block">FAQ</span>
           <h2 className="font-display text-3xl md:text-5xl font-light tracking-tight text-foreground">
             Common questions.
           </h2>

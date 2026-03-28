@@ -60,6 +60,12 @@ export function StudioRoom() {
         <meshStandardMaterial color="#5B8A8A" roughness={0.9} transparent opacity={0.6} />
       </mesh>
 
+      {/* ── CEILING ── */}
+      <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, H, -D / 2]}>
+        <planeGeometry args={[W, D]} />
+        <meshStandardMaterial color="#F7F3EE" roughness={0.95} />
+      </mesh>
+
       {/* ── WALLS ── */}
 
       {/* Back wall — teal accent */}

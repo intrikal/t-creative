@@ -1,31 +1,18 @@
-/**
- * EditorialPortfolio — Asymmetric 3-column portfolio grid with loupe interaction. Act V.
- *
- * Layout: three columns with staggered vertical offsets. Centre column drifts
- * upward on scroll. On hover, images scale within a circular mask that follows
- * the cursor — like a jeweler's loupe — reinforcing "precision" and "craft."
- *
- * Category filters use a shared layoutId underline that slides between options.
- *
- * Client Component — Framer Motion scroll parallax + hover + layout animations.
- */
 "use client";
 
 import { useRef, useState, useCallback } from "react";
 import Link from "next/link";
-import { m, useScroll, useTransform, AnimatePresence, LayoutGroup } from "framer-motion";
-
-type Category = "All" | "Lash" | "Skin" | "Jewelry" | "Craft";
+import { useGSAP } from "@gsap/react";
+import { gsap } from "@/lib/gsap";
 
 interface WorkItem {
   id: string;
   caption: string;
   color: string;
-  category: Exclude<Category, "All">;
+  category: string;
 }
 
-// Static portfolio items — each has a unique id for AnimatePresence keying,
-// a caption, gradient color, and category for filtering. Typed as WorkItem[].
+// Just the best 6 — no filter needed on landing page
 const WORK: WorkItem[] = [
   { id: "w1", caption: "Volume Set — Special Event", color: "#C4907A", category: "Lash" },
   { id: "w2", caption: "Permanent Bracelet — Gold Chain", color: "#D4A574", category: "Jewelry" },
@@ -33,71 +20,41 @@ const WORK: WorkItem[] = [
   { id: "w4", caption: "Cat Eye Lash Transformation", color: "#C4907A", category: "Lash" },
   { id: "w5", caption: "Welded Anklet — Sterling Silver", color: "#D4A574", category: "Jewelry" },
   { id: "w6", caption: "Handmade Crochet Market Bag", color: "#7BA3A3", category: "Craft" },
-  { id: "w7", caption: "Skin Treatment — Glow Facial", color: "#C4907A", category: "Skin" },
-  { id: "w8", caption: "Classic Full Set", color: "#C4907A", category: "Lash" },
-  { id: "w9", caption: "Permanent Necklace — Rose Gold", color: "#D4A574", category: "Jewelry" },
 ];
 
-const CATEGORIES: Category[] = ["All", "Lash", "Skin", "Jewelry", "Craft"];
-
-/**
- * WorkCard — Single portfolio item with loupe (magnification circle) interaction on hover.
- *
- * Props:
- * - item: WorkItem data (id, caption, color, category)
- * - delay: entrance animation delay for stagger effect (default 0)
- *
- * Uses layout animation (Framer motion layout) so cards smoothly reposition when filtering.
- */
-function WorkCard({ item, delay = 0 }: { item: WorkItem; delay?: number }) {
-  // useRef tracks the card DOM rect for mouse position calculations.
+function WorkCard({ item }: { item: WorkItem }) {
   const cardRef = useRef<HTMLDivElement>(null);
-  // loupePos: tracks the loupe circle's position as a percentage of card dimensions.
-  // Object with x,y rather than two separate states to batch the update in one setState call.
   const [loupePos, setLoupePos] = useState({ x: 50, y: 50 });
-  // isHovering: controls loupe visibility. Boolean toggle rather than CSS-only because
-  // the loupe needs JS mouse position data that CSS :hover cannot provide.
   const [isHovering, setIsHovering] = useState(false);
 
-  // useCallback memoizes the mouse handler to avoid creating a new function on every render,
-  // which would cause unnecessary re-binds of the onMouseMove listener. The empty dependency
-  // array is safe because cardRef is stable and setBLoupePos uses the functional form implicitly.
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (!cardRef.current) return;
-    // Convert absolute mouse coordinates to percentage-based position within the card.
-    // Percentage-based so the loupe position is resolution-independent.
     const rect = cardRef.current.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * 100;
-    const y = ((e.clientY - rect.top) / rect.height) * 100;
-    setLoupePos({ x, y });
+    setLoupePos({
+      x: ((e.clientX - rect.left) / rect.width) * 100,
+      y: ((e.clientY - rect.top) / rect.height) * 100,
+    });
   }, []);
 
   return (
-    <m.div
+    <div
       ref={cardRef}
-      layout
-      className="group relative overflow-hidden cursor-crosshair"
-      initial={{ opacity: 0, scale: 0.96 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.96 }}
-      transition={{ duration: 0.5, delay, ease: [0.16, 1, 0.3, 1] }}
+      className="group relative overflow-hidden cursor-crosshair flex-none w-[min(72vw,300px)]"
+      data-cursor="view"
       onMouseEnter={() => setIsHovering(true)}
       onMouseLeave={() => setIsHovering(false)}
       onMouseMove={handleMouseMove}
     >
-      {/* Base image */}
       <div
-        className="aspect-[4/5] w-full"
+        className="aspect-[3/4] w-full"
         style={{
           background: `linear-gradient(160deg, ${item.color}44 0%, ${item.color}18 60%, ${item.color}28 100%)`,
         }}
       />
 
-      {/* Conditional render: loupe circle only mounts when hovering.
-          Unmounting when not hovering avoids rendering an invisible positioned element. */}
       {isHovering && (
         <div
-          className="absolute pointer-events-none transition-opacity duration-200"
+          className="absolute pointer-events-none"
           style={{
             left: `${loupePos.x}%`,
             top: `${loupePos.y}%`,
@@ -120,154 +77,84 @@ function WorkCard({ item, delay = 0 }: { item: WorkItem; delay?: number }) {
         </div>
       )}
 
-      {/* Caption — hidden, slides up on hover */}
-      <div className="absolute inset-0 flex flex-col justify-end p-5 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-400 ease-out">
+      <div className="absolute inset-0 flex flex-col justify-end p-5 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300 ease-out">
         <span className="text-[10px] tracking-[0.2em] uppercase text-white/60 mb-1">
           {item.category}
         </span>
         <p className="text-sm font-light text-white leading-snug">{item.caption}</p>
       </div>
-    </m.div>
+    </div>
   );
 }
 
 export function EditorialPortfolio() {
-  // useRef for Framer Motion scroll measurement on this section.
   const sectionRef = useRef<HTMLElement>(null);
-  // activeCategory: tracks which filter tab is selected. "All" shows everything.
-  // useState rather than URL params because filter state is ephemeral — no need to persist in URL.
-  const [activeCategory, setActiveCategory] = useState<Category>("All");
+  const stickyRef = useRef<HTMLDivElement>(null);
+  const stripRef = useRef<HTMLDivElement>(null);
 
-  const { scrollYProgress } = useScroll({
-    target: sectionRef,
-    offset: ["start end", "end start"],
-  });
+  useGSAP(
+    () => {
+      const strip = stripRef.current;
+      if (!strip) return;
 
-  // useTransform: centre column drifts upward by 48px on scroll for asymmetric parallax.
-  const centreY = useTransform(scrollYProgress, [0, 1], ["0px", "-48px"]);
-
-  // Ternary: "All" returns the full array; any other category uses .filter() to keep only
-  // matching items. Filter approach chosen over separate arrays per category to maintain
-  // a single source of truth in the WORK array.
-  const filtered =
-    activeCategory === "All" ? WORK : WORK.filter((w) => w.category === activeCategory);
-
-  // Three .filter() calls distribute items into columns using modulo index (i % 3).
-  // This creates a round-robin distribution (item 0 → col1, item 1 → col2, item 2 → col3,
-  // item 3 → col1, ...) ensuring columns stay roughly equal height. Filter over chunk/slice
-  // because items may be removed by category filter and we want balanced columns regardless.
-  const col1 = filtered.filter((_, i) => i % 3 === 0);
-  const col2 = filtered.filter((_, i) => i % 3 === 1);
-  const col3 = filtered.filter((_, i) => i % 3 === 2);
+      gsap.fromTo(
+        strip,
+        { x: 0 },
+        {
+          x: () => -(strip.scrollWidth - window.innerWidth + 96),
+          ease: "none",
+          scrollTrigger: {
+            trigger: sectionRef.current,
+            start: "top top",
+            end: () => `+=${strip.scrollWidth}`,
+            scrub: 1,
+            pin: stickyRef.current,
+            anticipatePin: 1,
+            invalidateOnRefresh: true,
+          },
+        },
+      );
+    },
+    { scope: sectionRef },
+  );
 
   return (
-    <section
-      ref={sectionRef}
-      className="bg-foreground text-background py-28 md:py-40 px-6 overflow-hidden"
-      aria-label="Portfolio"
-    >
-      <div className="mx-auto max-w-6xl">
+    <section ref={sectionRef} className="bg-foreground text-background" aria-label="Portfolio">
+      <div ref={stickyRef} className="h-screen flex flex-col justify-center overflow-hidden">
         {/* Header */}
-        <m.div
-          className="mb-12 md:mb-16"
-          initial={{ opacity: 0, y: 24 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.8 }}
-        >
-          <span className="text-[10px] tracking-[0.3em] uppercase text-accent mb-5 block">
-            The Work
-          </span>
-          <h2 className="font-display text-4xl md:text-6xl font-light tracking-tight text-background leading-[1.1]">
-            The work speaks first.
-          </h2>
-        </m.div>
-
-        {/* Category filters with sliding underline */}
-        <m.div
-          className="flex flex-wrap gap-2 mb-16 md:mb-24"
-          initial={{ opacity: 0, y: 16 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.6, delay: 0.2 }}
-        >
-          {/* .map() over CATEGORIES to render filter buttons with a shared layoutId underline.
-              The layoutId="portfolio-filter-underline" animates the underline sliding between
-              the active button — Framer Motion's layout animation handles the position/width
-              interpolation automatically. */}
-          {CATEGORIES.map((cat) => (
-            <button
-              key={cat}
-              onClick={() => setActiveCategory(cat)}
-              // Ternary: active category gets full opacity text; inactive categories are muted
-              // with hover brightening — visual feedback for which filter is selected.
-              className={`relative px-4 py-2 text-[10px] tracking-[0.2em] uppercase transition-colors duration-300 ${
-                activeCategory === cat
-                  ? "text-background"
-                  : "text-background/40 hover:text-background/70"
-              }`}
-            >
-              {cat}
-              {/* Conditional render: underline only renders under the active tab.
-                  layoutId ensures Framer Motion animates it sliding between tabs. */}
-              {activeCategory === cat && (
-                <m.div
-                  layoutId="portfolio-filter-underline"
-                  className="absolute bottom-0 left-0 right-0 h-px bg-accent"
-                  transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                />
-              )}
-            </button>
-          ))}
-        </m.div>
-
-        {/* Asymmetric 3-column grid */}
-        <LayoutGroup>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
-            <div className="flex flex-col gap-3 md:gap-4">
-              {/* AnimatePresence mode="popLayout" enables exit animations when items are
-                  filtered out while keeping remaining items from jumping positions. */}
-              <AnimatePresence mode="popLayout">
-                {/* .map() renders filtered items for column 1 with staggered entrance delay. */}
-                {col1.map((item, i) => (
-                  <WorkCard key={item.id} item={item} delay={i * 0.06} />
-                ))}
-              </AnimatePresence>
-            </div>
-
-            <m.div style={{ y: centreY }} className="flex flex-col gap-3 md:gap-4 md:mt-16">
-              <AnimatePresence mode="popLayout">
-                {col2.map((item, i) => (
-                  <WorkCard key={item.id} item={item} delay={0.08 + i * 0.06} />
-                ))}
-              </AnimatePresence>
-            </m.div>
-
-            <div className="hidden md:flex flex-col gap-4 mt-8">
-              <AnimatePresence mode="popLayout">
-                {col3.map((item, i) => (
-                  <WorkCard key={item.id} item={item} delay={0.04 + i * 0.06} />
-                ))}
-              </AnimatePresence>
-            </div>
+        <div className="px-8 md:px-16 mb-10 flex items-end justify-between">
+          <div>
+            <span className="text-[10px] tracking-[0.3em] uppercase text-accent mb-4 block">
+              The Work
+            </span>
+            <h2 className="font-display text-4xl md:text-5xl font-light tracking-tight text-background leading-[1.1]">
+              The work
+              <br />
+              speaks first.
+            </h2>
           </div>
-        </LayoutGroup>
-
-        {/* CTA */}
-        <m.div
-          className="mt-16 md:mt-20"
-          initial={{ opacity: 0 }}
-          whileInView={{ opacity: 1 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.6, delay: 0.3 }}
-        >
           <Link
             href="/portfolio"
-            className="text-xs tracking-[0.25em] uppercase text-accent hover:text-background transition-colors duration-300 nav-link-reveal pb-px"
+            className="text-xs tracking-[0.25em] uppercase text-accent hover:text-background transition-colors duration-300 flex items-center gap-3"
+            data-cursor="link"
           >
-            View Full Portfolio →
+            View Full Portfolio
+            <span className="w-6 h-px bg-current" />
           </Link>
-        </m.div>
+        </div>
+
+        {/* Horizontal strip */}
+        <div
+          ref={stripRef}
+          className="flex gap-4 pl-8 md:pl-16 pr-24 items-end"
+          style={{ willChange: "transform" }}
+        >
+          {WORK.map((item, i) => (
+            <div key={item.id} style={{ marginBottom: i % 2 === 1 ? "3rem" : "0" }}>
+              <WorkCard item={item} />
+            </div>
+          ))}
+        </div>
       </div>
     </section>
   );

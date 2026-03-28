@@ -234,27 +234,29 @@ export async function handlePaymentCompleted(
       }
     }
 
-    const [orderClient] = await db
-      .select({ email: profiles.email, firstName: profiles.firstName })
-      .from(profiles)
-      .where(eq(profiles.id, productOrder.clientId));
+    if (productOrder.clientId) {
+      const [orderClient] = await db
+        .select({ email: profiles.email, firstName: profiles.firstName })
+        .from(profiles)
+        .where(eq(profiles.id, productOrder.clientId));
 
-    if (orderClient?.email) {
-      const bp = await getPublicBusinessProfile();
-      await sendEmail({
-        to: orderClient.email,
-        subject: `Payment received for your order — ${bp.businessName}`,
-        react: PaymentReceipt({
-          clientName: orderClient.firstName,
-          amountInCents: Number(squarePayment.amountMoney?.amount ?? 0),
-          method: "card",
-          receiptUrl: squarePayment.receiptUrl ?? undefined,
-          description: "Order payment",
-          businessName: bp.businessName,
-        }),
-        entityType: "payment_receipt",
-        localId: String(productOrder.id),
-      });
+      if (orderClient?.email) {
+        const bp = await getPublicBusinessProfile();
+        await sendEmail({
+          to: orderClient.email,
+          subject: `Payment received for your order — ${bp.businessName}`,
+          react: PaymentReceipt({
+            clientName: orderClient.firstName,
+            amountInCents: Number(squarePayment.amountMoney?.amount ?? 0),
+            method: "card",
+            receiptUrl: squarePayment.receiptUrl ?? undefined,
+            description: "Order payment",
+            businessName: bp.businessName,
+          }),
+          entityType: "payment_receipt",
+          localId: String(productOrder.id),
+        });
+      }
     }
 
     const [orderForInvoice] = await db
@@ -527,7 +529,7 @@ async function findBookingByOrder(squareOrderId: string | null): Promise<{
 
 async function findProductOrderBySquareOrder(squareOrderId: string | null): Promise<{
   id: number;
-  clientId: string;
+  clientId: string | null;
   productId: number | null;
   quantity: number;
   fulfillmentMethod: string | null;

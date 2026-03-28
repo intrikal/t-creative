@@ -874,7 +874,7 @@ export async function quoteCommission(
       .from(orders)
       .where(eq(orders.id, id));
 
-    if (!order) return;
+    if (!order || !order.clientId) return;
 
     const [profile] = await db
       .select({ email: profiles.email, firstName: profiles.firstName })

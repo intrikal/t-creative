@@ -135,14 +135,15 @@ export async function getAssistantEarnings(): Promise<EarningsData> {
   const weekEnd = endOfWeek(now);
   const monthStart = startOfMonth(now);
 
-  // Get assistant's commission settings
-  let commissionType: "percentage" | "flat_fee" = "percentage";
-  let commissionRate = DEFAULT_COMMISSION;
-  let flatFeeInCents = 0;
-  let tipSplitPercent = 100;
+  // `alias(profiles, "client")` creates a second reference to the profiles table
+  // so we can join it as the client without conflicting with the assistant's profile.
+  // This generates SQL: `profiles AS "client"` in the FROM clause.
+  const clientProfile = alias(profiles, "client");
 
-  try {
-    const [assistantProfile] = await db
+  // Run commission settings + bookings in parallel — the commission config is
+  // only used in the JS mapping step afterward, not in the bookings SQL.
+  const [assistantProfileResult, rows] = await Promise.all([
+    db
       .select({
         commissionType: assistantProfiles.commissionType,
         commissionRatePercent: assistantProfiles.commissionRatePercent,
@@ -151,59 +152,50 @@ export async function getAssistantEarnings(): Promise<EarningsData> {
       })
       .from(assistantProfiles)
       .where(eq(assistantProfiles.profileId, user.id))
-      .limit(1);
+      .limit(1)
+      .catch(
+        () =>
+          [] as {
+            commissionType: string | null;
+            commissionRatePercent: number | null;
+            commissionFlatFeeInCents: number | null;
+            tipSplitPercent: number | null;
+          }[],
+      ),
+    // Query: all completed bookings for this assistant, with tip totals.
+    db
+      .select({
+        id: bookings.id,
+        startsAt: bookings.startsAt,
+        totalInCents: bookings.totalInCents,
+        completedAt: bookings.completedAt,
+        clientFirstName: clientProfile.firstName,
+        clientLastName: clientProfile.lastName,
+        serviceName: services.name,
+        tipInCents: sql<number>`coalesce(sum(${payments.tipInCents}), 0)`.as("tip_in_cents"),
+      })
+      .from(bookings)
+      .innerJoin(clientProfile, eq(bookings.clientId, clientProfile.id))
+      .innerJoin(services, eq(bookings.serviceId, services.id))
+      .leftJoin(payments, eq(payments.bookingId, bookings.id))
+      .where(and(eq(bookings.staffId, user.id), eq(bookings.status, "completed")))
+      .groupBy(
+        bookings.id,
+        bookings.startsAt,
+        bookings.totalInCents,
+        bookings.completedAt,
+        clientProfile.firstName,
+        clientProfile.lastName,
+        services.name,
+      )
+      .orderBy(desc(bookings.startsAt)),
+  ]);
 
-    commissionType =
-      (assistantProfile?.commissionType as "percentage" | "flat_fee") ?? "percentage";
-    commissionRate = assistantProfile?.commissionRatePercent ?? DEFAULT_COMMISSION;
-    flatFeeInCents = assistantProfile?.commissionFlatFeeInCents ?? 0;
-    tipSplitPercent = assistantProfile?.tipSplitPercent ?? 100;
-  } catch {
-    // Column may not exist yet — use defaults
-  }
-
-  // `alias(profiles, "client")` creates a second reference to the profiles table
-  // so we can join it as the client without conflicting with the assistant's profile.
-  // This generates SQL: `profiles AS "client"` in the FROM clause.
-  const clientProfile = alias(profiles, "client");
-
-  // Query: all completed bookings for this assistant, with tip totals.
-  //
-  // LEFT JOIN payments (not INNER) because a booking can be completed without
-  // a recorded payment row (e.g. cash, or Square webhook hasn't arrived yet).
-  //
-  // `coalesce(sum(payments.tipInCents), 0)` sums all tip amounts across
-  // multiple payment records for a booking, defaulting to 0 if no payments.
-  //
-  // GROUP BY lists every non-aggregate column — required by Postgres when
-  // using aggregate functions like sum(). This collapses multiple payment
-  // rows per booking into a single row with the aggregated tip total.
-  const rows = await db
-    .select({
-      id: bookings.id,
-      startsAt: bookings.startsAt,
-      totalInCents: bookings.totalInCents,
-      completedAt: bookings.completedAt,
-      clientFirstName: clientProfile.firstName,
-      clientLastName: clientProfile.lastName,
-      serviceName: services.name,
-      tipInCents: sql<number>`coalesce(sum(${payments.tipInCents}), 0)`.as("tip_in_cents"),
-    })
-    .from(bookings)
-    .innerJoin(clientProfile, eq(bookings.clientId, clientProfile.id))
-    .innerJoin(services, eq(bookings.serviceId, services.id))
-    .leftJoin(payments, eq(payments.bookingId, bookings.id))
-    .where(and(eq(bookings.staffId, user.id), eq(bookings.status, "completed")))
-    .groupBy(
-      bookings.id,
-      bookings.startsAt,
-      bookings.totalInCents,
-      bookings.completedAt,
-      clientProfile.firstName,
-      clientProfile.lastName,
-      services.name,
-    )
-    .orderBy(desc(bookings.startsAt));
+  const ap = assistantProfileResult[0];
+  const commissionType = (ap?.commissionType as "percentage" | "flat_fee") ?? "percentage";
+  const commissionRate = ap?.commissionRatePercent ?? DEFAULT_COMMISSION;
+  const flatFeeInCents = ap?.commissionFlatFeeInCents ?? 0;
+  const tipSplitPercent = ap?.tipSplitPercent ?? 100;
 
   // Transform each completed booking row into an EarningEntry by applying the
   // assistant's commission model (percentage or flat_fee) and tip split percentage.

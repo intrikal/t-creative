@@ -748,7 +748,11 @@ export async function deleteEnrollment(id: number) {
 /*  Assistant training types                                           */
 /* ------------------------------------------------------------------ */
 
-export type { AssistantLesson, AssistantModule, AssistantTrainingData } from "@/lib/types/training.types";
+export type {
+  AssistantLesson,
+  AssistantModule,
+  AssistantTrainingData,
+} from "@/lib/types/training.types";
 
 /* ------------------------------------------------------------------ */
 /*  Assistant training queries                                         */
@@ -765,87 +769,76 @@ export async function getAssistantTraining(): Promise<AssistantTrainingData> {
   try {
     const user = await getUser();
 
-    // 1. Get all programs with their modules and lessons
-    const allPrograms = await db
-      .select({
-        programId: trainingPrograms.id,
-        programName: trainingPrograms.name,
-        programCategory: trainingPrograms.category,
-        moduleId: trainingModules.id,
-        moduleName: trainingModules.name,
-        moduleDescription: trainingModules.description,
-        moduleSortOrder: trainingModules.sortOrder,
-        lessonId: trainingLessons.id,
-        lessonTitle: trainingLessons.title,
-        lessonContent: trainingLessons.content,
-        lessonResourceUrl: trainingLessons.resourceUrl,
-        lessonDurationMin: trainingLessons.durationMinutes,
-        lessonSortOrder: trainingLessons.sortOrder,
-      })
-      .from(trainingPrograms)
-      .innerJoin(trainingModules, eq(trainingModules.programId, trainingPrograms.id))
-      .innerJoin(trainingLessons, eq(trainingLessons.moduleId, trainingModules.id))
-      .where(eq(trainingPrograms.isActive, true))
-      .orderBy(
-        asc(trainingPrograms.sortOrder),
-        asc(trainingModules.sortOrder),
-        asc(trainingLessons.sortOrder),
-      );
-
-    // 2. Get assistant's enrollments
-    const assistantEnrollments = await db
-      .select({
-        programId: enrollments.programId,
-        status: enrollments.status,
-        completedAt: enrollments.completedAt,
-      })
-      .from(enrollments)
-      .where(eq(enrollments.clientId, user.id));
-
-    // Build Map<programId, enrollment> for O(1) lookups when determining each
-    // module's lock/available/in_progress/completed status below.
-    const enrollmentMap = new Map(assistantEnrollments.map((e) => [e.programId, e]));
-
-    // 3. Get assistant's lesson completions
-    const completions = await db
-      .select({ lessonId: lessonCompletions.lessonId })
-      .from(lessonCompletions)
-      .where(eq(lessonCompletions.profileId, user.id));
-
-    // Build Set<lessonId> for O(1) completion checks — .has() is called once
-    // per lesson when constructing the module map below.
-    const completedLessonIds = new Set(completions.map((c) => c.lessonId));
-
-    // 4. Get next session date per program (for due date)
+    // All 5 queries are independent — run them in parallel.
     const now = new Date();
-    const upcomingSessions = await db
-      .select({
-        programId: trainingSessions.programId,
-        startsAt: sql<Date>`min(${trainingSessions.startsAt})`.as("next_session"),
-      })
-      .from(trainingSessions)
-      .where(
-        and(
-          eq(trainingSessions.status, "scheduled"),
-          sql`${trainingSessions.startsAt} >= ${now.toISOString()}`,
-        ),
-      )
-      .groupBy(trainingSessions.programId);
+    const [allPrograms, assistantEnrollments, completions, upcomingSessions, certs] =
+      await Promise.all([
+        // 1. Get all programs with their modules and lessons
+        db
+          .select({
+            programId: trainingPrograms.id,
+            programName: trainingPrograms.name,
+            programCategory: trainingPrograms.category,
+            moduleId: trainingModules.id,
+            moduleName: trainingModules.name,
+            moduleDescription: trainingModules.description,
+            moduleSortOrder: trainingModules.sortOrder,
+            lessonId: trainingLessons.id,
+            lessonTitle: trainingLessons.title,
+            lessonContent: trainingLessons.content,
+            lessonResourceUrl: trainingLessons.resourceUrl,
+            lessonDurationMin: trainingLessons.durationMinutes,
+            lessonSortOrder: trainingLessons.sortOrder,
+          })
+          .from(trainingPrograms)
+          .innerJoin(trainingModules, eq(trainingModules.programId, trainingPrograms.id))
+          .innerJoin(trainingLessons, eq(trainingLessons.moduleId, trainingModules.id))
+          .where(eq(trainingPrograms.isActive, true))
+          .orderBy(
+            asc(trainingPrograms.sortOrder),
+            asc(trainingModules.sortOrder),
+            asc(trainingLessons.sortOrder),
+          ),
+        // 2. Get assistant's enrollments
+        db
+          .select({
+            programId: enrollments.programId,
+            status: enrollments.status,
+            completedAt: enrollments.completedAt,
+          })
+          .from(enrollments)
+          .where(eq(enrollments.clientId, user.id)),
+        // 3. Get assistant's lesson completions
+        db
+          .select({ lessonId: lessonCompletions.lessonId })
+          .from(lessonCompletions)
+          .where(eq(lessonCompletions.profileId, user.id)),
+        // 4. Get next session date per program (for due date)
+        db
+          .select({
+            programId: trainingSessions.programId,
+            startsAt: sql<Date>`min(${trainingSessions.startsAt})`.as("next_session"),
+          })
+          .from(trainingSessions)
+          .where(
+            and(
+              eq(trainingSessions.status, "scheduled"),
+              sql`${trainingSessions.startsAt} >= ${now.toISOString()}`,
+            ),
+          )
+          .groupBy(trainingSessions.programId),
+        // 5. Get certificates for this assistant
+        db
+          .select({ programId: certificates.programId })
+          .from(certificates)
+          .where(eq(certificates.clientId, user.id)),
+      ]);
 
-    // Build Map<programId, nextSessionDate> — .map() extracts the programId
-    // and parses the date for O(1) due-date lookups per module.
+    const enrollmentMap = new Map(assistantEnrollments.map((e) => [e.programId, e]));
+    const completedLessonIds = new Set(completions.map((c) => c.lessonId));
     const nextSessionMap = new Map(
       upcomingSessions.map((s) => [s.programId, new Date(s.startsAt)]),
     );
-
-    // 5. Get certificates for this assistant
-    const certs = await db
-      .select({ programId: certificates.programId })
-      .from(certificates)
-      .where(eq(certificates.clientId, user.id));
-
-    // Build Set<programId> for O(1) certificate existence checks.
-    // .size is used as the total certificate count in the stats output.
     const certProgramIds = new Set(certs.map((c) => c.programId));
 
     // 6. Group rows into modules

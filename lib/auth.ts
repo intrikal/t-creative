@@ -71,22 +71,10 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
  * render are deduplicated to a single DB round-trip.
  */
 export const requireAdmin = cache(async () => {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) throw new Error("Not authenticated");
-
-  const [profile] = await db
-    .select({ role: profiles.role })
-    .from(profiles)
-    .where(eq(profiles.id, user.id))
-    .limit(1);
-
-  if (!profile || profile.role !== "admin") throw new Error("Forbidden");
-
-  return user;
+  const cu = await getCurrentUser();
+  if (!cu) throw new Error("Not authenticated");
+  if (!cu.profile || cu.profile.role !== "admin") throw new Error("Forbidden");
+  return { id: cu.id, email: cu.email } as { id: string; email: string };
 });
 
 /**

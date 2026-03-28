@@ -43,17 +43,22 @@ export default async function Page() {
     import("./sections/PortfolioSection"),
   ]);
 
-  await seedAftercareDefaults();
-
-  const [initialServices, initialBundles, initialForms, initialIntakeForms, aftercareSections, aftercarePolicies] =
-    await Promise.all([
-      getServices(),
-      getBundles(),
-      getForms(),
-      getIntakeFormDefinitions(),
-      getAftercareSections(),
-      getPolicies(),
-    ]);
+  const seeded = seedAftercareDefaults();
+  const [
+    initialServices,
+    initialBundles,
+    initialForms,
+    initialIntakeForms,
+    aftercareSections,
+    aftercarePolicies,
+  ] = await Promise.all([
+    getServices(),
+    getBundles(),
+    getForms(),
+    getIntakeFormDefinitions(),
+    seeded.then(() => getAftercareSections()),
+    seeded.then(() => getPolicies()),
+  ]);
 
   return (
     <ServicesPage

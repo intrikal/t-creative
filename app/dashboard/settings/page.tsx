@@ -47,7 +47,7 @@ export default async function Page() {
     import("../legal/actions"),
   ]);
 
-  await seedLegalDefaults();
+  const seeded = seedLegalDefaults();
 
   const [
     initialHours,
@@ -59,6 +59,8 @@ export default async function Page() {
     initialPrivacy,
     initialTerms,
     initialDeletionLog,
+    lastSuccess,
+    failures,
   ] = await Promise.all([
     getBusinessHours(),
     getTimeOff(),
@@ -66,12 +68,9 @@ export default async function Page() {
     getAdminSettingsBundle(),
     getServiceCategories(),
     getSquareConnectionStatus(),
-    getLegalDoc("privacy_policy"),
-    getLegalDoc("terms_of_service"),
+    seeded.then(() => getLegalDoc("privacy_policy")),
+    seeded.then(() => getLegalDoc("terms_of_service")),
     getCcpaDeletionLog(),
-  ]);
-
-  const [lastSuccess, failures] = await Promise.all([
     redis.get<string>("webhook:last_success"),
     redis.get<number>("webhook:sig_failures"),
   ]);

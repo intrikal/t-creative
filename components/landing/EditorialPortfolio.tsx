@@ -97,6 +97,12 @@ export function EditorialPortfolio() {
       const strip = stripRef.current;
       if (!strip) return;
 
+      // Skip pinned horizontal-scroll on touch devices — iOS momentum
+      // scrolling conflicts with ScrollTrigger pin, causing visible jank.
+      // Mobile uses native horizontal overflow scrolling instead (see strip className).
+      const isTouch = window.matchMedia("(pointer: coarse)").matches;
+      if (isTouch) return;
+
       gsap.fromTo(
         strip,
         { x: 0 },
@@ -107,7 +113,7 @@ export function EditorialPortfolio() {
             trigger: sectionRef.current,
             start: "top top",
             end: () => `+=${strip.scrollWidth}`,
-            scrub: 1,
+            scrub: 0.3,
             pin: stickyRef.current,
             anticipatePin: 1,
             invalidateOnRefresh: true,
@@ -120,7 +126,10 @@ export function EditorialPortfolio() {
 
   return (
     <section ref={sectionRef} className="bg-foreground text-background" aria-label="Portfolio">
-      <div ref={stickyRef} className="h-screen flex flex-col justify-center overflow-hidden">
+      <div
+        ref={stickyRef}
+        className="min-h-[80vh] md:h-screen flex flex-col justify-center overflow-hidden"
+      >
         {/* Header */}
         <div className="px-8 md:px-16 mb-10 flex items-end justify-between">
           <div>
@@ -146,7 +155,7 @@ export function EditorialPortfolio() {
         {/* Horizontal strip */}
         <div
           ref={stripRef}
-          className="flex gap-4 pl-8 md:pl-16 pr-24 items-end"
+          className="flex gap-4 pl-8 md:pl-16 pr-24 items-end overflow-x-auto md:overflow-x-visible scrollbar-hide"
           style={{ willChange: "transform" }}
         >
           {WORK.map((item, i) => (

@@ -972,7 +972,7 @@ async function trySendOrderStatusEmail(
       .from(orders)
       .where(eq(orders.id, orderId));
 
-    if (!order) return;
+    if (!order || !order.clientId) return;
 
     const [recipient, bp] = await Promise.all([
       getEmailRecipient(order.clientId),

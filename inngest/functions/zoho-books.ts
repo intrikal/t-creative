@@ -98,9 +98,9 @@ export const zohoBooks = inngest.createFunction(
           await createZohoBooksInvoice({
             entityType: "order",
             entityId: o.id,
-            profileId: o.clientId,
-            email: o.clientEmail,
-            firstName: o.clientFirstName,
+            profileId: o.clientId ?? "",
+            email: o.clientEmail ?? "",
+            firstName: o.clientFirstName ?? "",
             lineItems: [{ name: o.title, rate: o.finalInCents ?? 0, quantity: o.quantity }],
           });
           return { synced: 1, failed: 0 };
@@ -141,7 +141,9 @@ export const zohoBooks = inngest.createFunction(
             profileId: e.clientId,
             email: e.clientEmail,
             firstName: e.clientFirstName,
-            lineItems: [{ name: `Training: ${e.programName}`, rate: e.priceInCents ?? 0, quantity: 1 }],
+            lineItems: [
+              { name: `Training: ${e.programName}`, rate: e.priceInCents ?? 0, quantity: 1 },
+            ],
           });
           return { synced: 1, failed: 0 };
         } catch (err) {

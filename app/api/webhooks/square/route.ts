@@ -17,26 +17,28 @@
  */
 export const maxDuration = 10;
 
-import { createHmac } from "crypto";
+import { createHmac, timingSafeEqual } from "crypto";
 import { eq, and } from "drizzle-orm";
 import { db } from "@/db";
 import { webhookEvents } from "@/db/schema";
 import { inngest } from "@/inngest/client";
+import { env } from "@/lib/env";
 import { withRequestLogger } from "@/lib/middleware/request-logger";
-import { SQUARE_WEBHOOK_SIGNATURE_KEY } from "@/lib/square";
 
 /* ------------------------------------------------------------------ */
 /*  Signature verification                                             */
 /* ------------------------------------------------------------------ */
 
 function verifySignature(body: string, signature: string, url: string): boolean {
-  if (!SQUARE_WEBHOOK_SIGNATURE_KEY) return false;
-
-  const hmac = createHmac("sha256", SQUARE_WEBHOOK_SIGNATURE_KEY);
+  const hmac = createHmac("sha256", env.SQUARE_WEBHOOK_SIGNATURE_KEY);
   hmac.update(url + body);
   const expected = hmac.digest("base64");
 
-  return expected === signature;
+  // Constant-time comparison — different lengths can't be equal
+  const expectedBuf = Buffer.from(expected);
+  const signatureBuf = Buffer.from(signature);
+  if (expectedBuf.length !== signatureBuf.length) return false;
+  return timingSafeEqual(expectedBuf, signatureBuf);
 }
 
 /* ------------------------------------------------------------------ */
@@ -48,8 +50,9 @@ export const POST = withRequestLogger(async function POST(request: Request): Pro
   const signature = request.headers.get("x-square-hmacsha256-signature") ?? "";
   const url = request.url;
 
-  // Verify signature
-  if (SQUARE_WEBHOOK_SIGNATURE_KEY && !verifySignature(body, signature, url)) {
+  // Fail closed — if the key is missing, env.ts startup validation already
+  // caught it. Reject if signature verification fails.
+  if (!verifySignature(body, signature, url)) {
     return new Response("Invalid signature", { status: 403 });
   }
 

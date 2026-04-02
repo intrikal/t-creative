@@ -38,6 +38,24 @@ const schema = z.object({
 
   // ── Google reCAPTCHA v3 (bot protection) ──────────────────────────────────
   NEXT_PUBLIC_RECAPTCHA_SITE_KEY: z.string().min(1).optional(),
+
+  // ── Security / Auth ───────────────────────────────────────────────────────
+  /** Secret for authorizing Vercel cron job requests. */
+  CRON_SECRET: z.string().min(1),
+  /** Square webhook HMAC-SHA256 signing key for verifying inbound events. */
+  SQUARE_WEBHOOK_SIGNATURE_KEY: z.string().min(1),
+  /** Twilio Auth Token for verifying inbound SMS webhook signatures. */
+  TWILIO_AUTH_TOKEN: z.string().min(1),
+  /** HMAC secret for signing waiver completion tokens. */
+  WAIVER_TOKEN_SECRET: z.string().min(1),
+
+  // ── Square (optional — app runs in cash-only mode without these) ──────────
+  SQUARE_ENVIRONMENT: z.string().optional(),
+  SQUARE_LOCATION_ID: z.string().optional(),
+
+  // ── Notifications / Analytics (optional) ─────────────────────────────────
+  ADMIN_EMAIL: z.string().email().optional(),
+  POSTHOG_API_KEY: z.string().optional(),
 });
 
 // Validation runs at server startup and during `next dev`, but is skipped
@@ -62,6 +80,14 @@ if (
     UPSTASH_REDIS_REST_URL: process.env.UPSTASH_REDIS_REST_URL,
     UPSTASH_REDIS_REST_TOKEN: process.env.UPSTASH_REDIS_REST_TOKEN,
     NEXT_PUBLIC_RECAPTCHA_SITE_KEY: process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY,
+    CRON_SECRET: process.env.CRON_SECRET,
+    SQUARE_WEBHOOK_SIGNATURE_KEY: process.env.SQUARE_WEBHOOK_SIGNATURE_KEY,
+    TWILIO_AUTH_TOKEN: process.env.TWILIO_AUTH_TOKEN,
+    WAIVER_TOKEN_SECRET: process.env.WAIVER_TOKEN_SECRET,
+    SQUARE_ENVIRONMENT: process.env.SQUARE_ENVIRONMENT,
+    SQUARE_LOCATION_ID: process.env.SQUARE_LOCATION_ID,
+    ADMIN_EMAIL: process.env.ADMIN_EMAIL,
+    POSTHOG_API_KEY: process.env.POSTHOG_API_KEY,
   });
 
   if (!result.success) {
@@ -87,4 +113,14 @@ export const env = {
   UPSTASH_REDIS_REST_URL: process.env.UPSTASH_REDIS_REST_URL,
   UPSTASH_REDIS_REST_TOKEN: process.env.UPSTASH_REDIS_REST_TOKEN,
   NEXT_PUBLIC_RECAPTCHA_SITE_KEY: process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY,
+  // Required security vars — guaranteed non-empty by schema validation above
+  CRON_SECRET: process.env.CRON_SECRET as string,
+  SQUARE_WEBHOOK_SIGNATURE_KEY: process.env.SQUARE_WEBHOOK_SIGNATURE_KEY as string,
+  TWILIO_AUTH_TOKEN: process.env.TWILIO_AUTH_TOKEN as string,
+  WAIVER_TOKEN_SECRET: process.env.WAIVER_TOKEN_SECRET as string,
+  // Optional vars
+  SQUARE_ENVIRONMENT: process.env.SQUARE_ENVIRONMENT,
+  SQUARE_LOCATION_ID: process.env.SQUARE_LOCATION_ID,
+  ADMIN_EMAIL: process.env.ADMIN_EMAIL,
+  POSTHOG_API_KEY: process.env.POSTHOG_API_KEY,
 };

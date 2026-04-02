@@ -6,12 +6,11 @@
  *
  * Uses Node.js built-in `crypto` — no additional dependencies.
  */
-import { createHmac } from "crypto";
+import { createHmac, timingSafeEqual } from "crypto";
+import { env } from "./env";
 
-// Signing secret priority: dedicated waiver secret > NextAuth secret > hardcoded fallback.
-// The fallback is intentionally weak to make missing config obvious in dev
-// while still allowing the app to boot.
-const SECRET = process.env.WAIVER_TOKEN_SECRET || process.env.NEXTAUTH_SECRET || "waiver-fallback-secret";
+// Secret is validated as required at startup by lib/env.ts — no fallback.
+const SECRET = env.WAIVER_TOKEN_SECRET;
 
 /** The data encoded inside a waiver token — identifies which booking
  *  and which client the waiver completion link is for. */
@@ -45,9 +44,7 @@ export function generateWaiverToken(payload: WaiverTokenPayload, expiryDays: num
  * Validation steps:
  * 1. Split on "." — must have exactly two parts (payload + signature).
  * 2. Recompute HMAC-SHA256 over the encoded payload and compare to the
- *    provided signature (constant-time comparison not used here because
- *    the tokens are short-lived and low-value; timing attacks are not a
- *    practical risk for waiver links).
+ *    provided signature using timingSafeEqual to prevent timing attacks.
  * 3. JSON-decode the payload and check the `exp` timestamp.
  *
  * @param token - The full token string from the waiver URL query param.
@@ -60,7 +57,11 @@ export function verifyWaiverToken(token: string): WaiverTokenPayload | null {
 
   const [encoded, sig] = parts;
   const expectedSig = createHmac("sha256", SECRET).update(encoded).digest("base64url");
-  if (sig !== expectedSig) return null;
+
+  // Compare in constant time — different lengths can't be equal
+  const sigBuf = Buffer.from(sig);
+  const expectedBuf = Buffer.from(expectedSig);
+  if (sigBuf.length !== expectedBuf.length || !timingSafeEqual(sigBuf, expectedBuf)) return null;
 
   try {
     const data = JSON.parse(Buffer.from(encoded, "base64url").toString());

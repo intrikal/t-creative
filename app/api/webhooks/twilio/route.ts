@@ -52,8 +52,7 @@ import { validateRequest } from "twilio/lib/webhooks/webhooks";
 import { db } from "@/db";
 import { bookings, profiles, services, webhookEvents, syncLog } from "@/db/schema";
 import { logAction } from "@/lib/audit";
-
-const authToken = process.env.TWILIO_AUTH_TOKEN ?? "";
+import { env } from "@/lib/env";
 
 /* ------------------------------------------------------------------ */
 /*  TwiML helper                                                       */
@@ -100,14 +99,11 @@ export async function POST(request: Request): Promise<Response> {
   const body = await request.text();
   const params = Object.fromEntries(new URLSearchParams(body));
 
-  // Validate Twilio signature
-  if (authToken) {
-    const signature = request.headers.get("x-twilio-signature") ?? "";
-    const url = request.url;
-
-    if (!validateRequest(authToken, signature, url, params)) {
-      return new Response("Invalid signature", { status: 403 });
-    }
+  // Validate Twilio signature — fail closed; env.ts guarantees the token is set.
+  const signature = request.headers.get("x-twilio-signature") ?? "";
+  const url = request.url;
+  if (!validateRequest(env.TWILIO_AUTH_TOKEN, signature, url, params)) {
+    return new Response("Invalid signature", { status: 403 });
   }
 
   const messageSid = params.MessageSid ?? "";

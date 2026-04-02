@@ -61,6 +61,9 @@ const nextConfig: NextConfig = {
     ];
   },
   async headers() {
+    // 'unsafe-eval' is only needed in development (e.g. Next.js hot-reload, React DevTools).
+    // Never include it in production builds.
+    const unsafeEval = process.env.NODE_ENV === "development" ? " 'unsafe-eval'" : "";
     return [
       {
         source: "/(.*)",
@@ -78,8 +81,7 @@ const nextConfig: NextConfig = {
           },
           {
             key: "Content-Security-Policy",
-            value:
-              "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://challenges.cloudflare.com https://us-assets.i.posthog.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://lh3.googleusercontent.com https://*.supabase.co; connect-src 'self' https://*.supabase.co https://us.i.posthog.com https://us-assets.i.posthog.com https://connect.squareup.com https://*.sentry.io; frame-src https://challenges.cloudflare.com; font-src 'self'; object-src 'none'; base-uri 'self'",
+            value: `default-src 'self'; script-src 'self' 'unsafe-inline'${unsafeEval} https://challenges.cloudflare.com https://us-assets.i.posthog.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://lh3.googleusercontent.com https://*.supabase.co; connect-src 'self' https://*.supabase.co https://us.i.posthog.com https://us-assets.i.posthog.com https://connect.squareup.com https://*.sentry.io; frame-src https://challenges.cloudflare.com; font-src 'self'; object-src 'none'; base-uri 'self'`,
           },
         ],
       },

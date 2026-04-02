@@ -8,6 +8,7 @@
  * Respects notification preferences and deduplicates via sync_log.
  */
 import { and, eq, sql, asc } from "drizzle-orm";
+import DOMPurify from "isomorphic-dompurify";
 import { getPublicBusinessProfile } from "@/app/dashboard/settings/settings-actions";
 import { db } from "@/db";
 import {
@@ -149,9 +150,11 @@ export const emailSequenceCron = inngest.createFunction(
           .replace(/\{\{firstName\}\}/g, client.firstName || "there")
           .replace(/\{\{businessName\}\}/g, bp.businessName);
 
-        const body = nextStep.body
-          .replace(/\{\{firstName\}\}/g, client.firstName || "there")
-          .replace(/\{\{businessName\}\}/g, bp.businessName);
+        const body = DOMPurify.sanitize(
+          nextStep.body
+            .replace(/\{\{firstName\}\}/g, client.firstName || "there")
+            .replace(/\{\{businessName\}\}/g, bp.businessName),
+        );
 
         // Send email
         const React = await import("react");

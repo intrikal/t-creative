@@ -38,6 +38,7 @@ const schema = z.object({
 
   // ── Google reCAPTCHA v3 (bot protection) ──────────────────────────────────
   NEXT_PUBLIC_RECAPTCHA_SITE_KEY: z.string().min(1).optional(),
+  RECAPTCHA_SECRET_KEY: z.string().min(1).optional(),
 
   // ── Security / Auth ───────────────────────────────────────────────────────
   /** Secret for authorizing Vercel cron job requests. */
@@ -80,6 +81,7 @@ if (
     UPSTASH_REDIS_REST_URL: process.env.UPSTASH_REDIS_REST_URL,
     UPSTASH_REDIS_REST_TOKEN: process.env.UPSTASH_REDIS_REST_TOKEN,
     NEXT_PUBLIC_RECAPTCHA_SITE_KEY: process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY,
+    RECAPTCHA_SECRET_KEY: process.env.RECAPTCHA_SECRET_KEY,
     CRON_SECRET: process.env.CRON_SECRET,
     SQUARE_WEBHOOK_SIGNATURE_KEY: process.env.SQUARE_WEBHOOK_SIGNATURE_KEY,
     TWILIO_AUTH_TOKEN: process.env.TWILIO_AUTH_TOKEN,
@@ -113,6 +115,7 @@ export const env = {
   UPSTASH_REDIS_REST_URL: process.env.UPSTASH_REDIS_REST_URL,
   UPSTASH_REDIS_REST_TOKEN: process.env.UPSTASH_REDIS_REST_TOKEN,
   NEXT_PUBLIC_RECAPTCHA_SITE_KEY: process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY,
+  RECAPTCHA_SECRET_KEY: process.env.RECAPTCHA_SECRET_KEY,
   // Required security vars — guaranteed non-empty by schema validation above
   CRON_SECRET: process.env.CRON_SECRET as string,
   SQUARE_WEBHOOK_SIGNATURE_KEY: process.env.SQUARE_WEBHOOK_SIGNATURE_KEY as string,

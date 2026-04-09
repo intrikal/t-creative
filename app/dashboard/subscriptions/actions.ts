@@ -19,7 +19,7 @@ import { desc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import { bookingSubscriptions, profiles, services } from "@/db/schema";
-import { getUser } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -69,7 +69,7 @@ export async function getSubscriptions(
   statusFilter?: SubscriptionStatus,
 ): Promise<SubscriptionRow[]> {
   try {
-    await getUser();
+    await requireAdmin();
 
     // QUERY: Fetch subscriptions enriched with client name/email and service name.
     // SELECT     — Reads subscription fields (id, sessions, pricing, status, notes, dates)
@@ -145,7 +145,7 @@ export async function getActiveSubscriptionsForClient(
   clientId: string,
 ): Promise<{ id: number; name: string; sessionsRemaining: number }[]> {
   try {
-    await getUser();
+    await requireAdmin();
 
     // QUERY: Fetch all subscriptions belonging to a specific client.
     // SELECT — Reads id, package name, total sessions purchased, and sessions already used.
@@ -213,7 +213,7 @@ const subscriptionStatusSchema = z.enum(["active", "paused", "completed", "cance
 export async function createSubscription(input: CreateSubscriptionInput): Promise<{ id: number }> {
   try {
     createSubscriptionSchema.parse(input);
-    await getUser();
+    await requireAdmin();
 
     // MUTATION: Insert a new subscription row with zero sessions used.
     // The client starts with a full allotment of sessions (totalSessions).
@@ -258,7 +258,7 @@ export async function updateSubscriptionStatus(
   try {
     z.number().int().positive().parse(id);
     subscriptionStatusSchema.parse(status);
-    await getUser();
+    await requireAdmin();
 
     // MUTATION: Set the subscription's status to the new value.
     // WHERE — Matches by primary key (bookingSubscriptions.id).
@@ -284,7 +284,7 @@ export async function updateSubscriptionNotes(id: number, notes: string): Promis
   try {
     z.number().int().positive().parse(id);
     z.string().parse(notes);
-    await getUser();
+    await requireAdmin();
 
     // MUTATION: Overwrite the notes column. Empty string becomes NULL.
     // WHERE — Matches by primary key (bookingSubscriptions.id).

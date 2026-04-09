@@ -23,7 +23,7 @@ import { z } from "zod";
 import { db } from "@/db";
 import { legalDocuments } from "@/db/schema";
 import type { LegalSection } from "@/db/schema";
-import { getUser } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                               */
@@ -70,7 +70,7 @@ export async function getLegalDoc(
   type: "privacy_policy" | "terms_of_service",
 ): Promise<LegalDocEntry | null> {
   try {
-    await getUser();
+    await requireAdmin();
 
     // Order by isPublished DESC, id DESC so the published version wins;
     // if none published yet, the most recent draft is returned instead.
@@ -120,7 +120,7 @@ export async function saveLegalDoc(
     z.enum(["privacy_policy", "terms_of_service"]).parse(type);
     LegalDocInputSchema.parse(input);
 
-    await getUser();
+    await requireAdmin();
 
     const existing = await db
       .select({ id: legalDocuments.id })
@@ -374,7 +374,7 @@ const TERMS_INTRO =
 
 export async function seedLegalDefaults(): Promise<void> {
   try {
-    await getUser();
+    await requireAdmin();
 
     // Only seed if the table is empty
     const existing = await db.select({ id: legalDocuments.id }).from(legalDocuments).limit(1);

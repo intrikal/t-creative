@@ -28,7 +28,7 @@ import { db } from "@/db";
 import { inquiries, productInquiries, products } from "@/db/schema";
 import { InquiryReply } from "@/emails/InquiryReply";
 import { ProductQuote } from "@/emails/ProductQuote";
-import { getUser } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth";
 import { trackEvent } from "@/lib/posthog";
 import { sendEmail } from "@/lib/resend";
 
@@ -80,7 +80,7 @@ export type ProductInquiryRow = {
  */
 export async function getInquiries(): Promise<InquiryRow[]> {
   try {
-    await getUser();
+    await requireAdmin();
 
     const rows = await db
       .select({
@@ -117,7 +117,7 @@ export async function getInquiries(): Promise<InquiryRow[]> {
  */
 export async function getProductInquiries(): Promise<ProductInquiryRow[]> {
   try {
-    await getUser();
+    await requireAdmin();
 
     const rows = await db
       .select({
@@ -168,7 +168,7 @@ export async function updateInquiryStatus(
   try {
     z.number().int().positive().parse(id);
     z.enum(["new", "read", "replied", "archived"]).parse(status);
-    await getUser();
+    await requireAdmin();
     await db.update(inquiries).set({ status }).where(eq(inquiries.id, id));
     revalidatePath("/dashboard/inquiries");
   } catch (err) {
@@ -185,7 +185,7 @@ export async function updateInquiryStatus(
 export async function replyToInquiry(id: number, replyText: string) {
   z.number().int().positive().parse(id);
   z.string().min(1).parse(replyText);
-  const user = await getUser();
+  const user = await requireAdmin();
   await db
     .update(inquiries)
     .set({
@@ -229,7 +229,7 @@ export async function replyToInquiry(id: number, replyText: string) {
 export async function deleteInquiry(id: number) {
   try {
     z.number().int().positive().parse(id);
-    await getUser();
+    await requireAdmin();
     await db.delete(inquiries).where(eq(inquiries.id, id));
     revalidatePath("/dashboard/inquiries");
   } catch (err) {
@@ -254,7 +254,7 @@ export async function updateProductInquiryStatus(
   try {
     z.number().int().positive().parse(id);
     z.enum(["new", "contacted", "quote_sent", "in_progress", "completed"]).parse(status);
-    await getUser();
+    await requireAdmin();
 
     // Auto-set lifecycle timestamps based on the status transition
     const extra: Record<string, unknown> = {};
@@ -280,7 +280,7 @@ export async function updateProductInquiryStatus(
 export async function sendProductQuote(id: number, amountInCents: number) {
   z.number().int().positive().parse(id);
   z.number().int().nonnegative().parse(amountInCents);
-  const user = await getUser();
+  const user = await requireAdmin();
   await db
     .update(productInquiries)
     .set({
@@ -329,7 +329,7 @@ export async function sendProductQuote(id: number, amountInCents: number) {
 export async function deleteProductInquiry(id: number) {
   try {
     z.number().int().positive().parse(id);
-    await getUser();
+    await requireAdmin();
     await db.delete(productInquiries).where(eq(productInquiries.id, id));
     revalidatePath("/dashboard/inquiries");
   } catch (err) {

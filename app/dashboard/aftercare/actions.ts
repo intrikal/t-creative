@@ -19,7 +19,7 @@ import { eq, asc } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import { policies } from "@/db/schema";
-import { getUser } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -66,7 +66,7 @@ function parseAftercareContent(raw: string): { dos: string[]; donts: string[] } 
  */
 export async function getAftercareSections(): Promise<AftercareSection[]> {
   try {
-    await getUser();
+    await requireAdmin();
 
     // QUERY: Fetch every aftercare instruction section.
     // SELECT   — All columns from the policies table (id, title, content JSON, category, etc.).
@@ -106,7 +106,7 @@ export async function getAftercareSections(): Promise<AftercareSection[]> {
  */
 export async function getPolicies(): Promise<PolicyEntry[]> {
   try {
-    await getUser();
+    await requireAdmin();
 
     // QUERY: Fetch every studio policy entry.
     // SELECT   — All columns from the policies table.
@@ -154,7 +154,7 @@ const aftercareSectionInputSchema = z.object({
 export async function createAftercareSection(input: AftercareSectionInput): Promise<void> {
   try {
     aftercareSectionInputSchema.parse(input);
-    await getUser();
+    await requireAdmin();
 
     // QUERY: Read sortOrder values for all existing aftercare rows to determine
     // where the new section should appear in the list.
@@ -205,7 +205,7 @@ export async function updateAftercareSection(
   try {
     z.number().int().positive().parse(id);
     aftercareSectionInputSchema.parse(input);
-    await getUser();
+    await requireAdmin();
 
     // MUTATION: Update the aftercare row matching the given ID.
     // SET   — Overwrites title, slug (re-derived from new title), content JSON,
@@ -240,7 +240,7 @@ export async function updateAftercareSection(
 export async function deleteAftercareSection(id: number): Promise<void> {
   try {
     z.number().int().positive().parse(id);
-    await getUser();
+    await requireAdmin();
     // MUTATION: Delete the aftercare row by primary key.
     // WHERE — Matches policies.id. Only one row is affected.
     await db.delete(policies).where(eq(policies.id, id));
@@ -271,7 +271,7 @@ const policyInputSchema = z.object({
 export async function createPolicy(input: PolicyInput): Promise<void> {
   try {
     policyInputSchema.parse(input);
-    await getUser();
+    await requireAdmin();
 
     // QUERY: Read sortOrder values for all existing studio_policy rows to find the max.
     // SELECT   — Only sortOrder.
@@ -316,7 +316,7 @@ export async function updatePolicy(id: number, input: PolicyInput): Promise<void
   try {
     z.number().int().positive().parse(id);
     policyInputSchema.parse(input);
-    await getUser();
+    await requireAdmin();
 
     // MUTATION: Update the studio policy row matching the given ID.
     // SET   — Overwrites title, slug (re-derived from new title), and content text.
@@ -348,7 +348,7 @@ export async function updatePolicy(id: number, input: PolicyInput): Promise<void
 export async function deletePolicy(id: number): Promise<void> {
   try {
     z.number().int().positive().parse(id);
-    await getUser();
+    await requireAdmin();
     // MUTATION: Delete the studio policy row by primary key.
     // WHERE — Matches policies.id. Only one row is affected.
     await db.delete(policies).where(eq(policies.id, id));
@@ -450,7 +450,7 @@ const DEFAULT_POLICIES: { title: string; content: string }[] = [
  */
 export async function seedAftercareDefaults(): Promise<void> {
   try {
-    await getUser();
+    await requireAdmin();
 
     // QUERY: Check whether the policies table has any rows at all.
     // SELECT — Only the id column (we just need to know if at least one row exists).

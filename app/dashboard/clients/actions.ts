@@ -40,7 +40,7 @@ import { z } from "zod";
 import { db } from "@/db";
 import { profiles, bookings, services, loyaltyTransactions, clientPreferences } from "@/db/schema";
 import { logAction } from "@/lib/audit";
-import { getUser } from "@/lib/auth";
+import { getUser, requireAdmin } from "@/lib/auth";
 import { trackEvent } from "@/lib/posthog";
 import { redis } from "@/lib/redis";
 import type {
@@ -100,7 +100,7 @@ export async function getClients(opts?: {
   search?: string;
 }): Promise<PaginatedClients> {
   try {
-    await getUser();
+    await requireAdmin();
 
     const limit = opts?.limit ?? DEFAULT_CLIENTS_LIMIT;
     const offset = opts?.offset ?? 0;
@@ -200,7 +200,7 @@ export async function getClients(opts?: {
  */
 export async function getClientLoyalty(): Promise<LoyaltyRow[]> {
   try {
-    await getUser();
+    await requireAdmin();
 
     const rows = await db
       .select({
@@ -301,7 +301,7 @@ const clientPreferencesInputSchema = z.object({
 export async function createClient(input: ClientInput): Promise<void> {
   try {
     clientInputSchema.parse(input);
-    const user = await getUser();
+    const user = await requireAdmin();
 
     // Create a Supabase auth user first, then the profile
     // For admin-created clients we insert directly into profiles
@@ -348,7 +348,7 @@ export async function updateClient(id: string, input: ClientInput): Promise<void
   try {
     z.string().min(1).parse(id);
     clientInputSchema.parse(input);
-    const user = await getUser();
+    const user = await requireAdmin();
 
     await db
       .update(profiles)
@@ -391,7 +391,7 @@ export async function updateClient(id: string, input: ClientInput): Promise<void
 export async function deleteClient(id: string): Promise<void> {
   try {
     z.string().min(1).parse(id);
-    const user = await getUser();
+    const user = await requireAdmin();
     await db.update(profiles).set({ isActive: false }).where(eq(profiles.id, id));
     // Invalidate the proxy profile cache so the ban-check in proxy.ts takes
     // effect on the next request rather than waiting for the 5-minute TTL.
@@ -427,7 +427,7 @@ export async function issueLoyaltyReward(
     z.string().min(1).parse(profileId);
     z.number().int().positive().parse(points);
     z.string().min(1).parse(description);
-    const user = await getUser();
+    const user = await requireAdmin();
 
     await db.insert(loyaltyTransactions).values({
       profileId,
@@ -464,7 +464,7 @@ export async function getClientPreferences(
   profileId: string,
 ): Promise<ClientPreferencesRow | null> {
   try {
-    await getUser();
+    await requireAdmin();
     const [row] = await db
       .select()
       .from(clientPreferences)
@@ -504,7 +504,7 @@ export async function getClientPreferences(
 export async function upsertClientPreferences(input: ClientPreferencesInput): Promise<void> {
   try {
     clientPreferencesInputSchema.parse(input);
-    await getUser();
+    await requireAdmin();
 
     const values = {
       profileId: input.profileId,

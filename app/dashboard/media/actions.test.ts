@@ -35,8 +35,8 @@ function makeChain(rows: unknown[] = []) {
 /*  Shared mock refs                                                   */
 /* ------------------------------------------------------------------ */
 
-/** Stub for supabase auth.getUser. */
-const mockGetUser = vi.fn();
+/** Stub for requireAdmin from @/lib/auth. */
+const mockRequireAdmin = vi.fn();
 /** Captures revalidatePath calls. */
 const mockRevalidatePath = vi.fn();
 
@@ -99,10 +99,10 @@ function setupMocks(db: Record<string, unknown> | null = null) {
       { join: vi.fn(() => ({ type: "sql_join" })) },
     ),
   }));
-  vi.doMock("next/cache", () => ({ revalidatePath: mockRevalidatePath }));
+  vi.doMock("next/cache", () => ({ revalidatePath: mockRevalidatePath, updateTag: vi.fn() }));
+  vi.doMock("@/lib/auth", () => ({ requireAdmin: mockRequireAdmin }));
   vi.doMock("@/utils/supabase/server", () => ({
     createClient: vi.fn(async () => ({
-      auth: { getUser: mockGetUser },
       storage: { from: vi.fn(() => makeStorage()) },
     })),
   }));
@@ -115,7 +115,7 @@ function setupMocks(db: Record<string, unknown> | null = null) {
 describe("media/actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } });
+    mockRequireAdmin.mockResolvedValue({ id: "user-1", email: "admin@test.com" });
   });
 
   /* ---- getMediaItems ---- */
@@ -123,7 +123,7 @@ describe("media/actions", () => {
   describe("getMediaItems", () => {
     it("throws when user is not authenticated", async () => {
       vi.resetModules();
-      mockGetUser.mockResolvedValue({ data: { user: null } });
+      mockRequireAdmin.mockRejectedValue(new Error("Not authenticated"));
       setupMocks();
       const { getMediaItems } = await import("./actions");
       await expect(getMediaItems()).rejects.toThrow("Not authenticated");
@@ -236,7 +236,7 @@ describe("media/actions", () => {
   describe("getMediaStats", () => {
     it("throws when user is not authenticated", async () => {
       vi.resetModules();
-      mockGetUser.mockResolvedValue({ data: { user: null } });
+      mockRequireAdmin.mockRejectedValue(new Error("Not authenticated"));
       setupMocks();
       const { getMediaStats } = await import("./actions");
       await expect(getMediaStats()).rejects.toThrow("Not authenticated");
@@ -267,7 +267,7 @@ describe("media/actions", () => {
   describe("uploadMedia", () => {
     it("throws when user is not authenticated", async () => {
       vi.resetModules();
-      mockGetUser.mockResolvedValue({ data: { user: null } });
+      mockRequireAdmin.mockRejectedValue(new Error("Not authenticated"));
       setupMocks();
       const { uploadMedia } = await import("./actions");
       const fd = new FormData();
@@ -361,7 +361,7 @@ describe("media/actions", () => {
   describe("togglePublish", () => {
     it("throws when user is not authenticated", async () => {
       vi.resetModules();
-      mockGetUser.mockResolvedValue({ data: { user: null } });
+      mockRequireAdmin.mockRejectedValue(new Error("Not authenticated"));
       setupMocks();
       const { togglePublish } = await import("./actions");
       await expect(togglePublish(1, true)).rejects.toThrow("Not authenticated");
@@ -411,7 +411,7 @@ describe("media/actions", () => {
   describe("toggleFeatured", () => {
     it("throws when user is not authenticated", async () => {
       vi.resetModules();
-      mockGetUser.mockResolvedValue({ data: { user: null } });
+      mockRequireAdmin.mockRejectedValue(new Error("Not authenticated"));
       setupMocks();
       const { toggleFeatured } = await import("./actions");
       await expect(toggleFeatured(1, true)).rejects.toThrow("Not authenticated");
@@ -463,7 +463,7 @@ describe("media/actions", () => {
   describe("updateMediaItem", () => {
     it("throws when user is not authenticated", async () => {
       vi.resetModules();
-      mockGetUser.mockResolvedValue({ data: { user: null } });
+      mockRequireAdmin.mockRejectedValue(new Error("Not authenticated"));
       setupMocks();
       const { updateMediaItem } = await import("./actions");
       await expect(updateMediaItem(1, { caption: "Test" })).rejects.toThrow("Not authenticated");
@@ -513,7 +513,7 @@ describe("media/actions", () => {
   describe("deleteMediaItem", () => {
     it("throws when user is not authenticated", async () => {
       vi.resetModules();
-      mockGetUser.mockResolvedValue({ data: { user: null } });
+      mockRequireAdmin.mockRejectedValue(new Error("Not authenticated"));
       setupMocks();
       const { deleteMediaItem } = await import("./actions");
       await expect(deleteMediaItem(1)).rejects.toThrow("Not authenticated");

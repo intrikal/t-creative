@@ -35,12 +35,14 @@ function makeChain(rows: unknown[] = []) {
 /*  Shared mock refs                                                   */
 /* ------------------------------------------------------------------ */
 
-/** Stub for supabase auth.getUser. */
-const mockGetUser = vi.fn();
+/** Stub for requireAdmin from @/lib/auth. */
+const mockRequireAdmin = vi.fn();
 /** Captures Sentry captureException calls for error-reporting assertions. */
 const mockCaptureException = vi.fn();
 /** Captures revalidatePath calls. */
 const mockRevalidatePath = vi.fn();
+/** Captures updateTag calls. */
+const mockUpdateTag = vi.fn();
 
 /** Registers all module mocks; accepts optional custom db object. */
 function setupMocks(db: Record<string, unknown> | null = null) {
@@ -72,10 +74,8 @@ function setupMocks(db: Record<string, unknown> | null = null) {
     eq: vi.fn((...args: unknown[]) => ({ type: "eq", args })),
     desc: vi.fn((...args: unknown[]) => ({ type: "desc", args })),
   }));
-  vi.doMock("next/cache", () => ({ revalidatePath: mockRevalidatePath }));
-  vi.doMock("@/utils/supabase/server", () => ({
-    createClient: vi.fn(async () => ({ auth: { getUser: mockGetUser } })),
-  }));
+  vi.doMock("next/cache", () => ({ revalidatePath: mockRevalidatePath, updateTag: mockUpdateTag }));
+  vi.doMock("@/lib/auth", () => ({ requireAdmin: mockRequireAdmin }));
   vi.doMock("@sentry/nextjs", () => ({ captureException: mockCaptureException }));
 }
 
@@ -86,7 +86,7 @@ function setupMocks(db: Record<string, unknown> | null = null) {
 describe("legal/actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } });
+    mockRequireAdmin.mockResolvedValue({ id: "user-1", email: "admin@test.com" });
   });
 
   /* ---- getLegalDoc ---- */
@@ -94,7 +94,7 @@ describe("legal/actions", () => {
   describe("getLegalDoc", () => {
     it("throws when user is not authenticated", async () => {
       vi.resetModules();
-      mockGetUser.mockResolvedValue({ data: { user: null } });
+      mockRequireAdmin.mockRejectedValue(new Error("Not authenticated"));
       setupMocks();
       const { getLegalDoc } = await import("./actions");
       await expect(getLegalDoc("privacy_policy")).rejects.toThrow("Not authenticated");
@@ -203,7 +203,7 @@ describe("legal/actions", () => {
 
     it("throws when user is not authenticated", async () => {
       vi.resetModules();
-      mockGetUser.mockResolvedValue({ data: { user: null } });
+      mockRequireAdmin.mockRejectedValue(new Error("Not authenticated"));
       setupMocks();
       const { saveLegalDoc } = await import("./actions");
       await expect(saveLegalDoc("privacy_policy", input)).rejects.toThrow("Not authenticated");
@@ -270,22 +270,22 @@ describe("legal/actions", () => {
       expect(mockInsertValues).toHaveBeenCalledWith(expect.objectContaining({ sortOrder: 1 }));
     });
 
-    it("revalidates /dashboard/settings and /privacy for privacy_policy", async () => {
+    it("revalidates /dashboard/settings and legal tag for privacy_policy", async () => {
       vi.resetModules();
       setupMocks();
       const { saveLegalDoc } = await import("./actions");
       await saveLegalDoc("privacy_policy", input);
       expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/settings");
-      expect(mockRevalidatePath).toHaveBeenCalledWith("/privacy");
+      expect(mockUpdateTag).toHaveBeenCalledWith("legal");
     });
 
-    it("revalidates /dashboard/settings and /terms for terms_of_service", async () => {
+    it("revalidates /dashboard/settings and legal tag for terms_of_service", async () => {
       vi.resetModules();
       setupMocks();
       const { saveLegalDoc } = await import("./actions");
       await saveLegalDoc("terms_of_service", input);
       expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/settings");
-      expect(mockRevalidatePath).toHaveBeenCalledWith("/terms");
+      expect(mockUpdateTag).toHaveBeenCalledWith("legal");
     });
   });
 
@@ -294,7 +294,7 @@ describe("legal/actions", () => {
   describe("seedLegalDefaults", () => {
     it("throws when user is not authenticated", async () => {
       vi.resetModules();
-      mockGetUser.mockResolvedValue({ data: { user: null } });
+      mockRequireAdmin.mockRejectedValue(new Error("Not authenticated"));
       setupMocks();
       const { seedLegalDefaults } = await import("./actions");
       await expect(seedLegalDefaults()).rejects.toThrow("Not authenticated");

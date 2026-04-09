@@ -50,7 +50,7 @@ import {
   formSubmissions,
   clientForms,
 } from "@/db/schema";
-import { getUser } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth";
 
 /* ------------------------------------------------------------------ */
 /*  Types — shapes returned to the client detail page tabs             */
@@ -241,7 +241,7 @@ export type ClientNoteRow = {
  */
 export async function getClientDetail(clientId: string): Promise<ClientDetailData | null> {
   try {
-    await getUser();
+    await requireAdmin();
 
     // Referrer subquery alias — prepared but only used if profile has a referredBy value
     const referrer = db

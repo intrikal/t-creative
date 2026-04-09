@@ -36,8 +36,14 @@ function makeChain(rows: unknown[] = []) {
 /*  Shared mock refs                                                   */
 /* ------------------------------------------------------------------ */
 
-/** Stub for supabase auth.getUser. */
+/** Stub for supabase auth.getUser (legacy, kept for createClient mock). */
+const mockSupabaseGetUser = vi.fn();
+/** Stub for getUser from @/lib/auth (client-scoped actions). */
 const mockGetUser = vi.fn();
+/** Stub for requireAdmin from @/lib/auth (admin-only actions). */
+const mockRequireAdmin = vi.fn();
+/** Stub for requireStaff from @/lib/auth (staff-only actions). */
+const mockRequireStaff = vi.fn();
 /** Captures PostHog trackEvent calls. */
 const mockTrackEvent = vi.fn();
 /** Captures Resend sendEmail calls. */
@@ -148,7 +154,12 @@ function setupMocks(db: Record<string, unknown> | null = null) {
   }));
   vi.doMock("next/cache", () => ({ revalidatePath: mockRevalidatePath }));
   vi.doMock("@/utils/supabase/server", () => ({
-    createClient: vi.fn(async () => ({ auth: { getUser: mockGetUser } })),
+    createClient: vi.fn(async () => ({ auth: { getUser: mockSupabaseGetUser } })),
+  }));
+  vi.doMock("@/lib/auth", () => ({
+    getUser: mockGetUser,
+    requireAdmin: mockRequireAdmin,
+    requireStaff: mockRequireStaff,
   }));
   vi.doMock("@/lib/posthog", () => ({ trackEvent: mockTrackEvent }));
   vi.doMock("@/lib/resend", () => ({ sendEmail: mockSendEmail }));
@@ -165,7 +176,12 @@ function setupMocks(db: Record<string, unknown> | null = null) {
 describe("messages/actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockGetUser.mockResolvedValue({ data: { user: { id: "user-1", email: "admin@example.com" } } });
+    mockSupabaseGetUser.mockResolvedValue({
+      data: { user: { id: "user-1", email: "admin@example.com" } },
+    });
+    mockGetUser.mockResolvedValue({ id: "user-1", email: "admin@example.com" });
+    mockRequireAdmin.mockResolvedValue({ id: "user-1", email: "admin@example.com" });
+    mockRequireStaff.mockResolvedValue({ id: "user-1", email: "admin@example.com" });
   });
 
   /* ---- getThreads ---- */
@@ -173,7 +189,7 @@ describe("messages/actions", () => {
   describe("getThreads", () => {
     it("throws when user is not authenticated", async () => {
       vi.resetModules();
-      mockGetUser.mockResolvedValue({ data: { user: null } });
+      mockRequireAdmin.mockRejectedValue(new Error("Not authenticated"));
       setupMocks();
       const { getThreads } = await import("./actions");
       await expect(getThreads()).rejects.toThrow("Not authenticated");
@@ -189,32 +205,33 @@ describe("messages/actions", () => {
 
     it("maps thread rows with lastMessageBody and unreadCount", async () => {
       vi.resetModules();
-      const threadRow = {
-        id: 10,
-        subject: "Test Thread",
-        threadType: "general",
-        status: "new",
-        isStarred: false,
-        isArchived: false,
-        isClosed: false,
-        isGroup: false,
-        bookingId: null,
-        lastMessageAt: new Date("2026-03-01T10:00:00Z"),
-        createdAt: new Date("2026-03-01T09:00:00Z"),
-        clientId: "client-1",
-        clientFirstName: "Jane",
-        clientLastName: "Doe",
-        clientEmail: "jane@example.com",
-        clientPhone: null,
-        clientAvatarUrl: null,
-        referencePhotoUrls: null,
-      };
-      const mockExecute = vi
-        .fn()
-        .mockResolvedValueOnce([{ thread_id: 10, body: "Hello", sender_id: "client-1" }])
-        .mockResolvedValueOnce([{ thread_id: 10, cnt: "2" }]);
+      const mockExecute = vi.fn().mockResolvedValue([
+        {
+          id: 10,
+          subject: "Test Thread",
+          threadType: "general",
+          status: "new",
+          isStarred: false,
+          isArchived: false,
+          isClosed: false,
+          isGroup: false,
+          bookingId: null,
+          lastMessageAt: new Date("2026-03-01T10:00:00Z"),
+          createdAt: new Date("2026-03-01T09:00:00Z"),
+          clientId: "client-1",
+          clientFirstName: "Jane",
+          clientLastName: "Doe",
+          clientEmail: "jane@example.com",
+          clientPhone: null,
+          clientAvatarUrl: null,
+          referencePhotoUrls: null,
+          lastMessageBody: "Hello",
+          lastMessageSenderId: "client-1",
+          unreadCount: 2,
+        },
+      ]);
       setupMocks({
-        select: vi.fn(() => makeChain([threadRow])),
+        select: vi.fn(() => makeChain([])),
         insert: vi.fn(() => ({
           values: vi.fn(() => ({ returning: vi.fn().mockResolvedValue([{ id: 1 }]) })),
         })),
@@ -236,29 +253,33 @@ describe("messages/actions", () => {
 
     it("defaults unreadCount to 0 when no unread messages", async () => {
       vi.resetModules();
-      const threadRow = {
-        id: 10,
-        subject: "Test",
-        threadType: "general",
-        status: "new",
-        isStarred: false,
-        isArchived: false,
-        isClosed: false,
-        isGroup: false,
-        bookingId: null,
-        lastMessageAt: new Date(),
-        createdAt: new Date(),
-        clientId: null,
-        clientFirstName: null,
-        clientLastName: null,
-        clientEmail: null,
-        clientPhone: null,
-        clientAvatarUrl: null,
-        referencePhotoUrls: null,
-      };
-      const mockExecute = vi.fn().mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+      const mockExecute = vi.fn().mockResolvedValue([
+        {
+          id: 10,
+          subject: "Test",
+          threadType: "general",
+          status: "new",
+          isStarred: false,
+          isArchived: false,
+          isClosed: false,
+          isGroup: false,
+          bookingId: null,
+          lastMessageAt: new Date(),
+          createdAt: new Date(),
+          clientId: null,
+          clientFirstName: null,
+          clientLastName: null,
+          clientEmail: null,
+          clientPhone: null,
+          clientAvatarUrl: null,
+          referencePhotoUrls: null,
+          lastMessageBody: null,
+          lastMessageSenderId: null,
+          unreadCount: 0,
+        },
+      ]);
       setupMocks({
-        select: vi.fn(() => makeChain([threadRow])),
+        select: vi.fn(() => makeChain([])),
         insert: vi.fn(() => ({
           values: vi.fn(() => ({ returning: vi.fn().mockResolvedValue([{ id: 1 }]) })),
         })),
@@ -278,7 +299,7 @@ describe("messages/actions", () => {
   describe("sendMessage", () => {
     it("throws when user is not authenticated", async () => {
       vi.resetModules();
-      mockGetUser.mockResolvedValue({ data: { user: null } });
+      mockRequireStaff.mockRejectedValue(new Error("Not authenticated"));
       setupMocks();
       const { sendMessage } = await import("./actions");
       await expect(sendMessage(1, "Hello")).rejects.toThrow("Not authenticated");
@@ -499,7 +520,7 @@ describe("messages/actions", () => {
   describe("markThreadRead", () => {
     it("throws when user is not authenticated", async () => {
       vi.resetModules();
-      mockGetUser.mockResolvedValue({ data: { user: null } });
+      mockRequireStaff.mockRejectedValue(new Error("Not authenticated"));
       setupMocks();
       const { markThreadRead } = await import("./actions");
       await expect(markThreadRead(1)).rejects.toThrow("Not authenticated");
@@ -530,7 +551,7 @@ describe("messages/actions", () => {
   describe("updateThreadStatus", () => {
     it("throws when user is not authenticated", async () => {
       vi.resetModules();
-      mockGetUser.mockResolvedValue({ data: { user: null } });
+      mockRequireAdmin.mockRejectedValue(new Error("Not authenticated"));
       setupMocks();
       const { updateThreadStatus } = await import("./actions");
       await expect(updateThreadStatus(1, "resolved")).rejects.toThrow("Not authenticated");
@@ -567,7 +588,7 @@ describe("messages/actions", () => {
   describe("createThread", () => {
     it("throws when user is not authenticated", async () => {
       vi.resetModules();
-      mockGetUser.mockResolvedValue({ data: { user: null } });
+      mockRequireStaff.mockRejectedValue(new Error("Not authenticated"));
       setupMocks();
       const { createThread } = await import("./actions");
       await expect(
@@ -667,7 +688,7 @@ describe("messages/actions", () => {
   describe("toggleThreadStar", () => {
     it("throws when user is not authenticated", async () => {
       vi.resetModules();
-      mockGetUser.mockResolvedValue({ data: { user: null } });
+      mockRequireAdmin.mockRejectedValue(new Error("Not authenticated"));
       setupMocks();
       const { toggleThreadStar } = await import("./actions");
       await expect(toggleThreadStar(1)).rejects.toThrow("Not authenticated");
@@ -713,7 +734,7 @@ describe("messages/actions", () => {
   describe("archiveThread", () => {
     it("throws when user is not authenticated", async () => {
       vi.resetModules();
-      mockGetUser.mockResolvedValue({ data: { user: null } });
+      mockRequireAdmin.mockRejectedValue(new Error("Not authenticated"));
       setupMocks();
       const { archiveThread } = await import("./actions");
       await expect(archiveThread(1)).rejects.toThrow("Not authenticated");
@@ -761,7 +782,7 @@ describe("messages/actions", () => {
   describe("getQuickReplies", () => {
     it("throws when user is not authenticated", async () => {
       vi.resetModules();
-      mockGetUser.mockResolvedValue({ data: { user: null } });
+      mockRequireAdmin.mockRejectedValue(new Error("Not authenticated"));
       setupMocks();
       const { getQuickReplies } = await import("./actions");
       await expect(getQuickReplies()).rejects.toThrow("Not authenticated");
@@ -789,7 +810,7 @@ describe("messages/actions", () => {
   describe("getVisibleContacts", () => {
     it("throws when user is not authenticated", async () => {
       vi.resetModules();
-      mockGetUser.mockResolvedValue({ data: { user: null } });
+      mockRequireAdmin.mockRejectedValue(new Error("Not authenticated"));
       setupMocks();
       const { getVisibleContacts } = await import("./actions");
       await expect(getVisibleContacts()).rejects.toThrow("Not authenticated");

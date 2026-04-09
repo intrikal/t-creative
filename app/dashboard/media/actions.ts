@@ -16,7 +16,8 @@ import { eq, desc, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import { mediaItems, profiles } from "@/db/schema";
-import { getUser } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth";
+import type { MediaCategory, MediaRow, MediaStats } from "@/lib/types/media.types";
 import { createClient } from "@/utils/supabase/server";
 
 const BUCKET = "media";
@@ -24,8 +25,6 @@ const BUCKET = "media";
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
 /* ------------------------------------------------------------------ */
-
-import type { MediaCategory, MediaRow, MediaStats } from "@/lib/types/media.types";
 
 export type { MediaCategory, MediaRow, MediaStats } from "@/lib/types/media.types";
 
@@ -45,7 +44,7 @@ export type { MediaCategory, MediaRow, MediaStats } from "@/lib/types/media.type
  */
 export async function getMediaItems(): Promise<MediaRow[]> {
   try {
-    await getUser();
+    await requireAdmin();
 
     const rows = await db
       .select({
@@ -112,7 +111,7 @@ export async function getMediaItems(): Promise<MediaRow[]> {
  */
 export async function getMediaStats(): Promise<MediaStats> {
   try {
-    await getUser();
+    await requireAdmin();
 
     const [row] = await db
       .select({
@@ -141,7 +140,7 @@ export async function getMediaStats(): Promise<MediaStats> {
 
 export async function uploadMedia(formData: FormData) {
   try {
-    await getUser();
+    await requireAdmin();
     const supabase = await createClient();
 
     const files = formData.getAll("files") as File[];
@@ -208,7 +207,7 @@ export async function togglePublish(id: number, publish: boolean) {
   try {
     z.number().int().positive().parse(id);
     z.boolean().parse(publish);
-    await getUser();
+    await requireAdmin();
     await db
       .update(mediaItems)
       .set({
@@ -239,7 +238,7 @@ export async function toggleFeatured(id: number, feature: boolean) {
   try {
     z.number().int().positive().parse(id);
     z.boolean().parse(feature);
-    await getUser();
+    await requireAdmin();
     await db
       .update(mediaItems)
       .set({
@@ -279,7 +278,7 @@ export async function updateMediaItem(
   try {
     z.number().int().positive().parse(id);
     updateMediaItemSchema.parse(data);
-    await getUser();
+    await requireAdmin();
     await db
       .update(mediaItems)
       .set({
@@ -312,7 +311,7 @@ export async function updateMediaItem(
 export async function deleteMediaItem(id: number) {
   try {
     z.number().int().positive().parse(id);
-    await getUser();
+    await requireAdmin();
     const supabase = await createClient();
 
     // Get storage path before deleting

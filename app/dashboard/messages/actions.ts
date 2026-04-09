@@ -49,7 +49,7 @@ import {
   threadParticipants,
 } from "@/db/schema";
 import { MessageNotification } from "@/emails/MessageNotification";
-import { getUser } from "@/lib/auth";
+import { getUser, requireAdmin, requireStaff } from "@/lib/auth";
 import { rruleToCadenceLabel } from "@/lib/cadence";
 import { trackEvent } from "@/lib/posthog";
 import { sendEmail } from "@/lib/resend";
@@ -146,7 +146,7 @@ export interface QuickReplyRow {
  */
 export async function getThreads(): Promise<ThreadRow[]> {
   try {
-    const user = await getUser();
+    const user = await requireAdmin();
 
     /*
      * ── Raw SQL query: fetch every thread with preview + unread count ──
@@ -435,7 +435,7 @@ export async function sendMessage(threadId: number, body: string): Promise<Messa
   try {
     z.number().int().positive().parse(threadId);
     z.string().min(1).parse(body);
-    const user = await getUser();
+    const user = await requireStaff();
 
     /* alias() creates a table alias so we can join profiles twice if needed. */
     const senderProfile = alias(profiles, "sender");
@@ -596,7 +596,7 @@ export async function sendMessage(threadId: number, body: string): Promise<Messa
 export async function markThreadRead(threadId: number): Promise<void> {
   try {
     z.number().int().positive().parse(threadId);
-    const user = await getUser();
+    const user = await requireStaff();
 
     /*
      * UPDATE messages — bulk-mark messages as read.
@@ -641,7 +641,7 @@ export async function updateThreadStatus(threadId: number, status: ThreadStatus)
   try {
     z.number().int().positive().parse(threadId);
     z.enum(["new", "pending", "contacted", "approved", "rejected", "resolved"]).parse(status);
-    await getUser();
+    await requireAdmin();
     await db.update(threads).set({ status }).where(eq(threads.id, threadId));
     revalidatePath("/dashboard/messages");
   } catch (err) {
@@ -661,7 +661,7 @@ export async function updateThreadStatus(threadId: number, status: ThreadStatus)
 export async function toggleThreadStar(threadId: number): Promise<void> {
   try {
     z.number().int().positive().parse(threadId);
-    await getUser();
+    await requireAdmin();
     const [thread] = await db
       .select({ isStarred: threads.isStarred })
       .from(threads)
@@ -689,7 +689,7 @@ export async function toggleThreadStar(threadId: number): Promise<void> {
 export async function archiveThread(threadId: number): Promise<void> {
   try {
     z.number().int().positive().parse(threadId);
-    await getUser();
+    await requireAdmin();
     await db.update(threads).set({ isArchived: true }).where(eq(threads.id, threadId));
     revalidatePath("/dashboard/messages");
   } catch (err) {
@@ -708,7 +708,7 @@ export async function archiveThread(threadId: number): Promise<void> {
 export async function unarchiveThread(threadId: number): Promise<void> {
   try {
     z.number().int().positive().parse(threadId);
-    await getUser();
+    await requireAdmin();
     await db.update(threads).set({ isArchived: false }).where(eq(threads.id, threadId));
     revalidatePath("/dashboard/messages");
   } catch (err) {
@@ -732,7 +732,7 @@ export async function unarchiveThread(threadId: number): Promise<void> {
  */
 export async function getQuickReplies(): Promise<QuickReplyRow[]> {
   try {
-    await getUser();
+    await requireAdmin();
     return db
       .select({ id: quickReplies.id, label: quickReplies.label, body: quickReplies.body })
       .from(quickReplies)
@@ -754,7 +754,7 @@ export async function getQuickReplies(): Promise<QuickReplyRow[]> {
  */
 export async function getVisibleContacts(): Promise<ContactRow[]> {
   try {
-    const user = await getUser();
+    const user = await requireAdmin();
 
     /*
      * SELECT: id, firstName, lastName, email, role, avatarUrl
@@ -808,7 +808,7 @@ export async function createThread(input: {
 }): Promise<{ threadId: number }> {
   try {
     createThreadSchema.parse(input);
-    const user = await getUser();
+    const user = await requireStaff();
 
     const isGroup = input.participantIds.length > 1;
 
@@ -905,7 +905,7 @@ export async function createThread(input: {
  */
 export async function getThreadParticipants(threadId: number): Promise<ParticipantRow[]> {
   try {
-    await getUser();
+    await requireAdmin();
 
     const rows = await db
       .select({

@@ -45,8 +45,8 @@ function makeChain(rows: unknown[] = []) {
 /*  Shared mock refs                                                   */
 /* ------------------------------------------------------------------ */
 
-/** Stub for supabase auth.getUser — controls whether the request is authenticated. */
-const mockGetUser = vi.fn();
+/** Stub for requireAdmin — controls whether the request is authenticated and admin-authorized. */
+const mockRequireAdmin = vi.fn();
 /** Captures revalidatePath calls so tests can verify correct cache invalidation. */
 const mockRevalidatePath = vi.fn();
 
@@ -90,8 +90,8 @@ function setupMocks(db: Record<string, unknown> | null = null) {
     inArray: vi.fn((...args: unknown[]) => ({ type: "inArray", args })),
   }));
   vi.doMock("next/cache", () => ({ revalidatePath: mockRevalidatePath }));
-  vi.doMock("@/utils/supabase/server", () => ({
-    createClient: vi.fn(async () => ({ auth: { getUser: mockGetUser } })),
+  vi.doMock("@/lib/auth", () => ({
+    requireAdmin: mockRequireAdmin,
   }));
 }
 
@@ -102,7 +102,7 @@ function setupMocks(db: Record<string, unknown> | null = null) {
 describe("aftercare/actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } });
+    mockRequireAdmin.mockResolvedValue({ id: "user-1", email: "admin@test.com" });
   });
 
   /* ---- getAftercareSections ---- */
@@ -110,7 +110,7 @@ describe("aftercare/actions", () => {
   describe("getAftercareSections", () => {
     it("throws when user is not authenticated", async () => {
       vi.resetModules();
-      mockGetUser.mockResolvedValue({ data: { user: null } });
+      mockRequireAdmin.mockRejectedValue(new Error("Not authenticated"));
       setupMocks();
       const { getAftercareSections } = await import("./actions");
       await expect(getAftercareSections()).rejects.toThrow("Not authenticated");
@@ -176,7 +176,7 @@ describe("aftercare/actions", () => {
   describe("getPolicies", () => {
     it("throws when user is not authenticated", async () => {
       vi.resetModules();
-      mockGetUser.mockResolvedValue({ data: { user: null } });
+      mockRequireAdmin.mockRejectedValue(new Error("Not authenticated"));
       setupMocks();
       const { getPolicies } = await import("./actions");
       await expect(getPolicies()).rejects.toThrow("Not authenticated");
@@ -222,7 +222,7 @@ describe("aftercare/actions", () => {
   describe("createAftercareSection", () => {
     it("throws when user is not authenticated", async () => {
       vi.resetModules();
-      mockGetUser.mockResolvedValue({ data: { user: null } });
+      mockRequireAdmin.mockRejectedValue(new Error("Not authenticated"));
       setupMocks();
       const { createAftercareSection } = await import("./actions");
       await expect(createAftercareSection({ title: "Test", dos: [], donts: [] })).rejects.toThrow(
@@ -295,7 +295,7 @@ describe("aftercare/actions", () => {
   describe("updateAftercareSection", () => {
     it("throws when user is not authenticated", async () => {
       vi.resetModules();
-      mockGetUser.mockResolvedValue({ data: { user: null } });
+      mockRequireAdmin.mockRejectedValue(new Error("Not authenticated"));
       setupMocks();
       const { updateAftercareSection } = await import("./actions");
       await expect(
@@ -344,7 +344,7 @@ describe("aftercare/actions", () => {
   describe("deleteAftercareSection", () => {
     it("throws when user is not authenticated", async () => {
       vi.resetModules();
-      mockGetUser.mockResolvedValue({ data: { user: null } });
+      mockRequireAdmin.mockRejectedValue(new Error("Not authenticated"));
       setupMocks();
       const { deleteAftercareSection } = await import("./actions");
       await expect(deleteAftercareSection(1)).rejects.toThrow("Not authenticated");
@@ -381,7 +381,7 @@ describe("aftercare/actions", () => {
   describe("createPolicy", () => {
     it("throws when user is not authenticated", async () => {
       vi.resetModules();
-      mockGetUser.mockResolvedValue({ data: { user: null } });
+      mockRequireAdmin.mockRejectedValue(new Error("Not authenticated"));
       setupMocks();
       const { createPolicy } = await import("./actions");
       await expect(createPolicy({ title: "Test Policy", content: "Content" })).rejects.toThrow(
@@ -428,7 +428,7 @@ describe("aftercare/actions", () => {
   describe("updatePolicy", () => {
     it("throws when user is not authenticated", async () => {
       vi.resetModules();
-      mockGetUser.mockResolvedValue({ data: { user: null } });
+      mockRequireAdmin.mockRejectedValue(new Error("Not authenticated"));
       setupMocks();
       const { updatePolicy } = await import("./actions");
       await expect(updatePolicy(1, { title: "T", content: "C" })).rejects.toThrow(
@@ -473,7 +473,7 @@ describe("aftercare/actions", () => {
   describe("deletePolicy", () => {
     it("throws when user is not authenticated", async () => {
       vi.resetModules();
-      mockGetUser.mockResolvedValue({ data: { user: null } });
+      mockRequireAdmin.mockRejectedValue(new Error("Not authenticated"));
       setupMocks();
       const { deletePolicy } = await import("./actions");
       await expect(deletePolicy(1)).rejects.toThrow("Not authenticated");
@@ -510,7 +510,7 @@ describe("aftercare/actions", () => {
   describe("seedAftercareDefaults", () => {
     it("throws when user is not authenticated", async () => {
       vi.resetModules();
-      mockGetUser.mockResolvedValue({ data: { user: null } });
+      mockRequireAdmin.mockRejectedValue(new Error("Not authenticated"));
       setupMocks();
       const { seedAftercareDefaults } = await import("./actions");
       await expect(seedAftercareDefaults()).rejects.toThrow("Not authenticated");

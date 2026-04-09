@@ -48,7 +48,7 @@ import {
   profiles,
 } from "@/db/schema";
 import { EnrollmentConfirmation } from "@/emails/EnrollmentConfirmation";
-import { getUser } from "@/lib/auth";
+import { getUser, requireAdmin } from "@/lib/auth";
 import { sendEmail, getEmailRecipient } from "@/lib/resend";
 import type {
   ProgramType,
@@ -160,7 +160,7 @@ function slugify(title: string): string {
  */
 export async function getPrograms(): Promise<ProgramRow[]> {
   try {
-    await getUser();
+    await requireAdmin();
 
     // Promise.all runs three independent queries in parallel — programs, session
     // counts, and waitlist status have no data dependency, so wall-clock time
@@ -234,7 +234,7 @@ export async function getPrograms(): Promise<ProgramRow[]> {
  */
 export async function getStudents(): Promise<StudentRow[]> {
   try {
-    await getUser();
+    await requireAdmin();
 
     // Promise.all fires five independent queries in parallel — enrollments,
     // session counts, certificates, all sessions, and attendance records share
@@ -415,7 +415,7 @@ export async function getStudents(): Promise<StudentRow[]> {
  */
 export async function getTrainingStats(): Promise<TrainingStats> {
   try {
-    await getUser();
+    await requireAdmin();
 
     // Destructuring the first element from each query result — both queries
     // return a single-row aggregate. Promise.all runs them in parallel since
@@ -446,7 +446,7 @@ export async function getTrainingStats(): Promise<TrainingStats> {
 /** Fetch all client profiles for the "Enroll Student" dropdown. */
 export async function getClients(): Promise<ClientOption[]> {
   try {
-    await getUser();
+    await requireAdmin();
 
     const rows = await db
       .select({
@@ -500,7 +500,7 @@ const ProgramFormSchema = z.object({
 export async function createProgram(form: ProgramFormData) {
   try {
     ProgramFormSchema.parse(form);
-    await getUser();
+    await requireAdmin();
 
     const [program] = await db
       .insert(trainingPrograms)
@@ -548,7 +548,7 @@ export async function updateProgram(id: number, form: ProgramFormData) {
   try {
     z.number().int().positive().parse(id);
     ProgramFormSchema.parse(form);
-    await getUser();
+    await requireAdmin();
 
     await db
       .update(trainingPrograms)
@@ -585,7 +585,7 @@ export async function updateProgram(id: number, form: ProgramFormData) {
 export async function deleteProgram(id: number): Promise<{ error?: string }> {
   try {
     z.number().int().positive().parse(id);
-    await getUser();
+    await requireAdmin();
 
     // Check for active enrollments
     const [{ count }] = await db
@@ -620,7 +620,7 @@ export async function deleteProgram(id: number): Promise<{ error?: string }> {
 export async function toggleWaitlist(programId: number) {
   try {
     z.number().int().positive().parse(programId);
-    await getUser();
+    await requireAdmin();
 
     // Get current state from any scheduled session
     const [current] = await db
@@ -672,7 +672,7 @@ const EnrollmentFormSchema = z.object({
 export async function createEnrollment(form: EnrollmentFormData) {
   try {
     EnrollmentFormSchema.parse(form);
-    await getUser();
+    await requireAdmin();
 
     await db.insert(enrollments).values({
       clientId: form.clientId,
@@ -733,7 +733,7 @@ export async function createEnrollment(form: EnrollmentFormData) {
 export async function deleteEnrollment(id: number) {
   try {
     z.number().int().positive().parse(id);
-    await getUser();
+    await requireAdmin();
     await db.delete(enrollments).where(eq(enrollments.id, id));
     revalidatePath(PATH);
     revalidatePath("/dashboard/team");

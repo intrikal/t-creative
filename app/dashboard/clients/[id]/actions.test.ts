@@ -37,8 +37,8 @@ function makeChain(rows: unknown[] = []) {
 /* ------------------------------------------------------------------ */
 
 // vi.fn(): creates a mock function that records how it was called.
-// mockGetUser simulates Supabase auth -- tests set its return value to control authentication state.
-const mockGetUser = vi.fn();
+// mockRequireAdmin simulates the requireAdmin auth guard -- tests set its return value to control authentication state.
+const mockRequireAdmin = vi.fn();
 const mockRevalidatePath = vi.fn();
 
 /* ------------------------------------------------------------------ */
@@ -142,6 +142,15 @@ function setupMocks(db: Record<string, any> | null = null) {
       lastMessageAt: "lastMessageAt",
     },
     messages: { id: "id", threadId: "threadId" },
+    clientNotes: {
+      id: "id",
+      profileId: "profileId",
+      type: "type",
+      content: "content",
+      isPinned: "isPinned",
+      authorId: "authorId",
+      createdAt: "createdAt",
+    },
     formSubmissions: {
       id: "id",
       clientId: "clientId",
@@ -175,10 +184,8 @@ function setupMocks(db: Record<string, any> | null = null) {
     })),
   }));
   vi.doMock("next/cache", () => ({ revalidatePath: mockRevalidatePath }));
-  vi.doMock("@/utils/supabase/server", () => ({
-    createClient: vi.fn(async () => ({
-      auth: { getUser: mockGetUser },
-    })),
+  vi.doMock("@/lib/auth", () => ({
+    requireAdmin: mockRequireAdmin,
   }));
   vi.doMock("@sentry/nextjs", () => ({ captureException: vi.fn() }));
 }
@@ -190,12 +197,12 @@ function setupMocks(db: Record<string, any> | null = null) {
 describe("getClientDetail", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } });
+    mockRequireAdmin.mockResolvedValue({ id: "user-1", email: "admin@test.com" });
   });
 
   it("throws when user is not authenticated", async () => {
     vi.resetModules();
-    mockGetUser.mockResolvedValue({ data: { user: null } });
+    mockRequireAdmin.mockRejectedValue(new Error("Not authenticated"));
     setupMocks();
     const { getClientDetail } = await import("./actions");
     await expect(getClientDetail("c1")).rejects.toThrow();

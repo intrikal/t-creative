@@ -36,8 +36,10 @@ function makeChain(rows: unknown[] = []) {
 /* ------------------------------------------------------------------ */
 
 // vi.fn(): creates a mock function that records how it was called.
-// mockGetUser simulates Supabase auth -- tests set its return value to control authentication state.
+// mockGetUser simulates getUser() from @/lib/auth — used by getAssistantClients.
 const mockGetUser = vi.fn();
+// mockRequireAdmin simulates requireAdmin() from @/lib/auth — used by all admin-only actions.
+const mockRequireAdmin = vi.fn();
 // Captures PostHog analytics events so tests verify correct tracking without hitting the real API.
 const mockTrackEvent = vi.fn();
 // Captures audit log writes for verifying create/update/delete actions are tracked.
@@ -144,8 +146,9 @@ function setupMocks(db: Record<string, unknown> | null = null) {
     })),
   }));
   vi.doMock("next/cache", () => ({ revalidatePath: mockRevalidatePath }));
-  vi.doMock("@/utils/supabase/server", () => ({
-    createClient: vi.fn(async () => ({ auth: { getUser: mockGetUser } })),
+  vi.doMock("@/lib/auth", () => ({
+    getUser: mockGetUser,
+    requireAdmin: mockRequireAdmin,
   }));
   vi.doMock("@/lib/posthog", () => ({ trackEvent: mockTrackEvent }));
   vi.doMock("@/lib/audit", () => ({ logAction: mockLogAction }));
@@ -158,7 +161,8 @@ function setupMocks(db: Record<string, unknown> | null = null) {
 describe("clients/actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } });
+    mockRequireAdmin.mockResolvedValue({ id: "user-1", email: "admin@test.com" });
+    mockGetUser.mockResolvedValue({ id: "user-1", email: "admin@test.com" });
   });
 
   /* ---- getClients ---- */
@@ -166,7 +170,7 @@ describe("clients/actions", () => {
   describe("getClients", () => {
     it("throws when user is not authenticated", async () => {
       vi.resetModules();
-      mockGetUser.mockResolvedValue({ data: { user: null } });
+      mockRequireAdmin.mockRejectedValue(new Error("Not authenticated"));
       setupMocks();
       const { getClients } = await import("./actions");
       await expect(getClients()).rejects.toThrow("Not authenticated");
@@ -244,7 +248,7 @@ describe("clients/actions", () => {
   describe("getClientLoyalty", () => {
     it("throws when user is not authenticated", async () => {
       vi.resetModules();
-      mockGetUser.mockResolvedValue({ data: { user: null } });
+      mockRequireAdmin.mockRejectedValue(new Error("Not authenticated"));
       setupMocks();
       const { getClientLoyalty } = await import("./actions");
       await expect(getClientLoyalty()).rejects.toThrow("Not authenticated");
@@ -287,7 +291,7 @@ describe("clients/actions", () => {
   describe("createClient", () => {
     it("throws when user is not authenticated", async () => {
       vi.resetModules();
-      mockGetUser.mockResolvedValue({ data: { user: null } });
+      mockRequireAdmin.mockRejectedValue(new Error("Not authenticated"));
       setupMocks();
       const { createClient } = await import("./actions");
       await expect(
@@ -362,7 +366,7 @@ describe("clients/actions", () => {
   describe("updateClient", () => {
     it("throws when user is not authenticated", async () => {
       vi.resetModules();
-      mockGetUser.mockResolvedValue({ data: { user: null } });
+      mockRequireAdmin.mockRejectedValue(new Error("Not authenticated"));
       setupMocks();
       const { updateClient } = await import("./actions");
       await expect(
@@ -419,7 +423,7 @@ describe("clients/actions", () => {
   describe("deleteClient", () => {
     it("throws when user is not authenticated", async () => {
       vi.resetModules();
-      mockGetUser.mockResolvedValue({ data: { user: null } });
+      mockRequireAdmin.mockRejectedValue(new Error("Not authenticated"));
       setupMocks();
       const { deleteClient } = await import("./actions");
       await expect(deleteClient("c-1")).rejects.toThrow("Not authenticated");
@@ -468,7 +472,7 @@ describe("clients/actions", () => {
   describe("issueLoyaltyReward", () => {
     it("throws when user is not authenticated", async () => {
       vi.resetModules();
-      mockGetUser.mockResolvedValue({ data: { user: null } });
+      mockRequireAdmin.mockRejectedValue(new Error("Not authenticated"));
       setupMocks();
       const { issueLoyaltyReward } = await import("./actions");
       await expect(issueLoyaltyReward("p-1", 100, "Bonus")).rejects.toThrow("Not authenticated");
@@ -523,7 +527,7 @@ describe("clients/actions", () => {
   describe("getClientPreferences", () => {
     it("throws when user is not authenticated", async () => {
       vi.resetModules();
-      mockGetUser.mockResolvedValue({ data: { user: null } });
+      mockRequireAdmin.mockRejectedValue(new Error("Not authenticated"));
       setupMocks();
       const { getClientPreferences } = await import("./actions");
       await expect(getClientPreferences("p-1")).rejects.toThrow("Not authenticated");
@@ -578,7 +582,7 @@ describe("clients/actions", () => {
   describe("upsertClientPreferences", () => {
     it("throws when user is not authenticated", async () => {
       vi.resetModules();
-      mockGetUser.mockResolvedValue({ data: { user: null } });
+      mockRequireAdmin.mockRejectedValue(new Error("Not authenticated"));
       setupMocks();
       const { upsertClientPreferences } = await import("./actions");
       await expect(upsertClientPreferences({ profileId: "p-1" })).rejects.toThrow(
@@ -625,7 +629,7 @@ describe("clients/actions", () => {
   describe("getAssistantClients", () => {
     it("throws when user is not authenticated", async () => {
       vi.resetModules();
-      mockGetUser.mockResolvedValue({ data: { user: null } });
+      mockGetUser.mockRejectedValue(new Error("Not authenticated"));
       setupMocks();
       const { getAssistantClients } = await import("./actions");
       await expect(getAssistantClients()).rejects.toThrow("Not authenticated");

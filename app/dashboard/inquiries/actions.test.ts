@@ -35,8 +35,8 @@ function makeChain(rows: unknown[] = []) {
 /*  Shared mock refs                                                   */
 /* ------------------------------------------------------------------ */
 
-/** Stub for supabase auth.getUser. */
-const mockGetUser = vi.fn();
+/** Stub for requireAdmin from @/lib/auth. */
+const mockRequireAdmin = vi.fn();
 /** Captures PostHog trackEvent calls. */
 const mockTrackEvent = vi.fn();
 /** Captures Resend sendEmail calls; resolves to true by default. */
@@ -98,9 +98,7 @@ function setupMocks(db: Record<string, unknown> | null = null) {
     and: vi.fn((...args: unknown[]) => ({ type: "and", args })),
   }));
   vi.doMock("next/cache", () => ({ revalidatePath: mockRevalidatePath }));
-  vi.doMock("@/utils/supabase/server", () => ({
-    createClient: vi.fn(async () => ({ auth: { getUser: mockGetUser } })),
-  }));
+  vi.doMock("@/lib/auth", () => ({ requireAdmin: mockRequireAdmin }));
   vi.doMock("@/lib/posthog", () => ({ trackEvent: mockTrackEvent }));
   vi.doMock("@/lib/resend", () => ({ sendEmail: mockSendEmail }));
   vi.doMock("@/emails/InquiryReply", () => ({ InquiryReply: vi.fn(() => null) }));
@@ -114,7 +112,7 @@ function setupMocks(db: Record<string, unknown> | null = null) {
 describe("inquiries/actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } });
+    mockRequireAdmin.mockResolvedValue({ id: "user-1", email: "test@example.com" });
   });
 
   /* ---- getInquiries ---- */
@@ -122,7 +120,7 @@ describe("inquiries/actions", () => {
   describe("getInquiries", () => {
     it("throws when user is not authenticated", async () => {
       vi.resetModules();
-      mockGetUser.mockResolvedValue({ data: { user: null } });
+      mockRequireAdmin.mockRejectedValue(new Error("Not authenticated"));
       setupMocks();
       const { getInquiries } = await import("./actions");
       await expect(getInquiries()).rejects.toThrow("Not authenticated");
@@ -206,7 +204,7 @@ describe("inquiries/actions", () => {
   describe("getProductInquiries", () => {
     it("throws when user is not authenticated", async () => {
       vi.resetModules();
-      mockGetUser.mockResolvedValue({ data: { user: null } });
+      mockRequireAdmin.mockRejectedValue(new Error("Not authenticated"));
       setupMocks();
       const { getProductInquiries } = await import("./actions");
       await expect(getProductInquiries()).rejects.toThrow("Not authenticated");
@@ -262,7 +260,7 @@ describe("inquiries/actions", () => {
   describe("updateInquiryStatus", () => {
     it("throws when user is not authenticated", async () => {
       vi.resetModules();
-      mockGetUser.mockResolvedValue({ data: { user: null } });
+      mockRequireAdmin.mockRejectedValue(new Error("Not authenticated"));
       setupMocks();
       const { updateInquiryStatus } = await import("./actions");
       await expect(updateInquiryStatus(1, "read")).rejects.toThrow("Not authenticated");
@@ -298,7 +296,7 @@ describe("inquiries/actions", () => {
   describe("replyToInquiry", () => {
     it("throws when user is not authenticated", async () => {
       vi.resetModules();
-      mockGetUser.mockResolvedValue({ data: { user: null } });
+      mockRequireAdmin.mockRejectedValue(new Error("Not authenticated"));
       setupMocks();
       const { replyToInquiry } = await import("./actions");
       await expect(replyToInquiry(1, "Thanks")).rejects.toThrow("Not authenticated");
@@ -401,7 +399,7 @@ describe("inquiries/actions", () => {
   describe("deleteInquiry", () => {
     it("throws when user is not authenticated", async () => {
       vi.resetModules();
-      mockGetUser.mockResolvedValue({ data: { user: null } });
+      mockRequireAdmin.mockRejectedValue(new Error("Not authenticated"));
       setupMocks();
       const { deleteInquiry } = await import("./actions");
       await expect(deleteInquiry(1)).rejects.toThrow("Not authenticated");
@@ -437,7 +435,7 @@ describe("inquiries/actions", () => {
   describe("updateProductInquiryStatus", () => {
     it("throws when user is not authenticated", async () => {
       vi.resetModules();
-      mockGetUser.mockResolvedValue({ data: { user: null } });
+      mockRequireAdmin.mockRejectedValue(new Error("Not authenticated"));
       setupMocks();
       const { updateProductInquiryStatus } = await import("./actions");
       await expect(updateProductInquiryStatus(1, "contacted")).rejects.toThrow("Not authenticated");
@@ -511,7 +509,7 @@ describe("inquiries/actions", () => {
   describe("sendProductQuote", () => {
     it("throws when user is not authenticated", async () => {
       vi.resetModules();
-      mockGetUser.mockResolvedValue({ data: { user: null } });
+      mockRequireAdmin.mockRejectedValue(new Error("Not authenticated"));
       setupMocks();
       const { sendProductQuote } = await import("./actions");
       await expect(sendProductQuote(1, 5000)).rejects.toThrow("Not authenticated");
@@ -623,7 +621,7 @@ describe("inquiries/actions", () => {
   describe("deleteProductInquiry", () => {
     it("throws when user is not authenticated", async () => {
       vi.resetModules();
-      mockGetUser.mockResolvedValue({ data: { user: null } });
+      mockRequireAdmin.mockRejectedValue(new Error("Not authenticated"));
       setupMocks();
       const { deleteProductInquiry } = await import("./actions");
       await expect(deleteProductInquiry(1)).rejects.toThrow("Not authenticated");

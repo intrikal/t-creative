@@ -35,8 +35,8 @@ function makeChain(rows: unknown[] = []) {
 /*  Shared mock refs                                                   */
 /* ------------------------------------------------------------------ */
 
-/** Stub for supabase auth.getUser. */
-const mockGetUser = vi.fn();
+/** Stub for requireAdmin from @/lib/auth. */
+const mockRequireAdmin = vi.fn();
 /** Captures revalidatePath calls. */
 const mockRevalidatePath = vi.fn();
 
@@ -90,9 +90,7 @@ function setupMocks(db: Record<string, unknown> | null = null) {
     ),
   }));
   vi.doMock("next/cache", () => ({ revalidatePath: mockRevalidatePath }));
-  vi.doMock("@/utils/supabase/server", () => ({
-    createClient: vi.fn(async () => ({ auth: { getUser: mockGetUser } })),
-  }));
+  vi.doMock("@/lib/auth", () => ({ requireAdmin: mockRequireAdmin }));
 }
 
 /* ------------------------------------------------------------------ */
@@ -102,7 +100,7 @@ function setupMocks(db: Record<string, unknown> | null = null) {
 describe("subscriptions/actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } });
+    mockRequireAdmin.mockResolvedValue({ id: "user-1", email: "admin@example.com" });
   });
 
   /* ---- getSubscriptions ---- */
@@ -110,7 +108,7 @@ describe("subscriptions/actions", () => {
   describe("getSubscriptions", () => {
     it("throws when user is not authenticated", async () => {
       vi.resetModules();
-      mockGetUser.mockResolvedValue({ data: { user: null } });
+      mockRequireAdmin.mockRejectedValue(new Error("Not authenticated"));
       setupMocks();
       const { getSubscriptions } = await import("./actions");
       await expect(getSubscriptions()).rejects.toThrow("Not authenticated");
@@ -223,7 +221,7 @@ describe("subscriptions/actions", () => {
   describe("getActiveSubscriptionsForClient", () => {
     it("throws when user is not authenticated", async () => {
       vi.resetModules();
-      mockGetUser.mockResolvedValue({ data: { user: null } });
+      mockRequireAdmin.mockRejectedValue(new Error("Not authenticated"));
       setupMocks();
       const { getActiveSubscriptionsForClient } = await import("./actions");
       await expect(getActiveSubscriptionsForClient("client-1")).rejects.toThrow(
@@ -294,7 +292,7 @@ describe("subscriptions/actions", () => {
 
     it("throws when user is not authenticated", async () => {
       vi.resetModules();
-      mockGetUser.mockResolvedValue({ data: { user: null } });
+      mockRequireAdmin.mockRejectedValue(new Error("Not authenticated"));
       setupMocks();
       const { createSubscription } = await import("./actions");
       await expect(createSubscription(input)).rejects.toThrow("Not authenticated");
@@ -379,7 +377,7 @@ describe("subscriptions/actions", () => {
   describe("updateSubscriptionStatus", () => {
     it("throws when user is not authenticated", async () => {
       vi.resetModules();
-      mockGetUser.mockResolvedValue({ data: { user: null } });
+      mockRequireAdmin.mockRejectedValue(new Error("Not authenticated"));
       setupMocks();
       const { updateSubscriptionStatus } = await import("./actions");
       await expect(updateSubscriptionStatus(1, "paused")).rejects.toThrow("Not authenticated");
@@ -435,7 +433,7 @@ describe("subscriptions/actions", () => {
   describe("updateSubscriptionNotes", () => {
     it("throws when user is not authenticated", async () => {
       vi.resetModules();
-      mockGetUser.mockResolvedValue({ data: { user: null } });
+      mockRequireAdmin.mockRejectedValue(new Error("Not authenticated"));
       setupMocks();
       const { updateSubscriptionNotes } = await import("./actions");
       await expect(updateSubscriptionNotes(1, "new notes")).rejects.toThrow("Not authenticated");

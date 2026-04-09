@@ -36,6 +36,8 @@ function makeChain(rows: unknown[] = []) {
 // vi.fn(): creates a mock function that records how it was called.
 // mockGetUser simulates Supabase auth -- tests set its return value to control authentication state.
 const mockGetUser = vi.fn();
+// mockRequireAdmin simulates the lib/auth requireAdmin() guard for admin-only actions.
+const mockRequireAdmin = vi.fn();
 const mockRevalidatePath = vi.fn();
 // Captures email sends so tests can verify enrollment confirmation emails are triggered.
 const mockSendEmail = vi.fn().mockResolvedValue(undefined);
@@ -145,9 +147,13 @@ function setupMocks(db: Record<string, unknown> | null = null) {
     gte: vi.fn((...args: unknown[]) => ({ type: "gte", args })),
     inArray: vi.fn((...args: unknown[]) => ({ type: "inArray", args })),
   }));
-  vi.doMock("next/cache", () => ({ revalidatePath: mockRevalidatePath }));
+  vi.doMock("next/cache", () => ({ revalidatePath: mockRevalidatePath, updateTag: vi.fn() }));
   vi.doMock("@/utils/supabase/server", () => ({
     createClient: vi.fn(async () => ({ auth: { getUser: mockGetUser } })),
+  }));
+  vi.doMock("@/lib/auth", () => ({
+    getUser: mockGetUser,
+    requireAdmin: mockRequireAdmin,
   }));
   vi.doMock("@/lib/resend", () => ({
     sendEmail: mockSendEmail,
@@ -165,7 +171,8 @@ function setupMocks(db: Record<string, unknown> | null = null) {
 describe("training/actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } });
+    mockGetUser.mockResolvedValue({ id: "user-1", email: "test@test.com" });
+    mockRequireAdmin.mockResolvedValue({ id: "user-1", email: "test@test.com" });
     mockGetEmailRecipient.mockResolvedValue(null);
   });
 
@@ -174,7 +181,7 @@ describe("training/actions", () => {
   describe("getPrograms", () => {
     it("throws when user is not authenticated", async () => {
       vi.resetModules();
-      mockGetUser.mockResolvedValue({ data: { user: null } });
+      mockRequireAdmin.mockRejectedValue(new Error("Not authenticated"));
       setupMocks();
       const { getPrograms } = await import("./actions");
       await expect(getPrograms()).rejects.toThrow("Not authenticated");
@@ -274,7 +281,7 @@ describe("training/actions", () => {
   describe("createProgram", () => {
     it("throws when user is not authenticated", async () => {
       vi.resetModules();
-      mockGetUser.mockResolvedValue({ data: { user: null } });
+      mockRequireAdmin.mockRejectedValue(new Error("Not authenticated"));
       setupMocks();
       const { createProgram } = await import("./actions");
       await expect(
@@ -389,7 +396,7 @@ describe("training/actions", () => {
         waitlistOpen: false,
       });
       expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/training");
-      expect(mockRevalidatePath).toHaveBeenCalledWith("/training");
+      expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/team");
     });
   });
 
@@ -398,7 +405,7 @@ describe("training/actions", () => {
   describe("updateProgram", () => {
     it("throws when user is not authenticated", async () => {
       vi.resetModules();
-      mockGetUser.mockResolvedValue({ data: { user: null } });
+      mockRequireAdmin.mockRejectedValue(new Error("Not authenticated"));
       setupMocks();
       const { updateProgram } = await import("./actions");
       await expect(
@@ -489,7 +496,7 @@ describe("training/actions", () => {
         waitlistOpen: false,
       });
       expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/training");
-      expect(mockRevalidatePath).toHaveBeenCalledWith("/training");
+      expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/team");
     });
   });
 
@@ -498,7 +505,7 @@ describe("training/actions", () => {
   describe("deleteProgram", () => {
     it("throws when user is not authenticated", async () => {
       vi.resetModules();
-      mockGetUser.mockResolvedValue({ data: { user: null } });
+      mockRequireAdmin.mockRejectedValue(new Error("Not authenticated"));
       setupMocks();
       const { deleteProgram } = await import("./actions");
       await expect(deleteProgram(1)).rejects.toThrow("Not authenticated");
@@ -550,7 +557,7 @@ describe("training/actions", () => {
       const { deleteProgram } = await import("./actions");
       await deleteProgram(1);
       expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/training");
-      expect(mockRevalidatePath).toHaveBeenCalledWith("/training");
+      expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/team");
     });
   });
 
@@ -559,7 +566,7 @@ describe("training/actions", () => {
   describe("createEnrollment", () => {
     it("throws when user is not authenticated", async () => {
       vi.resetModules();
-      mockGetUser.mockResolvedValue({ data: { user: null } });
+      mockRequireAdmin.mockRejectedValue(new Error("Not authenticated"));
       setupMocks();
       const { createEnrollment } = await import("./actions");
       await expect(
@@ -658,7 +665,7 @@ describe("training/actions", () => {
       const { createEnrollment } = await import("./actions");
       await createEnrollment({ clientId: "c1", programId: 1, status: "active", amountPaid: 0 });
       expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/training");
-      expect(mockRevalidatePath).toHaveBeenCalledWith("/training");
+      expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/team");
     });
   });
 
@@ -667,7 +674,7 @@ describe("training/actions", () => {
   describe("deleteEnrollment", () => {
     it("throws when user is not authenticated", async () => {
       vi.resetModules();
-      mockGetUser.mockResolvedValue({ data: { user: null } });
+      mockRequireAdmin.mockRejectedValue(new Error("Not authenticated"));
       setupMocks();
       const { deleteEnrollment } = await import("./actions");
       await expect(deleteEnrollment(1)).rejects.toThrow("Not authenticated");
@@ -695,7 +702,7 @@ describe("training/actions", () => {
       const { deleteEnrollment } = await import("./actions");
       await deleteEnrollment(1);
       expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/training");
-      expect(mockRevalidatePath).toHaveBeenCalledWith("/training");
+      expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/team");
     });
   });
 
@@ -704,7 +711,7 @@ describe("training/actions", () => {
   describe("toggleWaitlist", () => {
     it("throws when user is not authenticated", async () => {
       vi.resetModules();
-      mockGetUser.mockResolvedValue({ data: { user: null } });
+      mockRequireAdmin.mockRejectedValue(new Error("Not authenticated"));
       setupMocks();
       const { toggleWaitlist } = await import("./actions");
       await expect(toggleWaitlist(1)).rejects.toThrow("Not authenticated");
@@ -766,7 +773,7 @@ describe("training/actions", () => {
       const { toggleWaitlist } = await import("./actions");
       await toggleWaitlist(1);
       expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/training");
-      expect(mockRevalidatePath).toHaveBeenCalledWith("/training");
+      expect(mockRevalidatePath).toHaveBeenCalledWith("/dashboard/team");
     });
   });
 });

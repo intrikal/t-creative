@@ -70,7 +70,7 @@ Full-stack operations platform for a multi-service creative studio in San Jose, 
 | CRM/Accounting   | Zoho CRM v7 (REST API via fetch)                       |
 | Analytics        | PostHog (posthog-js 1.354.3)                           |
 | Error Tracking   | Sentry (@sentry/nextjs 10.43.0)                        |
-| Bot Protection   | Cloudflare Turnstile (@marsidev/react-turnstile 1.4.2) |
+| Bot Protection   | Google reCAPTCHA v3                                    |
 | Styling          | Tailwind CSS 4                                         |
 | 3D Graphics      | Three.js 0.183.0, React Three Fiber 9.5.0, Drei 10.7.7 |
 | State Management | Zustand 5.0.11                                         |
@@ -176,12 +176,12 @@ components/                  Reusable UI components
   onboarding/                Multi-step onboarding flows (55 components)
   booking/                   Booking request components
   ui/                        Shared UI primitives
-db/schema/                   Drizzle ORM schema (57 tables)
-drizzle/                     Database migrations (26)
+db/schema/                   Drizzle ORM schema (74 tables)
+drizzle/                     Database migrations (51)
 emails/                      React Email templates (30)
 lib/                         Integrations and utilities
 stores/                      Zustand stores
-e2e/                         Playwright E2E tests (9 specs)
+e2e/                         Playwright E2E tests (21 specs)
 docs/                        Documentation
 ```
 

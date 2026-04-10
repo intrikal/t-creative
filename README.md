@@ -176,12 +176,12 @@ components/                  Reusable UI components
   onboarding/                Multi-step onboarding flows (55 components)
   booking/                   Booking request components
   ui/                        Shared UI primitives
-db/schema/                   Drizzle ORM schema (74 tables)
-drizzle/                     Database migrations (51)
+db/schema/                   Drizzle ORM schema (77 tables)
+drizzle/                     Database migrations (52)
 emails/                      React Email templates (30)
 lib/                         Integrations and utilities
 stores/                      Zustand stores
-e2e/                         Playwright E2E tests (21 specs)
+e2e/                         Playwright E2E tests (22 specs)
 docs/                        Documentation
 ```
 

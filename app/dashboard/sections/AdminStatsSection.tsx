@@ -7,14 +7,14 @@ import {
   MessageSquare,
   Package,
 } from "lucide-react";
-import { getAdminStatsAndAlerts } from "../admin-home-queries";
 import { formatDollars } from "../admin-dashboard-helpers";
-import { StatCard } from "../components/AdminStatCard";
-import { AdminAlertBanners } from "../components/AdminAlertBanners";
 import type { Trend } from "../admin-dashboard-types";
+import { getAdminStatsAndAlerts } from "../admin-home-queries";
+import { AdminAlertBanners } from "../components/AdminAlertBanners";
+import { StatCard } from "../components/AdminStatCard";
 
-export async function AdminStatsSection() {
-  const { stats, alerts, lowStockCount } = await getAdminStatsAndAlerts();
+export async function AdminStatsSection({ locationId }: { locationId?: number }) {
+  const { stats, alerts, lowStockCount } = await getAdminStatsAndAlerts(locationId);
 
   const revTodayDisplay = formatDollars(stats.revenueTodayCents);
   const revVsYesterday =
@@ -30,41 +30,66 @@ export async function AdminStatsSection() {
 
   const ALL_STATS = [
     {
-      label: "Revenue Today", value: revTodayDisplay, sub: revVsYesterday, trend: revTrend,
-      icon: TrendingUp, iconColor: "text-[#4e6b51]", iconBg: "bg-[#4e6b51]/10",
+      label: "Revenue Today",
+      value: revTodayDisplay,
+      sub: revVsYesterday,
+      trend: revTrend,
+      icon: TrendingUp,
+      iconColor: "text-[#4e6b51]",
+      iconBg: "bg-[#4e6b51]/10",
     },
     {
-      label: "Appointments", value: String(stats.appointmentsToday),
-      sub: `${stats.appointmentsRemaining} remaining today`, trend: "neutral" as Trend,
-      icon: CalendarDays, iconColor: "text-blush", iconBg: "bg-blush/10",
+      label: "Appointments",
+      value: String(stats.appointmentsToday),
+      sub: `${stats.appointmentsRemaining} remaining today`,
+      trend: "neutral" as Trend,
+      icon: CalendarDays,
+      iconColor: "text-blush",
+      iconBg: "bg-blush/10",
     },
     {
-      label: "Active Clients", value: String(stats.activeClientsThisMonth),
+      label: "Active Clients",
+      value: String(stats.activeClientsThisMonth),
       sub: `+${stats.newClientsThisWeek} this week`,
       trend: stats.newClientsThisWeek > 0 ? ("up" as Trend) : ("neutral" as Trend),
-      icon: Users, iconColor: "text-accent", iconBg: "bg-accent/10",
+      icon: Users,
+      iconColor: "text-accent",
+      iconBg: "bg-accent/10",
     },
     {
-      label: "Waitlist", value: String(stats.waitlistTotal),
-      sub: `${stats.waitlistNotContacted} not contacted`, trend: "neutral" as Trend,
-      icon: ListOrdered, iconColor: "text-[#7a5c10]", iconBg: "bg-[#7a5c10]/10",
+      label: "Waitlist",
+      value: String(stats.waitlistTotal),
+      sub: `${stats.waitlistNotContacted} not contacted`,
+      trend: "neutral" as Trend,
+      icon: ListOrdered,
+      iconColor: "text-[#7a5c10]",
+      iconBg: "bg-[#7a5c10]/10",
     },
     {
-      label: "Outstanding", value: formatDollars(stats.outstandingCents),
+      label: "Outstanding",
+      value: formatDollars(stats.outstandingCents),
       sub: `${stats.unpaidInvoiceCount} unpaid invoice${stats.unpaidInvoiceCount !== 1 ? "s" : ""}`,
       trend: stats.outstandingCents > 0 ? ("down" as Trend) : ("neutral" as Trend),
-      icon: DollarSign, iconColor: "text-destructive", iconBg: "bg-destructive/10",
+      icon: DollarSign,
+      iconColor: "text-destructive",
+      iconBg: "bg-destructive/10",
     },
     {
-      label: "Open Inquiries", value: String(stats.openInquiries),
-      sub: `${stats.newInquiriesToday} new today`, trend: "neutral" as Trend,
-      icon: MessageSquare, iconColor: "text-[#5b8a8a]", iconBg: "bg-[#5b8a8a]/10",
+      label: "Open Inquiries",
+      value: String(stats.openInquiries),
+      sub: `${stats.newInquiriesToday} new today`,
+      trend: "neutral" as Trend,
+      icon: MessageSquare,
+      iconColor: "text-[#5b8a8a]",
+      iconBg: "bg-[#5b8a8a]/10",
     },
     {
-      label: "Low Stock", value: String(lowStockCount),
-      sub: stats.lowStockSupplies > 0
-        ? `${stats.lowStockSupplies} supply item${stats.lowStockSupplies !== 1 ? "s" : ""} below reorder`
-        : "all stocked",
+      label: "Low Stock",
+      value: String(lowStockCount),
+      sub:
+        stats.lowStockSupplies > 0
+          ? `${stats.lowStockSupplies} supply item${stats.lowStockSupplies !== 1 ? "s" : ""} below reorder`
+          : "all stocked",
       trend: lowStockCount > 0 ? ("down" as Trend) : ("neutral" as Trend),
       icon: Package,
       iconColor: lowStockCount > 0 ? "text-[#7a5c10]" : "text-muted",

@@ -24,7 +24,11 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export default async function Page() {
+export default async function Page({
+  searchParams,
+}: {
+  searchParams: Promise<{ location?: string }>;
+}) {
   const currentUser = await getCurrentUser();
   if (!currentUser) redirect("/login");
 
@@ -51,6 +55,8 @@ export default async function Page() {
   // ── Admin home — Suspense streaming ───────────────────────────────
   // Header data is fast (cached getCurrentUser + getAdminSetupData).
   // Each data section streams independently as its queries resolve.
+  const params = await searchParams;
+  const locationId = params.location ? Number(params.location) : undefined;
   const setupData = await getAdminSetupData(currentUser.id);
 
   function toSlug(name: string) {
@@ -68,14 +74,14 @@ export default async function Page() {
       {/* Setup banner + Stats + alerts (1 boundary — fast cached data + aggregate queries) */}
       <Suspense fallback={<StatsSkeletonFallback />}>
         <AdminSetupSection />
-        <AdminStatsSection />
+        <AdminStatsSection locationId={locationId} />
       </Suspense>
 
       {/* Schedule, Inquiries, Time-off, Revenue (1 boundary — mid-page data) */}
       <Suspense fallback={<ScheduleInquiriesSkeletonFallback />}>
         <div className="space-y-4">
           <div className="grid grid-cols-1 xl:grid-cols-5 gap-3">
-            <AdminScheduleSection />
+            <AdminScheduleSection locationId={locationId} />
             <AdminInquiriesSection />
           </div>
           <AdminTimeOffSection />

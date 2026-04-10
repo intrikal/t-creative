@@ -24,7 +24,11 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export default async function Page() {
+export default async function Page({
+  searchParams,
+}: {
+  searchParams: Promise<{ location?: string }>;
+}) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
@@ -61,8 +65,11 @@ export default async function Page() {
     import("./sections/MembershipsSection"),
   ]);
 
+  const params = await searchParams;
+  const locationId = params.location ? Number(params.location) : undefined;
+
   const [bookingsResult, serviceOptions, staffOptions, allSubscriptions] = await Promise.all([
-    getBookings(),
+    getBookings(locationId ? { locationId } : undefined),
     getServicesForSelect(),
     getStaffForSelect(),
     getSubscriptions("active"),

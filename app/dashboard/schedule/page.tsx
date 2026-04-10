@@ -10,10 +10,17 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export default async function Page() {
+export default async function Page({
+  searchParams,
+}: {
+  searchParams: Promise<{ location?: string }>;
+}) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   if (user.profile?.role === "client") redirect("/dashboard");
+
+  const params = await searchParams;
+  const locationId = params.location ? Number(params.location) : undefined;
 
   if (user.profile?.role === "assistant") {
     const [{ getAssistantBookings }, { getAssistantEvents }] = await Promise.all([
@@ -22,7 +29,7 @@ export default async function Page() {
     ]);
 
     const [scheduleData, bookingsData, eventsData] = await Promise.all([
-      getScheduleData(),
+      getScheduleData(locationId),
       getAssistantBookings(),
       getAssistantEvents(),
     ]);
@@ -40,7 +47,7 @@ export default async function Page() {
     );
   }
 
-  const { appointments, stats, todayKey } = await getScheduleData();
+  const { appointments, stats, todayKey } = await getScheduleData(locationId);
   return (
     <AssistantSchedulePage initialAppointments={appointments} stats={stats} todayKey={todayKey} />
   );

@@ -40,6 +40,7 @@ export default async function Page() {
     { SettingsPage },
     { getLegalDoc, seedLegalDefaults },
     { getWebhookEvents },
+    { getAllLocations },
   ] = await Promise.all([
     import("./hours-actions"),
     import("./service-categories-actions"),
@@ -47,6 +48,7 @@ export default async function Page() {
     import("./SettingsPage"),
     import("../legal/actions"),
     import("./webhook-actions"),
+    import("../location-actions"),
   ]);
 
   const seeded = seedLegalDefaults();
@@ -64,6 +66,7 @@ export default async function Page() {
     lastSuccess,
     failures,
     initialWebhookEvents,
+    initialLocations,
   ] = await Promise.all([
     getBusinessHours(),
     getTimeOff(),
@@ -77,6 +80,7 @@ export default async function Page() {
     redis.get<string>("webhook:last_success"),
     redis.get<number>("webhook:sig_failures"),
     getWebhookEvents(),
+    getAllLocations(),
   ]);
   const failureCount = Number(failures ?? 0);
   const webhookHealth: WebhookHealth = {
@@ -87,6 +91,7 @@ export default async function Page() {
 
   return (
     <SettingsPage
+      initialLocations={initialLocations}
       initialHours={initialHours}
       initialTimeOff={initialTimeOff}
       initialLunchBreak={initialLunchBreak}

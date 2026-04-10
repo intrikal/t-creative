@@ -23,6 +23,7 @@ import {
   sql,
   sum,
 } from "drizzle-orm";
+import type { SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
 import {
@@ -106,41 +107,44 @@ function dateBounds() {
 /*  1. Stats + Alerts                                                   */
 /* ------------------------------------------------------------------ */
 
-export const getAdminStatsAndAlerts = cache(async () => {
+export const getAdminStatsAndAlerts = cache(async (locationId?: number) => {
   const { todayStart, todayEnd, yesterdayStart, yesterdayEnd, weekStart, monthStart, now } =
     dateBounds();
 
   const invoiceClientP = alias(profiles, "invoiceClientP");
 
+  // Location-scoped condition builders
+  const locBooking: SQL[] = locationId ? [eq(bookings.locationId, locationId)] : [];
+
+  function paymentQuery(start: Date, end: Date) {
+    const base = db
+      .select({ total: sql<number>`coalesce(sum(${payments.amountInCents}), 0)` })
+      .from(payments);
+    const conds: SQL[] = [
+      eq(payments.status, "paid") as unknown as SQL,
+      gte(payments.paidAt, start) as unknown as SQL,
+      lte(payments.paidAt, end) as unknown as SQL,
+    ];
+    if (locationId) {
+      return base
+        .innerJoin(bookings, eq(payments.bookingId, bookings.id))
+        .where(and(...conds, eq(bookings.locationId, locationId)))
+        .then((r) => r[0]);
+    }
+    return base.where(and(...conds)).then((r) => r[0]);
+  }
+
   // Batch 1a — revenue + bookings (4 queries, max 4 connections)
   const [revTodayRow, revYesterdayRow, activeClientsMonthRow, remainingTodayRow] =
     await Promise.all([
-      db
-        .select({ total: sql<number>`coalesce(sum(${payments.amountInCents}), 0)` })
-        .from(payments)
-        .where(
-          and(
-            eq(payments.status, "paid"),
-            gte(payments.paidAt, todayStart),
-            lte(payments.paidAt, todayEnd),
-          ),
-        )
-        .then((r) => r[0]),
-      db
-        .select({ total: sql<number>`coalesce(sum(${payments.amountInCents}), 0)` })
-        .from(payments)
-        .where(
-          and(
-            eq(payments.status, "paid"),
-            gte(payments.paidAt, yesterdayStart),
-            lte(payments.paidAt, yesterdayEnd),
-          ),
-        )
-        .then((r) => r[0]),
+      paymentQuery(todayStart, todayEnd),
+      paymentQuery(yesterdayStart, yesterdayEnd),
       db
         .select({ count: countDistinct(bookings.clientId) })
         .from(bookings)
-        .where(and(eq(bookings.status, "completed"), gte(bookings.startsAt, monthStart)))
+        .where(
+          and(eq(bookings.status, "completed"), gte(bookings.startsAt, monthStart), ...locBooking),
+        )
         .then((r) => r[0]),
       db
         .select({ count: count(bookings.id) })
@@ -150,6 +154,7 @@ export const getAdminStatsAndAlerts = cache(async () => {
             gte(bookings.startsAt, now),
             lte(bookings.startsAt, todayEnd),
             inArray(bookings.status, ["confirmed", "pending"]),
+            ...locBooking,
           ),
         )
         .then((r) => r[0]),
@@ -323,9 +328,15 @@ export const getAdminStatsAndAlerts = cache(async () => {
 /*  2. Today's bookings                                                */
 /* ------------------------------------------------------------------ */
 
-export const getAdminTodayBookings = cache(async () => {
+export const getAdminTodayBookings = cache(async (locationId?: number) => {
   const { todayStart, todayEnd } = dateBounds();
   const adminStaffP = alias(profiles, "adminStaffP");
+
+  const conditions: SQL[] = [
+    gte(bookings.startsAt, todayStart) as unknown as SQL,
+    lte(bookings.startsAt, todayEnd) as unknown as SQL,
+  ];
+  if (locationId) conditions.push(eq(bookings.locationId, locationId) as unknown as SQL);
 
   const todayBookingsRaw = await db
     .select({
@@ -344,7 +355,7 @@ export const getAdminTodayBookings = cache(async () => {
     .innerJoin(profiles, eq(bookings.clientId, profiles.id))
     .leftJoin(adminStaffP, eq(bookings.staffId, adminStaffP.id))
     .innerJoin(services, eq(bookings.serviceId, services.id))
-    .where(and(gte(bookings.startsAt, todayStart), lte(bookings.startsAt, todayEnd)))
+    .where(and(...conditions))
     .orderBy(asc(bookings.startsAt))
     .limit(10);
 

@@ -2,8 +2,8 @@
  * Client component — tab shell for `/dashboard/settings`.
  *
  * Renders a responsive side-nav (desktop) / horizontal scrollable tabs (mobile)
- * with 9 sections: Business, Hours, Booking Rules, Policies, Loyalty, Aftercare,
- * Reminders, Integrations, and Notifications.
+ * with sections: Business, Locations, Hours, Booking Rules, Policies, Loyalty,
+ * Aftercare, Reminders, Integrations, Notifications, and more.
  *
  * Each tab's content is rendered by a dedicated component in `./components/`.
  * This file contains only the tab navigation scaffold and the `PANELS` mapping.
@@ -31,6 +31,7 @@ import {
   Heart,
   Layers,
   Link2,
+  MapPin,
   Package,
   Scale,
   ShieldCheck,
@@ -56,6 +57,7 @@ import type {
 import { cn } from "@/lib/utils";
 import type { LegalDocEntry } from "../legal/actions";
 import { LegalDocumentsPage } from "../legal/LegalDocumentsPage";
+import type { LocationRow } from "../location-actions";
 import { AftercareTab } from "./components/AftercareTab";
 import { BookingTab } from "./components/BookingTab";
 import { BusinessTab } from "./components/BusinessTab";
@@ -63,6 +65,7 @@ import { DataDeletionLogTab } from "./components/DataDeletionLogTab";
 import { HoursTab } from "./components/HoursTab";
 import { IntegrationsTab, type WebhookHealth } from "./components/IntegrationsTab";
 import { InventoryTab } from "./components/InventoryTab";
+import { LocationsTab } from "./components/LocationsTab";
 import { LoyaltyTab } from "./components/LoyaltyTab";
 import { NotificationsTab } from "./components/NotificationsTab";
 import { PoliciesTab } from "./components/PoliciesTab";
@@ -83,6 +86,12 @@ const TABS = [
     label: "Business",
     desc: "Your studio's public profile and contact details",
     icon: Building2,
+  },
+  {
+    id: "locations",
+    label: "Locations",
+    desc: "Manage studio locations and addresses",
+    icon: MapPin,
   },
   { id: "hours", label: "Hours", desc: "Weekly schedule, breaks, and blocked dates", icon: Clock },
   {
@@ -142,6 +151,7 @@ type Tab = (typeof TABS)[number]["id"];
 /* ------------------------------------------------------------------ */
 
 export function SettingsPage({
+  initialLocations,
   initialHours,
   initialTimeOff,
   initialLunchBreak,
@@ -164,6 +174,7 @@ export function SettingsPage({
   initialDeletionLog,
   initialWebhookEvents,
 }: {
+  initialLocations: LocationRow[];
   initialHours: BusinessHourRow[];
   initialTimeOff: TimeOffRow[];
   initialLunchBreak: LunchBreak | null;
@@ -196,6 +207,7 @@ export function SettingsPage({
         initialRevenueGoals={initialRevenueGoals}
       />
     ),
+    locations: <LocationsTab initial={initialLocations} />,
     hours: (
       <HoursTab
         initialHours={initialHours}

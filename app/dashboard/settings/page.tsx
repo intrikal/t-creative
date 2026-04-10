@@ -39,12 +39,14 @@ export default async function Page() {
     { getAdminSettingsBundle, getSquareConnectionStatus, getCcpaDeletionLog },
     { SettingsPage },
     { getLegalDoc, seedLegalDefaults },
+    { getWebhookEvents },
   ] = await Promise.all([
     import("./hours-actions"),
     import("./service-categories-actions"),
     import("./settings-actions"),
     import("./SettingsPage"),
     import("../legal/actions"),
+    import("./webhook-actions"),
   ]);
 
   const seeded = seedLegalDefaults();
@@ -61,6 +63,7 @@ export default async function Page() {
     initialDeletionLog,
     lastSuccess,
     failures,
+    initialWebhookEvents,
   ] = await Promise.all([
     getBusinessHours(),
     getTimeOff(),
@@ -73,6 +76,7 @@ export default async function Page() {
     getCcpaDeletionLog(),
     redis.get<string>("webhook:last_success"),
     redis.get<number>("webhook:sig_failures"),
+    getWebhookEvents(),
   ]);
   const failureCount = Number(failures ?? 0);
   const webhookHealth: WebhookHealth = {
@@ -103,6 +107,7 @@ export default async function Page() {
       initialPrivacy={initialPrivacy}
       initialTerms={initialTerms}
       initialDeletionLog={initialDeletionLog}
+      initialWebhookEvents={initialWebhookEvents}
     />
   );
 }

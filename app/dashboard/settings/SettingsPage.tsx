@@ -34,6 +34,7 @@ import {
   Package,
   Scale,
   ShieldCheck,
+  Webhook,
 } from "lucide-react";
 import type {
   BusinessHourRow,
@@ -67,8 +68,10 @@ import { NotificationsTab } from "./components/NotificationsTab";
 import { PoliciesTab } from "./components/PoliciesTab";
 import { RemindersTab } from "./components/RemindersTab";
 import { ServiceCategoriesTab } from "./components/ServiceCategoriesTab";
+import { WebhookEventsTab } from "./components/WebhookEventsTab";
 import { WebsiteContentTab } from "./components/WebsiteContentTab";
 import type { SquareConnectionStatus } from "./settings-actions";
+import type { WebhookEventRow } from "./webhook-actions";
 
 /* ------------------------------------------------------------------ */
 /*  Tab config                                                         */
@@ -109,6 +112,12 @@ const TABS = [
     label: "Integrations",
     desc: "Third-party connections and sync",
     icon: Link2,
+  },
+  {
+    id: "webhooks",
+    label: "Webhooks",
+    desc: "Webhook event processing and retries",
+    icon: Webhook,
   },
   {
     id: "notifications",
@@ -153,6 +162,7 @@ export function SettingsPage({
   initialPrivacy,
   initialTerms,
   initialDeletionLog,
+  initialWebhookEvents,
 }: {
   initialHours: BusinessHourRow[];
   initialTimeOff: TimeOffRow[];
@@ -174,6 +184,7 @@ export function SettingsPage({
   initialPrivacy?: LegalDocEntry | null;
   initialTerms?: LegalDocEntry | null;
   initialDeletionLog?: CcpaDeletionEntry[];
+  initialWebhookEvents?: WebhookEventRow[];
 }) {
   const [tab, setTab] = useState<Tab>("business");
 
@@ -217,6 +228,7 @@ export function SettingsPage({
         embedded
       />
     ),
+    webhooks: <WebhookEventsTab initialEvents={initialWebhookEvents ?? []} />,
     "data-requests": <DataDeletionLogTab entries={initialDeletionLog ?? []} />,
   };
 

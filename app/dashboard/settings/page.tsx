@@ -44,6 +44,7 @@ export default async function Page() {
     { getLegalDoc, seedLegalDefaults },
     { getWebhookEvents },
     { getAllLocations },
+    { getTemplates },
   ] = await Promise.all([
     import("./hours-actions"),
     import("./service-categories-actions"),
@@ -52,6 +53,7 @@ export default async function Page() {
     import("../legal/actions"),
     import("./webhook-actions"),
     import("../location-actions"),
+    import("./sms-template-actions"),
   ]);
 
   const seeded = seedLegalDefaults();
@@ -71,6 +73,7 @@ export default async function Page() {
     initialWebhookEvents,
     initialLocations,
     gcalTokenRow,
+    initialTemplates,
   ] = await Promise.all([
     getBusinessHours(),
     getTimeOff(),
@@ -91,6 +94,7 @@ export default async function Page() {
       .where(eq(googleCalendarTokens.profileId, user.id))
       .limit(1)
       .then((rows) => rows[0] ?? null),
+    getTemplates(),
   ]);
   const failureCount = Number(failures ?? 0);
   const webhookHealth: WebhookHealth = {
@@ -123,6 +127,7 @@ export default async function Page() {
       initialTerms={initialTerms}
       initialDeletionLog={initialDeletionLog}
       initialWebhookEvents={initialWebhookEvents}
+      initialTemplates={initialTemplates}
       googleCalendarConnected={!!gcalTokenRow}
       googleCalendarSyncEnabled={gcalTokenRow?.syncEnabled ?? false}
     />

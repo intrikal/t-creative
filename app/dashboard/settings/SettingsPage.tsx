@@ -32,11 +32,13 @@ import {
   Layers,
   Link2,
   MapPin,
+  MessageSquare,
   Package,
   Scale,
   ShieldCheck,
   Webhook,
 } from "lucide-react";
+import type { SmsTemplate } from "@/lib/sms-templates";
 import type {
   BusinessHourRow,
   LunchBreak,
@@ -71,6 +73,7 @@ import { NotificationsTab } from "./components/NotificationsTab";
 import { PoliciesTab } from "./components/PoliciesTab";
 import { RemindersTab } from "./components/RemindersTab";
 import { ServiceCategoriesTab } from "./components/ServiceCategoriesTab";
+import { SmsTemplatesTab } from "./components/SmsTemplatesTab";
 import { WebhookEventsTab } from "./components/WebhookEventsTab";
 import { WebsiteContentTab } from "./components/WebsiteContentTab";
 import type { SquareConnectionStatus } from "./settings-actions";
@@ -109,6 +112,12 @@ const TABS = [
   { id: "loyalty", label: "Loyalty", desc: "Points, tiers, and referral rewards", icon: Award },
   { id: "aftercare", label: "Aftercare", desc: "Post-service care instructions", icon: Heart },
   { id: "reminders", label: "Reminders", desc: "Automated communication timing", icon: BellRing },
+  {
+    id: "sms-templates",
+    label: "SMS Templates",
+    desc: "Customize automated text messages",
+    icon: MessageSquare,
+  },
   {
     id: "inventory",
     label: "Inventory",
@@ -198,6 +207,7 @@ export function SettingsPage({
   initialTerms?: LegalDocEntry | null;
   initialDeletionLog?: CcpaDeletionEntry[];
   initialWebhookEvents?: WebhookEventRow[];
+  initialTemplates?: SmsTemplate[];
   googleCalendarConnected?: boolean;
   googleCalendarSyncEnabled?: boolean;
 }) {
@@ -224,6 +234,7 @@ export function SettingsPage({
     loyalty: <LoyaltyTab initial={initialLoyalty} />,
     aftercare: <AftercareTab />,
     reminders: <RemindersTab initial={initialReminders} />,
+    "sms-templates": <SmsTemplatesTab initialTemplates={initialTemplates ?? []} />,
     inventory: <InventoryTab initial={initialInventory} />,
     categories: <ServiceCategoriesTab initial={initialCategories} />,
     integrations: (

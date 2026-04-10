@@ -7,15 +7,13 @@
  */
 import { randomBytes } from "crypto";
 import { and, eq, sql } from "drizzle-orm";
+import { getPublicBusinessProfile } from "@/app/dashboard/settings/settings-actions";
 import { db } from "@/db";
 import { profiles, promotions, syncLog } from "@/db/schema";
-import {
-  getPublicBusinessProfile,
-  getPublicLoyaltyConfig,
-} from "@/app/dashboard/settings/settings-actions";
 import { BirthdayGreeting } from "@/emails/BirthdayGreeting";
 import { isNotificationEnabled } from "@/lib/notification-preferences";
 import { sendEmail } from "@/lib/resend";
+import { renderSmsTemplate } from "@/lib/sms-templates";
 import { isTwilioConfigured, getSmsRecipient, sendSms } from "@/lib/twilio";
 import { inngest } from "../client";
 
@@ -124,8 +122,7 @@ export const birthdayPromos = inngest.createFunction(
 
         // Send email if enabled
         const emailEnabled =
-          !!profile.email &&
-          (await isNotificationEnabled(profile.id, "email", "birthday_promo"));
+          !!profile.email && (await isNotificationEnabled(profile.id, "email", "birthday_promo"));
 
         if (emailEnabled && profile.email) {
           const emailOk = await sendEmail({
@@ -153,9 +150,18 @@ export const birthdayPromos = inngest.createFunction(
         if (smsEnabled) {
           const recipient = await getSmsRecipient(profile.id);
           if (recipient) {
+            const smsBody =
+              (await renderSmsTemplate("birthday-promo", {
+                firstName: recipient.firstName,
+                promoCode,
+                discountPercent: String(DISCOUNT_PERCENT),
+                businessName,
+              })) ??
+              `Happy early birthday, ${recipient.firstName}! 🎂 Use code ${promoCode} for ${DISCOUNT_PERCENT}% off your next visit at ${businessName}. Valid for 30 days after your birthday. Reply STOP to opt out.`;
+
             const smsOk = await sendSms({
               to: recipient.phone,
-              body: `Happy early birthday, ${recipient.firstName}! 🎂 Use code ${promoCode} for ${DISCOUNT_PERCENT}% off your next visit at ${businessName}. Valid for 30 days after your birthday. Reply STOP to opt out.`,
+              body: smsBody,
               entityType: "birthday_promo_sms",
               localId: profile.id,
             });

@@ -1,8 +1,17 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
-import { Settings, UsersRound, CalendarCheck, LogOut, ChevronDown, Menu, MapPin } from "lucide-react";
+import {
+  Settings,
+  UsersRound,
+  CalendarCheck,
+  LogOut,
+  ChevronDown,
+  Menu,
+  MapPin,
+  Search,
+} from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { NotificationBell } from "./components/NotificationBell";
@@ -43,6 +52,10 @@ export function DashboardTopBar({
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
   }, [open]);
+
+  const openCommandPalette = useCallback(() => {
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true }));
+  }, []);
 
   const menuItems = getProfileMenuItems(role);
   const roleLabel = role === "assistant" ? "Assistant" : role === "client" ? "Client" : "Admin";
@@ -88,8 +101,18 @@ export function DashboardTopBar({
         <div className="hidden lg:block" />
       )}
 
-      {/* Right: notification + profile */}
+      {/* Right: search shortcut + notification + profile */}
       <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={openCommandPalette}
+          className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-border text-muted hover:text-foreground hover:border-foreground/15 hover:bg-surface/50 transition-colors text-xs"
+          aria-label="Open command palette"
+        >
+          <Search className="w-3.5 h-3.5" />
+          <kbd className="font-sans text-[11px]">⌘K</kbd>
+        </button>
+
         <NotificationBell />
 
         <div ref={ref} className="relative">

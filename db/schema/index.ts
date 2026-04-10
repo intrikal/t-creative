@@ -321,3 +321,6 @@ export {
   emailSequenceStepsRelations,
   emailSequenceEnrollmentsRelations,
 } from "./email-sequences";
+
+/* Google Calendar OAuth2 tokens (two-way calendar sync) */
+export { googleCalendarTokens, googleCalendarTokensRelations } from "./google-calendar";

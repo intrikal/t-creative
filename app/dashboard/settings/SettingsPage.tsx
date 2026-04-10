@@ -173,6 +173,8 @@ export function SettingsPage({
   initialTerms,
   initialDeletionLog,
   initialWebhookEvents,
+  googleCalendarConnected,
+  googleCalendarSyncEnabled,
 }: {
   initialLocations: LocationRow[];
   initialHours: BusinessHourRow[];
@@ -196,6 +198,8 @@ export function SettingsPage({
   initialTerms?: LegalDocEntry | null;
   initialDeletionLog?: CcpaDeletionEntry[];
   initialWebhookEvents?: WebhookEventRow[];
+  googleCalendarConnected?: boolean;
+  googleCalendarSyncEnabled?: boolean;
 }) {
   const [tab, setTab] = useState<Tab>("business");
 
@@ -229,6 +233,8 @@ export function SettingsPage({
         squareLocationId={squareStatus.locationId}
         calendarUrl={calendarUrl}
         webhookHealth={webhookHealth}
+        googleCalendarConnected={googleCalendarConnected}
+        googleCalendarSyncEnabled={googleCalendarSyncEnabled}
       />
     ),
     notifications: <NotificationsTab initial={initialNotifications} />,

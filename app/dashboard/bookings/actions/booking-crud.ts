@@ -31,6 +31,7 @@ import { PaymentLinkEmail } from "@/emails/PaymentLinkEmail";
 import { RecurringBookingConfirmation } from "@/emails/RecurringBookingConfirmation";
 import { logAction } from "@/lib/audit";
 import { requireAdmin, requireStaff } from "@/lib/auth";
+import { syncBookingToCalendar } from "@/lib/booking-calendar-sync";
 import logger from "@/lib/logger";
 import { createActionLimiter } from "@/lib/middleware/action-rate-limit";
 import { trackEvent } from "@/lib/posthog";
@@ -479,6 +480,8 @@ export async function createBooking(input: BookingInput): Promise<ActionResult<v
     await trySendBookingConfirmation(newBooking.id);
     await tryAutoSendDepositLink(newBooking.id);
 
+    syncBookingToCalendar(newBooking.id);
+
     logger.info(
       {
         action: "createBooking",
@@ -632,6 +635,8 @@ export async function updateBooking(
     if (oldBooking && oldBooking.startsAt.getTime() !== input.startsAt.getTime()) {
       await trySendBookingReschedule(id, oldBooking.startsAt);
     }
+
+    syncBookingToCalendar(id);
 
     await logAction({
       actorId: user.id,

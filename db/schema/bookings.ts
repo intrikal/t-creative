@@ -108,6 +108,9 @@ export const bookings = pgTable(
     /** Zoho Books invoice ID for accounting reconciliation. */
     zohoInvoiceId: varchar("zoho_invoice_id", { length: 100 }),
 
+    /** Google Calendar event ID — set when synced to a staff member's calendar. */
+    googleCalendarEventId: varchar("google_calendar_event_id", { length: 200 }),
+
     /* ------ Lifecycle timestamps ------ */
 
     confirmedAt: timestamp("confirmed_at", { withTimezone: true }),

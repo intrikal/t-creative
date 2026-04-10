@@ -324,3 +324,6 @@ export {
 
 /* Google Calendar OAuth2 tokens (two-way calendar sync) */
 export { googleCalendarTokens, googleCalendarTokensRelations } from "./google-calendar";
+
+/* SMS templates (admin-editable automated message bodies) */
+export { smsTemplates } from "./sms-templates";

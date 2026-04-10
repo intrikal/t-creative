@@ -32,6 +32,7 @@ const BASE_URL = "http://localhost:3000";
 export const TEST_EMAILS = {
   client: "e2e-client@test.tcreativestudio.com",
   admin: "e2e-admin@test.tcreativestudio.com",
+  assistant: "e2e-assistant@test.tcreativestudio.com",
 } as const;
 
 /** Returns true when both Supabase admin env vars are present. */
@@ -50,7 +51,7 @@ export function hasAuthConfig(): boolean {
 export async function signInAs(
   page: Page,
   email: string,
-  role: "client" | "admin" = "client",
+  role: "client" | "admin" | "assistant" = "client",
 ): Promise<boolean> {
   if (!hasAuthConfig()) return false;
 
@@ -138,4 +139,9 @@ export async function signInAsClient(page: Page): Promise<boolean> {
  */
 export async function signInAsAdmin(page: Page): Promise<boolean> {
   return signInAs(page, TEST_EMAILS.admin, "admin");
+}
+
+/** Convenience wrapper: sign in as the shared E2E assistant user. */
+export async function signInAsAssistant(page: Page): Promise<boolean> {
+  return signInAs(page, TEST_EMAILS.assistant, "assistant");
 }

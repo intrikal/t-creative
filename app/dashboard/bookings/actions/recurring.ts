@@ -32,7 +32,7 @@ export type RecurringBookingResult =
 /*  RRULE parser                                                       */
 /* ------------------------------------------------------------------ */
 
-export function parseRRule(rule: string): {
+function parseRRule(rule: string): {
   days?: number;
   months?: number;
   until?: Date;

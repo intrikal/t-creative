@@ -4,8 +4,9 @@ import { useReducer, useState, useRef, useEffect, useCallback } from "react";
 import { Send, ArrowLeft, MessageSquare, PenSquare, Users } from "lucide-react";
 import { ComposeDialog } from "@/components/messages/ComposeDialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { useRealtimeMessages } from "@/lib/hooks/useRealtimeMessages";
+import { useRealtimeThreadList } from "@/lib/hooks/useRealtimeThreadList";
 import { cn } from "@/lib/utils";
-import { createClient } from "@/utils/supabase/client";
 import type { ThreadRow, MessageRow } from "./actions";
 import { getThreads, getThreadMessages, sendMessage, markThreadRead } from "./actions";
 
@@ -116,10 +117,6 @@ export function AssistantMessagesPage({
 
   const selected = threadsList.find((t) => t.id === selectedId) ?? null;
 
-  // Stable ref for Realtime callback
-  const selectedIdRef = useRef(selectedId);
-  selectedIdRef.current = selectedId;
-
   const handleComposeClose = useCallback(() => {
     dispatch({ type: "CLOSE_COMPOSE" });
   }, []);
@@ -160,86 +157,23 @@ export function AssistantMessagesPage({
   }, [msgs]);
 
   // ---- Supabase Realtime ----
-  // NOTE: Requires Supabase Realtime enabled on `messages` and `threads` tables.
-  // Enable via Supabase Dashboard → Database → Replication → Enable for these tables.
-  useEffect(() => {
-    const supabase = createClient();
-    const channel = supabase
-      .channel("assistant-messages-realtime")
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "messages" },
-        (payload) => {
-          const newMsg = payload.new as {
-            id: number;
-            thread_id: number;
-            sender_id: string;
-            body: string;
-            created_at: string;
-          };
+  useRealtimeMessages({
+    threadId: selectedId,
+    currentUserId,
+    onNewMessage: useCallback((newMsg) => {
+      getThreadMessages(newMsg.thread_id).then((rows) => {
+        const fullMsg = rows.find((r) => r.id === newMsg.id);
+        if (fullMsg) dispatch({ type: "APPEND_MESSAGE", msg: fullMsg });
+        markThreadRead(newMsg.thread_id);
+      });
+    }, []),
+  });
 
-          if (newMsg.sender_id === currentUserId) return;
-
-          const currentSelectedId = selectedIdRef.current;
-
-          if (newMsg.thread_id === currentSelectedId) {
-            getThreadMessages(newMsg.thread_id).then((rows) => {
-              const fullMsg = rows.find((r) => r.id === newMsg.id);
-              if (fullMsg) dispatch({ type: "APPEND_MESSAGE", msg: fullMsg });
-              markThreadRead(newMsg.thread_id);
-            });
-          }
-
-          setThreadsList((prev) =>
-            prev.map((t) =>
-              t.id === newMsg.thread_id
-                ? {
-                    ...t,
-                    lastMessageBody: newMsg.body,
-                    lastMessageAt: new Date(newMsg.created_at),
-                    lastMessageSenderId: newMsg.sender_id,
-                    unreadCount:
-                      newMsg.thread_id === currentSelectedId ? t.unreadCount : t.unreadCount + 1,
-                  }
-                : t,
-            ),
-          );
-        },
-      )
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "threads" },
-        (payload) => {
-          const updated = payload.new as {
-            id: number;
-            is_starred: boolean;
-            is_archived: boolean;
-            is_closed: boolean;
-            status: string;
-            last_message_at: string;
-          };
-          setThreadsList((prev) =>
-            prev.map((t) =>
-              t.id === updated.id
-                ? {
-                    ...t,
-                    isStarred: updated.is_starred,
-                    isArchived: updated.is_archived,
-                    isClosed: updated.is_closed,
-                    status: updated.status,
-                    lastMessageAt: new Date(updated.last_message_at),
-                  }
-                : t,
-            ),
-          );
-        },
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [currentUserId]);
+  useRealtimeThreadList({
+    currentUserId,
+    selectedThreadId: selectedId,
+    setThreads: setThreadsList,
+  });
 
   async function handleSend() {
     if (!draft.trim() || !selectedId || sending) return;
@@ -310,7 +244,9 @@ export function AssistantMessagesPage({
                     <span
                       className={cn(
                         "text-xs truncate",
-                        t.unreadCount > 0 ? "font-semibold text-foreground" : "font-medium text-foreground/80",
+                        t.unreadCount > 0
+                          ? "font-semibold text-foreground"
+                          : "font-medium text-foreground/80",
                       )}
                     >
                       {threadDisplayName(t)}
@@ -359,7 +295,9 @@ export function AssistantMessagesPage({
               </Avatar>
             )}
             <div className="min-w-0">
-              <p className="text-sm font-semibold text-foreground truncate">{threadDisplayName(selected)}</p>
+              <p className="text-sm font-semibold text-foreground truncate">
+                {threadDisplayName(selected)}
+              </p>
               <p className="text-[10px] text-muted truncate">{selected.subject}</p>
             </div>
           </div>
@@ -408,7 +346,12 @@ export function AssistantMessagesPage({
                       {initials(msg.senderFirstName, msg.senderLastName)}
                     </AvatarFallback>
                   </Avatar>
-                  <div className={cn("max-w-[72%] flex flex-col gap-0.5", isMe ? "items-end" : "items-start")}>
+                  <div
+                    className={cn(
+                      "max-w-[72%] flex flex-col gap-0.5",
+                      isMe ? "items-end" : "items-start",
+                    )}
+                  >
                     <div
                       className={cn(
                         "rounded-2xl px-4 py-2.5 text-[13.5px] leading-relaxed whitespace-pre-wrap",
@@ -479,11 +422,7 @@ export function AssistantMessagesPage({
         </div>
       )}
 
-      <ComposeDialog
-        open={composeOpen}
-        onClose={handleComposeClose}
-        onCreated={handleCreated}
-      />
+      <ComposeDialog open={composeOpen} onClose={handleComposeClose} onCreated={handleCreated} />
     </div>
   );
 }

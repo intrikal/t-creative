@@ -15,8 +15,9 @@ import {
 } from "lucide-react";
 import { ComposeDialog } from "@/components/messages/ComposeDialog";
 import { TCLogo } from "@/components/TCLogo";
+import { useRealtimeMessages } from "@/lib/hooks/useRealtimeMessages";
+import { useRealtimeThreadList } from "@/lib/hooks/useRealtimeThreadList";
 import { cn } from "@/lib/utils";
-import { createClient } from "@/utils/supabase/client";
 import type { MessageRow, ThreadRow } from "./actions";
 import { getClientThreads, getThreadMessages, sendMessage, markThreadRead } from "./actions";
 
@@ -108,12 +109,6 @@ export function ClientMessagesPage({ currentUserId }: { currentUserId: string })
   const { selectedId, msgs, draft, sending, composeOpen } = state;
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  // Stable ref for Realtime callback
-  const selectedIdRef = useRef(selectedId);
-  useEffect(() => {
-    selectedIdRef.current = selectedId;
-  }, [selectedId]);
-
   // Load threads on mount
   useEffect(() => {
     let cancelled = false;
@@ -154,58 +149,24 @@ export function ClientMessagesPage({ currentUserId }: { currentUserId: string })
   }, [msgs]);
 
   // ---- Supabase Realtime ----
-  // NOTE: Requires Supabase Realtime enabled on `messages` and `threads` tables.
-  // Enable via Supabase Dashboard → Database → Replication → Enable for these tables.
-  useEffect(() => {
-    const supabase = createClient();
-    const channel = supabase
-      .channel("client-messages-realtime")
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "messages" },
-        (payload) => {
-          const newMsg = payload.new as {
-            id: number;
-            thread_id: number;
-            sender_id: string;
-            body: string;
-            created_at: string;
-          };
+  useRealtimeMessages({
+    threadId: selectedId,
+    currentUserId,
+    onNewMessage: useCallback((newMsg) => {
+      getThreadMessages(newMsg.thread_id).then((rows) => {
+        const fullMsg = rows.find((r) => r.id === newMsg.id);
+        if (fullMsg) dispatch({ type: "APPEND_MESSAGE", msg: fullMsg });
+        markThreadRead(newMsg.thread_id);
+      });
+    }, []),
+  });
 
-          if (newMsg.sender_id === currentUserId) return;
-
-          const currentSelectedId = selectedIdRef.current;
-
-          if (newMsg.thread_id === currentSelectedId) {
-            getThreadMessages(newMsg.thread_id).then((rows) => {
-              const fullMsg = rows.find((r) => r.id === newMsg.id);
-              if (fullMsg) dispatch({ type: "APPEND_MESSAGE", msg: fullMsg });
-              markThreadRead(newMsg.thread_id);
-            });
-          }
-
-          setThreads((prev) =>
-            prev.map((t) =>
-              t.id === newMsg.thread_id
-                ? {
-                    ...t,
-                    lastMessageBody: newMsg.body,
-                    lastMessageAt: new Date(newMsg.created_at),
-                    lastMessageSenderId: newMsg.sender_id,
-                    unreadCount:
-                      newMsg.thread_id === currentSelectedId ? t.unreadCount : t.unreadCount + 1,
-                  }
-                : t,
-            ),
-          );
-        },
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [currentUserId]);
+  useRealtimeThreadList({
+    currentUserId,
+    selectedThreadId: selectedId,
+    setThreads,
+    subscribeToThreadUpdates: false,
+  });
 
   const QUICK_OPTIONS = [
     { label: "Book an appointment", desc: "Schedule your next visit", icon: CalendarDays },

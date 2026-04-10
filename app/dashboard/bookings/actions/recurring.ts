@@ -15,11 +15,8 @@ import { trackEvent } from "@/lib/posthog";
 import { sendEmail } from "@/lib/resend";
 import type { ActionResult } from "@/lib/types/action-result";
 import type { BookingInput } from "@/lib/types/booking.types";
-import {
-  bookingInputSchema,
-  hasOverlappingBooking,
-  hasApprovedTimeOffConflict,
-} from "./booking-crud";
+import { hasOverlappingBooking, hasApprovedTimeOffConflict } from "./booking-crud";
+import { bookingInputSchema } from "./booking-schemas";
 
 /** Alias for readability — all mutations in this file require admin access. */
 const getUser = requireAdmin;
@@ -32,7 +29,7 @@ export type RecurringBookingResult =
 /*  RRULE parser                                                       */
 /* ------------------------------------------------------------------ */
 
-export function parseRRule(rule: string): {
+function parseRRule(rule: string): {
   days?: number;
   months?: number;
   until?: Date;

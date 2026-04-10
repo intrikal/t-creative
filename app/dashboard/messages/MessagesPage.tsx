@@ -11,8 +11,9 @@ import {
 } from "react";
 import { MessageSquare, PenSquare } from "lucide-react";
 import { ComposeDialog } from "@/components/messages/ComposeDialog";
+import { useRealtimeMessages } from "@/lib/hooks/useRealtimeMessages";
+import { useRealtimeThreadList } from "@/lib/hooks/useRealtimeThreadList";
 import { cn } from "@/lib/utils";
-import { createClient } from "@/utils/supabase/client";
 import type { ThreadRow, MessageRow } from "./actions";
 import {
   getThreads,
@@ -120,7 +121,7 @@ export function MessagesPage({
     state;
 
   const [baseThreads, setBaseThreads] = useState(initialThreads);
-  const [isPending, startTransition] = useTransition();
+  const [, startTransition] = useTransition();
   const [threadsList, updateThreads] = useOptimistic<
     ThreadRow[],
     | { type: "mark_read"; id: number }
@@ -175,10 +176,6 @@ export function MessagesPage({
 
   const totalUnread = threadsList.reduce((sum, t) => sum + t.unreadCount, 0);
 
-  // ---- Stable refs for Realtime callback to read latest state ----
-  const selectedIdRef = useRef(selectedId);
-  selectedIdRef.current = selectedId;
-
   // Load messages when a thread is selected
   useEffect(() => {
     if (!selectedId) return;
@@ -194,7 +191,7 @@ export function MessagesPage({
     return () => {
       cancelled = true;
     };
-  }, [selectedId]);
+  }, [selectedId, updateThreads]);
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -202,95 +199,23 @@ export function MessagesPage({
   }, [msgs]);
 
   // ---- Supabase Realtime ----
-  // NOTE: Requires Supabase Realtime enabled on `messages` and `threads` tables.
-  // Enable via Supabase Dashboard → Database → Replication → Enable for these tables.
-  useEffect(() => {
-    const supabase = createClient();
-    const channel = supabase
-      .channel("messages-realtime")
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "messages" },
-        (payload) => {
-          const newMsg = payload.new as {
-            id: number;
-            thread_id: number;
-            sender_id: string;
-            body: string;
-            is_read: boolean;
-            created_at: string;
-          };
+  useRealtimeMessages({
+    threadId: selectedId,
+    currentUserId,
+    onNewMessage: useCallback((newMsg) => {
+      getThreadMessages(newMsg.thread_id).then((rows) => {
+        const fullMsg = rows.find((r) => r.id === newMsg.id);
+        if (fullMsg) dispatch({ type: "APPEND_MESSAGE", msg: fullMsg });
+        markThreadRead(newMsg.thread_id);
+      });
+    }, []),
+  });
 
-          // Don't duplicate own messages (already optimistically added)
-          if (newMsg.sender_id === currentUserId) return;
-
-          const currentSelectedId = selectedIdRef.current;
-
-          if (newMsg.thread_id === currentSelectedId) {
-            // Message belongs to the currently viewed thread — fetch full sender info
-            getThreadMessages(newMsg.thread_id).then((rows) => {
-              const fullMsg = rows.find((r) => r.id === newMsg.id);
-              if (fullMsg) {
-                dispatch({ type: "APPEND_MESSAGE", msg: fullMsg });
-              }
-              // Mark as read since user is viewing this thread
-              markThreadRead(newMsg.thread_id);
-            });
-          }
-
-          // Update thread list for any new message (selected or not)
-          setBaseThreads((prev) =>
-            prev.map((t) =>
-              t.id === newMsg.thread_id
-                ? {
-                    ...t,
-                    lastMessageBody: newMsg.body,
-                    lastMessageAt: new Date(newMsg.created_at),
-                    lastMessageSenderId: newMsg.sender_id,
-                    unreadCount:
-                      newMsg.thread_id === currentSelectedId
-                        ? t.unreadCount
-                        : t.unreadCount + 1,
-                  }
-                : t,
-            ),
-          );
-        },
-      )
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "threads" },
-        (payload) => {
-          const updated = payload.new as {
-            id: number;
-            is_starred: boolean;
-            is_archived: boolean;
-            is_closed: boolean;
-            status: string;
-            last_message_at: string;
-          };
-          setBaseThreads((prev) =>
-            prev.map((t) =>
-              t.id === updated.id
-                ? {
-                    ...t,
-                    isStarred: updated.is_starred,
-                    isArchived: updated.is_archived,
-                    isClosed: updated.is_closed,
-                    status: updated.status,
-                    lastMessageAt: new Date(updated.last_message_at),
-                  }
-                : t,
-            ),
-          );
-        },
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [currentUserId]);
+  useRealtimeThreadList({
+    currentUserId,
+    selectedThreadId: selectedId,
+    setThreads: setBaseThreads,
+  });
 
   // ---- Handlers ----
 
@@ -396,11 +321,11 @@ export function MessagesPage({
   return (
     <div className="flex flex-1 h-full min-h-0 overflow-hidden">
       {/* Notifications view — kept mounted so data persists */}
-      <div className={cn("flex-1 flex flex-col min-w-0 min-h-0", isNotifications ? "flex" : "hidden")}>
+      <div
+        className={cn("flex-1 flex flex-col min-w-0 min-h-0", isNotifications ? "flex" : "hidden")}
+      >
         <div className="px-5 py-3 border-b border-border flex items-center justify-between shrink-0">
-          <h1 className="text-base font-semibold text-foreground tracking-tight">
-            Notifications
-          </h1>
+          <h1 className="text-base font-semibold text-foreground tracking-tight">Notifications</h1>
           <button
             onClick={() => dispatch({ type: "SET_VIEW_MODE", mode: "inbox" })}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-muted hover:text-foreground hover:bg-foreground/5 border border-border transition-colors"
@@ -414,7 +339,9 @@ export function MessagesPage({
       </div>
 
       {/* Inbox view */}
-      <div className={cn("flex flex-1 min-h-0 overflow-hidden", isNotifications ? "hidden" : "flex")}>
+      <div
+        className={cn("flex flex-1 min-h-0 overflow-hidden", isNotifications ? "hidden" : "flex")}
+      >
         <ThreadList
           filtered={filtered}
           selectedId={selectedId}
@@ -467,11 +394,7 @@ export function MessagesPage({
           </div>
         )}
 
-        <ComposeDialog
-          open={composeOpen}
-          onClose={handleComposeClose}
-          onCreated={handleCreated}
-        />
+        <ComposeDialog open={composeOpen} onClose={handleComposeClose} onCreated={handleCreated} />
       </div>
     </div>
   );

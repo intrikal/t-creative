@@ -30,6 +30,8 @@ type IntegrationsTabProps = {
   squareLocationId?: string;
   calendarUrl?: string;
   webhookHealth?: WebhookHealth;
+  googleCalendarConnected?: boolean;
+  googleCalendarSyncEnabled?: boolean;
 };
 
 /**
@@ -174,12 +176,85 @@ function CalendarCard({ calendarUrl }: { calendarUrl: string }) {
   );
 }
 
+/**
+ * GoogleCalendarCard — OAuth-based two-way calendar sync with connect/disconnect
+ * controls and a sync-enabled toggle.
+ */
+function GoogleCalendarCard({
+  connected,
+  syncEnabled,
+}: {
+  connected: boolean;
+  syncEnabled: boolean;
+}) {
+  const authUrl = "/api/auth/google-calendar/connect";
+
+  return (
+    <Card className="gap-0">
+      <CardContent className="px-5 py-4">
+        <div className="flex items-start gap-3 sm:gap-4">
+          <span className="text-2xl shrink-0">📅</span>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <p className="text-sm font-semibold text-foreground">Google Calendar</p>
+              <span
+                className={cn(
+                  "text-[10px] font-medium px-1.5 py-0.5 rounded-full border",
+                  connected
+                    ? "bg-[#4e6b51]/10 text-[#4e6b51] border-[#4e6b51]/20"
+                    : "bg-foreground/5 text-muted border-foreground/10",
+                )}
+              >
+                {connected ? "Connected" : "Not connected"}
+              </span>
+              {connected && syncEnabled && (
+                <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full border bg-blue-500/10 text-blue-700 border-blue-500/20">
+                  Two-way sync enabled
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-muted mt-0.5">
+              {connected
+                ? "Bookings automatically sync to your Google Calendar"
+                : "Connect your Google account to sync bookings to your calendar"}
+            </p>
+            <a
+              href={connected ? "#" : authUrl}
+              className={cn(
+                "mt-2.5 inline-block px-3 py-1.5 rounded-lg text-xs font-medium transition-colors sm:hidden",
+                connected
+                  ? "bg-surface border border-border text-muted hover:text-destructive hover:border-destructive/30"
+                  : "bg-accent text-white hover:bg-accent/90",
+              )}
+            >
+              {connected ? "Disconnect" : "Connect Google Calendar"}
+            </a>
+          </div>
+          <a
+            href={connected ? "#" : authUrl}
+            className={cn(
+              "hidden sm:block px-3 py-1.5 rounded-lg text-xs font-medium transition-colors shrink-0",
+              connected
+                ? "bg-surface border border-border text-muted hover:text-destructive hover:border-destructive/30"
+                : "bg-accent text-white hover:bg-accent/90",
+            )}
+          >
+            {connected ? "Disconnect" : "Connect Google Calendar"}
+          </a>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export function IntegrationsTab({
   squareConnected = false,
   squareEnvironment,
   squareLocationId,
   calendarUrl,
   webhookHealth,
+  googleCalendarConnected = false,
+  googleCalendarSyncEnabled = false,
 }: IntegrationsTabProps = {}) {
   const integrations = buildIntegrations(squareConnected, squareEnvironment, squareLocationId);
   // Extract unique category names to render grouped sections.
@@ -193,7 +268,13 @@ export function IntegrationsTab({
           <p className="text-[10px] font-semibold uppercase tracking-wide text-muted mb-2">
             Calendar
           </p>
-          <CalendarCard calendarUrl={calendarUrl} />
+          <div className="space-y-2">
+            <CalendarCard calendarUrl={calendarUrl} />
+            <GoogleCalendarCard
+              connected={googleCalendarConnected}
+              syncEnabled={googleCalendarSyncEnabled}
+            />
+          </div>
         </div>
       )}
 

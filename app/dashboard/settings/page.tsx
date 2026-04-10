@@ -1,5 +1,8 @@
 import { redirect } from "next/navigation";
+import { eq } from "drizzle-orm";
 import type { Metadata } from "next";
+import { db } from "@/db";
+import { googleCalendarTokens } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
 import { calendarUrl } from "@/lib/calendar-token";
 import { redis } from "@/lib/redis";
@@ -67,6 +70,7 @@ export default async function Page() {
     failures,
     initialWebhookEvents,
     initialLocations,
+    gcalTokenRow,
   ] = await Promise.all([
     getBusinessHours(),
     getTimeOff(),
@@ -81,6 +85,12 @@ export default async function Page() {
     redis.get<number>("webhook:sig_failures"),
     getWebhookEvents(),
     getAllLocations(),
+    db
+      .select({ syncEnabled: googleCalendarTokens.syncEnabled })
+      .from(googleCalendarTokens)
+      .where(eq(googleCalendarTokens.profileId, user.id))
+      .limit(1)
+      .then((rows) => rows[0] ?? null),
   ]);
   const failureCount = Number(failures ?? 0);
   const webhookHealth: WebhookHealth = {
@@ -113,6 +123,8 @@ export default async function Page() {
       initialTerms={initialTerms}
       initialDeletionLog={initialDeletionLog}
       initialWebhookEvents={initialWebhookEvents}
+      googleCalendarConnected={!!gcalTokenRow}
+      googleCalendarSyncEnabled={gcalTokenRow?.syncEnabled ?? false}
     />
   );
 }

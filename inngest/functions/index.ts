@@ -20,3 +20,4 @@ export { squareWebhook } from "./square-webhook";
 export { emailQueueDrain } from "./email-queue-drain";
 export { lowStockAlert } from "./low-stock-alert";
 export { emailSequenceCron } from "./email-sequences";
+export { renewCalendarWatches } from "./renew-calendar-watches";

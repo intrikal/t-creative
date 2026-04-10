@@ -12,6 +12,7 @@ import { NoShowFeeCharged } from "@/emails/NoShowFeeCharged";
 import { NoShowFeeInvoice } from "@/emails/NoShowFeeInvoice";
 import { logAction } from "@/lib/audit";
 import { requireAdmin } from "@/lib/auth";
+import { removeBookingFromCalendar } from "@/lib/booking-calendar-sync";
 import logger from "@/lib/logger";
 import { trackEvent } from "@/lib/posthog";
 import { sendEmail } from "@/lib/resend";
@@ -108,6 +109,7 @@ export async function updateBookingStatus(
       await tryEnforceLateCancelFee(id);
       await trySendBookingStatusEmail(id, "cancelled", cancellationReason, refundResult);
       await tryNotifyWaitlist(id);
+      removeBookingFromCalendar(id);
 
       logger.info(
         { action: "cancelBooking", bookingId: id, reason: cancellationReason ?? null },

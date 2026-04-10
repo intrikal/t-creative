@@ -2,7 +2,7 @@
 
 import { defaultCache } from "@serwist/next/worker";
 import type { PrecacheEntry, SerwistGlobalConfig } from "serwist";
-import { StaleWhileRevalidate, CacheFirst, ExpirationPlugin } from "serwist";
+import { StaleWhileRevalidate, CacheFirst, NetworkFirst, ExpirationPlugin } from "serwist";
 import { Serwist } from "serwist";
 
 declare global {
@@ -87,6 +87,52 @@ const staticAssetCache = {
   }),
 };
 
+/**
+ * Dashboard shell — NetworkFirst with 3s timeout.
+ * Tries the network for fresh server-rendered HTML; falls back to the
+ * last cached version when offline so users can still browse read-only.
+ */
+const dashboardShellCache = {
+  matcher: ({ request, url }: { request: Request; url: URL }) => {
+    if (request.mode !== "navigate") return false;
+    return url.pathname.startsWith("/dashboard");
+  },
+  handler: new NetworkFirst({
+    cacheName: "dashboard-shell",
+    networkTimeoutSeconds: 3,
+    plugins: [
+      new ExpirationPlugin({
+        maxEntries: 20,
+        maxAgeSeconds: 60 * 60 * 24, // 24 hours
+      }),
+    ],
+  }),
+};
+
+/**
+ * Dashboard data fetches — NetworkFirst with 5s timeout.
+ * Caches GET requests for RSC payloads / data so the dashboard can
+ * render cached content when offline. POST mutations are never cached.
+ */
+const dashboardDataCache = {
+  matcher: ({ request, url }: { request: Request; url: URL }) => {
+    if (request.method !== "GET") return false;
+    if (request.mode === "navigate") return false;
+    if (url.pathname.startsWith("/api/") || url.pathname.startsWith("/auth/")) return false;
+    return url.pathname.startsWith("/dashboard");
+  },
+  handler: new NetworkFirst({
+    cacheName: "dashboard-data",
+    networkTimeoutSeconds: 5,
+    plugins: [
+      new ExpirationPlugin({
+        maxEntries: 50,
+        maxAgeSeconds: 60 * 60, // 1 hour
+      }),
+    ],
+  }),
+};
+
 const serwist = new Serwist({
   precacheEntries: self.__SW_MANIFEST,
   skipWaiting: true,
@@ -94,6 +140,8 @@ const serwist = new Serwist({
   navigationPreload: true,
   runtimeCaching: [
     // Order matters: more specific rules first, defaultCache last.
+    dashboardShellCache,
+    dashboardDataCache,
     calendarApiCache,
     staticAssetCache,
     publicPageCache,
@@ -112,6 +160,195 @@ const serwist = new Serwist({
 });
 
 serwist.addEventListeners();
+
+/* ------------------------------------------------------------------ */
+/*  BackgroundSync — dashboard mutation queue                          */
+/* ------------------------------------------------------------------ */
+
+const MUTATION_SYNC_TAG = "dashboard-mutations";
+const MUTATION_DB_NAME = "tc-mutation-sync";
+const MUTATION_STORE_NAME = "pending-mutations";
+const MUTATION_MAX_ENTRIES = 50;
+const MUTATION_MAX_AGE_MS = 60 * 60 * 24 * 1000; // 24 hours
+
+interface QueuedMutation {
+  id: number;
+  url: string;
+  method: string;
+  headers: Record<string, string>;
+  body: string;
+  timestamp: number;
+}
+
+function openMutationDb(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const req = self.indexedDB.open(MUTATION_DB_NAME, 1);
+    req.onupgradeneeded = () => {
+      req.result.createObjectStore(MUTATION_STORE_NAME, { keyPath: "id", autoIncrement: true });
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function getAllMutations(db: IDBDatabase): Promise<QueuedMutation[]> {
+  return new Promise((resolve, reject) => {
+    const req = db
+      .transaction(MUTATION_STORE_NAME, "readonly")
+      .objectStore(MUTATION_STORE_NAME)
+      .getAll();
+    req.onsuccess = () => resolve(req.result as QueuedMutation[]);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function deleteMutation(db: IDBDatabase, id: number): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const req = db
+      .transaction(MUTATION_STORE_NAME, "readwrite")
+      .objectStore(MUTATION_STORE_NAME)
+      .delete(id);
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function countMutations(db: IDBDatabase): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const req = db
+      .transaction(MUTATION_STORE_NAME, "readonly")
+      .objectStore(MUTATION_STORE_NAME)
+      .count();
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function addMutation(db: IDBDatabase, entry: Omit<QueuedMutation, "id">): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const req = db
+      .transaction(MUTATION_STORE_NAME, "readwrite")
+      .objectStore(MUTATION_STORE_NAME)
+      .add(entry);
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+  });
+}
+
+/** Broadcast pending mutation count to all open dashboard tabs. */
+async function broadcastMutationCount(): Promise<void> {
+  const db = await openMutationDb();
+  const count = await countMutations(db);
+  const clients = await self.clients.matchAll({ type: "window" });
+  for (const client of clients) {
+    client.postMessage({ type: "MUTATION_QUEUE_COUNT", count });
+  }
+}
+
+/**
+ * Intercept failed POST requests to /dashboard paths and queue them
+ * for replay when connectivity returns.
+ */
+self.addEventListener("fetch", (event: FetchEvent) => {
+  const url = new URL(event.request.url);
+  if (event.request.method !== "POST") return;
+  if (!url.pathname.startsWith("/dashboard")) return;
+  if (url.pathname.startsWith("/api/") || url.pathname.startsWith("/auth/")) return;
+
+  event.respondWith(
+    (async () => {
+      try {
+        return await fetch(event.request.clone());
+      } catch {
+        // Network failure — queue the mutation for background sync
+        const body = await event.request.clone().text();
+        const headers: Record<string, string> = {};
+        event.request.headers.forEach((v, k) => {
+          headers[k] = v;
+        });
+
+        const db = await openMutationDb();
+        const count = await countMutations(db);
+        if (count < MUTATION_MAX_ENTRIES) {
+          await addMutation(db, {
+            url: event.request.url,
+            method: event.request.method,
+            headers,
+            body,
+            timestamp: Date.now(),
+          });
+        }
+
+        if ("sync" in self.registration) {
+          await self.registration.sync.register(MUTATION_SYNC_TAG);
+        }
+
+        await broadcastMutationCount();
+
+        return new Response(JSON.stringify({ queued: true }), {
+          status: 503,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+    })(),
+  );
+});
+
+/** Replay queued mutations when the browser regains connectivity. */
+self.addEventListener("sync", (event: SyncEvent) => {
+  if (event.tag !== MUTATION_SYNC_TAG) return;
+
+  event.waitUntil(
+    (async () => {
+      const db = await openMutationDb();
+      const pending = await getAllMutations(db);
+      const now = Date.now();
+
+      for (const record of pending) {
+        // Drop stale mutations older than 24 hours
+        if (now - record.timestamp > MUTATION_MAX_AGE_MS) {
+          await deleteMutation(db, record.id);
+          continue;
+        }
+
+        try {
+          const res = await fetch(record.url, {
+            method: record.method,
+            headers: record.headers,
+            body: record.body,
+          });
+
+          if (res.ok) {
+            await deleteMutation(db, record.id);
+          }
+          // Non-2xx — leave in queue for next sync attempt
+        } catch {
+          // Still offline — BackgroundSync will retry
+        }
+      }
+
+      await broadcastMutationCount();
+
+      // Notify clients that sync completed
+      const clients = await self.clients.matchAll({ type: "window" });
+      const db2 = await openMutationDb();
+      const remaining = await countMutations(db2);
+      for (const client of clients) {
+        client.postMessage({
+          type: remaining === 0 ? "MUTATION_SYNC_COMPLETE" : "MUTATION_SYNC_PARTIAL",
+          count: remaining,
+        });
+      }
+    })(),
+  );
+});
+
+/** Respond to count queries from the client. */
+self.addEventListener("message", (event: ExtendableMessageEvent) => {
+  if (event.data?.type === "GET_MUTATION_COUNT") {
+    event.waitUntil(broadcastMutationCount());
+  }
+});
 
 /* ------------------------------------------------------------------ */
 /*  BackgroundSync — guest booking retry                               */

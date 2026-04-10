@@ -30,6 +30,7 @@ import {
   loyaltyRedemptions,
 } from "@/db/schema";
 import { getUser } from "@/lib/auth";
+import { createActionLimiter } from "@/lib/middleware/action-rate-limit";
 import { trackEvent } from "@/lib/posthog";
 
 /* ------------------------------------------------------------------ */
@@ -92,6 +93,8 @@ export type LoyaltyPageData = {
 /*  Redeem points                                                      */
 /* ------------------------------------------------------------------ */
 
+const redeemPointsLimiter = createActionLimiter("loyalty-redeem", { requests: 5, window: "60 s" });
+
 const RedeemPointsSchema = z.object({
   rewardId: z.number().int().positive(),
 });
@@ -119,6 +122,7 @@ const RedeemPointsSchema = z.object({
 export async function redeemPoints(input: { rewardId: number }): Promise<void> {
   try {
     RedeemPointsSchema.parse(input);
+    await redeemPointsLimiter();
 
     const user = await getUser();
 

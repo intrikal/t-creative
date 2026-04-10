@@ -265,6 +265,9 @@ function setupMocks(db: Record<string, unknown> | null = null) {
   }
   vi.doMock("@/app/dashboard/media/actions", () => ({}));
   vi.doMock("@sentry/nextjs", () => ({ captureException: vi.fn() }));
+  vi.doMock("@/lib/middleware/action-rate-limit", () => ({
+    createActionLimiter: () => vi.fn().mockResolvedValue(undefined),
+  }));
 }
 
 /* ------------------------------------------------------------------ */
@@ -1557,8 +1560,7 @@ describe("actions", () => {
         select: vi.fn(() => {
           selectCount++;
           // 1st: booking + service category lookup
-          if (selectCount === 1)
-            return makeChain([createMockBooking()]);
+          if (selectCount === 1) return makeChain([createMockBooking()]);
           // 2nd: active required forms
           if (selectCount === 2)
             return makeChain([{ id: 10, name: "Lash Waiver", type: "waiver", appliesTo: ["All"] }]);
@@ -1584,8 +1586,7 @@ describe("actions", () => {
       setupMocks({
         select: vi.fn(() => {
           selectCount++;
-          if (selectCount === 1)
-            return makeChain([createMockBooking()]);
+          if (selectCount === 1) return makeChain([createMockBooking()]);
           if (selectCount === 2)
             return makeChain([
               { id: 10, name: "Lash Waiver", type: "waiver", appliesTo: ["All"] },
@@ -1613,8 +1614,7 @@ describe("actions", () => {
       setupMocks({
         select: vi.fn(() => {
           selectCount++;
-          if (selectCount === 1)
-            return makeChain([createMockBooking()]);
+          if (selectCount === 1) return makeChain([createMockBooking()]);
           if (selectCount === 2)
             return makeChain([
               { id: 10, name: "Lash Waiver", type: "waiver", appliesTo: ["All"] },

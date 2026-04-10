@@ -32,6 +32,7 @@ import { RecurringBookingConfirmation } from "@/emails/RecurringBookingConfirmat
 import { logAction } from "@/lib/audit";
 import { requireAdmin, requireStaff } from "@/lib/auth";
 import logger from "@/lib/logger";
+import { createActionLimiter } from "@/lib/middleware/action-rate-limit";
 import { trackEvent } from "@/lib/posthog";
 import { sendEmail } from "@/lib/resend";
 import { isSquareConfigured, createSquareOrder, createSquarePaymentLink } from "@/lib/square";
@@ -64,6 +65,19 @@ export type {
 
 /** Alias for readability — all mutations in this file require admin access. */
 const getUser = requireAdmin;
+
+const createBookingLimiter = createActionLimiter("booking-create", {
+  requests: 10,
+  window: "60 s",
+});
+const updateBookingLimiter = createActionLimiter("booking-update", {
+  requests: 20,
+  window: "60 s",
+});
+const deleteBookingLimiter = createActionLimiter("booking-delete", {
+  requests: 10,
+  window: "60 s",
+});
 
 /* ------------------------------------------------------------------ */
 /*  Conflict helpers (shared)                                          */
@@ -391,6 +405,7 @@ export async function getBookingById(id: number): Promise<BookingRow | null> {
 export async function createBooking(input: BookingInput): Promise<ActionResult<void>> {
   try {
     bookingInputSchema.parse(input);
+    await createBookingLimiter();
     const user = await getUser();
 
     const [newBooking] = await db.transaction(async (tx) => {
@@ -552,6 +567,7 @@ export async function updateBooking(
   try {
     z.number().int().positive().parse(id);
     updateBookingInputSchema.parse(input);
+    await updateBookingLimiter();
     const user = await getUser();
 
     if (input.staffId && input.status !== "cancelled" && input.status !== "no_show") {
@@ -650,6 +666,7 @@ export async function updateBooking(
 export async function deleteBooking(id: number): Promise<ActionResult<void>> {
   try {
     z.number().int().positive().parse(id);
+    await deleteBookingLimiter();
     const user = await getUser();
     await db.update(bookings).set({ deletedAt: new Date() }).where(eq(bookings.id, id));
 

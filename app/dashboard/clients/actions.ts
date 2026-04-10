@@ -41,6 +41,7 @@ import { db } from "@/db";
 import { profiles, bookings, services, loyaltyTransactions, clientPreferences } from "@/db/schema";
 import { logAction } from "@/lib/audit";
 import { getUser, requireAdmin } from "@/lib/auth";
+import { createActionLimiter } from "@/lib/middleware/action-rate-limit";
 import { trackEvent } from "@/lib/posthog";
 import { redis } from "@/lib/redis";
 import type {
@@ -72,6 +73,9 @@ export type {
   AssistantClientRow,
   AssistantClientStats,
 } from "@/lib/types/client.types";
+
+const createClientLimiter = createActionLimiter("client-create", { requests: 10, window: "60 s" });
+const deleteClientLimiter = createActionLimiter("client-delete", { requests: 5, window: "60 s" });
 
 /* ------------------------------------------------------------------ */
 /*  Queries — admin client list + loyalty leaderboard                  */
@@ -301,6 +305,7 @@ const clientPreferencesInputSchema = z.object({
 export async function createClient(input: ClientInput): Promise<void> {
   try {
     clientInputSchema.parse(input);
+    await createClientLimiter();
     const user = await requireAdmin();
 
     // Create a Supabase auth user first, then the profile
@@ -391,6 +396,7 @@ export async function updateClient(id: string, input: ClientInput): Promise<void
 export async function deleteClient(id: string): Promise<void> {
   try {
     z.string().min(1).parse(id);
+    await deleteClientLimiter();
     const user = await requireAdmin();
     await db.update(profiles).set({ isActive: false }).where(eq(profiles.id, id));
     // Invalidate the proxy profile cache so the ban-check in proxy.ts takes

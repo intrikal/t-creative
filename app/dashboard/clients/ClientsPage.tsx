@@ -15,8 +15,22 @@
 
 import { useState, useOptimistic, useTransition, useCallback } from "react";
 import dynamic from "next/dynamic";
-import { Search, Star, Plus, Users, TrendingUp, DollarSign, ArrowUpDown } from "lucide-react";
+import {
+  Search,
+  Star,
+  Plus,
+  Users,
+  TrendingUp,
+  DollarSign,
+  ArrowUpDown,
+  Mail,
+  Download,
+  UserX,
+} from "lucide-react";
+import { BulkActionBar } from "@/components/ui/BulkActionBar";
 import { Card, CardContent } from "@/components/ui/card";
+import { Dialog, DialogFooter } from "@/components/ui/dialog";
+import { useBulkSelect } from "@/lib/hooks/use-bulk-select";
 import type { ClientRow, LoyaltyRow, LifecycleStage } from "@/lib/types/client.types";
 import { cn } from "@/lib/utils";
 export type { LifecycleStage };
@@ -44,6 +58,10 @@ const ClientWaiversDialog = dynamic(
 );
 const DeleteDialog = dynamic(
   () => import("./components/DeleteDialog").then((m) => m.DeleteDialog),
+  { ssr: false },
+);
+const ComposeDialog = dynamic(
+  () => import("@/components/messages/ComposeDialog").then((m) => m.ComposeDialog),
   { ssr: false },
 );
 import {
@@ -182,6 +200,10 @@ export function ClientsPage({
   const [prefsTarget, setPrefsTarget] = useState<Client | null>(null); // Client whose preferences sheet is open
   const [waiversTarget, setWaiversTarget] = useState<Client | null>(null); // Client whose waivers sheet is open
 
+  const [composeOpen, setComposeOpen] = useState(false);
+  const [bulkDeactivateOpen, setBulkDeactivateOpen] = useState(false);
+  const [bulkMessage, setBulkMessage] = useState<string | null>(null);
+
   // .filter() applies all active filters with AND logic — a client must match
   // every active filter to appear. This runs on every render but the client
   // list is small enough (< 1000) that memoization would add complexity
@@ -214,6 +236,18 @@ export function ClientsPage({
           return new Date(b.lastVisit).getTime() - new Date(a.lastVisit).getTime();
       }
     });
+
+  // Bulk selection — called after filtered is derived so the hook can prune stale IDs on filter changes
+  const {
+    selectedIds,
+    isSelected,
+    toggle: toggleSelect,
+    selectAll,
+    clearSelection,
+    isAllSelected,
+    isPartialSelected,
+    selectedCount,
+  } = useBulkSelect(filtered);
 
   // Stats reflect the current filtered view so Trini can see segment totals.
   const isFiltered = search !== "" || sourceFilter !== "All" || stageFilter !== "all" || vipOnly;
@@ -331,6 +365,57 @@ export function ClientsPage({
     } finally {
       setLoadingMore(false);
     }
+  }
+
+  function handleBulkExport() {
+    const selected = filtered.filter((c) => isSelected(c.id));
+    const headers = [
+      "Name",
+      "Email",
+      "Phone",
+      "Source",
+      "VIP",
+      "Lifecycle Stage",
+      "Total Bookings",
+      "Total Spent",
+      "Last Visit",
+    ];
+    const rows = selected.map((c) => [
+      c.name,
+      c.email,
+      c.phone,
+      c.source,
+      c.vip ? "Yes" : "No",
+      c.lifecycleStage ?? "",
+      String(c.totalBookings),
+      `$${c.totalSpent}`,
+      c.lastVisit,
+    ]);
+    const csv = [headers, ...rows]
+      .map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(","))
+      .join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `clients-export-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function handleBulkDeactivate() {
+    setBulkDeactivateOpen(false);
+    const ids = [...selectedIds];
+    const results = await Promise.allSettled(ids.map((id) => deleteClient(id)));
+    const succeeded = results.filter((r) => r.status === "fulfilled").length;
+    const failed = results.length - succeeded;
+    clearSelection();
+    setBulkMessage(
+      failed > 0
+        ? `${succeeded} deactivated, ${failed} failed`
+        : `${succeeded} client${succeeded !== 1 ? "s" : ""} deactivated`,
+    );
+    setTimeout(() => setBulkMessage(null), 4000);
   }
 
   return (
@@ -530,6 +615,34 @@ export function ClientsPage({
             </div>
           </div>
 
+          {/* Bulk message */}
+          {bulkMessage && (
+            <div className="p-3 bg-accent/10 border border-accent/20 text-xs text-accent rounded-lg">
+              {bulkMessage}
+            </div>
+          )}
+
+          {/* Select-all header */}
+          {filtered.length > 0 && (
+            <div className="flex items-center gap-2">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={isAllSelected}
+                  ref={(el) => {
+                    if (el) el.indeterminate = isPartialSelected;
+                  }}
+                  onChange={() => (isAllSelected ? clearSelection() : selectAll())}
+                  aria-label={isAllSelected ? "Deselect all clients" : "Select all clients"}
+                  className="h-4 w-4 rounded border-border accent-accent"
+                />
+                <span className="text-xs text-muted">
+                  {selectedCount > 0 ? `${selectedCount} selected` : "Select all"}
+                </span>
+              </label>
+            </div>
+          )}
+
           {/* Client grid */}
           {filtered.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-center">
@@ -553,6 +666,8 @@ export function ClientsPage({
                 <ClientCard
                   key={client.id}
                   client={client}
+                  selected={isSelected(client.id)}
+                  onToggleSelect={toggleSelect}
                   onEdit={openEdit}
                   onDelete={(c) => setDeleteTarget(c)}
                   onPreferences={(c) => setPrefsTarget(c)}
@@ -612,6 +727,60 @@ export function ClientsPage({
           clientId={waiversTarget.id}
           clientName={waiversTarget.name}
         />
+      )}
+
+      {/* Bulk action bar */}
+      <BulkActionBar selectedCount={selectedCount} onClear={clearSelection}>
+        <button
+          type="button"
+          onClick={() => setComposeOpen(true)}
+          className="flex items-center gap-1.5 text-sm font-medium text-background/90 hover:text-background transition-colors"
+        >
+          <Mail className="w-3.5 h-3.5" /> Email
+        </button>
+        <button
+          type="button"
+          onClick={handleBulkExport}
+          className="flex items-center gap-1.5 text-sm font-medium text-background/90 hover:text-background transition-colors"
+        >
+          <Download className="w-3.5 h-3.5" /> Export
+        </button>
+        <button
+          type="button"
+          onClick={() => setBulkDeactivateOpen(true)}
+          className="flex items-center gap-1.5 text-sm font-medium text-red-300 hover:text-red-200 transition-colors"
+        >
+          <UserX className="w-3.5 h-3.5" /> Deactivate
+        </button>
+      </BulkActionBar>
+
+      {/* Bulk compose dialog — pre-selects contacts matching selected client IDs */}
+      {composeOpen && (
+        <ComposeDialog
+          open
+          onClose={() => setComposeOpen(false)}
+          onCreated={() => {
+            setComposeOpen(false);
+            clearSelection();
+          }}
+        />
+      )}
+
+      {/* Bulk deactivate confirmation */}
+      {bulkDeactivateOpen && (
+        <Dialog
+          open
+          onClose={() => setBulkDeactivateOpen(false)}
+          title="Deactivate Clients"
+          description={`Deactivate ${selectedCount} selected client${selectedCount !== 1 ? "s" : ""}? This soft-deletes their profiles but preserves booking and payment history.`}
+        >
+          <DialogFooter
+            onCancel={() => setBulkDeactivateOpen(false)}
+            onConfirm={handleBulkDeactivate}
+            confirmLabel="Deactivate"
+            destructive
+          />
+        </Dialog>
       )}
     </div>
   );

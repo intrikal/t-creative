@@ -49,8 +49,13 @@ import {
   DollarSign,
   ListOrdered,
   CalendarX,
+  Download,
+  Ban,
 } from "lucide-react";
+import { BulkActionBar } from "@/components/ui/BulkActionBar";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Dialog, DialogFooter } from "@/components/ui/dialog";
+import { useBulkSelect } from "@/lib/hooks/use-bulk-select";
 import type { BookingRow, BookingInput } from "@/lib/types/booking.types";
 import { cn } from "@/lib/utils";
 import {
@@ -166,6 +171,9 @@ export function BookingsPage({
   const [missingWaivers, setMissingWaivers] = useState<MissingWaiver[]>([]);
   const [mutationError, setMutationError] = useState<string | null>(null);
 
+  const [bulkCancelOpen, setBulkCancelOpen] = useState(false);
+  const [bulkMessage, setBulkMessage] = useState<string | null>(null);
+
   const filtered = bookings.filter((b) => {
     const matchSearch =
       !search ||
@@ -175,6 +183,18 @@ export function BookingsPage({
     const matchRecurring = !showRecurringOnly || !!b.recurrenceRule;
     return matchSearch && matchStatus && matchRecurring;
   });
+
+  // Bulk selection — operates on the filtered list so pruning works when filters change
+  const {
+    selectedIds,
+    isSelected,
+    toggle: toggleSelect,
+    selectAll,
+    clearSelection,
+    isAllSelected,
+    isPartialSelected,
+    selectedCount,
+  } = useBulkSelect(filtered);
 
   const todayCount = bookings.filter((b) => b.date === "Today").length;
   const pendingCount = bookings.filter(
@@ -344,6 +364,57 @@ export function BookingsPage({
     });
   }
 
+  function handleBulkExport() {
+    const selected = filtered.filter((b) => isSelected(b.id));
+    const headers = [
+      "Client",
+      "Service",
+      "Date",
+      "Time",
+      "Staff",
+      "Status",
+      "Price",
+      "Location",
+      "Notes",
+    ];
+    const rows = selected.map((b) => [
+      b.client,
+      b.service,
+      b.date,
+      b.time,
+      b.staff,
+      b.status,
+      `$${b.price}`,
+      b.location ?? "",
+      b.notes ?? "",
+    ]);
+    const csv = [headers, ...rows]
+      .map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(","))
+      .join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `bookings-export-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function handleBulkCancel() {
+    setBulkCancelOpen(false);
+    const ids = [...selectedIds].map(Number);
+    const results = await Promise.allSettled(ids.map((id) => updateBookingStatus(id, "cancelled")));
+    const succeeded = results.filter((r) => r.status === "fulfilled" && r.value.success).length;
+    const failed = results.length - succeeded;
+    clearSelection();
+    setBulkMessage(
+      failed > 0
+        ? `${succeeded} cancelled, ${failed} failed`
+        : `${succeeded} booking${succeeded !== 1 ? "s" : ""} cancelled`,
+    );
+    setTimeout(() => setBulkMessage(null), 4000);
+  }
+
   async function loadMore() {
     setLoadingMore(true);
     try {
@@ -511,6 +582,28 @@ export function BookingsPage({
           </CardHeader>
 
           <CardContent className="px-4 pb-4 pt-3">
+            {bulkMessage && (
+              <div className="p-3 mb-3 bg-accent/10 border border-accent/20 text-xs text-accent rounded-lg">
+                {bulkMessage}
+              </div>
+            )}
+            {filtered.length > 0 && (
+              <div className="flex items-center gap-2 pb-2 mb-1 border-b border-border/50">
+                <input
+                  type="checkbox"
+                  checked={isAllSelected}
+                  ref={(el) => {
+                    if (el) el.indeterminate = isPartialSelected;
+                  }}
+                  onChange={() => (isAllSelected ? clearSelection() : selectAll())}
+                  aria-label={isAllSelected ? "Deselect all bookings" : "Select all bookings"}
+                  className="h-4 w-4 rounded border-border accent-accent cursor-pointer"
+                />
+                <span className="text-xs text-muted">
+                  {selectedCount > 0 ? `${selectedCount} selected` : "Select all"}
+                </span>
+              </div>
+            )}
             {filtered.length === 0 ? (
               <div className="py-10 text-center">
                 <CalendarX className="w-7 h-7 text-foreground/15 mx-auto mb-2" />
@@ -540,6 +633,8 @@ export function BookingsPage({
                     <BookingRowComponent
                       key={booking.id}
                       booking={booking}
+                      selected={isSelected(booking.id)}
+                      onToggleSelect={toggleSelect}
                       menuOpen={menuOpen === booking.id}
                       onToggleMenu={() => setMenuOpen(menuOpen === booking.id ? null : booking.id)}
                       onEdit={() => openEdit(booking)}
@@ -651,6 +746,41 @@ export function BookingsPage({
             />
           );
         })()}
+
+      {/* Bulk action bar */}
+      <BulkActionBar selectedCount={selectedCount} onClear={clearSelection}>
+        <button
+          type="button"
+          onClick={handleBulkExport}
+          className="flex items-center gap-1.5 text-sm font-medium text-background/90 hover:text-background transition-colors"
+        >
+          <Download className="w-3.5 h-3.5" /> Export
+        </button>
+        <button
+          type="button"
+          onClick={() => setBulkCancelOpen(true)}
+          className="flex items-center gap-1.5 text-sm font-medium text-red-300 hover:text-red-200 transition-colors"
+        >
+          <Ban className="w-3.5 h-3.5" /> Cancel
+        </button>
+      </BulkActionBar>
+
+      {/* Bulk cancel confirmation */}
+      {bulkCancelOpen && (
+        <Dialog
+          open
+          onClose={() => setBulkCancelOpen(false)}
+          title="Cancel Bookings"
+          description={`Cancel ${selectedCount} selected booking${selectedCount !== 1 ? "s" : ""}? This will trigger refund processing and notify clients via email.`}
+        >
+          <DialogFooter
+            onCancel={() => setBulkCancelOpen(false)}
+            onConfirm={handleBulkCancel}
+            confirmLabel="Cancel Bookings"
+            destructive
+          />
+        </Dialog>
+      )}
     </div>
   );
 }

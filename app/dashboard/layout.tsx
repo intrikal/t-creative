@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import dynamic from "next/dynamic";
 import { redirect } from "next/navigation";
 import { CommandPalette } from "@/components/CommandPalette";
 import { PostHogIdentify } from "@/components/providers/PostHogIdentify";
@@ -10,6 +11,11 @@ import { DashboardMain } from "./DashboardMain";
 import { DashboardShell } from "./DashboardShell";
 import { DashboardSidebar } from "./DashboardSidebar";
 import { getActiveLocations } from "./location-actions";
+
+const OfflineBanner = dynamic(
+  () => import("@/components/ui/OfflineBanner").then((m) => m.OfflineBanner),
+  { ssr: false },
+);
 
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
   const user = await getCurrentUser();
@@ -40,6 +46,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
 
   return (
     <DashboardShell initialLocations={activeLocations}>
+      <OfflineBanner />
       <PostHogIdentify userId={user.id} email={user.email} role={role} name={userName} />
       <CommandPalette />
       <DashboardSidebar role={role} setupProgress={setupProgress} />

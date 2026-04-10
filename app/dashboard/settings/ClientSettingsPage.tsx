@@ -26,7 +26,7 @@ export function ClientSettingsPage({ data }: { data: ClientSettingsData }) {
     profile: <ProfileSection initial={data.profile} />,
     preferences: <PreferencesSection initial={data.preferences} />,
     notifications: <NotificationsSection initial={data.notifications} />,
-    payments: <PaymentsSection />,
+    payments: <PaymentsSection initial={data.savedCards} />,
     account: <AccountSection />,
   };
 

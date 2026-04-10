@@ -35,26 +35,51 @@ export type {
   RevenuePerHourDay,
 } from "@/lib/types/analytics.types";
 
-async function computeKpiForPeriod(periodStart: Date, periodEnd: Date) {
+async function computeKpiForPeriod(periodStart: Date, periodEnd: Date, locationId?: number) {
+  const bookingConds = [
+    gte(bookings.startsAt, periodStart),
+    lt(bookings.startsAt, periodEnd),
+    ...(locationId ? [eq(bookings.locationId, locationId)] : []),
+  ];
+
+  const revQuery = locationId
+    ? db
+        .select({
+          total: sql<number>`coalesce(sum(${payments.amountInCents}), 0)`,
+          count: sql<number>`count(*)`,
+        })
+        .from(payments)
+        .innerJoin(bookings, eq(payments.bookingId, bookings.id))
+        .where(
+          and(
+            eq(payments.status, "paid"),
+            gte(payments.paidAt, periodStart),
+            lt(payments.paidAt, periodEnd),
+            eq(bookings.locationId, locationId),
+          ),
+        )
+        .then((r) => r[0])
+    : db
+        .select({
+          total: sql<number>`coalesce(sum(${payments.amountInCents}), 0)`,
+          count: sql<number>`count(*)`,
+        })
+        .from(payments)
+        .where(
+          and(
+            eq(payments.status, "paid"),
+            gte(payments.paidAt, periodStart),
+            lt(payments.paidAt, periodEnd),
+          ),
+        )
+        .then((r) => r[0]);
+
   const [revRow, bookRow, clientRow, statusRow] = await Promise.all([
-    db
-      .select({
-        total: sql<number>`coalesce(sum(${payments.amountInCents}), 0)`,
-        count: sql<number>`count(*)`,
-      })
-      .from(payments)
-      .where(
-        and(
-          eq(payments.status, "paid"),
-          gte(payments.paidAt, periodStart),
-          lt(payments.paidAt, periodEnd),
-        ),
-      )
-      .then((r) => r[0]),
+    revQuery,
     db
       .select({ count: sql<number>`count(*)` })
       .from(bookings)
-      .where(and(gte(bookings.startsAt, periodStart), lt(bookings.startsAt, periodEnd)))
+      .where(and(...bookingConds))
       .then((r) => r[0]),
     db
       .select({ count: sql<number>`count(*)` })
@@ -74,7 +99,7 @@ async function computeKpiForPeriod(periodStart: Date, periodEnd: Date) {
         total: sql<number>`count(*) filter (where ${bookings.status} in ('completed', 'no_show', 'cancelled'))`,
       })
       .from(bookings)
-      .where(and(gte(bookings.startsAt, periodStart), lt(bookings.startsAt, periodEnd)))
+      .where(and(...bookingConds))
       .then((r) => r[0]),
   ]);
 
@@ -97,7 +122,7 @@ function pctDelta(current: number, prior: number): number | null {
   return Math.round(((current - prior) / prior) * 100);
 }
 
-export async function getKpiStats(range: Range = "30d"): Promise<KpiStats> {
+export async function getKpiStats(range: Range = "30d", locationId?: number): Promise<KpiStats> {
   try {
     await getUser();
 
@@ -107,8 +132,8 @@ export async function getKpiStats(range: Range = "30d"): Promise<KpiStats> {
     const priorStart = new Date(now.getTime() - 2 * daysBack * 24 * 60 * 60 * 1000);
 
     const [current, prior] = await Promise.all([
-      computeKpiForPeriod(periodStart, now),
-      computeKpiForPeriod(priorStart, periodStart),
+      computeKpiForPeriod(periodStart, now, locationId),
+      computeKpiForPeriod(priorStart, periodStart, locationId),
     ]);
 
     return {
@@ -131,21 +156,38 @@ export async function getKpiStats(range: Range = "30d"): Promise<KpiStats> {
   }
 }
 
-export async function getRevenueTrend(range: Range = "30d"): Promise<WeeklyRevenue[]> {
+export async function getRevenueTrend(
+  range: Range = "30d",
+  locationId?: number,
+): Promise<WeeklyRevenue[]> {
   try {
     await getUser();
 
-    // Reads from revenue_by_service_daily materialized view (refreshed every 4h)
-    // instead of the raw payments table — avoids the bookings + services join.
-    const rows = await db.execute<{ week_start: Date; total: string }>(sql`
-      SELECT
-        date_trunc('week', day)   AS week_start,
-        sum(revenue_cents)        AS total
-      FROM revenue_by_service_daily
-      WHERE day >= now() - interval ${sql.raw(`'${rangeToInterval(range)}'`)}
-      GROUP BY date_trunc('week', day)
-      ORDER BY date_trunc('week', day)
-    `);
+    const interval = rangeToInterval(range);
+    // When filtered by location, query raw tables (the materialized view
+    // doesn't carry location_id). Otherwise use the fast materialized view.
+    const rows = locationId
+      ? await db.execute<{ week_start: Date; total: string }>(sql`
+          SELECT
+            date_trunc('week', pay.paid_at) AS week_start,
+            coalesce(sum(pay.amount_in_cents), 0) AS total
+          FROM payments pay
+          JOIN bookings b ON b.id = pay.booking_id
+          WHERE pay.status = 'paid'
+            AND pay.paid_at >= now() - interval ${sql.raw(`'${interval}'`)}
+            AND b.location_id = ${locationId}
+          GROUP BY date_trunc('week', pay.paid_at)
+          ORDER BY date_trunc('week', pay.paid_at)
+        `)
+      : await db.execute<{ week_start: Date; total: string }>(sql`
+          SELECT
+            date_trunc('week', day)   AS week_start,
+            sum(revenue_cents)        AS total
+          FROM revenue_by_service_daily
+          WHERE day >= now() - interval ${sql.raw(`'${interval}'`)}
+          GROUP BY date_trunc('week', day)
+          ORDER BY date_trunc('week', day)
+        `);
 
     return rows.map((r) => ({
       week: weekLabel(new Date(r.week_start)),
@@ -157,27 +199,51 @@ export async function getRevenueTrend(range: Range = "30d"): Promise<WeeklyReven
   }
 }
 
-export async function getRevenueByService(range: Range = "30d"): Promise<ServiceRevenueItem[]> {
+export async function getRevenueByService(
+  range: Range = "30d",
+  locationId?: number,
+): Promise<ServiceRevenueItem[]> {
   try {
     await getUser();
 
-    // Reads from revenue_by_service_daily materialized view (refreshed every 4h).
-    const rows = await db.execute<{
-      service_name: string;
-      service_category: string;
-      revenue: string;
-      booking_count: string;
-    }>(sql`
-      SELECT
-        service_name,
-        service_category,
-        sum(revenue_cents)  AS revenue,
-        sum(booking_count)  AS booking_count
-      FROM revenue_by_service_daily
-      WHERE day >= now() - interval ${sql.raw(`'${rangeToInterval(range)}'`)}
-      GROUP BY service_name, service_category
-      ORDER BY sum(revenue_cents) DESC
-    `);
+    const interval = rangeToInterval(range);
+    const rows = locationId
+      ? await db.execute<{
+          service_name: string;
+          service_category: string;
+          revenue: string;
+          booking_count: string;
+        }>(sql`
+          SELECT
+            s.name AS service_name,
+            s.category AS service_category,
+            coalesce(sum(pay.amount_in_cents), 0) AS revenue,
+            count(DISTINCT b.id) AS booking_count
+          FROM payments pay
+          JOIN bookings b ON b.id = pay.booking_id
+          JOIN services s ON s.id = b.service_id
+          WHERE pay.status = 'paid'
+            AND pay.paid_at >= now() - interval ${sql.raw(`'${interval}'`)}
+            AND b.location_id = ${locationId}
+          GROUP BY s.name, s.category
+          ORDER BY sum(pay.amount_in_cents) DESC
+        `)
+      : await db.execute<{
+          service_name: string;
+          service_category: string;
+          revenue: string;
+          booking_count: string;
+        }>(sql`
+          SELECT
+            service_name,
+            service_category,
+            sum(revenue_cents)  AS revenue,
+            sum(booking_count)  AS booking_count
+          FROM revenue_by_service_daily
+          WHERE day >= now() - interval ${sql.raw(`'${interval}'`)}
+          GROUP BY service_name, service_category
+          ORDER BY sum(revenue_cents) DESC
+        `);
 
     const totalRevenue = rows.reduce((s, r) => s + Number(r.revenue), 0);
 

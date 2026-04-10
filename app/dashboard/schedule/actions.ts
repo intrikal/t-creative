@@ -13,13 +13,23 @@ import { eq, and, gte, lte, asc, count, not, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { bookings, services, profiles, events, eventGuests } from "@/db/schema";
 import { getUser } from "@/lib/auth";
-import type { BookingStatus, ServiceCategory, AppointmentRow, ScheduleStats } from "@/lib/types/booking.types";
+import type {
+  BookingStatus,
+  ServiceCategory,
+  AppointmentRow,
+  ScheduleStats,
+} from "@/lib/types/booking.types";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
 /* ------------------------------------------------------------------ */
 
-export type { BookingStatus, ServiceCategory, AppointmentRow, ScheduleStats } from "@/lib/types/booking.types";
+export type {
+  BookingStatus,
+  ServiceCategory,
+  AppointmentRow,
+  ScheduleStats,
+} from "@/lib/types/booking.types";
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
@@ -77,7 +87,7 @@ function getWeekBounds(referenceDate: Date): { weekStart: Date; weekEnd: Date } 
 /*  Query                                                              */
 /* ------------------------------------------------------------------ */
 
-export async function getScheduleData(): Promise<{
+export async function getScheduleData(locationId?: number): Promise<{
   appointments: AppointmentRow[];
   stats: ScheduleStats;
   todayKey: string;
@@ -123,6 +133,7 @@ export async function getScheduleData(): Promise<{
           eq(bookings.staffId, user.id),
           gte(bookings.startsAt, rangeStart),
           lte(bookings.startsAt, rangeEnd),
+          ...(locationId ? [eq(bookings.locationId, locationId)] : []),
         ),
       )
       .orderBy(asc(bookings.startsAt));

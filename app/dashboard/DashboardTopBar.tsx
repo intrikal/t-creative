@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   Settings,
   UsersRound,
@@ -40,9 +41,27 @@ export function DashboardTopBar({
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { openDrawer } = useSidebar();
   const { locations: locationList, selectedLocationId, setLocationId } = useLocation();
   const showLocationSelector = locationList.length > 1;
+
+  const handleLocationChange = useCallback(
+    (id: number | null) => {
+      setLocationId(id);
+      const params = new URLSearchParams(searchParams.toString());
+      if (id !== null) {
+        params.set("location", String(id));
+      } else {
+        params.delete("location");
+      }
+      const qs = params.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname);
+    },
+    [setLocationId, searchParams, pathname, router],
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -85,7 +104,7 @@ export function DashboardTopBar({
           <MapPin className="w-3.5 h-3.5 text-muted" />
           <select
             value={selectedLocationId ?? ""}
-            onChange={(e) => setLocationId(e.target.value ? Number(e.target.value) : null)}
+            onChange={(e) => handleLocationChange(e.target.value ? Number(e.target.value) : null)}
             aria-label="Select studio location"
             className="text-sm font-medium text-foreground bg-transparent border-none outline-none cursor-pointer pr-6"
           >

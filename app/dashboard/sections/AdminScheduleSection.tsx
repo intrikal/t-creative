@@ -5,15 +5,18 @@ import { getAdminTodayBookings } from "../admin-home-queries";
 import { EmptyState } from "../components/AdminEmptyState";
 import { BookingRow } from "../components/AdminListRows";
 
-export async function AdminScheduleSection() {
-  const { todayBookings } = await getAdminTodayBookings();
+export async function AdminScheduleSection({ locationId }: { locationId?: number }) {
+  const { todayBookings } = await getAdminTodayBookings(locationId);
 
   return (
     <Card className="xl:col-span-3 gap-0 py-0">
       <CardHeader className="pb-0 pt-4 px-5">
         <div className="flex items-center justify-between">
           <CardTitle className="text-sm font-semibold">Today&apos;s Schedule</CardTitle>
-          <Link href="/dashboard/bookings" className="text-xs text-accent hover:underline flex items-center gap-0.5">
+          <Link
+            href="/dashboard/bookings"
+            className="text-xs text-accent hover:underline flex items-center gap-0.5"
+          >
             View all <ChevronRight className="w-3 h-3" />
           </Link>
         </div>

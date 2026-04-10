@@ -1,7 +1,15 @@
 import type { ReactNode } from "react";
+import dynamic from "next/dynamic";
 import { redirect } from "next/navigation";
 import { PostHogIdentify } from "@/components/providers/PostHogIdentify";
 import { getCurrentUser } from "@/lib/auth";
+
+const CommandPalette = dynamic(
+  () => import("@/components/CommandPalette").then((m) => ({ default: m.CommandPalette })),
+  {
+    ssr: false,
+  },
+);
 import { getAdminSetupData } from "./admin-setup-data";
 import { getAssistantSetupData } from "./assistant-setup-data";
 import { getClientSetupData } from "./client-setup-data";
@@ -40,6 +48,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
   return (
     <DashboardShell initialLocations={activeLocations}>
       <PostHogIdentify userId={user.id} email={user.email} role={role} name={userName} />
+      <CommandPalette />
       <DashboardSidebar role={role} setupProgress={setupProgress} />
       <DashboardMain
         role={role}

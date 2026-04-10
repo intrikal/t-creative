@@ -1,8 +1,14 @@
 "use client";
 
+/**
+ * Dashboard error boundary — catches runtime errors within /dashboard segments
+ * so a single section failure doesn't crash the entire dashboard shell.
+ */
+
 import { useEffect } from "react";
 import Link from "next/link";
 import * as Sentry from "@sentry/nextjs";
+import { AlertTriangle } from "lucide-react";
 
 export default function DashboardError({
   error,
@@ -17,8 +23,9 @@ export default function DashboardError({
 
   return (
     <div className="flex flex-col items-center justify-center flex-1 p-8 text-center">
-      <p className="text-sm font-medium text-foreground mb-1">Something went wrong loading this page</p>
-      <p className="text-xs text-muted mb-6">An unexpected error occurred. You can try again or go back to the overview.</p>
+      <AlertTriangle className="h-8 w-8 text-muted mb-4" />
+      <p className="text-sm font-medium text-foreground mb-1">Something went wrong</p>
+      <p className="text-xs text-muted mb-6">{error.message}</p>
       <div className="flex items-center gap-3">
         <button
           onClick={reset}
@@ -30,7 +37,7 @@ export default function DashboardError({
           href="/dashboard"
           className="px-4 py-2 text-xs font-medium rounded-lg border border-border text-muted hover:text-foreground transition-colors"
         >
-          Back to overview
+          Go to dashboard home
         </Link>
       </div>
     </div>

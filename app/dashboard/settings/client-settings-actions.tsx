@@ -59,6 +59,8 @@ import { isResendConfigured, sendEmail } from "@/lib/resend";
 import { isSquareConfigured, squareClient } from "@/lib/square";
 import { syncCampaignsSubscriber, unsubscribeFromCampaigns } from "@/lib/zoho-campaigns";
 import { createClient } from "@/utils/supabase/server";
+import type { PaymentMethod } from "./client-types";
+import { getSavedCards } from "./payment-actions";
 
 const PATH = "/dashboard/settings";
 
@@ -104,6 +106,7 @@ export type ClientSettingsData = {
   profile: ClientProfile;
   notifications: Record<string, boolean>;
   preferences: ClientPreferences | null;
+  savedCards: PaymentMethod[];
 };
 
 /* ------------------------------------------------------------------ */
@@ -124,10 +127,10 @@ export async function getClientSettings(): Promise<ClientSettingsData> {
   try {
     const user = await getUser();
 
-    // Promise.all runs profile and preferences queries in parallel — they have
-    // no data dependency. Destructuring extracts the first row from each result
-    // since both queries return at most one row (LIMIT 1 / unique profileId).
-    const [[row], [prefRow]] = await Promise.all([
+    // Promise.all runs profile, preferences, and card queries in parallel —
+    // they have no data dependency. Destructuring extracts the first row from
+    // each DB result since both queries return at most one row.
+    const [[row], [prefRow], savedCards] = await Promise.all([
       db
         .select({
           firstName: profiles.firstName,
@@ -143,6 +146,7 @@ export async function getClientSettings(): Promise<ClientSettingsData> {
         .where(eq(profiles.id, user.id))
         .limit(1),
       db.select().from(clientPreferences).where(eq(clientPreferences.profileId, user.id)).limit(1),
+      getSavedCards(),
     ]);
 
     const onboarding = (row?.onboardingData ?? {}) as Record<string, unknown>;
@@ -175,6 +179,7 @@ export async function getClientSettings(): Promise<ClientSettingsData> {
         preferredContactMethod: prefRow?.preferredContactMethod ?? "",
       },
       notifications: await getClientNotificationPrefs(),
+      savedCards,
       preferences: prefRow
         ? {
             preferredLashStyle: prefRow.preferredLashStyle,

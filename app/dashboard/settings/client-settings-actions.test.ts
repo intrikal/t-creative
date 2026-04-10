@@ -70,6 +70,8 @@ function setupMocks(db: Record<string, unknown> | null = null) {
     clientPreferences: tableMock("clientPreferences"),
     formSubmissions: tableMock("formSubmissions"),
     loyaltyTransactions: tableMock("loyaltyTransactions"),
+    membershipSubscriptions: tableMock("membershipSubscriptions"),
+    mediaItems: tableMock("mediaItems"),
     notifications: tableMock("notifications"),
     reviews: tableMock("reviews"),
     serviceRecords: tableMock("serviceRecords"),
@@ -101,6 +103,30 @@ function setupMocks(db: Record<string, unknown> | null = null) {
   vi.doMock("@/lib/zoho-campaigns", () => ({
     syncCampaignsSubscriber: mockSyncCampaignsSubscriber,
     unsubscribeFromCampaigns: mockUnsubscribeFromCampaigns,
+  }));
+  vi.doMock("./payment-actions", () => ({
+    getSavedCards: vi.fn().mockResolvedValue([]),
+  }));
+  vi.doMock("@/lib/square", () => ({
+    isSquareConfigured: vi.fn(() => false),
+    squareClient: { customers: { update: vi.fn(), delete: vi.fn() } },
+  }));
+  vi.doMock("@/lib/env", () => ({
+    env: { NEXT_PUBLIC_SUPABASE_URL: "https://test.supabase.co" },
+  }));
+  vi.doMock("@/lib/redis", () => ({
+    redis: { del: vi.fn().mockResolvedValue(undefined) },
+  }));
+  vi.doMock("@/lib/resend", () => ({
+    isResendConfigured: vi.fn(() => false),
+    sendEmail: vi.fn().mockResolvedValue(undefined),
+  }));
+  vi.doMock("@/emails/DataDeletionConfirmation", () => ({
+    DataDeletionConfirmation: vi.fn(() => null),
+  }));
+  vi.doMock("@/lib/notification-preferences", () => ({
+    getNotificationPreferences: vi.fn().mockResolvedValue(new Map()),
+    setNotificationPreference: vi.fn().mockResolvedValue(undefined),
   }));
 }
 
@@ -280,7 +306,9 @@ describe("client-settings-actions", () => {
 
     it("parses allergy flags from comma-separated string", async () => {
       vi.resetModules();
-      const mockUpdateSet = vi.fn((_: { onboardingData: Record<string, Record<string, boolean>> }) => ({ where: vi.fn() }));
+      const mockUpdateSet = vi.fn(
+        (_: { onboardingData: Record<string, Record<string, boolean>> }) => ({ where: vi.fn() }),
+      );
       setupMocks({
         select: vi.fn(() => makeChain([{ onboardingData: {} }])),
         insert: vi.fn(() => ({

@@ -30,6 +30,8 @@ import { statusConfig, categoryDot, type Booking, type BookingStatus } from "./h
 
 export function BookingRow({
   booking,
+  selected,
+  onToggleSelect,
   menuOpen,
   onToggleMenu,
   onEdit,
@@ -41,6 +43,8 @@ export function BookingRow({
   onServiceNotes,
 }: {
   booking: Booking;
+  selected?: boolean;
+  onToggleSelect?: (id: number) => void;
   menuOpen: boolean;
   onToggleMenu: () => void;
   onEdit: () => void;
@@ -55,6 +59,15 @@ export function BookingRow({
 
   return (
     <div className="flex items-center gap-3 py-3 border-b border-border/50 last:border-0 group">
+      {onToggleSelect && (
+        <input
+          type="checkbox"
+          checked={!!selected}
+          onChange={() => onToggleSelect(booking.id)}
+          aria-label={`Select booking for ${booking.client}`}
+          className="h-4 w-4 shrink-0 rounded border-border accent-accent cursor-pointer"
+        />
+      )}
       <div className="flex flex-col items-center gap-1 shrink-0 w-20">
         <span className={cn("w-1.5 h-1.5 rounded-full", categoryDot(booking.category))} />
         <span className="text-[10px] text-muted font-medium">{booking.date}</span>

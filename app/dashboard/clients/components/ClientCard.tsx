@@ -25,12 +25,16 @@ import { type Client, sourceBadge, SVC_LABEL, SVC_COLOR, avatarColor } from "../
 
 export function ClientCard({
   client,
+  selected,
+  onToggleSelect,
   onEdit,
   onDelete,
   onPreferences,
   onWaivers,
 }: {
   client: Client;
+  selected?: boolean;
+  onToggleSelect?: (id: string) => void;
   onEdit: (c: Client) => void;
   onDelete: (c: Client) => void;
   onPreferences: (c: Client) => void;
@@ -90,6 +94,24 @@ export function ClientCard({
 
       {/* Top row: avatar + name */}
       <div className="flex items-start gap-3">
+        {onToggleSelect && (
+          <label
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onToggleSelect(client.id);
+            }}
+            className="mt-1 shrink-0 cursor-pointer"
+          >
+            <input
+              type="checkbox"
+              checked={!!selected}
+              readOnly
+              aria-label={`Select ${client.name}`}
+              className="h-4 w-4 rounded border-border accent-accent pointer-events-none"
+            />
+          </label>
+        )}
         <Avatar className="w-10 h-10 shrink-0">
           <AvatarFallback className={cn("text-xs font-semibold", av)}>
             {client.initials}

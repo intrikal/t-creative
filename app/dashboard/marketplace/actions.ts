@@ -23,6 +23,7 @@ import { products, orders, supplies, profiles, inventoryAdjustments } from "@/db
 import { CommissionQuote } from "@/emails/CommissionQuote";
 import { OrderStatusUpdate } from "@/emails/OrderStatusUpdate";
 import { requireAdmin } from "@/lib/auth";
+import { createActionLimiter } from "@/lib/middleware/action-rate-limit";
 import { sendEmail, getEmailRecipient } from "@/lib/resend";
 import { upsertCatalogItem, isSquareConfigured } from "@/lib/square";
 
@@ -33,6 +34,11 @@ const PATH = "/dashboard/marketplace";
 /* ------------------------------------------------------------------ */
 
 const getUser = requireAdmin;
+
+const createProductLimiter = createActionLimiter("product-create", {
+  requests: 10,
+  window: "60 s",
+});
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -369,6 +375,7 @@ const ProductFormSchema = z.object({
 export async function createProduct(form: ProductFormData) {
   try {
     ProductFormSchema.parse(form);
+    await createProductLimiter();
     await getUser();
 
     const dbPricing = PRICING_REVERSE[form.pricingType] as

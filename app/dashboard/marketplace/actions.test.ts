@@ -132,6 +132,9 @@ function setupMocks(db: Record<string, unknown> | null = null) {
   vi.doMock("@/emails/OrderStatusUpdate", () => ({
     OrderStatusUpdate: vi.fn(() => null),
   }));
+  vi.doMock("@/lib/middleware/action-rate-limit", () => ({
+    createActionLimiter: () => vi.fn().mockResolvedValue(undefined),
+  }));
 }
 
 /* ------------------------------------------------------------------ */

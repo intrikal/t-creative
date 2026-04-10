@@ -34,6 +34,7 @@ import { z } from "zod";
 import { db } from "@/db";
 import { reviews, profiles, bookings } from "@/db/schema";
 import { requireAdmin, getCurrentUser } from "@/lib/auth";
+import { createActionLimiter } from "@/lib/middleware/action-rate-limit";
 
 async function getAssistantUser() {
   const user = await getCurrentUser();
@@ -46,6 +47,11 @@ async function getAssistantUser() {
 /* ------------------------------------------------------------------ */
 
 const getUser = requireAdmin;
+
+const approveReviewLimiter = createActionLimiter("review-approve", {
+  requests: 20,
+  window: "60 s",
+});
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -295,6 +301,7 @@ export async function getReviewStats(): Promise<ReviewStats> {
 export async function approveReview(reviewId: number) {
   try {
     z.number().int().positive().parse(reviewId);
+    await approveReviewLimiter();
     await getUser();
     await db
       .update(reviews)

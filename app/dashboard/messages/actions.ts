@@ -51,6 +51,7 @@ import {
 import { MessageNotification } from "@/emails/MessageNotification";
 import { getUser, requireAdmin, requireStaff } from "@/lib/auth";
 import { rruleToCadenceLabel } from "@/lib/cadence";
+import { createActionLimiter } from "@/lib/middleware/action-rate-limit";
 import { trackEvent } from "@/lib/posthog";
 import { sendEmail } from "@/lib/resend";
 import { createZohoDeal } from "@/lib/zoho";
@@ -132,6 +133,13 @@ export interface QuickReplyRow {
   label: string;
   body: string;
 }
+
+const sendMessageLimiter = createActionLimiter("message-send", { requests: 30, window: "60 s" });
+const createThreadLimiter = createActionLimiter("thread-create", { requests: 10, window: "60 s" });
+const createBookingRequestLimiter = createActionLimiter("booking-request-create", {
+  requests: 5,
+  window: "60 s",
+});
 
 /* ------------------------------------------------------------------ */
 /*  Threads                                                            */
@@ -435,6 +443,7 @@ export async function sendMessage(threadId: number, body: string): Promise<Messa
   try {
     z.number().int().positive().parse(threadId);
     z.string().min(1).parse(body);
+    await sendMessageLimiter();
     const user = await requireStaff();
 
     /* alias() creates a table alias so we can join profiles twice if needed. */
@@ -808,6 +817,7 @@ export async function createThread(input: {
 }): Promise<{ threadId: number }> {
   try {
     createThreadSchema.parse(input);
+    await createThreadLimiter();
     const user = await requireStaff();
 
     const isGroup = input.participantIds.length > 1;
@@ -965,6 +975,7 @@ export async function createBookingRequest(input: {
   tosVersion: string;
 }): Promise<{ threadId: number; bookingId: number }> {
   createBookingRequestSchema.parse(input);
+  await createBookingRequestLimiter();
   const user = await getUser();
 
   /*

@@ -92,6 +92,9 @@ function setupMocks(db: Record<string, unknown> | null = null) {
   vi.doMock("@/utils/supabase/server", () => ({
     createClient: vi.fn(async () => ({ auth: { getUser: mockGetUser } })),
   }));
+  vi.doMock("@/lib/middleware/action-rate-limit", () => ({
+    createActionLimiter: () => vi.fn().mockResolvedValue(undefined),
+  }));
 }
 
 /* ------------------------------------------------------------------ */

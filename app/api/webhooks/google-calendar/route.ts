@@ -222,25 +222,21 @@ function trySendRescheduleNotification(
 
       const { BookingReschedule } = await import("@/emails/BookingReschedule");
 
+      const formatDateTime = (d: Date) =>
+        `${d.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })} at ${d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`;
+
       await sendEmail({
         to: client.email,
         subject: `Your ${service?.name ?? "appointment"} has been rescheduled`,
         react: BookingReschedule({
           clientName: client.firstName,
           serviceName: service?.name ?? "Appointment",
-          oldDate: oldStart.toLocaleDateString("en-US", {
-            weekday: "long",
-            month: "long",
-            day: "numeric",
-          }),
-          oldTime: oldStart.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }),
-          newDate: newStart.toLocaleDateString("en-US", {
-            weekday: "long",
-            month: "long",
-            day: "numeric",
-          }),
-          newTime: newStart.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }),
+          oldDateTime: formatDateTime(oldStart),
+          newDateTime: formatDateTime(newStart),
         }),
+        entityType: "booking_reschedule",
+        localId: String(bookingId),
+        profileId: clientId,
       });
     } catch (err) {
       Sentry.captureException(err);

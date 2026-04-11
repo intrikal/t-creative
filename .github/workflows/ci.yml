@@ -368,4 +368,5 @@ jobs:
       - name: Run database migrations
         env:
           DIRECT_URL: postgresql://postgres:postgres@localhost:5432/t_creative_ci
+          SKIP_ENV_VALIDATION: "1"
         run: npx drizzle-kit migrate

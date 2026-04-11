@@ -46,7 +46,7 @@ describe("GET /api/health", () => {
     mockDbExecute.mockResolvedValue([{ "?column?": 1 }]);
 
     const mod = await import("./route");
-    GET = mod.GET;
+    GET = mod.GET as unknown as typeof GET;
   });
 
   it("returns 200 with db: ok when the database responds", async () => {

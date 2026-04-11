@@ -754,10 +754,8 @@ describe("settings-actions.ts — ActionResult contract", () => {
 
   it("saveFinancialConfig — returns ActionResult on valid input", async () => {
     const result = await saveFinancialConfig({
-      taxRate: 0,
-      taxLabel: "Tax",
-      defaultTipOptions: [15, 20, 25],
-      invoiceDueDays: 14,
+      revenueGoalMonthly: 12000,
+      estimatedTaxRate: 25,
     });
     assertActionResult(result);
   });
@@ -770,14 +768,31 @@ describe("settings-actions.ts — ActionResult contract", () => {
   it("saveSiteContent — returns ActionResult on valid input", async () => {
     const result = await saveSiteContent({
       heroHeadline: "Welcome",
-      heroSubline: "Book your appointment",
-      heroCta: "Book Now",
-      aboutTitle: "About",
-      aboutBody: "About us",
-      aboutImage: "",
-      galleryEnabled: false,
-      trainingEnabled: false,
-      shopEnabled: false,
+      heroSubheadline: "Book your appointment",
+      heroCtaText: "Book Now",
+      aboutBio: "About us",
+      footerTagline: "T Creative Studio",
+      seoTitle: "T Creative",
+      seoDescription: "Creative studio",
+      socialLinks: [],
+      faqEntries: [],
+      consultingServices: [],
+      consultingBenefits: [],
+      eventDescriptions: [],
+      showConsultingPage: false,
+      statsOverrides: {},
+      aboutMission: "",
+      aboutCredentials: [],
+      aboutTimeline: [],
+      aboutCertifications: [],
+      aboutTestimonials: [],
+      contactInterests: [],
+      contactFaqEntries: [],
+      consultingProcess: [],
+      consultingTestimonials: [],
+      consultingCtaText: "",
+      trainingTestimonials: [],
+      trainingFaqEntries: [],
     });
     assertActionResult(result);
   });

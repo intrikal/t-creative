@@ -60,14 +60,18 @@ const schema = z.object({
 });
 
 // Validation runs at server startup and during `next dev`, but is skipped
-// during `next build`. Runtime secrets (SUPABASE_SERVICE_ROLE_KEY, etc.) are
-// only injected by Vercel at request time, not during the static build phase,
-// so validating them at build would always fail in CI. The server process will
-// still throw immediately on first request if a required var is absent.
+// during `next build` and when SKIP_ENV_VALIDATION is set. Runtime secrets
+// (SUPABASE_SERVICE_ROLE_KEY, etc.) are only injected by Vercel at request
+// time, not during the static build phase, so validating them at build would
+// always fail in CI. SKIP_ENV_VALIDATION allows standalone tools like
+// drizzle-kit to import this module without requiring every secret. The server
+// process will still throw immediately on first request if a required var is
+// absent.
 if (
   typeof window === "undefined" &&
   process.env.NEXT_PHASE !== "phase-production-build" &&
-  process.env.NEXT_RUNTIME !== "edge"
+  process.env.NEXT_RUNTIME !== "edge" &&
+  !process.env.SKIP_ENV_VALIDATION
 ) {
   const result = schema.safeParse({
     DATABASE_POOLER_URL: process.env.DATABASE_POOLER_URL,

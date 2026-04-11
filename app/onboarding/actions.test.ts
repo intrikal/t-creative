@@ -404,7 +404,7 @@ describe("saveOnboardingData", () => {
       vi.resetModules();
 
       // Capture what values() is called with inside the transaction
-      const mockValuesCapture = vi.fn(() => ({
+      const mockValuesCapture = vi.fn((_values: Record<string, unknown>) => ({
         returning: vi.fn().mockResolvedValue([{ id: "user-1" }]),
         onConflictDoUpdate: vi.fn().mockResolvedValue(undefined),
         onConflictDoNothing: vi.fn().mockResolvedValue(undefined),
@@ -452,7 +452,7 @@ describe("saveOnboardingData", () => {
         return v && "firstName" in v;
       });
       expect(profileInsertCall).toBeDefined();
-      const insertedProfile = profileInsertCall![0];
+      const insertedProfile = profileInsertCall![0] as Record<string, unknown>;
       expect(insertedProfile).toMatchObject({
         id: "user-1",
         role: "client",
@@ -481,7 +481,7 @@ describe("saveOnboardingData", () => {
 
     it("tags are set based on selected interests", async () => {
       vi.resetModules();
-      const mockValuesCapture = vi.fn(() => ({
+      const mockValuesCapture = vi.fn((_values: Record<string, unknown>) => ({
         returning: vi.fn().mockResolvedValue([{ id: "user-1" }]),
         onConflictDoUpdate: vi.fn().mockResolvedValue(undefined),
         onConflictDoNothing: vi.fn().mockResolvedValue(undefined),

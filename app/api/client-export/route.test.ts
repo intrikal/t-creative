@@ -426,7 +426,7 @@ describe("GET /api/client-export", () => {
     }));
 
     const mod = await import("./route");
-    GET = mod.GET;
+    GET = mod.GET as unknown as typeof GET;
   });
 
   /* ---------- Auth ---------- */

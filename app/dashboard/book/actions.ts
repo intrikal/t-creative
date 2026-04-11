@@ -10,9 +10,18 @@
  */
 
 import * as Sentry from "@sentry/nextjs";
-import { isNull, eq, and, inArray } from "drizzle-orm";
+import { isNull, eq, and, inArray, sql, gte, lt } from "drizzle-orm";
+import { getPublicBookingRules } from "@/app/dashboard/settings/settings-actions";
 import { db } from "@/db";
-import { businessHours, clientForms, formSubmissions, timeOff, settings } from "@/db/schema";
+import {
+  bookings,
+  businessHours,
+  clientForms,
+  formSubmissions,
+  services,
+  timeOff,
+  settings,
+} from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
 
 /* ------------------------------------------------------------------ */
@@ -145,9 +154,7 @@ export type PendingWaiver = {
  *
  * Step 3 — Return the forms NOT yet submitted (the "pending waivers").
  */
-export async function checkClientWaivers(
-  serviceCategory: string,
-): Promise<PendingWaiver[]> {
+export async function checkClientWaivers(serviceCategory: string): Promise<PendingWaiver[]> {
   try {
     const cu = await getCurrentUser();
     if (!cu) return [];
@@ -163,8 +170,7 @@ export async function checkClientWaivers(
       .from(clientForms)
       .where(and(eq(clientForms.isActive, true), eq(clientForms.required, true)));
 
-    const categoryLabel =
-      serviceCategory.charAt(0).toUpperCase() + serviceCategory.slice(1);
+    const categoryLabel = serviceCategory.charAt(0).toUpperCase() + serviceCategory.slice(1);
     // Filter forms down to those applicable to this service category.
     // appliesTo is a string array (e.g. ["All"] or ["Lash", "Jewelry"]).
     // .filter() is correct because we need a subset — .find() would only
@@ -201,5 +207,102 @@ export async function checkClientWaivers(
   } catch (err) {
     Sentry.captureException(err);
     return [];
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Booked-slot availability check                                     */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Returns time slots on a given date that are unavailable due to existing
+ * confirmed/pending bookings plus buffer time.
+ *
+ * Used by the BookingRequestDialog to gray out or hide unavailable slots
+ * so clients only see actually bookable times.
+ *
+ * @param date       ISO date string (YYYY-MM-DD)
+ * @param serviceId  The service being booked (for duration lookup)
+ * @param staffId    Optional — if provided, checks that staff member's bookings.
+ *                   If omitted, checks ALL staff for any conflicts.
+ * @param locationId Optional — filter by location
+ * @returns Array of unavailable slot start times as "HH:MM" strings
+ */
+export async function getBookedSlots(
+  date: string,
+  serviceId: number,
+  staffId?: string,
+  locationId?: number,
+): Promise<string[]> {
+  try {
+    const dayStart = new Date(`${date}T00:00:00`);
+    const dayEnd = new Date(`${date}T23:59:59.999`);
+
+    const conditions = [
+      inArray(bookings.status, ["pending", "confirmed", "in_progress"]),
+      isNull(bookings.deletedAt),
+      gte(bookings.startsAt, dayStart),
+      lt(bookings.startsAt, dayEnd),
+    ];
+
+    if (staffId !== undefined) {
+      conditions.push(eq(bookings.staffId, staffId));
+    }
+
+    if (locationId !== undefined) {
+      conditions.push(eq(bookings.locationId, locationId));
+    }
+
+    const [existingBookings, rules, serviceRow] = await Promise.all([
+      db
+        .select({
+          startsAt: bookings.startsAt,
+          durationMinutes: bookings.durationMinutes,
+        })
+        .from(bookings)
+        .where(and(...conditions)),
+      getPublicBookingRules(),
+      db
+        .select({ durationMinutes: services.durationMinutes })
+        .from(services)
+        .where(eq(services.id, serviceId))
+        .limit(1),
+    ]);
+
+    const requestedDuration = serviceRow[0]?.durationMinutes ?? 60;
+    const buffer = rules.bufferMinutes;
+
+    // Build blocked ranges: each existing booking blocks from
+    // (startsAt - buffer) to (startsAt + duration + buffer).
+    const blockedRanges = existingBookings.map((b) => {
+      const start = new Date(b.startsAt).getTime();
+      return {
+        from: start - buffer * 60_000,
+        to: start + b.durationMinutes * 60_000 + buffer * 60_000,
+      };
+    });
+
+    // Check every 30-minute slot in the day (00:00–23:30).
+    // A slot is unavailable if placing a booking of requestedDuration
+    // at that time would overlap any blocked range.
+    const unavailable: string[] = [];
+
+    for (let mins = 0; mins < 24 * 60; mins += 30) {
+      const slotStart = dayStart.getTime() + mins * 60_000;
+      const slotEnd = slotStart + requestedDuration * 60_000;
+
+      const overlaps = blockedRanges.some((r) => slotStart < r.to && slotEnd > r.from);
+
+      if (overlaps) {
+        const hh = String(Math.floor(mins / 60)).padStart(2, "0");
+        const mm = String(mins % 60).padStart(2, "0");
+        unavailable.push(`${hh}:${mm}`);
+      }
+    }
+
+    return unavailable;
+  } catch (err) {
+    Sentry.captureException(err);
+    throw err;
   }
 }

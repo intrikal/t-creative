@@ -14,7 +14,7 @@
  * valid windows so the sister gets clean, actionable requests.
  */
 
-import { useReducer, useEffect, useMemo, useRef, useCallback } from "react";
+import { useState, useReducer, useEffect, useMemo, useRef, useCallback } from "react";
 import {
   X,
   CalendarDays,
@@ -27,9 +27,11 @@ import {
   CalendarPlus,
   CheckCircle2,
   AlertTriangle,
+  Loader2,
 } from "lucide-react";
 import {
   getStudioAvailability,
+  getBookedSlots,
   checkIsAuthenticated,
   checkClientWaivers,
   type StudioAvailability,
@@ -52,6 +54,7 @@ import { SquarePaymentForm } from "./components/SquarePaymentForm";
 import { formatPrice } from "./helpers";
 import { IntakeFormStep } from "./IntakeFormStep";
 import type { Service, ServiceAddOn } from "./types";
+import { WaitlistDialog } from "./WaitlistDialog";
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                             */
@@ -217,6 +220,10 @@ interface BookingState {
   // Waiver
   pendingWaivers: PendingWaiver[];
   waiversChecked: boolean;
+  // Booked-slot availability
+  bookedSlots: string[];
+  bookedSlotsLoading: boolean;
+  bookedSlotsCache: Record<string, string[]>;
   // Submission
   submitting: boolean;
   submitted: boolean;
@@ -247,6 +254,9 @@ const INITIAL_STATE: BookingState = {
   intakeFormsLoaded: false,
   pendingWaivers: [],
   waiversChecked: false,
+  bookedSlots: [],
+  bookedSlotsLoading: false,
+  bookedSlotsCache: {},
   submitting: false,
   submitted: false,
   savedOffline: false,
@@ -289,6 +299,8 @@ type BookingAction =
       }>;
     }
   | { type: "SET_WAIVERS"; waivers: PendingWaiver[] }
+  | { type: "BOOKED_SLOTS_LOADING" }
+  | { type: "BOOKED_SLOTS_LOADED"; date: string; slots: string[] }
   | { type: "SUBMITTING" }
   | { type: "SUBMITTED" }
   | { type: "SAVED_OFFLINE" }
@@ -314,8 +326,18 @@ function bookingReducer(state: BookingState, action: BookingAction): BookingStat
         selectedTime: action.time,
         step: state.intakeFormsLoaded && state.intakeForms.length > 0 ? "intake" : "confirm",
       };
-    case "SELECT_DATE":
-      return { ...state, selectedDate: action.date, selectedTime: "", step: "time" };
+    case "SELECT_DATE": {
+      const dateKey = fmtISO(action.date);
+      const cached = state.bookedSlotsCache[dateKey];
+      return {
+        ...state,
+        selectedDate: action.date,
+        selectedTime: "",
+        step: "time",
+        bookedSlots: cached ?? [],
+        bookedSlotsLoading: !cached,
+      };
+    }
     case "SELECT_TIME":
       return {
         ...state,
@@ -368,6 +390,15 @@ function bookingReducer(state: BookingState, action: BookingAction): BookingStat
       return { ...state, intakeResponses: action.responses, step: "confirm" };
     case "SET_WAIVERS":
       return { ...state, pendingWaivers: action.waivers, waiversChecked: true };
+    case "BOOKED_SLOTS_LOADING":
+      return { ...state, bookedSlotsLoading: true };
+    case "BOOKED_SLOTS_LOADED":
+      return {
+        ...state,
+        bookedSlots: action.slots,
+        bookedSlotsLoading: false,
+        bookedSlotsCache: { ...state.bookedSlotsCache, [action.date]: action.slots },
+      };
     case "SUBMITTING":
       return { ...state, submitting: true, error: "" };
     case "SUBMITTED":
@@ -427,12 +458,17 @@ export function BookingRequestDialog({
     tosAccepted,
     pendingWaivers,
     waiversChecked,
+    bookedSlots,
+    bookedSlotsLoading,
+    bookedSlotsCache,
     submitting,
     submitted,
     savedOffline,
     depositPaid,
     error,
   } = state;
+
+  const [showWaitlist, setShowWaitlist] = useState(false);
 
   const { executeRecaptcha } = useRecaptcha();
 
@@ -535,6 +571,18 @@ export function BookingRequestDialog({
       return false;
     };
   }, [availability]);
+
+  // Fetch booked slots when a date is selected (skip if cached)
+  useEffect(() => {
+    if (!selectedDate) return;
+    const dateKey = fmtISO(selectedDate);
+    if (bookedSlotsCache[dateKey]) return;
+
+    dispatch({ type: "BOOKED_SLOTS_LOADING" });
+    getBookedSlots(dateKey, service.id).then((slots) => {
+      dispatch({ type: "BOOKED_SLOTS_LOADED", date: dateKey, slots });
+    });
+  }, [selectedDate, service.id, bookedSlotsCache]);
 
   // Generate time slots for the selected date
   const timeSlots = useMemo(() => {
@@ -966,27 +1014,51 @@ export function BookingRequestDialog({
                   </div>
                 </div>
 
-                {timeSlots.length > 0 ? (
+                {bookedSlotsLoading ? (
+                  <div className="flex items-center justify-center py-10">
+                    <Loader2 className="w-5 h-5 animate-spin text-stone-400" />
+                    <span className="ml-2 text-sm text-stone-400">Checking availability…</span>
+                  </div>
+                ) : timeSlots.length > 0 ? (
                   <div
                     className="grid grid-cols-2 sm:grid-cols-3 gap-2"
                     role="group"
                     aria-label="Available time slots"
                     aria-live="polite"
                   >
-                    {timeSlots.map((slot) => (
-                      <button
-                        key={slot}
-                        onClick={() => handleTimeSelect(slot)}
-                        className={cn(
-                          "py-3 rounded-xl border text-sm font-medium transition-colors",
-                          selectedTime === slot
-                            ? "border-[#96604a] bg-[#faf6f1] text-[#96604a]"
-                            : "border-stone-200 text-stone-700 hover:border-[#e8c4b8] hover:bg-[#faf6f1]/50",
-                        )}
-                      >
-                        {fmt12(slot)}
-                      </button>
-                    ))}
+                    {timeSlots.map((slot) => {
+                      const isBooked = bookedSlots.includes(slot);
+                      return isBooked ? (
+                        <div
+                          key={slot}
+                          className="py-3 rounded-xl border border-stone-200 text-sm font-medium opacity-40 cursor-not-allowed text-center"
+                          aria-disabled="true"
+                          title="This time is already booked"
+                        >
+                          <span className="line-through text-stone-400">{fmt12(slot)}</span>
+                          <button
+                            type="button"
+                            onClick={() => setShowWaitlist(true)}
+                            className="block mx-auto mt-1 text-[11px] text-[#96604a] underline cursor-pointer"
+                          >
+                            Join Waitlist
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          key={slot}
+                          onClick={() => handleTimeSelect(slot)}
+                          className={cn(
+                            "py-3 rounded-xl border text-sm font-medium transition-colors",
+                            selectedTime === slot
+                              ? "border-[#96604a] bg-[#faf6f1] text-[#96604a]"
+                              : "border-stone-200 text-stone-700 hover:border-[#e8c4b8] hover:bg-[#faf6f1]/50",
+                          )}
+                        >
+                          {fmt12(slot)}
+                        </button>
+                      );
+                    })}
                   </div>
                 ) : (
                   <p className="text-sm text-stone-400 text-center py-6">
@@ -1475,6 +1547,12 @@ export function BookingRequestDialog({
           </div>
         )}
       </div>
+
+      <WaitlistDialog
+        service={service}
+        open={showWaitlist}
+        onClose={() => setShowWaitlist(false)}
+      />
     </div>
   );
 }

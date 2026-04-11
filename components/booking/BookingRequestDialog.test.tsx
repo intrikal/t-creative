@@ -47,6 +47,8 @@ vi.mock("@/app/dashboard/book/actions", () => ({
     lunchBreak: null,
   }),
   checkIsAuthenticated: vi.fn().mockResolvedValue(true),
+  getBookedSlots: vi.fn().mockResolvedValue([]),
+  checkClientWaivers: vi.fn().mockResolvedValue([]),
 }));
 
 // vi.mock("@/app/dashboard/messages/actions"): replaces the booking request

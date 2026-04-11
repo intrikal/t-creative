@@ -105,7 +105,7 @@ export async function previewTemplate(slug: string): Promise<ActionResult<string
 }
 
 /** Reset a template to its hardcoded default — admin only. */
-export async function resetTemplate(slug: string): Promise<ActionResult<void>> {
+export async function resetTemplate(slug: string): Promise<ActionResult<string>> {
   try {
     const user = await requireAdmin();
 
@@ -120,7 +120,7 @@ export async function resetTemplate(slug: string): Promise<ActionResult<void>> {
     updateTag("sms-templates");
     revalidatePath("/dashboard/settings");
 
-    return { success: true, data: undefined };
+    return { success: true, data: defaultBody };
   } catch (err) {
     Sentry.captureException(err);
     const message = err instanceof Error ? err.message : "Failed to reset template";

@@ -171,13 +171,8 @@ function TemplateEditor({
     startResetTransition(async () => {
       const result = await resetTemplate(template.slug);
       if (result.success) {
-        // Refetch is simpler — just re-read defaults client-side
-        const { getDefaultBody } = await import("@/lib/sms-templates");
-        const defaultBody = getDefaultBody(template.slug);
-        if (defaultBody) {
-          setBody(defaultBody);
-          onUpdated({ ...template, body: defaultBody });
-        }
+        setBody(result.data);
+        onUpdated({ ...template, body: result.data });
         setConfirmReset(false);
         setSaved(false);
       } else {

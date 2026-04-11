@@ -147,6 +147,7 @@ export async function uploadMedia(formData: FormData) {
     const caption = formData.get("caption") as string | null;
     const category = formData.get("category") as MediaCategory | null;
     const featured = formData.get("featured") === "true";
+    const publish = formData.get("publish") === "true";
 
     if (files.length === 0) throw new Error("No files provided");
 
@@ -177,7 +178,7 @@ export async function uploadMedia(formData: FormData) {
         storagePath: path,
         publicUrl,
         fileSizeBytes: file.size,
-        isPublished: featured,
+        isPublished: featured || publish,
         isFeatured: featured,
       });
     }

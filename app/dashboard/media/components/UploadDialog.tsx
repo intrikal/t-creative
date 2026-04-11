@@ -7,10 +7,10 @@
 
 import { useRef, useState, useTransition } from "react";
 import Image from "next/image";
-import { ImagePlus, Star, X } from "lucide-react";
-import type { MediaCategory } from "@/lib/types/media.types";
+import { Eye, ImagePlus, Star, X } from "lucide-react";
 import { uploadMedia } from "@/app/dashboard/media/actions";
 import { Dialog, DialogFooter, Field, Select, Textarea } from "@/components/ui/dialog";
+import type { MediaCategory } from "@/lib/types/media.types";
 import { cn } from "@/lib/utils";
 import type { PendingFile } from "./helpers";
 
@@ -19,6 +19,7 @@ export function UploadDialog({ open, onClose }: { open: boolean; onClose: () => 
   const [pending, setPending] = useState<PendingFile[]>([]);
   const [caption, setCaption] = useState("");
   const [category, setCategory] = useState<MediaCategory>("lash");
+  const [publish, setPublish] = useState(false);
   const [featured, setFeatured] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [uploading, startUpload] = useTransition();
@@ -46,6 +47,7 @@ export function UploadDialog({ open, onClose }: { open: boolean; onClose: () => 
     pending.forEach((p) => fd.append("files", p.file));
     if (caption.trim()) fd.append("caption", caption.trim());
     fd.append("category", category);
+    fd.append("publish", String(featured || publish));
     fd.append("featured", String(featured));
 
     startUpload(async () => {
@@ -55,6 +57,7 @@ export function UploadDialog({ open, onClose }: { open: boolean; onClose: () => 
       setPending([]);
       setCaption("");
       setCategory("lash");
+      setPublish(false);
       setFeatured(false);
       onClose();
     });
@@ -66,6 +69,7 @@ export function UploadDialog({ open, onClose }: { open: boolean; onClose: () => 
     setPending([]);
     setCaption("");
     setCategory("lash");
+    setPublish(false);
     setFeatured(false);
     onClose();
   }
@@ -161,8 +165,48 @@ export function UploadDialog({ open, onClose }: { open: boolean; onClose: () => 
           <button
             type="button"
             role="switch"
+            aria-checked={featured || publish}
+            aria-disabled={featured}
+            onClick={() => {
+              if (!featured) setPublish(!publish);
+            }}
+            className={cn(
+              "relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors",
+              featured || publish ? "bg-emerald-500" : "bg-foreground/15",
+              featured && "opacity-60 cursor-not-allowed",
+            )}
+          >
+            <span
+              className={cn(
+                "inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform",
+                featured || publish ? "translate-x-[18px]" : "translate-x-[3px]",
+              )}
+            />
+          </button>
+          <div>
+            <span className="text-sm font-medium text-foreground flex items-center gap-1.5">
+              <Eye
+                className={cn(
+                  "w-3.5 h-3.5",
+                  featured || publish ? "text-emerald-600" : "text-muted",
+                )}
+              />
+              Publish to portfolio
+            </span>
+            <p className="text-xs text-muted">Make visible on the public portfolio page</p>
+          </div>
+        </label>
+
+        <label className="flex items-center gap-3 cursor-pointer">
+          <button
+            type="button"
+            role="switch"
             aria-checked={featured}
-            onClick={() => setFeatured(!featured)}
+            onClick={() => {
+              const next = !featured;
+              setFeatured(next);
+              if (next) setPublish(true);
+            }}
             className={cn(
               "relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors",
               featured ? "bg-[#d4a574]" : "bg-foreground/15",
@@ -185,7 +229,9 @@ export function UploadDialog({ open, onClose }: { open: boolean; onClose: () => 
               />
               Featured
             </span>
-            <p className="text-xs text-muted">Show on public portfolio and auto-publish</p>
+            <p className="text-xs text-muted">
+              Highlight on portfolio hero section (auto-publishes)
+            </p>
           </div>
         </label>
       </div>

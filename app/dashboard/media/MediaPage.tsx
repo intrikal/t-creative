@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Upload, Grid, List, Star, Filter, ImagePlus } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Upload, Grid, List, Star, Filter, ImagePlus, ExternalLink } from "lucide-react";
 import type { MediaRow, MediaStats } from "@/lib/types/media.types";
+import { cn } from "@/lib/utils";
 import { togglePublish, toggleFeatured, deleteMediaItem } from "./actions";
 import { CATEGORIES, formatBytes } from "./components/helpers";
 import type { FilterCategory } from "./components/helpers";
@@ -90,6 +90,17 @@ export function MediaPage({
             {stats.total} items · {stats.published} published · {stats.featured} featured
           </p>
         )}
+        <p className="text-xs text-muted flex items-center gap-1 basis-full">
+          {stats.published} of {stats.total} published to portfolio ·{" "}
+          <a
+            href="/portfolio"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-0.5 text-accent hover:underline"
+          >
+            View portfolio <ExternalLink className="w-3 h-3" />
+          </a>
+        </p>
         <div className="flex items-center gap-2 ml-auto">
           <div className="flex gap-0.5 bg-surface border border-border rounded-lg p-0.5">
             <button

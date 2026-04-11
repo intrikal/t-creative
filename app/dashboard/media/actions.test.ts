@@ -339,6 +339,45 @@ describe("media/actions", () => {
       );
     });
 
+    it("sets isPublished when publish flag is true", async () => {
+      vi.resetModules();
+      const mockInsertValues = vi.fn().mockResolvedValue(undefined);
+      setupMocks({
+        select: vi.fn(() => makeChain([])),
+        insert: vi.fn(() => ({ values: mockInsertValues })),
+        update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn() })) })),
+        delete: vi.fn(() => ({ where: vi.fn() })),
+      });
+      const { uploadMedia } = await import("./actions");
+      const file = new File(["content"], "published.jpg", { type: "image/jpeg" });
+      const fd = new FormData();
+      fd.append("files", file);
+      fd.append("publish", "true");
+      await uploadMedia(fd);
+      expect(mockInsertValues).toHaveBeenCalledWith(
+        expect.objectContaining({ isPublished: true, isFeatured: false }),
+      );
+    });
+
+    it("keeps isPublished false when publish flag is absent", async () => {
+      vi.resetModules();
+      const mockInsertValues = vi.fn().mockResolvedValue(undefined);
+      setupMocks({
+        select: vi.fn(() => makeChain([])),
+        insert: vi.fn(() => ({ values: mockInsertValues })),
+        update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn() })) })),
+        delete: vi.fn(() => ({ where: vi.fn() })),
+      });
+      const { uploadMedia } = await import("./actions");
+      const file = new File(["content"], "draft.jpg", { type: "image/jpeg" });
+      const fd = new FormData();
+      fd.append("files", file);
+      await uploadMedia(fd);
+      expect(mockInsertValues).toHaveBeenCalledWith(
+        expect.objectContaining({ isPublished: false, isFeatured: false }),
+      );
+    });
+
     it("revalidates /dashboard/media", async () => {
       vi.resetModules();
       setupMocks({

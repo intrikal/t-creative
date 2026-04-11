@@ -48,6 +48,7 @@
     { "path": "/api/cron/instagram-sync", "schedule": "0 */6 * * *" },
     { "path": "/api/cron/refresh-views", "schedule": "0 */4 * * *" },
     { "path": "/api/cron/catalog-sync", "schedule": "30 3 * * *" },
-    { "path": "/api/cron/email-queue-drain", "schedule": "5 0 * * *" }
+    { "path": "/api/cron/email-queue-drain", "schedule": "5 0 * * *" },
+    { "path": "/api/cron/low-stock-alert", "schedule": "0 8 * * *" }
   ]
 }

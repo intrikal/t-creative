@@ -8,9 +8,9 @@
 import { useState } from "react";
 import Image from "next/image";
 import { Star, Eye, EyeOff, ImagePlus, Trash2, MoreHorizontal } from "lucide-react";
-import type { MediaRow } from "@/lib/types/media.types";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import type { MediaRow } from "@/lib/types/media.types";
 import { cn } from "@/lib/utils";
 import { catLabel, catStyle } from "./helpers";
 
@@ -123,6 +123,21 @@ export function MediaTile({
             {item.client && <p className="text-white/70 text-[10px] mt-0.5">{item.client}</p>}
           </div>
         </div>
+        {/* Persistent badges — visible without hover */}
+        <div className="absolute top-1.5 left-1.5 flex items-center gap-1 group-hover:opacity-0 transition-opacity">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onTogglePublish();
+            }}
+            className={cn(
+              "px-1.5 py-0.5 rounded-full text-[9px] font-semibold leading-none backdrop-blur-sm",
+              item.isPublished ? "bg-emerald-500/80 text-white" : "bg-black/40 text-white/80",
+            )}
+          >
+            {item.isPublished ? "Published" : "Draft"}
+          </button>
+        </div>
         {item.isFeatured && (
           <div className="absolute top-1.5 right-1.5 group-hover:opacity-0 transition-opacity">
             <span className="w-5 h-5 rounded-full bg-black/40 flex items-center justify-center">
@@ -169,17 +184,16 @@ export function MediaTile({
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {item.isFeatured && <Star className="w-3.5 h-3.5 text-[#d4a574] fill-[#d4a574]" />}
-          {item.isPublished && <Eye className="w-3.5 h-3.5 text-muted" />}
           <button
             onClick={onTogglePublish}
-            className="p-1.5 rounded-lg hover:bg-foreground/5 text-muted transition-colors"
-            title={item.isPublished ? "Unpublish" : "Publish"}
-          >
-            {item.isPublished ? (
-              <EyeOff className="w-3.5 h-3.5" />
-            ) : (
-              <Eye className="w-3.5 h-3.5" />
+            className={cn(
+              "px-2 py-0.5 rounded-full text-[10px] font-medium transition-colors",
+              item.isPublished
+                ? "bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/20"
+                : "bg-foreground/5 text-muted hover:bg-foreground/10",
             )}
+          >
+            {item.isPublished ? "Published" : "Draft"}
           </button>
           <button
             onClick={onToggleFeatured}

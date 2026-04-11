@@ -120,7 +120,7 @@ describe("RATE_LIMITS config — endpoint sliding window params", () => {
       RatelimitConstructor as unknown as Record<string, ReturnType<typeof vi.fn>>
     ).slidingWindow;
     const match = slidingWindow.mock.calls.find(
-      ([count, window]: [number, string]) => count === 10 && window === "60 s",
+      ([count, window]) => count === 10 && window === "60 s",
     );
     expect(match, "/api/chat/fallback should use slidingWindow(10, '60 s')").toBeDefined();
   });
@@ -130,7 +130,7 @@ describe("RATE_LIMITS config — endpoint sliding window params", () => {
       RatelimitConstructor as unknown as Record<string, ReturnType<typeof vi.fn>>
     ).slidingWindow;
     const fivePerMin = slidingWindow.mock.calls.filter(
-      ([count, window]: [number, string]) => count === 5 && window === "60 s",
+      ([count, window]) => count === 5 && window === "60 s",
     );
     expect(fivePerMin.length, "two endpoints use slidingWindow(5, '60 s')").toBeGreaterThanOrEqual(
       2,
@@ -142,7 +142,7 @@ describe("RATE_LIMITS config — endpoint sliding window params", () => {
       RatelimitConstructor as unknown as Record<string, ReturnType<typeof vi.fn>>
     ).slidingWindow;
     const match = slidingWindow.mock.calls.find(
-      ([count, window]: [number, string]) => count === 20 && window === "60 s",
+      ([count, window]) => count === 20 && window === "60 s",
     );
     expect(match, "/api/book/upload-reference should use slidingWindow(20, '60 s')").toBeDefined();
   });

@@ -23,7 +23,7 @@ vi.mock("../../location-actions", () => ({
 
 /* ---- Test fixtures ---- */
 
-const now = new Date().toISOString();
+const now = new Date();
 
 function makeLocation(overrides: Partial<LocationRow> = {}): LocationRow {
   return {

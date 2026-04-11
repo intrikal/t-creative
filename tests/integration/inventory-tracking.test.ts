@@ -32,6 +32,7 @@
  *   INSERT inventoryAdjustments (audit)
  */
 
+import type { PaymentCreatedEventData } from "square";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 /* ------------------------------------------------------------------ */
@@ -524,14 +525,14 @@ function makePaymentEvent(overrides: Record<string, unknown> = {}) {
       payment: {
         id: "sq-pay-001",
         orderId: "sq-order-001",
-        amountMoney: { amount: 5000, currency: "USD" },
-        tenders: [{ type: "CARD" }],
+        amountMoney: { amount: BigInt(5000), currency: "USD" as const },
+        tenders: [{ type: "CARD" as const }],
         receiptUrl: "https://squareup.com/receipt/001",
         updatedAt: new Date().toISOString(),
         ...overrides,
       },
     },
-  };
+  } as PaymentCreatedEventData;
 }
 
 /* ------------------------------------------------------------------ */

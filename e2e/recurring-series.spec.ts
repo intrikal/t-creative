@@ -229,7 +229,7 @@ test.describe("Recurring series — create via booking dialog", () => {
 
     // Set Repeat to "Every week".
     const repeatSelect = page.getByLabel("Repeat");
-    await repeatSelect.selectOption({ label: /every week$/i });
+    await repeatSelect.selectOption({ label: "Every week" });
 
     // Set Max occurrences to 4.
     await page.getByLabel(/max occurrences/i).fill("4");

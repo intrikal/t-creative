@@ -182,6 +182,7 @@ export function SettingsPage({
   initialTerms,
   initialDeletionLog,
   initialWebhookEvents,
+  initialTemplates,
   googleCalendarConnected,
   googleCalendarSyncEnabled,
 }: {

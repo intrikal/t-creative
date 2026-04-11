@@ -275,7 +275,7 @@ describe("time-off-actions", () => {
 
     it("approve: preserves existing notes fields when setting approved status", async () => {
       vi.resetModules();
-      const mockSet = vi.fn(() => ({ where: vi.fn() }));
+      const mockSet = vi.fn((_values: Record<string, unknown>) => ({ where: vi.fn() }));
       setupMocks({
         select: vi.fn(() =>
           makeChain([
@@ -299,7 +299,7 @@ describe("time-off-actions", () => {
       await approveTimeOffRequest(2);
 
       const setArg = mockSet.mock.calls[0][0];
-      const parsed = JSON.parse(setArg.notes);
+      const parsed = JSON.parse(setArg.notes as string);
       expect(parsed.status).toBe("approved");
       expect(parsed.reason).toBe("Doctor appointment");
       expect(parsed.partial).toEqual({ startTime: "09:00", endTime: "13:00" });
@@ -311,7 +311,7 @@ describe("time-off-actions", () => {
       // check — that's an admin decision. Booking creation is what gets blocked
       // downstream by hasApprovedTimeOffConflict.
       vi.resetModules();
-      const mockSet = vi.fn(() => ({ where: vi.fn() }));
+      const mockSet = vi.fn((_values: Record<string, unknown>) => ({ where: vi.fn() }));
       setupMocks({
         // Only one select call — for the time-off notes. No booking lookup.
         select: vi.fn(() =>
@@ -332,7 +332,7 @@ describe("time-off-actions", () => {
       // Should resolve without checking for booking conflicts
       await expect(approveTimeOffRequest(5)).resolves.toBeUndefined();
       expect(mockSet).toHaveBeenCalledOnce();
-      expect(JSON.parse(mockSet.mock.calls[0][0].notes).status).toBe("approved");
+      expect(JSON.parse(mockSet.mock.calls[0][0].notes as string).status).toBe("approved");
     });
 
     it("approve: tracks time_off_approved event and revalidates dashboard path", async () => {
@@ -392,7 +392,7 @@ describe("time-off-actions", () => {
 
     it("deny: sets status to denied — does NOT set approved (booking not blocked)", async () => {
       vi.resetModules();
-      const mockSet = vi.fn(() => ({ where: vi.fn() }));
+      const mockSet = vi.fn((_values: Record<string, unknown>) => ({ where: vi.fn() }));
       setupMocks({
         select: vi.fn(() =>
           makeChain([
@@ -416,7 +416,7 @@ describe("time-off-actions", () => {
       await denyTimeOffRequest(1, "Short-staffed that week");
 
       const setArg = mockSet.mock.calls[0][0];
-      const parsed = JSON.parse(setArg.notes);
+      const parsed = JSON.parse(setArg.notes as string);
       expect(parsed.status).toBe("denied");
       // Must NOT be approved — denied time-off does not block booking creation
       expect(parsed.status).not.toBe("approved");

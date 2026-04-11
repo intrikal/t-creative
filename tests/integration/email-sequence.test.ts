@@ -487,15 +487,17 @@ describe("Email sequence — integration", () => {
     let conflictDoNothingCalls = 0;
     const originalInsert = db.insert.bind(db);
     db.insert = vi.fn((_table: any) => ({
-      values: vi.fn((_values: MockRow) => {
+      values: vi.fn((_values: MockRow | MockRow[]) => {
         conflictDoNothingCalls++;
-        db._enrollments.push({ ..._values, id: db._enrollments.length + 1 });
+        const row = Array.isArray(_values) ? _values[0] : _values;
+        db._enrollments.push({ ...row, id: db._enrollments.length + 1 });
         return {
           returning: vi.fn().mockResolvedValue([{ id: 1 }]),
           onConflictDoNothing: vi.fn().mockResolvedValue(undefined),
+          onConflictDoUpdate: vi.fn().mockResolvedValue(undefined),
         };
       }),
-    }));
+    })) as typeof db.insert;
 
     setupMocks(db);
     // Override the notification-preferences module to use the queue

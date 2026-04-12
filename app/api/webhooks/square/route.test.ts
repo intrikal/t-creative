@@ -1,111 +1,39 @@
+// @vitest-environment node
+
 /**
- * Tests for POST /api/webhooks/square — Square payment and refund webhook.
+ * Tests for POST /api/webhooks/square — Square webhook receiver.
+ *
+ * The route verifies HMAC signatures, checks idempotency, stores the raw
+ * event in webhook_events, and enqueues to Inngest for async processing.
+ * All heavy lifting (payment linking, tax handling, etc.) lives in the
+ * Inngest function, not in this route.
  *
  * Covers:
- *  - Signature verification: invalid HMAC-SHA256 sig (403), valid sig (200),
- *    bypass when webhook key is not configured (empty string)
+ *  - Signature verification: invalid HMAC (403), valid HMAC (200)
  *  - Invalid input: malformed JSON body (400)
  *  - Idempotency: already-processed event_id → 200 "Already processed"
- *    without re-running handlers
- *  - Event routing: payment.completed, payment.updated, refund.created,
- *    and unknown event types all return 200 (never fail to Square)
- *  - Auto-linking: payment matched to booking via squareOrderId → inserts
- *    payment row; no match → logs for manual linking in sync_log
- *  - Tax handling: taxMoney.amount stored as taxAmountInCents; absent
- *    taxMoney defaults to 0
+ *  - Happy path: stores webhook event, sends Inngest event, returns 200
+ *  - DB error: insert returns empty → 500
  *
- * Mocks: db (select/insert/update chains), Square SDK client,
- * SQUARE_WEBHOOK_SIGNATURE_KEY (toggled per test), Sentry.
- * Uses per-test vi.resetModules + vi.doMock to swap DB mock behaviour.
+ * Mocks: @/lib/env, @/inngest/client, @/db, @/db/schema, drizzle-orm,
+ * @/lib/middleware/request-logger (passthrough).
  */
-// createHmac: Node crypto function used to build valid HMAC-SHA256 signatures for webhook verification
 import { createHmac } from "crypto";
-// describe: groups related tests into a labeled block (like a folder for tests)
-// it/test: defines a single test case with a description and assertion function
-// expect: creates an assertion — checks that a value matches an expected condition
-// vi: Vitest's mock utility — creates fake functions, spies on calls, and controls return values
-// beforeEach: runs a setup function before every test in the current describe block
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 /* ------------------------------------------------------------------ */
-/*  Mocks                                                              */
+/*  Shared mock state                                                   */
 /* ------------------------------------------------------------------ */
 
-// Mock db — tracks all calls for assertions
+const mockInngestSend = vi.fn();
 const mockSelect = vi.fn();
 const mockInsert = vi.fn();
-const mockUpdate = vi.fn();
-const mockSet = vi.fn();
 const mockFrom = vi.fn();
 const mockWhere = vi.fn();
-const mockReturning = vi.fn();
 const mockValues = vi.fn();
+const mockReturning = vi.fn();
 
-vi.mock("@/db", () => ({
-  db: {
-    select: (...args: unknown[]) => {
-      mockSelect(...args);
-      return {
-        from: (...fArgs: unknown[]) => {
-          mockFrom(...fArgs);
-          return {
-            where: (...wArgs: unknown[]) => {
-              mockWhere(...wArgs);
-              // Default: return empty array (no existing records)
-              return mockWhere.mock.results.at(-1)?.value ?? [];
-            },
-          };
-        },
-      };
-    },
-    insert: (...args: unknown[]) => {
-      mockInsert(...args);
-      return {
-        values: (...vArgs: unknown[]) => {
-          mockValues(...vArgs);
-          return {
-            returning: (...rArgs: unknown[]) => {
-              mockReturning(...rArgs);
-              return mockReturning.mock.results.at(-1)?.value ?? [{ id: 1 }];
-            },
-          };
-        },
-      };
-    },
-    update: (...args: unknown[]) => {
-      mockUpdate(...args);
-      return {
-        set: (...sArgs: unknown[]) => {
-          mockSet(...sArgs);
-          return {
-            where: vi.fn(),
-          };
-        },
-      };
-    },
-  },
-}));
-
-vi.mock("@/db/schema", () => ({
-  payments: { id: "id", squarePaymentId: "squarePaymentId" },
-  bookings: { id: "id", clientId: "clientId", squareOrderId: "squareOrderId" },
-  webhookEvents: {
-    id: "id",
-    provider: "provider",
-    externalEventId: "externalEventId",
-    isProcessed: "isProcessed",
-  },
-  syncLog: {},
-}));
-
-let mockSignatureKey = "";
-vi.mock("@/lib/square", () => ({
-  get SQUARE_WEBHOOK_SIGNATURE_KEY() {
-    return mockSignatureKey;
-  },
-  squareClient: { orders: { get: vi.fn().mockRejectedValue(new Error("not configured")) } },
-  isSquareConfigured: vi.fn(() => false),
-}));
+let mockSignatureKey = "test-webhook-key";
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
@@ -117,12 +45,10 @@ function makeSignature(body: string, url: string, key: string): string {
   return hmac.digest("base64");
 }
 
+const TEST_URL = "https://example.com/api/webhooks/square";
+
 function makeRequest(body: string, headers: Record<string, string> = {}): Request {
-  return new Request("https://example.com/api/webhooks/square", {
-    method: "POST",
-    body,
-    headers,
-  });
+  return new Request(TEST_URL, { method: "POST", body, headers });
 }
 
 function makeEvent(overrides: Record<string, unknown> = {}) {
@@ -134,13 +60,19 @@ function makeEvent(overrides: Record<string, unknown> = {}) {
         payment: {
           id: "sq_pay_abc",
           amount_money: { amount: 5000, currency: "USD" },
-          receipt_url: "https://squareup.com/receipt/123",
           order_id: "sq_order_456",
         },
       },
     },
     ...overrides,
   };
+}
+
+/** Builds a valid signed request for the default test event. */
+function makeSignedRequest(eventOverrides: Record<string, unknown> = {}) {
+  const body = JSON.stringify(makeEvent(eventOverrides));
+  const sig = makeSignature(body, TEST_URL, mockSignatureKey);
+  return makeRequest(body, { "x-square-hmacsha256-signature": sig });
 }
 
 /* ------------------------------------------------------------------ */
@@ -152,16 +84,28 @@ describe("POST /api/webhooks/square", () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
-    mockSignatureKey = "";
+    mockSignatureKey = "test-webhook-key";
+    mockInngestSend.mockResolvedValue({ ids: ["evt-abc"] });
 
-    // Default mock returns: no existing webhook event, insert returns id
+    // Default: no existing webhook event, insert returns id
     mockWhere.mockReturnValue([]);
     mockReturning.mockReturnValue([{ id: 1 }]);
 
-    // Re-import to get fresh module
     vi.resetModules();
 
-    // Re-mock modules after reset
+    vi.doMock("@/lib/env", () => ({
+      env: { SQUARE_WEBHOOK_SIGNATURE_KEY: mockSignatureKey },
+    }));
+    vi.doMock("@/inngest/client", () => ({
+      inngest: { send: mockInngestSend },
+    }));
+    vi.doMock("@/lib/middleware/request-logger", () => ({
+      withRequestLogger: (handler: Function) => handler,
+    }));
+    vi.doMock("drizzle-orm", () => ({
+      eq: vi.fn(),
+      and: vi.fn(),
+    }));
     vi.doMock("@/db", () => ({
       db: {
         select: (...args: unknown[]) => {
@@ -192,37 +136,15 @@ describe("POST /api/webhooks/square", () => {
             },
           };
         },
-        update: (...args: unknown[]) => {
-          mockUpdate(...args);
-          return {
-            set: (...sArgs: unknown[]) => {
-              mockSet(...sArgs);
-              return {
-                where: vi.fn(),
-              };
-            },
-          };
-        },
       },
     }));
-
     vi.doMock("@/db/schema", () => ({
-      payments: { id: "id", squarePaymentId: "squarePaymentId" },
       webhookEvents: {
         id: "id",
         provider: "provider",
         externalEventId: "externalEventId",
         isProcessed: "isProcessed",
       },
-      syncLog: {},
-    }));
-
-    vi.doMock("@/lib/square", () => ({
-      get SQUARE_WEBHOOK_SIGNATURE_KEY() {
-        return mockSignatureKey;
-      },
-      squareClient: { orders: { get: vi.fn().mockRejectedValue(new Error("not configured")) } },
-      isSquareConfigured: vi.fn(() => false),
     }));
 
     const mod = await import("./route");
@@ -231,643 +153,112 @@ describe("POST /api/webhooks/square", () => {
 
   /* ---------- Signature verification ---------- */
 
-  it("returns 403 when signature key is set but signature is invalid", async () => {
-    mockSignatureKey = "test-webhook-key";
-    // Re-import with new key
-    vi.resetModules();
-    vi.doMock("@/lib/square", () => ({
-      get SQUARE_WEBHOOK_SIGNATURE_KEY() {
-        return "test-webhook-key";
-      },
-    }));
-    vi.doMock("@/db", () => ({
-      db: {
-        select: () => ({ from: () => ({ where: () => [] }) }),
-        insert: () => ({ values: () => ({ returning: () => [{ id: 1 }] }) }),
-        update: () => ({ set: () => ({ where: vi.fn() }) }),
-      },
-    }));
-    vi.doMock("@/db/schema", () => ({
-      payments: {},
-      bookings: {},
-      webhookEvents: {},
-      syncLog: {},
-    }));
-
-    const mod = await import("./route");
+  it("returns 403 when signature is invalid", async () => {
     const body = JSON.stringify(makeEvent());
     const req = makeRequest(body, {
       "x-square-hmacsha256-signature": "invalid-signature",
     });
 
-    const res = await mod.POST(req);
+    const res = await POST(req);
     expect(res.status).toBe(403);
   });
 
-  it("accepts valid HMAC signature", async () => {
-    const key = "test-webhook-key";
+  it("returns 403 when signature header is missing", async () => {
     const body = JSON.stringify(makeEvent());
-    const url = "https://example.com/api/webhooks/square";
-    const validSig = makeSignature(body, url, key);
+    const req = makeRequest(body);
 
-    vi.resetModules();
-    vi.doMock("@/lib/square", () => ({
-      SQUARE_WEBHOOK_SIGNATURE_KEY: key,
-      squareClient: { orders: { get: vi.fn().mockRejectedValue(new Error("not configured")) } },
-      isSquareConfigured: vi.fn(() => false),
-    }));
-    vi.doMock("@/db", () => ({
-      db: {
-        select: () => ({ from: () => ({ where: () => [] }) }),
-        insert: () => ({ values: () => ({ returning: () => [{ id: 1 }] }) }),
-        update: () => ({ set: () => ({ where: vi.fn() }) }),
-      },
-    }));
-    vi.doMock("@/db/schema", () => ({
-      payments: {},
-      bookings: {},
-      webhookEvents: {},
-      syncLog: {},
-    }));
+    const res = await POST(req);
+    expect(res.status).toBe(403);
+  });
 
-    const mod = await import("./route");
-    const req = makeRequest(body, {
-      "x-square-hmacsha256-signature": validSig,
-    });
-
-    const res = await mod.POST(req);
+  it("accepts valid HMAC signature and returns 200", async () => {
+    const res = await POST(makeSignedRequest());
     expect(res.status).toBe(200);
   });
 
   /* ---------- Invalid input ---------- */
 
   it("returns 400 for invalid JSON", async () => {
-    const req = makeRequest("not valid json {{{");
+    const body = "not valid json {{{";
+    const sig = makeSignature(body, TEST_URL, mockSignatureKey);
+    const req = makeRequest(body, { "x-square-hmacsha256-signature": sig });
+
     const res = await POST(req);
     expect(res.status).toBe(400);
   });
 
   /* ---------- Idempotency ---------- */
 
-  it("returns 200 without reprocessing already-processed events", async () => {
-    vi.resetModules();
-
+  it("returns 200 'Already processed' for duplicate events", async () => {
     // First where() call returns existing processed event
-    const mockWhereIdempotent = vi.fn().mockReturnValueOnce([{ id: 99, isProcessed: true }]); // idempotency check
+    mockWhere.mockReturnValueOnce([{ id: 99, isProcessed: true }]);
 
-    vi.doMock("@/db", () => ({
-      db: {
-        select: () => ({
-          from: () => ({
-            where: mockWhereIdempotent,
-          }),
-        }),
-        insert: () => ({ values: () => ({ returning: () => [{ id: 1 }] }) }),
-        update: () => ({ set: () => ({ where: vi.fn() }) }),
-      },
-    }));
-    vi.doMock("@/db/schema", () => ({
-      payments: {},
-      webhookEvents: {
-        id: "id",
-        provider: "provider",
-        externalEventId: "externalEventId",
-        isProcessed: "isProcessed",
-      },
-      syncLog: {},
-    }));
-    vi.doMock("@/lib/square", () => ({
-      SQUARE_WEBHOOK_SIGNATURE_KEY: "",
-      squareClient: { orders: { get: vi.fn().mockRejectedValue(new Error("not configured")) } },
-      isSquareConfigured: vi.fn(() => false),
-    }));
-
-    const mod = await import("./route");
-    const body = JSON.stringify(makeEvent({ event_id: "already-processed" }));
-    const req = makeRequest(body);
-
-    const res = await mod.POST(req);
+    const res = await POST(makeSignedRequest());
     expect(res.status).toBe(200);
     const text = await res.text();
     expect(text).toBe("Already processed");
+    // Should NOT enqueue to Inngest
+    expect(mockInngestSend).not.toHaveBeenCalled();
   });
 
-  /* ---------- Event routing ---------- */
+  /* ---------- Happy path: store + enqueue ---------- */
 
-  it("processes payment.completed events and stores webhook", async () => {
-    const body = JSON.stringify(makeEvent({ type: "payment.completed" }));
-    const req = makeRequest(body);
-
-    const res = await POST(req);
+  it("stores webhook event and enqueues to Inngest", async () => {
+    const res = await POST(makeSignedRequest());
     expect(res.status).toBe(200);
-    // Should have called insert for webhook_events and sync_log
+
+    // Webhook event was inserted
     expect(mockInsert).toHaveBeenCalled();
-  });
-
-  it("processes payment.updated events", async () => {
-    const event = makeEvent({ type: "payment.updated" });
-    const body = JSON.stringify(event);
-    const req = makeRequest(body);
-
-    const res = await POST(req);
-    expect(res.status).toBe(200);
-  });
-
-  it("processes refund.created events", async () => {
-    const event = {
-      event_id: "evt_refund_1",
-      type: "refund.created",
-      data: {
-        object: {
-          refund: {
-            id: "refund_123",
-            payment_id: "sq_pay_abc",
-            amount_money: { amount: 2500, currency: "USD" },
-            status: "COMPLETED",
-          },
-        },
-      },
-    };
-    const body = JSON.stringify(event);
-    const req = makeRequest(body);
-
-    const res = await POST(req);
-    expect(res.status).toBe(200);
-  });
-
-  it("handles unknown event types gracefully", async () => {
-    const event = makeEvent({ type: "inventory.count.updated" });
-    const body = JSON.stringify(event);
-    const req = makeRequest(body);
-
-    const res = await POST(req);
-    expect(res.status).toBe(200); // Always returns 200 to Square
-  });
-
-  /* ---------- Signature bypass when key not configured ---------- */
-
-  it("skips signature check when webhook key is empty", async () => {
-    // mockSignatureKey is already "" from beforeEach
-    const body = JSON.stringify(makeEvent());
-    const req = makeRequest(body); // No signature header
-
-    const res = await POST(req);
-    expect(res.status).toBe(200);
-  });
-
-  /* ---------- Order-based auto-linking ---------- */
-
-  it("auto-links payment to booking via squareOrderId", async () => {
-    vi.resetModules();
-
-    let selectCallCount = 0;
-    const localInsertValues = vi.fn();
-
-    vi.doMock("@/db", () => ({
-      db: {
-        select: () => ({
-          from: () => ({
-            where: () => {
-              selectCallCount++;
-              // Call 1: idempotency check → not found
-              // Call 2: payment by squarePaymentId → not found
-              // Call 3: booking by squareOrderId → found!
-              if (selectCallCount === 3) {
-                return [{ id: 42, clientId: "client-abc" }];
-              }
-              return [];
-            },
-          }),
-        }),
-        insert: () => ({
-          values: (...args: unknown[]) => {
-            localInsertValues(...args);
-            return { returning: () => [{ id: 1 }] };
-          },
-        }),
-        update: () => ({ set: () => ({ where: vi.fn() }) }),
-      },
-    }));
-    vi.doMock("@/db/schema", () => ({
-      payments: {},
-      bookings: {},
-      webhookEvents: {},
-      syncLog: {},
-    }));
-    vi.doMock("@/lib/square", () => ({
-      SQUARE_WEBHOOK_SIGNATURE_KEY: "",
-      squareClient: { orders: { get: vi.fn().mockRejectedValue(new Error("no")) } },
-      isSquareConfigured: vi.fn(() => false),
-    }));
-
-    const mod = await import("./route");
-    const event = makeEvent({
-      type: "payment.completed",
-      data: {
-        object: {
-          payment: {
-            id: "sq_pay_new",
-            order_id: "sq_order_linked",
-            amount_money: { amount: 7500, currency: "USD" },
-            tenders: [{ type: "CARD" }],
-            receipt_url: "https://squareup.com/receipt/test",
-          },
-        },
-      },
-    });
-
-    const res = await mod.POST(makeRequest(JSON.stringify(event)));
-    expect(res.status).toBe(200);
-    // Should have inserted a payment record (webhook_events + payment + sync_log)
-    expect(localInsertValues).toHaveBeenCalled();
-  });
-
-  it("falls through to manual linking when no order match", async () => {
-    vi.resetModules();
-
-    const localInsertValues = vi.fn();
-
-    vi.doMock("@/db", () => ({
-      db: {
-        select: () => ({ from: () => ({ where: () => [] }) }),
-        insert: () => ({
-          values: (...args: unknown[]) => {
-            localInsertValues(...args);
-            return { returning: () => [{ id: 1 }] };
-          },
-        }),
-        update: () => ({ set: () => ({ where: vi.fn() }) }),
-      },
-    }));
-    vi.doMock("@/db/schema", () => ({
-      payments: {},
-      bookings: {},
-      orders: { squareOrderId: "squareOrderId" },
-      webhookEvents: {},
-      syncLog: {},
-    }));
-    vi.doMock("@/lib/square", () => ({
-      SQUARE_WEBHOOK_SIGNATURE_KEY: "",
-      squareClient: { orders: { get: vi.fn().mockRejectedValue(new Error("no")) } },
-      isSquareConfigured: vi.fn(() => false),
-    }));
-
-    const mod = await import("./route");
-    const event = makeEvent({
-      type: "payment.completed",
-      data: {
-        object: {
-          payment: {
-            id: "sq_pay_orphan",
-            order_id: "sq_order_unknown",
-            amount_money: { amount: 5000, currency: "USD" },
-          },
-        },
-      },
-    });
-
-    const res = await mod.POST(makeRequest(JSON.stringify(event)));
-    expect(res.status).toBe(200);
-    // Should log to sync_log with "needs manual linking" message
-    const syncLogCall = localInsertValues.mock.calls.find(
-      (call: unknown[]) =>
-        call[0] &&
-        typeof call[0] === "object" &&
-        "message" in (call[0] as Record<string, unknown>) &&
-        String((call[0] as Record<string, unknown>).message).includes("manual linking"),
+    expect(mockValues).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider: "square",
+        externalEventId: "evt_test_123",
+        eventType: "payment.completed",
+        isProcessed: false,
+        attempts: 1,
+      }),
     );
-    expect(syncLogCall).toBeDefined();
+
+    // Inngest event was sent
+    expect(mockInngestSend).toHaveBeenCalledOnce();
+    expect(mockInngestSend).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "square/webhook.received",
+        data: expect.objectContaining({
+          webhookRowId: 1,
+          eventType: "payment.completed",
+          eventId: "evt_test_123",
+        }),
+      }),
+    );
   });
 
-  /* ---------- Tax amount handling ---------- */
+  it("forwards all event types to Inngest", async () => {
+    for (const type of ["payment.completed", "payment.updated", "refund.created", "unknown.type"]) {
+      vi.clearAllMocks();
+      mockWhere.mockReturnValue([]);
+      mockReturning.mockReturnValue([{ id: 1 }]);
+      mockInngestSend.mockResolvedValue({ ids: ["evt-abc"] });
 
-  it("stores taxAmountInCents from squarePayment.taxMoney", async () => {
-    vi.resetModules();
-
-    let selectCallCount = 0;
-    const localInsertValues = vi.fn();
-
-    const schemaMock = {
-      payments: {
-        id: "id",
-        squarePaymentId: "squarePaymentId",
-        taxAmountInCents: "taxAmountInCents",
-      },
-      bookings: {
-        id: "id",
-        clientId: "clientId",
-        squareOrderId: "squareOrderId",
-        zohoInvoiceId: "zohoInvoiceId",
-        depositPaidInCents: "depositPaidInCents",
-        depositPaidAt: "depositPaidAt",
-      },
-      orders: { id: "id", clientId: "clientId", squareOrderId: "squareOrderId" },
-      profiles: {
-        id: "id",
-        email: "email",
-        firstName: "firstName",
-        role: "role",
-        onboardingData: "onboardingData",
-        notifyEmail: "notifyEmail",
-      },
-      webhookEvents: {
-        id: "id",
-        provider: "provider",
-        externalEventId: "externalEventId",
-        isProcessed: "isProcessed",
-      },
-      syncLog: {},
-      loyaltyTransactions: { id: "id", profileId: "profileId", type: "type" },
-    };
-
-    vi.doMock("@/db", () => ({
-      db: {
-        select: () => ({
-          from: () => ({
-            where: (..._args: unknown[]) => {
-              selectCallCount++;
-              // Call 3: booking by squareOrderId → found
-              if (selectCallCount === 3) {
-                return [{ id: 10, clientId: "client-tax" }];
-              }
-              return [];
-            },
-            limit: () => [],
-          }),
+      const res = await POST(makeSignedRequest({ type }));
+      expect(res.status).toBe(200);
+      expect(mockInngestSend).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ eventType: type }),
         }),
-        insert: () => ({
-          values: (...args: unknown[]) => {
-            localInsertValues(...args);
-            return { returning: () => [{ id: 1 }] };
-          },
-        }),
-        update: () => ({ set: () => ({ where: vi.fn() }) }),
-      },
-    }));
-    vi.doMock("@/db/schema", () => schemaMock);
-    vi.doMock("@/lib/square", () => ({
-      SQUARE_WEBHOOK_SIGNATURE_KEY: "",
-      squareClient: { orders: { get: vi.fn().mockRejectedValue(new Error("no")) } },
-      isSquareConfigured: vi.fn(() => false),
-    }));
-
-    const mod = await import("./route");
-    const event = makeEvent({
-      type: "payment.completed",
-      data: {
-        object: {
-          payment: {
-            id: "sq_pay_tax",
-            orderId: "sq_order_tax",
-            amountMoney: { amount: 10000, currency: "USD" },
-            taxMoney: { amount: 850, currency: "USD" },
-            tenders: [{ type: "CARD" }],
-          },
-        },
-      },
-    });
-
-    const res = await mod.POST(makeRequest(JSON.stringify(event)));
-    expect(res.status).toBe(200);
-
-    // Find the payment insert call (has bookingId)
-    const paymentInsert = localInsertValues.mock.calls.find(
-      (call: unknown[]) =>
-        call[0] &&
-        typeof call[0] === "object" &&
-        "bookingId" in (call[0] as Record<string, unknown>),
-    );
-    expect(paymentInsert).toBeDefined();
-    expect((paymentInsert![0] as Record<string, unknown>).taxAmountInCents).toBe(850);
+      );
+    }
   });
 
-  it("defaults taxAmountInCents to 0 when taxMoney is absent", async () => {
-    vi.resetModules();
+  /* ---------- DB error ---------- */
 
-    let selectCallCount = 0;
-    const localInsertValues = vi.fn();
+  it("returns 500 when webhook insert fails", async () => {
+    mockReturning.mockReturnValue([]);
 
-    const schemaMock = {
-      payments: {
-        id: "id",
-        squarePaymentId: "squarePaymentId",
-        taxAmountInCents: "taxAmountInCents",
-      },
-      bookings: {
-        id: "id",
-        clientId: "clientId",
-        squareOrderId: "squareOrderId",
-        zohoInvoiceId: "zohoInvoiceId",
-        depositPaidInCents: "depositPaidInCents",
-        depositPaidAt: "depositPaidAt",
-      },
-      orders: { id: "id", clientId: "clientId", squareOrderId: "squareOrderId" },
-      profiles: {
-        id: "id",
-        email: "email",
-        firstName: "firstName",
-        role: "role",
-        onboardingData: "onboardingData",
-        notifyEmail: "notifyEmail",
-      },
-      webhookEvents: {
-        id: "id",
-        provider: "provider",
-        externalEventId: "externalEventId",
-        isProcessed: "isProcessed",
-      },
-      syncLog: {},
-      loyaltyTransactions: { id: "id", profileId: "profileId", type: "type" },
-    };
-
-    vi.doMock("@/db", () => ({
-      db: {
-        select: () => ({
-          from: () => ({
-            where: (..._args: unknown[]) => {
-              selectCallCount++;
-              if (selectCallCount === 3) {
-                return [{ id: 11, clientId: "client-notax" }];
-              }
-              return [];
-            },
-            limit: () => [],
-          }),
-        }),
-        insert: () => ({
-          values: (...args: unknown[]) => {
-            localInsertValues(...args);
-            return { returning: () => [{ id: 1 }] };
-          },
-        }),
-        update: () => ({ set: () => ({ where: vi.fn() }) }),
-      },
-    }));
-    vi.doMock("@/db/schema", () => schemaMock);
-    vi.doMock("@/lib/square", () => ({
-      SQUARE_WEBHOOK_SIGNATURE_KEY: "",
-      squareClient: { orders: { get: vi.fn().mockRejectedValue(new Error("no")) } },
-      isSquareConfigured: vi.fn(() => false),
-    }));
-
-    const mod = await import("./route");
-    const event = makeEvent({
-      type: "payment.completed",
-      data: {
-        object: {
-          payment: {
-            id: "sq_pay_notax",
-            orderId: "sq_order_notax",
-            amountMoney: { amount: 5000, currency: "USD" },
-            tenders: [{ type: "CASH" }],
-            // no taxMoney field
-          },
-        },
-      },
-    });
-
-    const res = await mod.POST(makeRequest(JSON.stringify(event)));
-    expect(res.status).toBe(200);
-
-    const paymentInsert = localInsertValues.mock.calls.find(
-      (call: unknown[]) =>
-        call[0] &&
-        typeof call[0] === "object" &&
-        "bookingId" in (call[0] as Record<string, unknown>),
-    );
-    expect(paymentInsert).toBeDefined();
-    expect((paymentInsert![0] as Record<string, unknown>).taxAmountInCents).toBe(0);
+    const res = await POST(makeSignedRequest());
+    expect(res.status).toBe(500);
+    const text = await res.text();
+    expect(text).toBe("DB error");
+    expect(mockInngestSend).not.toHaveBeenCalled();
   });
-
-  /* ---------- Orders API retry on missing metadata ---------- */
-
-  it("retries Orders API when metadata is missing, links booking on second success", async () => {
-    vi.resetModules();
-
-    let selectCallCount = 0;
-    const localInsertValues = vi.fn();
-
-    const schemaMock = {
-      payments: {
-        id: "id",
-        squarePaymentId: "squarePaymentId",
-        taxAmountInCents: "taxAmountInCents",
-        needsManualReview: "needsManualReview",
-      },
-      bookings: {
-        id: "id",
-        clientId: "clientId",
-        squareOrderId: "squareOrderId",
-        zohoInvoiceId: "zohoInvoiceId",
-        depositPaidInCents: "depositPaidInCents",
-        depositPaidAt: "depositPaidAt",
-      },
-      orders: { id: "id", clientId: "clientId", squareOrderId: "squareOrderId" },
-      profiles: {
-        id: "id",
-        email: "email",
-        firstName: "firstName",
-        role: "role",
-        onboardingData: "onboardingData",
-        notifyEmail: "notifyEmail",
-      },
-      webhookEvents: {
-        id: "id",
-        provider: "provider",
-        externalEventId: "externalEventId",
-        isProcessed: "isProcessed",
-      },
-      syncLog: {},
-      loyaltyTransactions: { id: "id", profileId: "profileId", type: "type" },
-    };
-
-    vi.doMock("@/db", () => ({
-      db: {
-        select: () => ({
-          from: () => ({
-            where: (..._args: unknown[]) => {
-              selectCallCount++;
-              // Call 3: booking by squareOrderId → found
-              if (selectCallCount === 3) {
-                return [{ id: 42, clientId: "client-retry" }];
-              }
-              return [];
-            },
-            limit: () => [],
-          }),
-        }),
-        insert: () => ({
-          values: (...args: unknown[]) => {
-            localInsertValues(...args);
-            return { returning: () => [{ id: 1 }] };
-          },
-        }),
-        update: () => ({ set: () => ({ where: vi.fn() }) }),
-      },
-    }));
-    vi.doMock("@/db/schema", () => schemaMock);
-
-    // Mock Orders API: first call returns order with NO metadata (race condition),
-    // second call returns order WITH metadata (propagated).
-    let ordersGetCallCount = 0;
-    vi.doMock("@/lib/square", () => ({
-      SQUARE_WEBHOOK_SIGNATURE_KEY: "",
-      squareClient: {
-        orders: {
-          get: vi.fn(() => {
-            ordersGetCallCount++;
-            if (ordersGetCallCount === 1) {
-              // Race condition: order exists but metadata hasn't propagated yet
-              return Promise.resolve({ order: { id: "sq_order_retry" } });
-            }
-            // Second call: metadata resolved
-            return Promise.resolve({
-              order: {
-                id: "sq_order_retry",
-                metadata: { bookingId: "42", paymentType: "balance" },
-                referenceId: "42",
-              },
-            });
-          }),
-        },
-      },
-      isSquareConfigured: vi.fn(() => true),
-    }));
-
-    const mod = await import("./route");
-    const event = makeEvent({
-      type: "payment.completed",
-      data: {
-        object: {
-          payment: {
-            id: "sq_pay_retry",
-            orderId: "sq_order_retry",
-            amountMoney: { amount: 15000, currency: "USD" },
-            tenders: [{ type: "CARD" }],
-            receiptUrl: "https://squareup.com/receipt/retry",
-          },
-        },
-      },
-    });
-
-    const res = await mod.POST(makeRequest(JSON.stringify(event)));
-
-    // Always returns 200 to Square to prevent retry storms
-    expect(res.status).toBe(200);
-
-    // Orders API was called at least twice (retry happened)
-    expect(ordersGetCallCount).toBeGreaterThanOrEqual(2);
-
-    // Payment was inserted and linked to the correct booking
-    const paymentInsert = localInsertValues.mock.calls.find(
-      (call: unknown[]) =>
-        call[0] &&
-        typeof call[0] === "object" &&
-        "bookingId" in (call[0] as Record<string, unknown>),
-    );
-    expect(paymentInsert).toBeDefined();
-    expect((paymentInsert![0] as Record<string, unknown>).bookingId).toBe(42);
-    // Metadata resolved on retry — no manual review needed
-    expect((paymentInsert![0] as Record<string, unknown>).needsManualReview).toBe(false);
-  }, 15_000); // Extended timeout: retry includes a real 2 s delay
 });

@@ -1,51 +1,23 @@
+// @vitest-environment node
+
 /**
- * Tests for GET /api/cron/zoho-books — batch invoice sync to Zoho Books.
+ * Tests for GET /api/cron/zoho-books — Inngest zoho-books trigger.
  *
  * Covers:
- *  - Auth: missing or wrong x-cron-secret returns 401
- *  - Not configured: Zoho Books env vars missing → 200 with skip message
- *  - No-op: no unsynced entities → zero counts across all three categories
- *  - Bookings: confirmed booking without zohoInvoiceId → creates invoice
- *  - Orders: accepted order without zohoInvoiceId → creates invoice
- *  - Enrollments: enrolled enrollment without zohoInvoiceId → creates invoice
- *  - Error handling: createZohoBooksInvoice throws → increments failed counter,
- *    captured by Sentry
+ *  - Auth: missing or wrong secret (x-cron-secret / Authorization Bearer) → 401
+ *  - Valid x-cron-secret → sends Inngest event, returns 200
+ *  - Valid Authorization Bearer → sends Inngest event, returns 200
  *
- * Mocks: db (select chain), createZohoBooksInvoice,
- * isZohoBooksConfigured, Sentry.
+ * Mocks: @/lib/env (CRON_SECRET), @/inngest/client (inngest.send),
+ * @/lib/cron-monitor (withCronMonitoring passthrough).
  */
-// describe: groups related tests into a labeled block (like a folder for tests)
-// it/test: defines a single test case with a description and assertion function
-// expect: creates an assertion — checks that a value matches an expected condition
-// vi: Vitest's mock utility — creates fake functions, spies on calls, and controls return values
-// beforeEach: runs a setup function before every test in the current describe block
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 /* ------------------------------------------------------------------ */
 /*  Shared mock state                                                   */
 /* ------------------------------------------------------------------ */
 
-let selectIdx = 0;
-let selectData: unknown[][] = [];
-const mockCreateInvoice = vi.fn();
-const mockIsZohoBooksConfigured = vi.fn();
-
-function buildDb() {
-  return {
-    select: vi.fn().mockImplementation(() => {
-      const idx = selectIdx++;
-      const rows = selectData[idx] ?? [];
-      const chain: Record<string, unknown> = {};
-      chain.from = vi.fn().mockReturnValue(chain);
-      chain.innerJoin = vi.fn().mockReturnValue(chain);
-      chain.where = vi
-        .fn()
-        .mockReturnValue(Object.assign([...rows], { limit: vi.fn().mockReturnValue(rows) }));
-      chain.limit = vi.fn().mockReturnValue(rows);
-      return chain;
-    }),
-  };
-}
+const mockInngestSend = vi.fn();
 
 /* ------------------------------------------------------------------ */
 /*  Tests                                                               */
@@ -56,211 +28,65 @@ describe("GET /api/cron/zoho-books", () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
-    selectIdx = 0;
-    selectData = [];
-    mockCreateInvoice.mockResolvedValue(undefined);
-    mockIsZohoBooksConfigured.mockReturnValue(true);
-    process.env.CRON_SECRET = "test-secret";
+    mockInngestSend.mockResolvedValue({ ids: ["evt-abc"] });
 
     vi.resetModules();
 
-    vi.doMock("@/db", () => ({ db: buildDb() }));
-    vi.doMock("@/db/schema", () => ({
-      bookings: {
-        id: "id",
-        clientId: "clientId",
-        totalInCents: "totalInCents",
-        depositPaidInCents: "depositPaidInCents",
-        status: "status",
-        serviceId: "serviceId",
-        zohoInvoiceId: "zohoInvoiceId",
-      },
-      orders: {
-        id: "id",
-        clientId: "clientId",
-        title: "title",
-        finalInCents: "finalInCents",
-        quantity: "quantity",
-        status: "status",
-        zohoInvoiceId: "zohoInvoiceId",
-      },
-      enrollments: {
-        id: "id",
-        clientId: "clientId",
-        programId: "programId",
-        status: "status",
-        zohoInvoiceId: "zohoInvoiceId",
-      },
-      profiles: {
-        id: "id",
-        email: "email",
-        firstName: "firstName",
-        lastName: "lastName",
-        phone: "phone",
-      },
-      services: { id: "id", name: "name" },
-      trainingPrograms: { id: "id", name: "name", priceInCents: "priceInCents" },
+    vi.doMock("@/lib/env", () => ({ env: { CRON_SECRET: "test-secret" } }));
+    vi.doMock("@/inngest/client", () => ({ inngest: { send: mockInngestSend } }));
+    vi.doMock("@/lib/cron-monitor", () => ({
+      withCronMonitoring: vi.fn().mockImplementation(
+        async (_name: string, fn: () => Promise<unknown>) => {
+          const result = await fn();
+          return new Response(JSON.stringify({ ok: true, ...(result as object) }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          });
+        },
+      ),
     }));
-    vi.doMock("@/lib/zoho-books", () => ({
-      createZohoBooksInvoice: mockCreateInvoice,
-      isZohoBooksConfigured: mockIsZohoBooksConfigured,
-    }));
-    vi.doMock("@sentry/nextjs", () => ({ captureException: vi.fn() }));
 
     const mod = await import("./route");
     GET = mod.GET;
   });
 
-  function makeGet(secret?: string) {
-    return new Request("https://example.com/api/cron/zoho-books", {
-      headers: secret ? { "x-cron-secret": secret } : {},
-    });
+  function makeGet(opts: { authorization?: string; legacySecret?: string } = {}) {
+    const headers: Record<string, string> = {};
+    if (opts.authorization) headers["authorization"] = opts.authorization;
+    if (opts.legacySecret) headers["x-cron-secret"] = opts.legacySecret;
+    return new Request("https://example.com/api/cron/zoho-books", { headers });
   }
 
   /* ---------- Auth ---------- */
 
-  it("returns 401 without x-cron-secret header", async () => {
+  it("returns 401 when no auth header is provided", async () => {
     const res = await GET(makeGet());
     expect(res.status).toBe(401);
   });
 
-  it("returns 401 with wrong secret", async () => {
-    const res = await GET(makeGet("bad"));
+  it("returns 401 with wrong x-cron-secret", async () => {
+    const res = await GET(makeGet({ legacySecret: "wrong" }));
     expect(res.status).toBe(401);
   });
 
-  /* ---------- Not configured ---------- */
+  it("returns 401 with wrong Authorization Bearer", async () => {
+    const res = await GET(makeGet({ authorization: "Bearer wrong" }));
+    expect(res.status).toBe(401);
+  });
 
-  it("returns 200 with skip message when Zoho Books is not configured", async () => {
-    mockIsZohoBooksConfigured.mockReturnValueOnce(false);
+  /* ---------- Happy path ---------- */
 
-    const res = await GET(makeGet("test-secret"));
+  it("sends Inngest event and returns 200 with valid x-cron-secret", async () => {
+    const res = await GET(makeGet({ legacySecret: "test-secret" }));
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ message: expect.stringContaining("not configured") });
-    expect(mockCreateInvoice).not.toHaveBeenCalled();
+    expect(mockInngestSend).toHaveBeenCalledOnce();
+    expect(mockInngestSend).toHaveBeenCalledWith({ name: "cron/zoho-books", data: {} });
   });
 
-  /* ---------- No-op ---------- */
-
-  it("returns zero counts when nothing needs syncing", async () => {
-    selectData[0] = []; // bookings
-    selectData[1] = []; // orders
-    selectData[2] = []; // enrollments
-
-    const res = await GET(makeGet("test-secret"));
+  it("sends Inngest event and returns 200 with valid Authorization Bearer", async () => {
+    const res = await GET(makeGet({ authorization: "Bearer test-secret" }));
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({
-      bookingsFound: 0,
-      ordersFound: 0,
-      enrollmentsFound: 0,
-      synced: 0,
-      failed: 0,
-    });
-    expect(mockCreateInvoice).not.toHaveBeenCalled();
-  });
-
-  /* ---------- Happy path: bookings ---------- */
-
-  it("syncs unsynced confirmed bookings", async () => {
-    selectData[0] = [
-      {
-        id: 10,
-        clientId: "c1",
-        totalInCents: 8000,
-        depositPaidInCents: 2000,
-        clientEmail: "alice@example.com",
-        clientFirstName: "Alice",
-        clientLastName: "Smith",
-        clientPhone: "+15550001111",
-        serviceName: "Haircut",
-      },
-    ];
-    selectData[1] = []; // orders
-    selectData[2] = []; // enrollments
-
-    const res = await GET(makeGet("test-secret"));
-    const body = await res.json();
-    expect(body).toMatchObject({ bookingsFound: 1, synced: 1, failed: 0 });
-    expect(mockCreateInvoice).toHaveBeenCalledWith(
-      expect.objectContaining({
-        entityType: "booking",
-        entityId: 10,
-        email: "alice@example.com",
-      }),
-    );
-  });
-
-  /* ---------- Happy path: orders ---------- */
-
-  it("syncs unsynced accepted orders", async () => {
-    selectData[0] = []; // bookings
-    selectData[1] = [
-      {
-        id: 20,
-        clientId: "c2",
-        title: "Print Package",
-        finalInCents: 15000,
-        quantity: 1,
-        clientEmail: "bob@example.com",
-        clientFirstName: "Bob",
-      },
-    ];
-    selectData[2] = []; // enrollments
-
-    const res = await GET(makeGet("test-secret"));
-    const body = await res.json();
-    expect(body).toMatchObject({ ordersFound: 1, synced: 1, failed: 0 });
-    expect(mockCreateInvoice).toHaveBeenCalledWith(
-      expect.objectContaining({ entityType: "order", entityId: 20 }),
-    );
-  });
-
-  /* ---------- Happy path: enrollments ---------- */
-
-  it("syncs unsynced enrollments", async () => {
-    selectData[0] = []; // bookings
-    selectData[1] = []; // orders
-    selectData[2] = [
-      {
-        id: 30,
-        clientId: "c3",
-        clientEmail: "carol@example.com",
-        clientFirstName: "Carol",
-        programName: "Beginner Photography",
-        priceInCents: 20000,
-      },
-    ];
-
-    const res = await GET(makeGet("test-secret"));
-    const body = await res.json();
-    expect(body).toMatchObject({ enrollmentsFound: 1, synced: 1, failed: 0 });
-    expect(mockCreateInvoice).toHaveBeenCalledWith(
-      expect.objectContaining({ entityType: "enrollment", entityId: 30 }),
-    );
-  });
-
-  /* ---------- Error handling ---------- */
-
-  it("counts failures when createZohoBooksInvoice throws", async () => {
-    selectData[0] = [
-      {
-        id: 1,
-        clientId: "c1",
-        totalInCents: 5000,
-        depositPaidInCents: null,
-        clientEmail: "x@y.com",
-        clientFirstName: "X",
-        clientLastName: null,
-        clientPhone: null,
-        serviceName: "Cut",
-      },
-    ];
-    selectData[1] = [];
-    selectData[2] = [];
-    mockCreateInvoice.mockRejectedValueOnce(new Error("Zoho error"));
-
-    const res = await GET(makeGet("test-secret"));
-    const body = await res.json();
-    expect(body).toMatchObject({ bookingsFound: 1, synced: 0, failed: 1 });
+    expect(mockInngestSend).toHaveBeenCalledOnce();
+    expect(mockInngestSend).toHaveBeenCalledWith({ name: "cron/zoho-books", data: {} });
   });
 });

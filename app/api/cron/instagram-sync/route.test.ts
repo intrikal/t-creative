@@ -1,249 +1,92 @@
+// @vitest-environment node
+
 /**
- * Tests for GET /api/cron/instagram-sync — Instagram post sync cron.
+ * Tests for GET /api/cron/instagram-sync — Inngest instagram-sync trigger.
  *
  * Covers:
- *  - Auth: missing or wrong x-cron-secret returns 401
- *  - Not configured: Instagram env vars missing → 200 with skipped=true
- *  - Happy path: fetchRecentMedia returns 2 posts → upserts each into
- *    instagram_posts table (onConflictDoUpdate), hides old posts by
- *    setting isVisible=false, writes success sync_log entry, returns synced=2
- *  - Zero posts: empty media array → synced=0, no hide-old-posts update,
- *    sync_log still written
- *  - API failure: fetchRecentMedia throws → 500, writes failed sync_log
- *    with error message
- *  - Per-post failure: one post insert throws, second succeeds →
- *    synced=1, failed=1, sync_log status="failed"
+ *  - Auth: missing or wrong secret (x-cron-secret / Authorization Bearer) → 401
+ *  - Valid x-cron-secret → sends Inngest event, returns 200
+ *  - Valid Authorization Bearer → sends Inngest event, returns 200
  *
- * Mocks: fetchRecentMedia, isInstagramConfigured, db (insert/update chains
- * with onConflictDoUpdate), drizzle-orm operators, Sentry.
+ * Mocks: @/lib/env (CRON_SECRET), @/inngest/client (inngest.send),
+ * @/lib/cron-monitor (withCronMonitoring passthrough).
  */
-// describe: groups related tests into a labeled block (like a folder for tests)
-// it/test: defines a single test case with a description and assertion function
-// expect: creates an assertion — checks that a value matches an expected condition
-// vi: Vitest's mock utility — creates fake functions, spies on calls, and controls return values
-// beforeEach: runs a setup function before every test in the current describe block
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 /* ------------------------------------------------------------------ */
 /*  Shared mock state                                                   */
 /* ------------------------------------------------------------------ */
 
-const mockFetchRecentMedia = vi.fn();
-const mockIsInstagramConfigured = vi.fn();
-const mockInsertValues = vi.fn();
-const mockUpdateSet = vi.fn();
-
-function buildDb() {
-  const onConflictDoUpdate = vi.fn().mockResolvedValue(undefined);
-  mockInsertValues.mockReturnValue({ onConflictDoUpdate });
-
-  const updateWhere = vi.fn().mockResolvedValue(undefined);
-  mockUpdateSet.mockReturnValue({ where: updateWhere });
-
-  return {
-    insert: vi.fn().mockReturnValue({ values: mockInsertValues }),
-    update: vi.fn().mockReturnValue({ set: mockUpdateSet }),
-  };
-}
+const mockInngestSend = vi.fn();
 
 /* ------------------------------------------------------------------ */
-/*  Tests                                                              */
+/*  Tests                                                               */
 /* ------------------------------------------------------------------ */
 
 describe("GET /api/cron/instagram-sync", () => {
   let GET: (request: Request) => Promise<Response>;
 
-  const fakePost = (id: string) => ({
-    id,
-    username: "lashedbytrini_",
-    media_type: "IMAGE" as const,
-    media_url: `https://cdn.instagram.com/${id}.jpg`,
-    permalink: `https://www.instagram.com/p/${id}/`,
-    timestamp: "2026-03-18T10:00:00+0000",
-  });
-
   beforeEach(async () => {
     vi.clearAllMocks();
-    process.env.CRON_SECRET = "test-cron-secret";
-
-    // Default: Instagram is configured, returns two posts
-    mockIsInstagramConfigured.mockReturnValue(true);
-    mockFetchRecentMedia.mockResolvedValue([fakePost("post_1"), fakePost("post_2")]);
+    mockInngestSend.mockResolvedValue({ ids: ["evt-abc"] });
 
     vi.resetModules();
 
-    vi.doMock("@/lib/instagram", () => ({
-      fetchRecentMedia: mockFetchRecentMedia,
-      isInstagramConfigured: mockIsInstagramConfigured,
-    }));
-
-    vi.doMock("@/db", () => ({ db: buildDb() }));
-
-    vi.doMock("@/db/schema", () => ({
-      instagramPosts: { igMediaId: "igMediaId", isVisible: "isVisible" },
-      syncLog: {},
-    }));
-
-    vi.doMock("drizzle-orm", () => ({
-      eq: vi.fn(),
-      notInArray: vi.fn(),
-    }));
-
-    vi.doMock("@sentry/nextjs", () => ({
-      captureException: vi.fn(),
+    vi.doMock("@/lib/env", () => ({ env: { CRON_SECRET: "test-secret" } }));
+    vi.doMock("@/inngest/client", () => ({ inngest: { send: mockInngestSend } }));
+    vi.doMock("@/lib/cron-monitor", () => ({
+      withCronMonitoring: vi.fn().mockImplementation(
+        async (_name: string, fn: () => Promise<unknown>) => {
+          const result = await fn();
+          return new Response(JSON.stringify({ ok: true, ...(result as object) }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          });
+        },
+      ),
     }));
 
     const mod = await import("./route");
     GET = mod.GET;
   });
 
-  function makeGet(secret?: string): Request {
-    return new Request("https://example.com/api/cron/instagram-sync", {
-      headers: secret ? { "x-cron-secret": secret } : {},
-    });
+  function makeGet(opts: { authorization?: string; legacySecret?: string } = {}) {
+    const headers: Record<string, string> = {};
+    if (opts.authorization) headers["authorization"] = opts.authorization;
+    if (opts.legacySecret) headers["x-cron-secret"] = opts.legacySecret;
+    return new Request("https://example.com/api/cron/instagram-sync", { headers });
   }
 
   /* ---------- Auth ---------- */
 
-  it("returns 401 when x-cron-secret header is missing", async () => {
+  it("returns 401 when no auth header is provided", async () => {
     const res = await GET(makeGet());
     expect(res.status).toBe(401);
-    const body = await res.json();
-    expect(body.error).toBe("Unauthorized");
   });
 
-  it("returns 401 when x-cron-secret header is wrong", async () => {
-    const res = await GET(makeGet("wrong-secret"));
+  it("returns 401 with wrong x-cron-secret", async () => {
+    const res = await GET(makeGet({ legacySecret: "wrong" }));
     expect(res.status).toBe(401);
   });
 
-  /* ---------- Instagram not configured ---------- */
-
-  it("returns 200 with skipped:true when Instagram is not configured", async () => {
-    mockIsInstagramConfigured.mockReturnValue(false);
-    const res = await GET(makeGet("test-cron-secret"));
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.skipped).toBe(true);
-    expect(body.reason).toMatch(/not configured/i);
-    expect(mockFetchRecentMedia).not.toHaveBeenCalled();
+  it("returns 401 with wrong Authorization Bearer", async () => {
+    const res = await GET(makeGet({ authorization: "Bearer wrong" }));
+    expect(res.status).toBe(401);
   });
 
   /* ---------- Happy path ---------- */
 
-  it("calls fetchRecentMedia with the max posts limit", async () => {
-    await GET(makeGet("test-cron-secret"));
-    expect(mockFetchRecentMedia).toHaveBeenCalledOnce();
-    expect(mockFetchRecentMedia).toHaveBeenCalledWith(12);
-  });
-
-  it("upserts each fetched post into the DB", async () => {
-    await GET(makeGet("test-cron-secret"));
-    // One insert().values() call per post, plus one for the sync_log
-    expect(mockInsertValues).toHaveBeenCalledTimes(3);
-  });
-
-  it("inserts post data including igMediaId, mediaUrl, and isVisible:true", async () => {
-    await GET(makeGet("test-cron-secret"));
-    expect(mockInsertValues).toHaveBeenCalledWith(
-      expect.objectContaining({
-        igMediaId: "post_1",
-        mediaUrl: "https://cdn.instagram.com/post_1.jpg",
-        isVisible: true,
-      }),
-    );
-  });
-
-  it("returns synced count of 2 when two posts are fetched", async () => {
-    const res = await GET(makeGet("test-cron-secret"));
+  it("sends Inngest event and returns 200 with valid x-cron-secret", async () => {
+    const res = await GET(makeGet({ legacySecret: "test-secret" }));
     expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.synced).toBe(2);
-    expect(body.failed).toBe(0);
+    expect(mockInngestSend).toHaveBeenCalledOnce();
+    expect(mockInngestSend).toHaveBeenCalledWith({ name: "cron/instagram-sync", data: {} });
   });
 
-  it("hides posts not in the latest fetch by setting isVisible:false", async () => {
-    await GET(makeGet("test-cron-secret"));
-    // update().set() should be called once for the hide-old-posts step
-    expect(mockUpdateSet).toHaveBeenCalledWith({ isVisible: false });
-  });
-
-  it("writes a success sync_log entry after syncing", async () => {
-    await GET(makeGet("test-cron-secret"));
-    // Last insert().values() call should be the sync_log entry
-    const syncLogCall = mockInsertValues.mock.calls.at(-1)?.[0] as Record<string, unknown>;
-    expect(syncLogCall).toBeDefined();
-    expect(syncLogCall.provider).toBe("instagram");
-    expect(syncLogCall.status).toBe("success");
-  });
-
-  /* ---------- Zero posts ---------- */
-
-  it("returns synced:0 when fetchRecentMedia returns empty array", async () => {
-    mockFetchRecentMedia.mockResolvedValue([]);
-
-    const res = await GET(makeGet("test-cron-secret"));
+  it("sends Inngest event and returns 200 with valid Authorization Bearer", async () => {
+    const res = await GET(makeGet({ authorization: "Bearer test-secret" }));
     expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.synced).toBe(0);
-    expect(body.failed).toBe(0);
-    // No insert for posts, but sync_log insert still runs
-    expect(mockInsertValues).toHaveBeenCalledOnce(); // only sync_log
-  });
-
-  it("skips hide-old-posts update when no posts are fetched", async () => {
-    mockFetchRecentMedia.mockResolvedValue([]);
-    await GET(makeGet("test-cron-secret"));
-    // update().set() should NOT be called when media is empty
-    expect(mockUpdateSet).not.toHaveBeenCalled();
-  });
-
-  /* ---------- Error handling ---------- */
-
-  it("returns 500 when fetchRecentMedia throws", async () => {
-    mockFetchRecentMedia.mockRejectedValue(new Error("Instagram API rate limited"));
-
-    const res = await GET(makeGet("test-cron-secret"));
-    expect(res.status).toBe(500);
-    const body = await res.json();
-    expect(body.error).toBe("Sync failed");
-  });
-
-  it("writes a failed sync_log entry when fetchRecentMedia throws", async () => {
-    mockFetchRecentMedia.mockRejectedValue(new Error("Token expired"));
-
-    await GET(makeGet("test-cron-secret"));
-    const syncLogCall = mockInsertValues.mock.calls.at(-1)?.[0] as Record<string, unknown>;
-    expect(syncLogCall).toBeDefined();
-    expect(syncLogCall.provider).toBe("instagram");
-    expect(syncLogCall.status).toBe("failed");
-    expect(syncLogCall.errorMessage).toBe("Token expired");
-  });
-
-  it("counts individual post failures and continues syncing remaining posts", async () => {
-    // First post insert throws, second succeeds
-    const onConflictDoUpdate = vi
-      .fn()
-      .mockRejectedValueOnce(new Error("DB constraint"))
-      .mockResolvedValue(undefined);
-    mockInsertValues.mockReturnValue({ onConflictDoUpdate });
-
-    const res = await GET(makeGet("test-cron-secret"));
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.synced).toBe(1);
-    expect(body.failed).toBe(1);
-  });
-
-  it("writes sync_log with failed status when any post insert fails", async () => {
-    const onConflictDoUpdate = vi
-      .fn()
-      .mockRejectedValueOnce(new Error("insert error"))
-      .mockResolvedValue(undefined);
-    mockInsertValues.mockReturnValue({ onConflictDoUpdate });
-
-    await GET(makeGet("test-cron-secret"));
-    const syncLogCall = mockInsertValues.mock.calls.at(-1)?.[0] as Record<string, unknown>;
-    expect(syncLogCall.status).toBe("failed");
+    expect(mockInngestSend).toHaveBeenCalledOnce();
+    expect(mockInngestSend).toHaveBeenCalledWith({ name: "cron/instagram-sync", data: {} });
   });
 });

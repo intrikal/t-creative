@@ -1,66 +1,23 @@
+// @vitest-environment node
+
 /**
- * Tests for GET /api/cron/recurring-bookings — safety-net generator for
- * missed recurring booking occurrences.
+ * Tests for GET /api/cron/recurring-bookings — Inngest recurring-bookings trigger.
  *
  * Covers:
- *  - Auth: missing or wrong x-cron-secret returns 401
- *  - No-op: no completed recurring bookings → zero counts
- *  - RRULE path: completed booking with "FREQ=WEEKLY;INTERVAL=2" and no
- *    successor → inserts next booking, sends confirmation email, returns
- *    created=1
- *  - Dedup (successor exists): booking already has a later sibling in the
- *    same series → skipped=1, no new booking created
- *  - Dedup (sync_log): booking already processed by this cron (sync_log
- *    entry with status="success") → skipped=1
+ *  - Auth: missing or wrong secret (x-cron-secret / Authorization Bearer) → 401
+ *  - Valid x-cron-secret → sends Inngest event, returns 200
+ *  - Valid Authorization Bearer → sends Inngest event, returns 200
  *
- * Mocks: db (select/insert/update chains), sendEmail,
- * RecurringBookingConfirmation component, drizzle-orm operators.
+ * Mocks: @/lib/env (CRON_SECRET), @/inngest/client (inngest.send),
+ * @/lib/cron-monitor (withCronMonitoring passthrough).
  */
-// describe: groups related tests into a labeled block (like a folder for tests)
-// it/test: defines a single test case with a description and assertion function
-// expect: creates an assertion — checks that a value matches an expected condition
-// vi: Vitest's mock utility — creates fake functions, spies on calls, and controls return values
-// beforeEach: runs a setup function before every test in the current describe block
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 /* ------------------------------------------------------------------ */
 /*  Shared mock state                                                   */
 /* ------------------------------------------------------------------ */
 
-let selectIdx = 0;
-let selectData: unknown[][] = [];
-const mockInsert = vi.fn();
-const mockUpdate = vi.fn();
-const mockSendEmail = vi.fn();
-
-function buildDb() {
-  const insertReturning = vi.fn().mockResolvedValue([{ id: 99 }]);
-  const insertValues = vi.fn().mockReturnValue({ returning: insertReturning });
-
-  mockInsert.mockReturnValue({ values: insertValues });
-
-  const updateSet = vi.fn().mockReturnValue({
-    where: vi.fn().mockResolvedValue(undefined),
-  });
-  mockUpdate.mockReturnValue({ set: updateSet });
-
-  return {
-    select: vi.fn().mockImplementation(() => {
-      const idx = selectIdx++;
-      const rows = selectData[idx] ?? [];
-      const chain: Record<string, unknown> = {};
-      chain.from = vi.fn().mockReturnValue(chain);
-      chain.innerJoin = vi.fn().mockReturnValue(chain);
-      chain.where = vi
-        .fn()
-        .mockReturnValue(Object.assign([...rows], { limit: vi.fn().mockReturnValue(rows) }));
-      chain.limit = vi.fn().mockReturnValue(rows);
-      return chain;
-    }),
-    insert: mockInsert,
-    update: mockUpdate,
-  };
-}
+const mockInngestSend = vi.fn();
 
 /* ------------------------------------------------------------------ */
 /*  Tests                                                               */
@@ -71,192 +28,65 @@ describe("GET /api/cron/recurring-bookings", () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
-    selectIdx = 0;
-    selectData = [];
-    mockSendEmail.mockResolvedValue(true);
-    process.env.CRON_SECRET = "test-secret";
+    mockInngestSend.mockResolvedValue({ ids: ["evt-abc"] });
 
     vi.resetModules();
 
-    vi.doMock("@/db", () => ({ db: buildDb() }));
-    vi.doMock("@/db/schema", () => ({
-      bookings: {
-        id: "id",
-        clientId: "clientId",
-        serviceId: "serviceId",
-        staffId: "staffId",
-        startsAt: "startsAt",
-        durationMinutes: "durationMinutes",
-        totalInCents: "totalInCents",
-        location: "location",
-        recurrenceRule: "recurrenceRule",
-        parentBookingId: "parentBookingId",
-        subscriptionId: "subscriptionId",
-        completedAt: "completedAt",
-        status: "status",
-        deletedAt: "deletedAt",
-        confirmedAt: "confirmedAt",
-      },
-      bookingSubscriptions: {
-        id: "id",
-        sessionsUsed: "sessionsUsed",
-        totalSessions: "totalSessions",
-        status: "status",
-        intervalDays: "intervalDays",
-      },
-      profiles: {
-        id: "id",
-        email: "email",
-        firstName: "firstName",
-        notifyEmail: "notifyEmail",
-      },
-      services: { id: "id", name: "name" },
-      syncLog: {
-        id: "id",
-        entityType: "entityType",
-        localId: "localId",
-        status: "status",
-      },
-    }));
-    vi.doMock("@/lib/resend", () => ({ sendEmail: mockSendEmail }));
-    vi.doMock("@/emails/RecurringBookingConfirmation", () => ({
-      RecurringBookingConfirmation: vi.fn().mockReturnValue(null),
+    vi.doMock("@/lib/env", () => ({ env: { CRON_SECRET: "test-secret" } }));
+    vi.doMock("@/inngest/client", () => ({ inngest: { send: mockInngestSend } }));
+    vi.doMock("@/lib/cron-monitor", () => ({
+      withCronMonitoring: vi.fn().mockImplementation(
+        async (_name: string, fn: () => Promise<unknown>) => {
+          const result = await fn();
+          return new Response(JSON.stringify({ ok: true, ...(result as object) }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          });
+        },
+      ),
     }));
 
     const mod = await import("./route");
     GET = mod.GET;
   });
 
-  function makeGet(secret?: string) {
-    return new Request("https://example.com/api/cron/recurring-bookings", {
-      headers: secret ? { "x-cron-secret": secret } : {},
-    });
+  function makeGet(opts: { authorization?: string; legacySecret?: string } = {}) {
+    const headers: Record<string, string> = {};
+    if (opts.authorization) headers["authorization"] = opts.authorization;
+    if (opts.legacySecret) headers["x-cron-secret"] = opts.legacySecret;
+    return new Request("https://example.com/api/cron/recurring-bookings", { headers });
   }
 
   /* ---------- Auth ---------- */
 
-  it("returns 401 without x-cron-secret header", async () => {
+  it("returns 401 when no auth header is provided", async () => {
     const res = await GET(makeGet());
     expect(res.status).toBe(401);
   });
 
-  it("returns 401 with wrong secret", async () => {
-    const res = await GET(makeGet("bad"));
+  it("returns 401 with wrong x-cron-secret", async () => {
+    const res = await GET(makeGet({ legacySecret: "wrong" }));
     expect(res.status).toBe(401);
   });
 
-  /* ---------- No-op ---------- */
+  it("returns 401 with wrong Authorization Bearer", async () => {
+    const res = await GET(makeGet({ authorization: "Bearer wrong" }));
+    expect(res.status).toBe(401);
+  });
 
-  it("returns zero counts when no completed recurring bookings exist", async () => {
-    // candidates query returns empty
-    selectData[0] = [];
+  /* ---------- Happy path ---------- */
 
-    const res = await GET(makeGet("test-secret"));
+  it("sends Inngest event and returns 200 with valid x-cron-secret", async () => {
+    const res = await GET(makeGet({ legacySecret: "test-secret" }));
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ checked: 0, created: 0, skipped: 0 });
+    expect(mockInngestSend).toHaveBeenCalledOnce();
+    expect(mockInngestSend).toHaveBeenCalledWith({ name: "cron/recurring-bookings", data: {} });
   });
 
-  /* ---------- Happy path: RRULE ---------- */
-
-  it("creates next booking for completed recurring booking with RRULE", async () => {
-    const completedBooking = {
-      id: 10,
-      clientId: "client-1",
-      serviceId: 1,
-      staffId: "staff-1",
-      startsAt: new Date("2026-03-01T10:00:00Z"),
-      durationMinutes: 90,
-      totalInCents: 12000,
-      location: "Studio",
-      recurrenceRule: "FREQ=WEEKLY;INTERVAL=2",
-      parentBookingId: null,
-      subscriptionId: null,
-      completedAt: new Date(),
-    };
-
-    // 0: candidates
-    selectData[0] = [completedBooking];
-    // 1: existing successors (none)
-    selectData[1] = [];
-    // 2: sync_log dedup (none processed)
-    selectData[2] = [];
-    // 3: email lookup for confirmation
-    selectData[3] = [
-      {
-        clientEmail: "alice@example.com",
-        clientFirstName: "Alice",
-        notifyEmail: true,
-        serviceName: "Classic Lash Set",
-      },
-    ];
-
-    const res = await GET(makeGet("test-secret"));
+  it("sends Inngest event and returns 200 with valid Authorization Bearer", async () => {
+    const res = await GET(makeGet({ authorization: "Bearer test-secret" }));
     expect(res.status).toBe(200);
-
-    const body = await res.json();
-    expect(body.checked).toBe(1);
-    expect(body.created).toBe(1);
-  });
-
-  /* ---------- Dedup: successor exists ---------- */
-
-  it("skips booking when successor already exists in the series", async () => {
-    const completedBooking = {
-      id: 10,
-      clientId: "client-1",
-      serviceId: 1,
-      staffId: "staff-1",
-      startsAt: new Date("2026-03-01T10:00:00Z"),
-      durationMinutes: 90,
-      totalInCents: 12000,
-      location: "Studio",
-      recurrenceRule: "FREQ=WEEKLY;INTERVAL=2",
-      parentBookingId: null,
-      subscriptionId: null,
-      completedAt: new Date(),
-    };
-
-    // 0: candidates
-    selectData[0] = [completedBooking];
-    // 1: existing successors — one exists with later date
-    selectData[1] = [{ parentBookingId: 10, startsAt: new Date("2026-03-15T10:00:00Z") }];
-    // 2: sync_log dedup (none processed)
-    selectData[2] = [];
-
-    const res = await GET(makeGet("test-secret"));
-    const body = await res.json();
-    expect(body.created).toBe(0);
-    expect(body.skipped).toBe(1);
-  });
-
-  /* ---------- Dedup: already processed ---------- */
-
-  it("skips booking already processed by this cron", async () => {
-    const completedBooking = {
-      id: 10,
-      clientId: "client-1",
-      serviceId: 1,
-      staffId: null,
-      startsAt: new Date("2026-03-01T10:00:00Z"),
-      durationMinutes: 60,
-      totalInCents: 8000,
-      location: null,
-      recurrenceRule: "FREQ=WEEKLY;INTERVAL=3",
-      parentBookingId: null,
-      subscriptionId: null,
-      completedAt: new Date(),
-    };
-
-    // 0: candidates
-    selectData[0] = [completedBooking];
-    // 1: existing successors
-    selectData[1] = [];
-    // 2: sync_log dedup — already processed
-    selectData[2] = [{ localId: "10" }];
-
-    const res = await GET(makeGet("test-secret"));
-    const body = await res.json();
-    expect(body.created).toBe(0);
-    expect(body.skipped).toBe(1);
+    expect(mockInngestSend).toHaveBeenCalledOnce();
+    expect(mockInngestSend).toHaveBeenCalledWith({ name: "cron/recurring-bookings", data: {} });
   });
 });

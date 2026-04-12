@@ -129,6 +129,80 @@ export async function signInAsClient(page: Page): Promise<boolean> {
 }
 
 /**
+ * Signs in as a client whose profile has no first_name, so
+ * `isOnboardingComplete()` returns false and the auth callback
+ * redirects to /onboarding. Uses a dedicated email to avoid
+ * colliding with the standard e2e-client test user.
+ */
+export async function signInAsNewClient(page: Page): Promise<boolean> {
+  if (!hasAuthConfig()) return false;
+
+  const email = "e2e-new-client@test.tcreativestudio.com";
+  const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+
+  // Ensure the auth.users row exists
+  let userId: string;
+  const { data: userData, error: createError } = await admin.auth.admin.createUser({
+    email,
+    email_confirm: true,
+  });
+
+  if (createError) {
+    const { data: profileRows } = await admin
+      .from("profiles")
+      .select("id")
+      .eq("email", email)
+      .limit(1);
+
+    const existing = profileRows?.[0] as { id: string } | undefined;
+    if (!existing) {
+      console.error("[e2e/auth] Could not create or find new-client user:", createError.message);
+      return false;
+    }
+    userId = existing.id;
+  } else {
+    userId = userData.user.id;
+  }
+
+  // Seed profile WITHOUT first_name so isOnboardingComplete() returns false
+  const { error: upsertError } = await admin.from("profiles").upsert(
+    {
+      id: userId,
+      email,
+      role: "client",
+      first_name: "",
+      last_name: "",
+      is_active: true,
+    },
+    { onConflict: "id" },
+  );
+
+  if (upsertError) {
+    console.error("[e2e/auth] Failed to upsert new-client profile:", upsertError.message);
+    return false;
+  }
+
+  // Generate magic link and navigate
+  const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({
+    type: "magiclink",
+    email,
+    options: { redirectTo: `${BASE_URL}/auth/callback` },
+  });
+
+  if (linkError || !linkData?.properties?.action_link) {
+    console.error("[e2e/auth] Failed to generate magic link:", linkError?.message);
+    return false;
+  }
+
+  await page.goto(linkData.properties.action_link);
+  await page.waitForLoadState("networkidle");
+
+  return true;
+}
+
+/**
  * Convenience wrapper: sign in as the shared E2E admin user.
  *
  * Note: the auth callback only hard-redirects known admin emails to /admin.

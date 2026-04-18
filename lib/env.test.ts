@@ -5,7 +5,7 @@
  * Covers:
  *  - All required vars present → validation passes (no throw)
  *  - Missing DATABASE_POOLER_URL → throws with descriptive message
- *  - Missing CRON_SECRET → throws
+ *  - Missing CRON_SECRET → no throw (optional; crons simply return 401)
  *  - Optional vars (RESEND_API_KEY) missing → no throw
  *  - RESEND_DAILY_LIMIT coerced to integer
  *  - Invalid URL format → throws with field name
@@ -91,11 +91,14 @@ describe("lib/env", () => {
     await expect(import("./env")).rejects.toThrow("DATABASE_POOLER_URL");
   });
 
-  it("throws when CRON_SECRET is missing", async () => {
+  it("does not throw when CRON_SECRET is missing (crons return 401 when unset)", async () => {
     stubAllRequired();
     delete process.env.CRON_SECRET;
 
-    await expect(import("./env")).rejects.toThrow("CRON_SECRET");
+    const { env } = await import("./env");
+
+    // Falls back to "" — cron routes always return 401 with an empty secret
+    expect(env.CRON_SECRET).toBe("");
   });
 
   // ── Optional vars ───────────────────────────────────────────────────────

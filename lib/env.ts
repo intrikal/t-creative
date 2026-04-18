@@ -41,14 +41,14 @@ const schema = z.object({
   RECAPTCHA_SECRET_KEY: z.string().min(1).optional(),
 
   // ── Security / Auth ───────────────────────────────────────────────────────
-  /** Secret for authorizing Vercel cron job requests. */
-  CRON_SECRET: z.string().min(1),
-  /** Square webhook HMAC-SHA256 signing key for verifying inbound events. */
-  SQUARE_WEBHOOK_SIGNATURE_KEY: z.string().min(1),
-  /** Twilio Auth Token for verifying inbound SMS webhook signatures. */
-  TWILIO_AUTH_TOKEN: z.string().min(1),
-  /** HMAC secret for signing waiver completion tokens. */
-  WAIVER_TOKEN_SECRET: z.string().min(1),
+  /** Secret for authorizing Vercel cron job requests. Crons return 401 when unset. */
+  CRON_SECRET: z.string().min(1).optional(),
+  /** Square webhook HMAC-SHA256 signing key. Webhook endpoint returns 403 when unset. */
+  SQUARE_WEBHOOK_SIGNATURE_KEY: z.string().min(1).optional(),
+  /** Twilio Auth Token for verifying inbound SMS webhook signatures. Verification skipped when unset. */
+  TWILIO_AUTH_TOKEN: z.string().min(1).optional(),
+  /** HMAC secret for signing waiver completion tokens. Falls back to a dev-only default when unset. */
+  WAIVER_TOKEN_SECRET: z.string().min(1).optional(),
 
   // ── Square (optional — app runs in cash-only mode without these) ──────────
   SQUARE_ENVIRONMENT: z.string().optional(),
@@ -120,11 +120,11 @@ export const env = {
   UPSTASH_REDIS_REST_TOKEN: process.env.UPSTASH_REDIS_REST_TOKEN,
   NEXT_PUBLIC_RECAPTCHA_SITE_KEY: process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY,
   RECAPTCHA_SECRET_KEY: process.env.RECAPTCHA_SECRET_KEY,
-  // Required security vars — guaranteed non-empty by schema validation above
-  CRON_SECRET: process.env.CRON_SECRET as string,
-  SQUARE_WEBHOOK_SIGNATURE_KEY: process.env.SQUARE_WEBHOOK_SIGNATURE_KEY as string,
-  TWILIO_AUTH_TOKEN: process.env.TWILIO_AUTH_TOKEN as string,
-  WAIVER_TOKEN_SECRET: process.env.WAIVER_TOKEN_SECRET as string,
+  // Falls back to "" when unset — crons always 401 with an empty secret.
+  CRON_SECRET: process.env.CRON_SECRET ?? "",
+  SQUARE_WEBHOOK_SIGNATURE_KEY: process.env.SQUARE_WEBHOOK_SIGNATURE_KEY,
+  TWILIO_AUTH_TOKEN: process.env.TWILIO_AUTH_TOKEN,
+  WAIVER_TOKEN_SECRET: process.env.WAIVER_TOKEN_SECRET,
   // Optional vars
   SQUARE_ENVIRONMENT: process.env.SQUARE_ENVIRONMENT,
   SQUARE_LOCATION_ID: process.env.SQUARE_LOCATION_ID,

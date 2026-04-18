@@ -30,7 +30,7 @@ import { withRequestLogger } from "@/lib/middleware/request-logger";
 /* ------------------------------------------------------------------ */
 
 function verifySignature(body: string, signature: string, url: string): boolean {
-  const hmac = createHmac("sha256", env.SQUARE_WEBHOOK_SIGNATURE_KEY);
+  const hmac = createHmac("sha256", env.SQUARE_WEBHOOK_SIGNATURE_KEY ?? "");
   hmac.update(url + body);
   const expected = hmac.digest("base64");
 
@@ -50,9 +50,8 @@ export const POST = withRequestLogger(async function POST(request: Request): Pro
   const signature = request.headers.get("x-square-hmacsha256-signature") ?? "";
   const url = request.url;
 
-  // Fail closed — if the key is missing, env.ts startup validation already
-  // caught it. Reject if signature verification fails.
-  if (!verifySignature(body, signature, url)) {
+  // Fail closed — reject if the key is not configured or signature doesn't match.
+  if (!env.SQUARE_WEBHOOK_SIGNATURE_KEY || !verifySignature(body, signature, url)) {
     return new Response("Invalid signature", { status: 403 });
   }
 

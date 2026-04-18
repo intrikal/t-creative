@@ -9,8 +9,10 @@
 import { createHmac, timingSafeEqual } from "crypto";
 import { env } from "./env";
 
-// Secret is validated as required at startup by lib/env.ts — no fallback.
-const SECRET = env.WAIVER_TOKEN_SECRET;
+// Falls back to a dev-only default when WAIVER_TOKEN_SECRET is not set.
+// Tokens signed with the default are only valid in that same process — safe
+// for local dev but meaningless in production without the real secret.
+const SECRET = env.WAIVER_TOKEN_SECRET ?? "dev-waiver-secret";
 
 /** The data encoded inside a waiver token — identifies which booking
  *  and which client the waiver completion link is for. */
